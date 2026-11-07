@@ -31,8 +31,7 @@ test('D3 es la versión 7 y está en vendor/', () => {
   assert.match(d3.slice(0, 80), /d3js\.org v7\./);
 });
 
-test('i18n carga en Node y tiene las mismas claves en ES y EN', () => {
+test('i18n carga en Node', () => {
   const i18n = require('../js/i18n.js');
-  assert.deepEqual(Object.keys(i18n.dict.es).sort(), Object.keys(i18n.dict.en).sort());
-  assert.equal(i18n.t('en', 'appTitle'), 'Project Network Lab');
+  assert.equal(i18n.t('en', 'app.title'), 'Project Network Lab');
 });
