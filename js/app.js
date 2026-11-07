@@ -108,6 +108,7 @@
     $('navWork').setAttribute('aria-current', state.v === 'work' ? 'page' : 'false');
     $('navRoute').href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: state.ex || 'ej6', step: 0, wi: null }));
     $('navWork').href = U.encode(Object.assign({}, state, { v: 'work', step: 0 }));
+    $('brandLink').href = `index.html?lang=${lang()}`;
   }
 
   function render(opts) {

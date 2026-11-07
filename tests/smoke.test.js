@@ -7,14 +7,14 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const pkg = require('../package.json');
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(ROOT, 'cpm.html'), 'utf8');
 
 test('package.json no tiene dependencias (principio 3)', () => {
   assert.equal(pkg.dependencies, undefined);
   assert.equal(pkg.devDependencies, undefined);
 });
 
-test('index.html solo carga scripts locales que existen, sin módulos ES ni CDN (principios 2 y 29)', () => {
+test('cpm.html solo carga scripts locales que existen, sin módulos ES ni CDN (principios 2 y 29)', () => {
   const srcs = [...html.matchAll(/<script\b([^>]*)>/g)].map((m) => m[1]);
   assert.ok(srcs.length > 0);
   for (const attrs of srcs) {

@@ -22,7 +22,7 @@
         urlWarning: 'El enlace estaba incompleto o dañado: se ha abierto lo que se ha podido recuperar.',
         footer: 'Código con licencia MIT · contenido docente CC BY 4.0 · Universidad de Burgos',
       },
-      nav: { label: 'Secciones', route: 'Ruta guiada', work: 'Taller' },
+      nav: { label: 'Secciones', route: 'Ruta guiada', work: 'Taller', home: 'Portada del laboratorio' },
       ctl: {
         lang: 'Idioma', nota: 'Notación', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Caja', box4: '4 campos', box7: '7 campos', boxc: 'Compacta',
@@ -119,7 +119,7 @@
         urlWarning: 'The link was incomplete or damaged: what could be recovered has been opened.',
         footer: 'Code under the MIT licence · teaching content CC BY 4.0 · University of Burgos',
       },
-      nav: { label: 'Sections', route: 'Guided tour', work: 'Workshop' },
+      nav: { label: 'Sections', route: 'Guided tour', work: 'Workshop', home: 'Lab home page' },
       ctl: {
         lang: 'Language', nota: 'Notation', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Node box', box4: '4 fields', box7: '7 fields', boxc: 'Compact',
