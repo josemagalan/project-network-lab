@@ -210,6 +210,36 @@ check('AC7 · modo predicción: oculta el paso, marca cada valor y no deja avanz
   await close(page);
 });
 
+check('AC7 · mientras se predice, ni la red, ni la matriz, ni el texto delatan el paso; «Mostrar» revela los valores', async () => {
+  // Paso de E en el Ejercicio 6: ES(E) = máx{EF(A), EF(B)} = máx{2, 3} = 3 y EF(E) = 7; manda B.
+  const page = await lab('v=route&ex=ej6&lang=es');
+  const k = (await trace(page)).findIndex((s) => s.kind === 'forward' && s.act === 'E');
+  await go(page, k);
+  await page.locator('#chkPredict').check();
+  const boxE = () => page.evaluate(() => {
+    const own = (x) => (x.firstChild && x.firstChild.nodeType === 3 ? x.firstChild.nodeValue : '');   // sin el <title>
+    const g = [...document.querySelectorAll('#netView g')].find((n) => n.querySelector(':scope > text.nid') && own(n.querySelector(':scope > text.nid')) === 'E');
+    return g ? [...g.querySelectorAll(':scope > text')].map(own) : [];
+  });
+  const textE = await boxE();
+  assert.ok(textE.length, 'la caja de E está en la red');
+  assert.ok(!textE.includes('3') && !textE.includes('7'), `la caja de E no muestra ES ni EF: ${textE.join(' ')}`);
+  assert.equal(await page.locator('#netView .chosen').count(), 0, 'ninguna flecha marcada como la que manda');
+  assert.ok((await page.locator('#netView .compared').count()) >= 2, 'las dos predecesoras se ven como comparadas');
+  assert.doesNotMatch(await page.locator('#stepText').innerText(), /:\s*B\.|Manda/, 'el texto no dice que manda B');
+  await page.locator('#btnMatrix').click();
+  assert.equal(await page.locator('#matrixView .cellchosen').count(), 0, 'la matriz tampoco marca la casilla que manda');
+  await page.locator('#btnNet').click();
+  await page.locator('#predictBox button').nth(1).click();   // Mostrar los valores correctos
+  const shown = await page.locator('#predictBox input').evaluateAll((els) => els.map((e) => e.value));
+  assert.deepEqual(shown, ['3', '7']);
+  assert.ok((await page.locator('#netView .chosen').count()) >= 1, 'al mostrar, se marca la flecha que manda');
+  assert.match(await page.locator('#stepText').innerText(), /B/);
+  assert.ok((await boxE()).includes('3'), 'al mostrar, la caja de E enseña ES');
+  assert.ok(!(await page.locator('#btnNext').isDisabled()));
+  await close(page);
+});
+
 // ---------- AC8 y AC19: enlace y recarga ----------
 
 check('AC8 · el enlace copiado reproduce el mismo estado en otro navegador', async () => {
@@ -246,6 +276,114 @@ check('AC19 · una tabla editada en el taller sigue ahí al recargar', async () 
   assert.equal(await page.locator('#workshop input[data-f="duration"]').first().inputValue(), '5');
   assert.equal(await page.evaluate(() => PNL.app.model().solution.duration), d1);
   assert.notEqual(d1, d0, 'el cambio altera la duración del Ejercicio 6');
+  await close(page);
+});
+
+// ---------- Taller (AC2, AC3, AC4, AC5, AC11, AC13, AC18 y la tabla vacía; revisión F3, F5 y F6) ----------
+
+// Abre el taller con una tabla dada (filas con id, name, duration y links).
+async function workshop(rows, opts = {}) {
+  const page = await lab('v=work&lang=es', opts);
+  const hash = await page.evaluate(([r, m, l]) => PNL.urlstate.encode(Object.assign(PNL.urlstate.defaults(), { v: 'work', t: r, mode: m, lang: l })),
+    [rows, opts.mode || 'pred', opts.lang || 'es']);
+  await page.evaluate((h) => { location.hash = h; }, hash);
+  await page.waitForFunction((h) => location.hash === h && PNL.app.state().t, hash);
+  return page;
+}
+const R = (id, duration, links = '') => ({ id, name: '', duration: String(duration), links });
+const sideText = (page) => page.locator('#workshop .work-side').innerText();
+
+check('Taller · AC3 y AC4: los errores se nombran en su fila, en el idioma activo, y no hay resultados', async () => {
+  for (const [lang, cycle, row] of [['es', /ciclo/, /Fila 3/], ['en', /cycle/, /Row 3/]]) {
+    const page = await workshop([R('A', 1, 'C'), R('B', 2, 'A'), R('C', 3, 'B')], { lang });
+    const txt = await sideText(page);
+    assert.match(txt, cycle, txt);
+    for (const id of ['A', 'B', 'C']) assert.match(txt, new RegExp(`\\b${id}\\b`));
+    assert.ok(await page.locator('#stage').isHidden(), 'sin resultados mientras haya un ciclo');
+    await close(page);
+    const p2 = await workshop([R('A', 1), R('B', 2, 'A'), R('C', -1, 'B')], { lang });
+    assert.match(await sideText(p2), row);
+    assert.equal(await p2.locator('#workshop tbody tr').nth(2).locator('[data-f="duration"]').getAttribute('aria-invalid'), 'true');
+    assert.ok(await p2.locator('#stage').isHidden());
+    await close(p2);
+  }
+});
+
+check('Taller · AC5: una redundancia se avisa en su campo y se calcula igual', async () => {
+  const page = await workshop([R('A', 1), R('B', 1, 'A'), R('C', 5, 'A, B')]);
+  assert.equal(await page.locator('#workshop .issues.warn').count(), 1);
+  assert.ok((await page.locator('#workshop tbody tr').nth(2).locator('[data-f="links"]').getAttribute('class')).includes('warn'));
+  assert.ok(await page.locator('#stage').isVisible());
+  assert.equal(await page.evaluate(() => PNL.app.model().solution.duration), 7);
+  await close(page);
+});
+
+check('Taller · AC13: el botón de pegar añade las filas de una hoja de cálculo', async () => {
+  const page = await workshop([R('A', 2)]);
+  await page.locator('#workshop .work-tools button').first().click();
+  await page.locator('#workshop textarea.paste').fill('B\tSegunda\t3\tA\nC\tTercera\t4\tB');
+  await page.locator('#workshop textarea.paste + button').click();
+  await page.waitForFunction(() => PNL.app.state().t.length === 3);
+  assert.deepEqual(await page.locator('#workshop input[data-f="id"]').evaluateAll((els) => els.map((e) => e.value)), ['A', 'B', 'C']);
+  assert.equal(await page.evaluate(() => PNL.app.model().solution.duration), 9);
+  await close(page);
+});
+
+check('Taller · AC18: el selector pasa de posteriores a predecesoras con los mismos resultados', async () => {
+  const ex = await (async () => { const p = await lab('v=route&lang=es'); const r = await p.evaluate(() => PNL.examples.get('ej6')); await close(p); return r; })();
+  const rows = ex.rows.map((r) => ({ id: r.id, name: '', duration: String(r.duration), links: r.links }));
+  const page = await workshop(rows, { mode: ex.mode });
+  assert.equal((await state(page)).mode, 'succ');
+  const before = await page.evaluate(() => { const s = PNL.app.model().solution; return { d: s.duration, crit: s.critical.join(','), preds: PNL.app.model().project.preds }; });
+  await page.locator('#workshop input[name="pnlMode"][value="pred"]').check();
+  await page.waitForFunction(() => PNL.app.state().mode === 'pred');
+  const after = await page.evaluate(() => { const s = PNL.app.model().solution; return { d: s.duration, crit: s.critical.join(','), preds: PNL.app.model().project.preds }; });
+  assert.deepEqual(after, before);
+  const linksE = await page.locator('#workshop tbody tr').evaluateAll((trs) => trs.map((tr) => [tr.querySelector('[data-f="id"]').value, tr.querySelector('[data-f="links"]').value]));
+  assert.deepEqual(Object.fromEntries(linksE).E.split(/,\s*/).sort(), before.preds.E, 'la columna muestra ahora las predecesoras');
+  await close(page);
+});
+
+check('Taller · tabla vacía: invita a empezar, sin −∞ ni errores', async () => {
+  const page = await lab('v=work&t=&lang=es');
+  await page.locator('#workshop .work-tools button').nth(1).click();   // Limpiar
+  await page.waitForFunction(() => !PNL.app.model().project);
+  const txt = await sideText(page);
+  assert.doesNotMatch(txt, /∞|NaN|0 actividades/, txt);
+  assert.ok((await page.locator('#workshop .work-side p.muted').first().innerText()).length > 10, 'invitación a empezar');
+  assert.ok(await page.locator('#stage').isHidden());
+  await close(page);
+});
+
+check('AC2 · dos caminos críticos se resaltan en la red, en la tabla y en la lista', async () => {
+  const page = await workshop([R('A', 3), R('B', 3), R('C', 1, 'A, B')]);
+  const k = await page.evaluate(() => PNL.app.model().solution.trace.findIndex((s) => s.kind === 'critical'));
+  await page.evaluate((n) => PNL.app.go(n), k);
+  assert.deepEqual((await page.locator('#resultsView .crit-path').allInnerTexts()).sort(), ['A → C', 'B → C']);
+  assert.deepEqual((await page.locator('#resultsView tr.crit th').allInnerTexts()).map((x) => x.trim()[0]).sort(), ['A', 'B', 'C']);
+  assert.ok((await page.locator('#netView path.edge.crit').count()) >= 4, 'inicio→A, inicio→B, A→C y B→C resaltadas');
+  assert.match(await page.locator('#stepText').innerText(), /\b2\b/);
+  await close(page);
+});
+
+check('AC11 · «¿Y si…?» en la ruta: dentro de la holgura no cambia la duración; por encima, crece en el exceso', async () => {
+  const page = await lab('v=route&ex=ej6&lang=es');
+  await page.evaluate(() => PNL.app.go(PNL.app.model().solution.trace.findIndex((s) => s.kind === 'critical')));
+  await page.locator('#btnWhatIf').click();
+  const box = page.locator('#whatIfBox');
+  await box.locator('select').selectOption('A');            // A: d = 2, holgura total 1
+  await box.locator('input').fill('3');
+  await box.locator('button').first().click();
+  await page.waitForFunction(() => PNL.app.state().wi);
+  assert.equal(await page.evaluate(() => PNL.app.model().solution.duration), 13);
+  assert.match(await box.innerText(), /13 días \(antes 13\)/);
+  await box.locator('select').selectOption('A');
+  await box.locator('input').fill('5');                     // 3 de más con 1 de holgura: +2
+  await box.locator('button').first().click();
+  await page.waitForFunction(() => PNL.app.model().solution.duration === 15);
+  assert.match(await box.innerText(), /15 días \(antes 13\)/);
+  assert.ok(await page.evaluate(() => PNL.app.model().solution.critical.includes('A')), 'A pasa a ser crítica');
+  assert.match(await page.locator('#stepText').innerText() + (await page.locator('#resultsView').innerText()), /A/);
   await close(page);
 });
 

@@ -126,6 +126,7 @@
       expected: {   // grafo resuelto del Tema 6a: duración y holguras totales que aparecen en el grafo
         duration: 24,
         TF: map('A B C E F H I K L M', [0, 1, 1, 0, 3, 0, 1, 6, 0, 6]),
+        critical: ['A', 'E', 'H', 'J', 'L'],   // camino crítico del enunciado (spec, tabla de referencias)
       },
     },
   ];

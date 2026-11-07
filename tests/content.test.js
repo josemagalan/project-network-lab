@@ -53,9 +53,50 @@ test('el camino crítico se nombra en el idioma elegido', () => {
   assert.deepEqual(n.lines, ['B → E → I → J → K = 13 days']);
 });
 
+test('el paso de caminos críticos da el recuento real aunque haya más de 50, y avisa de los que no lista (revisión F4)', () => {
+  const rows = []; let prev = '';
+  for (let k = 1; k <= 6; k++) {
+    rows.push({ id: `P${k}`, duration: 1, links: prev }, { id: `Q${k}`, duration: 1, links: prev }, { id: `J${k}`, duration: 1, links: `P${k}, Q${k}` });
+    prev = `J${k}`;
+  }
+  const project = P.parse(rows, 'pred').project;
+  const solution = C.solve(project);
+  const step = solution.trace.find((s) => s.kind === 'critical');
+  for (const lang of ['es', 'en']) {
+    const n = N.narrate(step, { lang, nota: 'en', solution, project, unit: '' });
+    assert.match(n.text, /64/, `${lang}: ${n.text}`);
+    assert.doesNotMatch(n.text, /\b50\b/, lang);
+    assert.match(n.lines[n.lines.length - 1], /58/, `${lang}: falta «y 58 más» (${n.lines.at(-1)})`);
+  }
+});
+
+test('mientras se predice, la narración no dice qué término manda ni da los valores del paso (decisión F7)', () => {
+  const ex = E.get('ej6');
+  const project = P.parse(ex.rows, ex.mode).project;
+  const solution = C.solve(project);
+  for (const lang of ['es', 'en']) {
+    for (const step of solution.trace.filter((s) => s.kind === 'forward' || s.kind === 'backward')) {
+      const open = N.narrate(step, { lang, nota: 'en', solution, project, unit: 'días' });
+      const hidden = N.narrate(step, { lang, nota: 'en', solution, project, unit: 'días', hide: true });
+      assert.equal(hidden.title, open.title);
+      assert.ok(hidden.text && !/\{|\}/.test(hidden.text), `${lang} ${step.kind} ${step.act}: ${hidden.text}`);
+      for (const rv of step.reveals) assert.ok(!hidden.text.includes(N.fmt(lang, rv.value)) || /^[A-Z]/.test(String(rv.value)), `${lang} ${step.kind} ${step.act} revela ${rv.value}: ${hidden.text}`);
+      const terms = step.formula.terms;
+      if (terms.length > 1 && step.formula.chosen.length < terms.length) {
+        assert.notEqual(hidden.text, open.text);
+        const tail = hidden.text.slice(hidden.text.lastIndexOf('.', hidden.text.length - 2) + 1);
+        for (const c of step.formula.chosen) assert.ok(!tail.includes(c), `${lang} ${step.act}: la última frase nombra a ${c}: ${hidden.text}`);
+      }
+    }
+  }
+});
+
 test('los decimales usan coma en español y punto en inglés', () => {
   assert.equal(N.fmt('es', 2.5), '2,5');
   assert.equal(N.fmt('en', 2.5), '2.5');
+  // Sin separador de miles: «1,500» se leería como 1,5 en español (revisión F17).
+  assert.equal(N.fmt('en', 1500), '1500');
+  assert.equal(N.fmt('es', 12345.5), '12345,5');
 });
 
 const Lrn = require('../js/learn.js');

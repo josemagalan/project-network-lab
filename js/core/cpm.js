@@ -19,6 +19,7 @@
 
   function solve(project, opts) {
     const pathLimit = (opts && opts.pathLimit) || 50;
+    if (!project.activities.length) throw new Error('cpm.solve: el proyecto está sin actividades');
     const topo = T.order(project);
     if (topo.cycle) throw new Error('cpm.solve: el proyecto tiene un ciclo');
     const order = topo.order;
@@ -94,12 +95,16 @@
     const tight = (a, b) => Math.abs(times[a].EF - times[b].ES) < EPS
       && (a === START || critical.includes(a)) && (b === END || critical.includes(b));
     const criticalPaths = walk(tight, pathLimit);
+    // Recuento de caminos críticos sin tope: la lista se corta en pathLimit, el número no (revisión F4).
+    const critCount = new Map([[END, 1]]);
+    for (const id of [START, ...order].reverse()) critCount.set(id, succs(id).filter((s) => tight(id, s)).reduce((a, s) => a + critCount.get(s), 0));
+    const criticalCount = critCount.get(START);
     let list = null;
     if (total <= pathLimit) {
       list = walk(() => true, pathLimit).sort((x, y) => y.length - x.length || x.acts.join(' ').localeCompare(y.acts.join(' ')));
     }
 
-    return { duration, order, levels: topo.levels, times, floats, critical, criticalPaths, paths: { count: total, list }, trace };
+    return { duration, order, levels: topo.levels, times, floats, critical, criticalPaths, criticalCount, paths: { count: total, list }, trace };
   }
 
   function whatIf(project, act, newDuration) {

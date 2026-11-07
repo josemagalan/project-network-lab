@@ -7,13 +7,41 @@
   'use strict';
 
   const G = root.PNL;
+  const I = (typeof module !== 'undefined' && module.exports) ? require('./i18n.js') : root.PNL.i18n;
+
+  // ---------- Lógica sin DOM (tests/editor.test.js) ----------
+
+  // Campo de la fila que señala cada código de core/project.
+  const FIELD = { badDuration: 'duration', unknownRef: 'links', duplicateId: 'id', badId: 'id', reservedId: 'id', redundant: 'links' };
+
+  const issueText = (lang, is) => I.t(lang, `issue.${is.code}`, { row: is.row == null ? '' : is.row + 1, ids: is.ids.join(', '), a: is.ids[0], b: is.ids[1] });
+
+  // Marcas por fila: un error deja el campo inválido; una redundancia, solo en aviso.
+  function marks(report) {
+    return [...report.errors, ...report.warnings].filter((is) => is.row != null && FIELD[is.code])
+      .map((is) => ({ row: is.row, field: FIELD[is.code], kind: is.code === 'redundant' ? 'warn' : 'invalid' }));
+  }
+
+  // Lo que dice el panel lateral: errores, avisos y, si la tabla es válida, el resumen o la invitación a empezar.
+  function messages(lang, report, project, solution, numFmt) {
+    const t = (k, p) => I.t(lang, k, p);
+    const n = report.errors.length;
+    const w = report.warnings.length;
+    return {
+      errorsHead: n ? (n === 1 ? t('work.errorsOne') : t('work.errors', { n })) : null,
+      errors: report.errors.map((is) => issueText(lang, is)),
+      warningsHead: w ? (w === 1 ? t('work.warningsOne') : t('work.warnings', { n: w })) : null,
+      warnings: report.warnings.map((is) => issueText(lang, is)),
+      ready: !n && project && solution ? t('work.ready', { n: project.activities.length, d: numFmt(solution.duration) }) : null,
+      empty: !n && !project ? t('work.empty') : null,
+    };
+  }
 
   function create(container, hooks) {
     const { h, clear } = G.dom;
     let refs = null;
 
     const t = (k, p) => G.i18n.t(hooks.lang(), k, p);
-    const issueText = (is) => t(`issue.${is.code}`, { row: is.row == null ? '' : is.row + 1, ids: is.ids.join(', '), a: is.ids[0], b: is.ids[1] });
 
     function readRows() {
       return [...refs.tbody.querySelectorAll('tr')].map((tr) => {
@@ -84,13 +112,11 @@
       const report = ctx.report;
       const trs = [...refs.tbody.querySelectorAll('tr')];
       trs.forEach((tr) => tr.querySelectorAll('input').forEach((i) => { i.removeAttribute('aria-invalid'); i.classList.remove('warn'); }));
-      const field = { badDuration: 'duration', unknownRef: 'links', duplicateId: 'id', badId: 'id', reservedId: 'id', redundant: 'links' };
       // Las filas vacías no cuentan para core/project pero sí están en la tabla: el índice coincide con el de las filas.
-      for (const is of [...report.errors, ...report.warnings]) {
-        if (is.row == null || !trs[is.row]) continue;
-        const el = trs[is.row].querySelector(`[data-f="${field[is.code]}"]`);
+      for (const m of marks(report)) {
+        const el = trs[m.row] && trs[m.row].querySelector(`[data-f="${m.field}"]`);
         if (!el) continue;
-        if (is.code === 'redundant') el.classList.add('warn'); else el.setAttribute('aria-invalid', 'true');
+        if (m.kind === 'warn') el.classList.add('warn'); else el.setAttribute('aria-invalid', 'true');
       }
       const other = ctx.project ? Object.fromEntries(G.project.toRows(ctx.project, s.mode === 'succ' ? 'pred' : 'succ').map((r) => [r.id, r.links])) : {};
       refs.table.querySelectorAll('[data-computed]').forEach((c) => { c.hidden = !ctx.showComputed; });
@@ -99,22 +125,21 @@
         tr.querySelector('td[data-computed]').textContent = other[id] || (ctx.project && other[id] === '' ? '—' : '');
       });
       clear(refs.side);
-      const n = report.errors.length;
-      if (n) refs.side.appendChild(h('div', { class: 'issues err', role: 'alert' }, [h('strong', {}, [n === 1 ? t('work.errorsOne') : t('work.errors', { n })]),
-        ...report.errors.map((is) => h('p', {}, [issueText(is)]))]));
-      const w = report.warnings.length;
-      if (w) refs.side.appendChild(h('div', { class: 'issues warn' }, [h('strong', {}, [w === 1 ? t('work.warningsOne') : t('work.warnings', { n: w })]),
-        ...report.warnings.map((is) => h('p', {}, [issueText(is)]))]));
-      if (!n && ctx.project) {
+      const msg = messages(hooks.lang(), report, ctx.project, ctx.solution, ctx.numFmt);
+      if (msg.errorsHead) refs.side.appendChild(h('div', { class: 'issues err', role: 'alert' }, [h('strong', {}, [msg.errorsHead]),
+        ...msg.errors.map((x) => h('p', {}, [x]))]));
+      if (msg.warningsHead) refs.side.appendChild(h('div', { class: 'issues warn' }, [h('strong', {}, [msg.warningsHead]),
+        ...msg.warnings.map((x) => h('p', {}, [x]))]));
+      if (msg.ready) {
         refs.side.appendChild(h('div', { class: 'issues okbox' }, [
-          h('p', {}, [t('work.ready', { n: ctx.project.activities.length, d: ctx.numFmt(ctx.solution.duration) })]),
+          h('p', {}, [msg.ready]),
           h('div', { class: 'row-wrap' }, [
             h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage(0) }, [t('work.stepByStep')]),
             h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage('critical') }, [t('work.results')]),
           ]),
         ]));
-      } else if (!n && !ctx.project) {
-        refs.side.appendChild(h('p', { class: 'muted' }, [t('work.empty')]));
+      } else if (msg.empty) {
+        refs.side.appendChild(h('p', { class: 'muted' }, [msg.empty]));
       }
       refs.side.appendChild(h('p', { class: 'muted small' }, [t('work.urlNote')]));
     }
@@ -122,7 +147,8 @@
     return { render: (ctx, isFull) => (isFull || !refs ? full(ctx) : partial(ctx)) };
   }
 
-  const api = { create };
+  const api = { create, FIELD, issueText, marks, messages };
   root.PNL = root.PNL || {};
   root.PNL.editor = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

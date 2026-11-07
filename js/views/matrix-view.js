@@ -15,7 +15,7 @@
     const labels = matrix.labels;
     const name = (id) => G.narrate.nodeName(lang, id);
     const cells = new Set(a.cells.map(([i, j]) => `${i},${j}`));
-    const chosen = new Set(a.chosen.map(([i, j]) => `${i},${j}`));
+    const chosen = new Set(ctx.hide ? [] : a.chosen.map(([i, j]) => `${i},${j}`));   // decisión F7
     const tVal = (i) => {
       const id = labels[i];
       if (id === G.topo.START) return numFmt(0);

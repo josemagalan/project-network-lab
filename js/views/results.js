@@ -33,8 +33,10 @@
     const { solution, lang, unit, numFmt } = ctx;
     const t = (k, p) => G.i18n.t(lang, k, p);
     const cps = solution.criticalPaths;
-    const out = [h('p', { class: 'eyebrow' }, [t(cps.length > 1 ? 'results.criticalPaths' : 'results.criticalPath', { d: numFmt(solution.duration), unit })]),
-      ...cps.slice(0, 6).map((cp) => h('p', { class: 'crit-path' }, [cp.acts.join(' → ')]))];
+    const shown = cps.slice(0, G.narrate.SHOWN_PATHS);
+    const out = [h('p', { class: 'eyebrow' }, [t(solution.criticalCount > 1 ? 'results.criticalPaths' : 'results.criticalPath', { d: numFmt(solution.duration), unit })]),
+      ...shown.map((cp) => h('p', { class: 'crit-path' }, [cp.acts.join(' → ')]))];
+    if (solution.criticalCount > shown.length) out.push(h('p', { class: 'crit-more small' }, [t('results.criticalMore', { n: solution.criticalCount - shown.length })]));
     if (solution.paths.list) {
       out.push(h('p', { class: 'muted small' }, [t('results.paths', { n: solution.paths.count })]));
       out.push(h('div', { class: 'paths' }, solution.paths.list.flatMap((p) => [

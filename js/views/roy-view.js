@@ -45,7 +45,8 @@
     // Clases de las flechas según el paso
     const edgeClass = new Map();
     if (step && (step.kind === 'forward' || step.kind === 'backward') && step.formula) {
-      const chosen = new Set(step.formula.chosen);
+      // Mientras se predice no se marca qué término manda: todos se ven como comparados (decisión F7).
+      const chosen = new Set(ctx.hide ? [] : step.formula.chosen);
       for (const t of step.formula.terms) {
         const key = step.kind === 'forward' ? `${t.from}>${step.act}` : `${step.act}>${t.from}`;
         edgeClass.set(key, chosen.has(t.from) ? 'chosen' : 'compared');

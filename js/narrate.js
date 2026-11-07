@@ -10,7 +10,8 @@
   const T = isNode ? require('./core/topo.js') : root.PNL.topo;
   const { START, END } = T;
 
-  const fmt = (lang, v) => Number(v).toLocaleString(lang === 'es' ? 'es-ES' : 'en-GB', { maximumFractionDigits: 2 });
+  const SHOWN_PATHS = 6;   // caminos críticos que se escriben en el paso y en la lista de resultados
+  const fmt = (lang, v) => Number(v).toLocaleString(lang === 'es' ? 'es-ES' : 'en-GB', { maximumFractionDigits: 2, useGrouping: false });
 
   function nodeName(lang, id) {
     if (id === START) return I.t(lang, 'node.start');
@@ -26,6 +27,8 @@
 
   function narrate(step, ctx) {
     const { lang, nota, solution, project, unit } = ctx;
+    // ctx.hide: modo predicción sin comprobar; el texto dice qué se calcula, no quién manda ni el resultado.
+    const hk = (k) => (ctx.hide ? `${k}Hidden` : k);
     const N = I.notation(nota);
     const t = (k, p) => I.t(lang, k, p);
     const nm = (id) => nodeName(lang, id);
@@ -45,13 +48,13 @@
         const terms = step.formula.terms;
         if (a === END) {
           out.title = t('steps.forwardEnd');
-          out.text = t('narr.forwardEnd', { d: num(ES), unit });
+          out.text = t(hk('narr.forwardEnd'), { d: num(ES), unit });
         } else if (terms.length === 1 && terms[0].from === START) {
           out.title = t('steps.forward', { act: a });
-          out.text = t('narr.forwardFirst', { act: a });
+          out.text = t(hk('narr.forwardFirst'), { act: a });
         } else {
           out.title = t('steps.forward', { act: a });
-          out.text = t('narr.forward', { act: a, preds: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
+          out.text = t(hk('narr.forward'), { act: a, preds: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
         }
         out.lines.push(`${N.ES}(${nm(a)}) = ${max} { ${terms.map((x) => `${N.EF}(${nm(x.from)})`).join(', ')} } = ${max} { ${terms.map((x) => num(x.value)).join(', ')} } = ${num(ES)}`);
         if (a !== END) out.lines.push(`${N.EF}(${a}) = ${N.ES}(${a}) + d(${a}) = ${num(ES)} + ${num(dur(a))} = ${num(EF)}`);
@@ -64,13 +67,13 @@
         const terms = step.formula.terms;
         if (a === END) {
           out.title = t('steps.backwardEnd');
-          out.text = t('narr.backwardEnd', { d: num(LF), unit });
+          out.text = t(hk('narr.backwardEnd'), { d: num(LF), unit });
           out.lines.push(`${N.LF}(${nm(END)}) = ${N.LS}(${nm(END)}) = ${N.EF}(${nm(END)}) = ${num(LF)}`);
           break;
         }
         out.title = t('steps.backward', { act: a });
-        out.text = terms.length === 1 && terms[0].from === END ? t('narr.backwardLast', { act: a })
-          : t('narr.backward', { act: a, succs: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
+        out.text = terms.length === 1 && terms[0].from === END ? t(hk('narr.backwardLast'), { act: a })
+          : t(hk('narr.backward'), { act: a, succs: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
         out.lines.push(`${N.LF}(${a}) = ${min} { ${terms.map((x) => `${N.LS}(${nm(x.from)})`).join(', ')} } = ${min} { ${terms.map((x) => num(x.value)).join(', ')} } = ${num(LF)}`);
         out.lines.push(`${N.LS}(${a}) = ${N.LF}(${a}) − d(${a}) = ${num(LF)} − ${num(dur(a))} = ${num(LS)}`);
         break;
@@ -85,8 +88,11 @@
       case 'critical': {
         const cps = solution.criticalPaths;
         out.title = t('steps.critical');
-        out.text = cps.length === 1 ? t('narr.critical', { path: cps[0].acts.join(' → ') }) : t('narr.criticalMany', { n: cps.length });
-        for (const cp of cps.slice(0, 6)) out.lines.push(`${cp.acts.join(' → ')} = ${num(cp.length)} ${unit}`);
+        const total = solution.criticalCount;
+        out.text = total === 1 ? t('narr.critical', { path: cps[0].acts.join(' → ') }) : t('narr.criticalMany', { n: total });
+        const shown = cps.slice(0, SHOWN_PATHS);
+        for (const cp of shown) out.lines.push(`${cp.acts.join(' → ')} = ${num(cp.length)} ${unit}`);
+        if (total > shown.length) out.lines.push(t('results.criticalMore', { n: total - shown.length }));
         break;
       }
       case 'gantt': out.title = t('steps.gantt'); out.text = t('narr.gantt'); break;
@@ -95,7 +101,7 @@
     return out;
   }
 
-  const api = { narrate, relabel, nodeName, fmt };
+  const api = { narrate, relabel, nodeName, fmt, SHOWN_PATHS };
   root.PNL = root.PNL || {};
   root.PNL.narrate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

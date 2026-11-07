@@ -1,17 +1,19 @@
 /*
  * predict — corrección del modo predicción (spec AC7). check(step, answers) compara cada valor del
- * paso con lo que dice core/cpm, redondeando ambos a 2 decimales; acepta coma o punto decimal.
+ * paso con lo que dice core/cpm, redondeando ambos a 2 decimales con el MISMO redondeo con que la
+ * pantalla los muestra (narrate.fmt), para no rechazar el número que se ve; acepta coma o punto decimal.
  * No calcula nada por su cuenta: la solución es la de la traza.
  */
 (function (root) {
   'use strict';
 
-  const r2 = (x) => Math.round(x * 100) / 100;
+  // Igual que narrate.fmt, sin depender del idioma: Intl redondea sobre la representación decimal del número.
+  const r2 = (x) => Number(x).toLocaleString('en-GB', { maximumFractionDigits: 2, useGrouping: false });
 
   function parseAnswer(v) {
     const s = String(v == null ? '' : v).trim().replace(',', '.');
     if (!s) return null;
-    return /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
+    return /^-?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN;
   }
 
   const key = (rv) => `${rv.act}.${rv.field}`;

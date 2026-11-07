@@ -71,8 +71,77 @@ test('D3: con más de 50 caminos solo se da el número, pero los críticos sigue
   const s = C.solve(load(rows));
   assert.equal(s.paths.count, 81);
   assert.equal(s.paths.list, null);
-  assert.equal(s.criticalPaths.length, 50);
+  assert.equal(s.criticalPaths.length, 50, 'la lista de caminos críticos tiene tope');
+  assert.equal(s.criticalCount, 81, 'pero el recuento de caminos críticos es el real');
   assert.equal(C.solve(load(rows), { pathLimit: 100 }).paths.list.length, 81);
+});
+
+// Seis rombos en serie: P_k y Q_k en paralelo, unidos en J_k. 2^6 = 64 caminos, todos críticos.
+const diamonds = (n) => {
+  const rows = []; let prev = '';
+  for (let k = 1; k <= n; k++) {
+    rows.push(row(`P${k}`, 1, prev), row(`Q${k}`, 1, prev), row(`J${k}`, 1, `P${k}, Q${k}`));
+    prev = `J${k}`;
+  }
+  return rows;
+};
+
+test('el recuento de caminos críticos no se queda en el tope de la lista (revisión F4)', () => {
+  const s = C.solve(load(diamonds(6)));
+  assert.equal(s.paths.count, 64);
+  assert.equal(s.criticalCount, 64);
+  assert.equal(s.criticalPaths.length, 50);
+  const few = C.solve(load(diamonds(2)));
+  assert.equal(few.criticalCount, 4);
+  assert.equal(few.criticalPaths.length, 4);
+  assert.equal(C.solve(load([row('A', 2), row('B', 3)])).criticalCount, 1);
+});
+
+test('cpm.solve rechaza un proyecto sin actividades en vez de dar una duración −∞', () => {
+  assert.throws(() => C.solve({ activities: [], preds: {}, succs: {} }), /sin actividades/);
+});
+
+// ---------- Bordes que la revisión de cierre encontró sin fijar (F8–F11, F12) ----------
+
+test('F12: el Ejercicio 4 da su camino crítico A, E, H, J, L como único camino crítico', () => {
+  const s = solveEx('ej4');
+  assert.deepEqual(s.criticalPaths.map((p) => p.acts.join('')), ['AEHJL']);
+});
+
+test('F8: una holgura decimal pequeña no se toma por cero (tolerancia EPS)', () => {
+  const s = C.solve(load([row('A', 1), row('B', 1.4), row('C', 1, 'A, B')]));
+  assert.equal(s.floats.A.TF, 0.4);
+  assert.deepEqual(s.critical, ['B', 'C']);
+  assert.deepEqual(s.criticalPaths.map((p) => p.acts.join('')), ['BC']);
+  assert.equal(s.criticalCount, 1);
+});
+
+test('F9: en la pasada hacia atrás, si dos sucesoras empatan, mandan las dos', () => {
+  const s = C.solve(load([row('A', 2), row('B', 3, 'A'), row('C', 3, 'A')]));
+  const stepA = s.trace.find((x) => x.kind === 'backward' && x.act === 'A');
+  assert.deepEqual(stepA.formula.chosen, ['B', 'C']);
+  assert.deepEqual(stepA.formula.terms.map((t) => t.from), ['B', 'C']);
+});
+
+test('F10: un arco con holgura entre dos actividades críticas no forma un camino crítico', () => {
+  // A→C y P→B son críticos; A→B tiene holgura (EF(A) = 2 < ES(B) = 5).
+  const s = C.solve(load([row('A', 2), row('P', 5), row('B', 1, 'A, P'), row('C', 4, 'A')]));
+  assert.equal(s.duration, 6);
+  assert.deepEqual(s.critical.slice().sort(), ['A', 'B', 'C', 'P']);
+  assert.deepEqual(s.criticalPaths.map((p) => p.acts.join('')).sort(), ['AC', 'PB']);
+  assert.ok(s.criticalPaths.every((p) => p.critical && p.length === 6));
+  assert.equal(s.criticalCount, 2);
+});
+
+test('F11: con exactamente 50 caminos todavía se listan todos (frontera del límite)', () => {
+  const rows = [row('S1', 1), row('S2', 1)];
+  for (let i = 1; i <= 5; i++) rows.push(row(`X${i}`, 1, 'S1, S2'));
+  for (let i = 1; i <= 5; i++) rows.push(row(`Y${i}`, 1, 'X1, X2, X3, X4, X5'));
+  const s = C.solve(load(rows));
+  assert.equal(s.paths.count, 50);
+  assert.equal(s.paths.list.length, 50);
+  rows.push(row('Y6', 1, 'X1'));   // uno más: 52 caminos, ya no se listan
+  assert.equal(C.solve(load(rows)).paths.list, null);
 });
 
 test('AC11: alargar una actividad no crítica dentro de su holgura total no cambia la duración', () => {

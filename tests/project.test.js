@@ -55,6 +55,14 @@ test('las duraciones admiten decimales con coma o punto; las filas vacías se ig
   assert.deepEqual(project.activities.map((a) => a.d), [2.5, 0.75]);
 });
 
+test('una tabla vacía (o solo con filas vacías) no da proyecto ni errores: la interfaz invita a empezar', () => {
+  for (const rows of [[], [{ id: '', duration: '', links: '' }, { id: ' ', duration: '', links: '' }]]) {
+    const { project, report } = P.parse(rows, 'pred');
+    assert.equal(project, null);
+    assert.deepEqual(report, { errors: [], warnings: [] });
+  }
+});
+
 test('AC4: identificador repetido → duplicateId en la fila repetida', () => {
   const { project, report } = P.parse([row('A', 1), row('a', 2)], 'pred');
   assert.equal(project, null);
@@ -105,6 +113,28 @@ test('AC5: una precedencia redundante por transitividad es un aviso y el proyect
 test('AC5: en forma de posteriores, el aviso señala la fila de la actividad que precede', () => {
   const { report } = P.parse([row('A', 1, 'B, C'), row('B', 1, 'C'), row('C', 1)], 'succ');
   assert.deepEqual(report.warnings, [{ code: 'redundant', row: 0, ids: ['A', 'C'] }]);
+});
+
+test('F14: la redundancia se detecta también cuando el otro camino tiene varios saltos', () => {
+  // A → B → C → D y además A → D: A → D sobra.
+  const { project, report } = P.parse([row('A', 1), row('B', 1, 'A'), row('C', 1, 'B'), row('D', 1, 'A, C')], 'pred');
+  assert.ok(project);
+  assert.deepEqual(report.warnings.map((w) => `${w.code}:${w.ids.join('>')}:${w.row}`), ['redundant:A>D:3']);
+});
+
+test('F13: las precedencias se separan con coma, punto y coma o espacios', () => {
+  for (const links of ['A, B', 'A;B', 'A B', ' a  b ', 'A,;B']) {
+    const { project, report } = P.parse([row('A', 1), row('B', 1), row('C', 1, links)], 'pred');
+    assert.deepEqual(report.errors, [], `«${links}»`);
+    assert.deepEqual(project.preds.C, ['A', 'B'], `«${links}»`);
+  }
+});
+
+test('F13: al pegar, una primera fila con duración mal escrita no se toma por cabecera', () => {
+  assert.deepEqual(P.parsePasted('A\tx\t-1\t'), [{ id: 'A', name: 'x', duration: '-1', links: '' }]);
+  assert.deepEqual(P.parsePasted('Id\tNombre\tDuración\tPredecesoras\nA\tx\t2\t'), [{ id: 'A', name: 'x', duration: '2', links: '' }]);
+  const { report } = P.parse(P.parsePasted('A\tx\t-1\t'), 'pred');
+  assert.deepEqual(report.errors.map((e) => e.code), ['badDuration']);
 });
 
 test('AC13: texto pegado de una hoja de cálculo (tabuladores) con cabecera', () => {

@@ -50,6 +50,8 @@
       if (unknown.length) errors.push({ code: 'unknownRef', row: it.row, ids: unknown });
     }
     if (errors.length) return { project: null, report: { errors: sortIssues(errors), warnings } };
+    // Tabla vacía: ni proyecto ni errores; la interfaz invita a empezar o a cargar un ejemplo (spec, casos límite).
+    if (!items.length) return { project: null, report: { errors: [], warnings: [] } };
 
     const preds = Object.fromEntries(items.map((it) => [it.id, []]));
     const succs = Object.fromEntries(items.map((it) => [it.id, []]));

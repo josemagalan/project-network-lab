@@ -128,7 +128,7 @@
     const critIdx = trace.findIndex((s) => s.kind === 'critical');
     const criticalOn = k >= critIdx;
     const ctx = { project: model.project, solution: sol, lay: model.lay, matrix: model.matrix, step, stepIndex: k, revealed,
-      box: state.box, lang: lang(), nota: state.nota, criticalOn, numFmt, name: model.name, unit: model.unit };
+      box: state.box, lang: lang(), nota: state.nota, criticalOn, numFmt, name: model.name, unit: model.unit, hide };
 
     $('btnNet').setAttribute('aria-pressed', String(state.view === 'net'));
     $('btnMatrix').setAttribute('aria-pressed', String(state.view === 'matrix'));
