@@ -1,0 +1,10 @@
+# Dependencies and test output
+node_modules/
+test-results/
+playwright-report/
+coverage/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.log
