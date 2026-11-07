@@ -65,7 +65,7 @@ test('AC16: en un paso hacia delante se activa la fila de la actividad y las cel
   assert.equal(a.col, undefined);
   assert.equal(a.target, 't');
   assert.deepEqual(a.cells.map(([i, j]) => [m.labels[i], m.labels[j]]).sort(), [['F', 'B'], ['F', 'C'], ['F', 'D']]);
-  assert.deepEqual(a.chosen.map(([i, j]) => m.labels[j]), ['D']);   // 2 + 8 = 10 decide el máximo
+  assert.deepEqual(a.chosen.map(([, j]) => m.labels[j]), ['D']);   // 2 + 8 = 10 decide el máximo
 });
 
 test('AC16: en un paso hacia atrás se activa la columna de la actividad y las celdas de sus sucesoras', () => {

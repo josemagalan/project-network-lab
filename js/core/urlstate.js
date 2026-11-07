@@ -63,7 +63,7 @@
     let malformed = false;
     let unknown = false;
     let q;
-    try { q = new URLSearchParams(raw); } catch (e) { return { state, warning: 'malformed' }; }
+    try { q = new URLSearchParams(raw); } catch { return { state, warning: 'malformed' }; }
 
     for (const key of q.keys()) if (!KEYS.includes(key)) unknown = true;
 
@@ -80,7 +80,7 @@
     }
     if (q.has('t')) {
       try { state.t = decodeTable(q.get('t')); state.ex = null; }
-      catch (e) { malformed = true; state.t = null; state.v = 'route'; state.ex = 'ej6'; }
+      catch { malformed = true; state.t = null; state.v = 'route'; state.ex = 'ej6'; }
     } else if (q.has('ex')) {
       if (EXAMPLES.includes(q.get('ex'))) state.ex = q.get('ex'); else malformed = true;
     }

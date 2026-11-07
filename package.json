@@ -8,6 +8,7 @@
     "check": "node scripts/check.cjs",
     "test": "node scripts/check.cjs && node --test \"tests/*.test.js\"",
     "test:browser": "node tests/browser/run.js",
+    "lint": "eslint .",
     "coverage": "node --test --experimental-test-coverage --test-coverage-include=\"js/core/**\" --test-coverage-lines=90 \"tests/*.test.js\""
   },
   "engines": { "node": ">=22" },
