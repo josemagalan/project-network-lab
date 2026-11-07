@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Laboratorio docente de redes de proyectos: de la tabla de precedencias al camino crítico con redes ROY y PERT, y del PERT de tres tiempos a Montecarlo.">
+  <meta name="theme-color" content="#f5f4f0">
+  <title>Laboratorio de redes de proyectos · Herramientas docentes</title>
+  <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/portal.css">
+  <script src="js/portal-content.js" defer></script>
+  <script src="js/portal.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#modules" data-i18n="skip">Ir a los módulos</a>
+  <div class="wrap" id="top">
+    <header class="topbar">
+      <a class="brand" href="#top">
+        <svg class="brand-mark" width="34" height="28" viewBox="0 0 34 28" aria-hidden="true"><path class="bm-edge" d="M7 14 L17 5 M7 14 L17 23 M17 5 L27 14 M17 23 L27 14"></path><circle class="bm-a" cx="6" cy="14" r="4.5"></circle><circle class="bm-c" cx="17" cy="5" r="4.5"></circle><circle class="bm-b" cx="17" cy="23" r="4.5"></circle><circle class="bm-c" cx="28" cy="14" r="4.5"></circle></svg>
+        <span>PNL<span class="brand-divider" aria-hidden="true"> / </span><span class="brand-text" data-i18n="brand">Herramientas docentes</span></span>
+      </a>
+      <div class="header-right">
+        <a class="header-link" href="#modules" data-i18n="modulesNav">Módulos</a>
+        <a class="header-link" href="#workshop" data-i18n="workshopNav">Taller</a>
+        <a class="header-link" href="#manual" data-i18n="manualNav">Manual</a>
+        <a class="header-link" href="#about" data-i18n="aboutNav">Sobre el proyecto</a>
+        <div class="lang" role="group" aria-label="Idioma del portal" data-i18n-aria="languageLabel">
+          <button type="button" data-lang="es" lang="es" aria-pressed="true" aria-label="Español" disabled>ES</button>
+          <button type="button" data-lang="en" lang="en" aria-pressed="false" aria-label="English" disabled>EN</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow eyebrow-dot" data-i18n="eyebrow">Construye · Calcula · Simula</p>
+          <h1 id="hero-title"><span data-i18n="titleLine1">Laboratorio de</span><br><span class="accent" data-i18n="titleLine2">redes de proyectos.</span></h1>
+          <p class="lead" data-i18n="lead">Desde la tabla de precedencias hasta el riesgo de terminar tarde. Aprende cada paso con redes ROY y PERT que se construyen y se calculan delante de ti, actividad a actividad.</p>
+          <div class="hero-links">
+            <a class="button" href="cpm.html#v=route&amp;ex=ej6&amp;step=0&amp;lang=es" data-lab="route"><span data-i18n="startRoute">Empezar la ruta guiada</span><span aria-hidden="true">↗</span></a>
+            <a href="#modules"><span data-i18n="chooseModule">Elige un módulo</span> <span aria-hidden="true">↓</span></a>
+            <a href="cpm.html#v=work&amp;lang=es" data-lab="work"><span data-i18n="openWorkshop">Abrir el taller</span> <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="hero-note" data-i18n="heroNote">¿Empiezas de cero? La ruta guiada sigue un único proyecto, el Ejercicio 6, desde la tabla hasta el camino crítico.</p>
+        </div>
+
+        <figure class="hero-card">
+          <div class="hero-card-head"><span data-i18n="heroCardTitle">Ejercicio 6 · red ROY</span><span>ES / d / LS</span></div>
+          <svg class="hero-net" viewBox="0 0 540 250" role="img" aria-label="Red ROY del Ejercicio 6 con el camino crítico B, E, I, J, K resaltado" data-i18n-aria="heroVisual">
+            <defs>
+              <marker id="hm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path class="mk" d="M0 0L10 5L0 10z"></path></marker>
+              <marker id="hc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path class="mk-c" d="M0 0L10 5L0 10z"></path></marker>
+            </defs>
+            <g class="he" marker-end="url(#hm)">
+              <path d="M48 145 L80 45"></path><path d="M48 145 L80 105"></path><path d="M48 145 L80 225"></path>
+              <path d="M120 105 L170 105"></path><path d="M120 165 L170 165"></path><path d="M120 165 L170 225"></path><path d="M120 225 L170 225"></path>
+              <path d="M210 105 L260 135"></path><path d="M210 165 L260 135"></path><path d="M210 165 L260 195"></path><path d="M210 225 L260 195"></path>
+              <path d="M300 135 L420 135"></path>
+              <path d="M120 45 L370 45 C 400 45, 395 135, 420 135"></path>
+            </g>
+            <g class="he-c" marker-end="url(#hc)">
+              <path d="M48 145 L80 165"></path><path d="M120 165 L170 105"></path><path d="M210 105 L260 195"></path><path d="M300 195 L350 195"></path><path d="M390 195 L420 135"></path><path d="M460 135 L488 135"></path>
+            </g>
+            <g class="hn">
+              <rect class="term" x="4" y="133" width="44" height="24" rx="12"></rect><rect class="term" x="490" y="123" width="44" height="24" rx="12"></rect>
+              <rect x="80" y="33" width="40" height="24" rx="12"></rect><rect x="80" y="93" width="40" height="24" rx="12"></rect>
+              <rect class="crit" x="80" y="153" width="40" height="24" rx="12"></rect><rect x="80" y="213" width="40" height="24" rx="12"></rect>
+              <rect class="crit" x="170" y="93" width="40" height="24" rx="12"></rect><rect x="170" y="153" width="40" height="24" rx="12"></rect>
+              <rect x="170" y="213" width="40" height="24" rx="12"></rect><rect x="260" y="123" width="40" height="24" rx="12"></rect>
+              <rect class="crit" x="260" y="183" width="40" height="24" rx="12"></rect><rect class="crit" x="350" y="183" width="40" height="24" rx="12"></rect>
+              <rect class="crit" x="420" y="123" width="40" height="24" rx="12"></rect>
+            </g>
+            <g class="ht">
+              <text x="26" y="149" class="ht-term" data-i18n="nodeStart">Inicio</text><text x="512" y="139" class="ht-term" data-i18n="nodeEnd">Fin</text>
+              <text x="100" y="50">D</text><text x="100" y="110">A</text><text x="100" y="170">B</text><text x="100" y="230">C</text>
+              <text x="190" y="110">E</text><text x="190" y="170">F</text><text x="190" y="230">G</text>
+              <text x="280" y="140">H</text><text x="280" y="200">I</text><text x="370" y="200">J</text><text x="440" y="140">K</text>
+            </g>
+            <g class="hl">
+              <text x="100" y="28">0/8/4</text><text x="100" y="88">0/2/1</text><text x="100" y="148">0/3/0</text><text x="100" y="208">0/2/3</text>
+              <text x="190" y="88">3/4/3</text><text x="190" y="148">3/3/4</text><text x="190" y="208">3/2/5</text>
+              <text x="280" y="118">7/1/11</text><text x="280" y="178">7/2/7</text><text x="370" y="178">9/3/9</text><text x="440" y="118">12/1/12</text>
+            </g>
+          </svg>
+          <figcaption><span class="crit-line" aria-hidden="true"></span><span data-i18n="heroCaption">Camino crítico B → E → I → J → K · 13 días</span></figcaption>
+        </figure>
+      </section>
+
+      <section id="modules" class="modules-section" aria-labelledby="modules-title">
+        <div class="section-head"><h2 id="modules-title" data-i18n="modulesTitle">Ocho módulos. Una misma red.</h2><p data-i18n="modulesNote">Abiertos · Interactivos · ES / EN</p></div>
+
+        <h3 class="group-title" data-i18n="groupKnown">Del enunciado al camino crítico · duraciones conocidas</h3>
+        <div class="card-grid">
+          <article class="module-card tone-soon">
+            <div class="card-top"><span class="card-num">M0</span><span class="card-q" data-i18n="m0Question">¿Qué hay que hacer y en qué orden?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><g class="il-line il-round"><path d="M10 14 H70"></path><path d="M10 26 H62"></path><path d="M10 38 H74"></path><path d="M10 50 H50"></path></g><path class="il-ink" d="M86 32 H106 M102 28 L108 32 L102 36"></path><rect class="il-box" x="120" y="6" width="70" height="48" rx="4"></rect><path class="il-grid" d="M120 18 H190 M120 30 H190 M120 42 H190 M140 6 V54 M158 6 V54"></path><g class="il-mono"><text x="126" y="15">A</text><text x="126" y="27">B</text><text x="126" y="39">E</text><text x="162" y="39">A,B</text></g></svg></div>
+            <h4 data-i18n="m0Title">Del enunciado a la tabla</h4>
+            <p data-i18n="m0Desc">Convierte un enunciado en actividades, duraciones y precedencias. Aprende a detectar las precedencias redundantes antes de dibujar.</p>
+            <p class="topics" data-i18n="m0Topics">Actividades · Precedencias · Redundancias</p>
+            <div class="card-foot"><span class="soon" data-i18n="soonPhase2">Fase 2 · en preparación</span></div>
+          </article>
+
+          <article class="module-card tone-blue">
+            <div class="card-top"><span class="card-num">M1</span><span class="card-q" data-i18n="m1Question">¿Cómo se dibuja el proyecto?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><path class="il-line" d="M44 30 L72 14 M44 30 L72 46 M112 14 L140 30 M112 46 L140 30"></path><g class="il-box-a"><rect x="72" y="4" width="40" height="20" rx="3"></rect><rect x="72" y="36" width="40" height="20" rx="3"></rect><rect x="140" y="20" width="40" height="20" rx="3"></rect></g><rect class="il-term" x="10" y="22" width="34" height="16" rx="8"></rect><g class="il-id"><text x="92" y="18">A</text><text x="92" y="50">B</text><text x="160" y="34">C</text></g></svg></div>
+            <h4 data-i18n="m1Title">Red ROY</h4>
+            <p data-i18n="m1Desc">Construye la red nivel a nivel a partir de la tabla, con la matriz de encadenamiento al lado y la caja de nodo que uses en clase.</p>
+            <p class="topics" data-i18n="m1Topics">Actividad en nodo · Niveles · Matriz · 3 formatos de caja</p>
+            <div class="card-foot"><a class="button" href="cpm.html#v=route&amp;ex=ej6&amp;step=1&amp;lang=es" data-lab="m1"><span data-i18n="m1Open">Abrir red ROY</span><span aria-hidden="true">↗</span></a><span class="ok" data-i18n="available">Disponible</span></div>
+          </article>
+
+          <article class="module-card tone-soon">
+            <div class="card-top"><span class="card-num">M2</span><span class="card-q" data-i18n="m2Question">¿Y si las actividades van en las flechas?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><path class="il-ink" d="M38 30 L84 12 M38 30 L84 48 M104 12 L150 30 M104 48 L150 30"></path><path class="il-dummy" d="M94 20 V40"></path><g class="il-event"><circle cx="28" cy="30" r="10"></circle><circle cx="94" cy="12" r="9"></circle><circle cx="94" cy="48" r="9"></circle><circle cx="160" cy="30" r="10"></circle></g><g class="il-small"><text x="52" y="14">A</text><text x="52" y="54">B</text><text x="124" y="14">C</text><text x="124" y="54">D</text></g></svg></div>
+            <h4 data-i18n="m2Title">Red PERT y ficticias</h4>
+            <p data-i18n="m2Desc">Dibuja la misma tabla con actividades en arco y descubre cuándo hacen falta ficticias, con las reglas de los conjuntos: iguales, contenidos y compartidos.</p>
+            <p class="topics" data-i18n="m2Topics">Actividad en arco · Sucesos · Ficticias · ROY ⇄ PERT</p>
+            <div class="card-foot"><span class="soon" data-i18n="soonPhase2">Fase 2 · en preparación</span></div>
+          </article>
+
+          <article class="module-card tone-amber">
+            <div class="card-top"><span class="card-num">M3</span><span class="card-q" data-i18n="m3Question">¿Cuánto dura el proyecto?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><g class="il-box"><rect x="20" y="10" width="60" height="40" rx="4"></rect><rect x="120" y="10" width="60" height="40" rx="4"></rect></g><path class="il-grid" d="M20 23 H80 M120 23 H180 M40 10 V23 M60 10 V23 M140 10 V23 M160 10 V23"></path><g class="il-mono il-center"><text x="30" y="20">0</text><text x="50" y="20">3</text><text x="70" y="20" class="il-amber-t">3</text><text x="130" y="20" class="il-amber-t">3</text><text x="150" y="20">4</text><text x="170" y="20">7</text></g><g class="il-id"><text x="50" y="41">B</text><text x="150" y="41">E</text></g><path class="il-amber" d="M80 30 L118 30 M112 25 L119 30 L112 35"></path></svg></div>
+            <h4 data-i18n="m3Title">Cálculo de tiempos</h4>
+            <p data-i18n="m3Desc">Pasadas hacia delante y hacia atrás, actividad a actividad, con la fórmula y sus números en cada paso. Predice el valor antes de verlo.</p>
+            <p class="topics" data-i18n="m3Topics">ES · EF · LS · LF · Modo predicción · ¿Y si…?</p>
+            <div class="card-foot"><a class="button" href="cpm.html#v=route&amp;ex=ej6&amp;step=2&amp;lang=es" data-lab="m3"><span data-i18n="m3Open">Abrir cálculo de tiempos</span><span aria-hidden="true">↗</span></a><span class="ok" data-i18n="available">Disponible</span></div>
+          </article>
+
+          <article class="module-card tone-red">
+            <div class="card-top"><span class="card-num">M4</span><span class="card-q" data-i18n="m4Question">¿Qué actividades no pueden retrasarse?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><path class="il-line" d="M30 30 L70 12 M90 12 L130 30"></path><path class="il-crit" d="M30 30 L70 48 M90 48 L130 30 M150 30 L176 30"></path><circle class="il-term" cx="20" cy="30" r="9"></circle><circle class="il-node" cx="80" cy="12" r="9"></circle><circle class="il-node-c" cx="80" cy="48" r="9"></circle><circle class="il-node-c" cx="140" cy="30" r="9"></circle><circle class="il-term" cx="184" cy="30" r="8"></circle><text class="il-small" x="100" y="8">TF = 1</text></svg></div>
+            <h4 data-i18n="m4Title">Holguras y caminos críticos</h4>
+            <p data-i18n="m4Desc">Calcula las cuatro holguras, encuentra todos los caminos críticos y mira en el Gantt qué margen tiene cada actividad.</p>
+            <p class="topics" data-i18n="m4Topics">Total · Libre · Independiente · Gantt</p>
+            <div class="card-foot"><a class="button" href="cpm.html#v=route&amp;ex=ej6&amp;step=26&amp;lang=es" data-lab="m4"><span data-i18n="m4Open">Abrir holguras</span><span aria-hidden="true">↗</span></a><span class="ok" data-i18n="available">Disponible</span></div>
+          </article>
+        </div>
+
+        <h3 class="group-title" data-i18n="groupUncertain">Cuando las duraciones son inciertas</h3>
+        <div class="card-grid">
+          <article class="module-card tone-soon">
+            <div class="card-top"><span class="card-num">M5</span><span class="card-q" data-i18n="m5Question">¿Y si no sabemos cuánto dura?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><path class="il-accent" d="M30 50 C 60 50, 70 8, 92 8 C 118 8, 140 50, 172 50"></path><path class="il-line" d="M20 50 H180"></path><path class="il-ink" d="M30 46 V54 M92 46 V54 M172 46 V54"></path><g class="il-small il-center"><text x="30" y="44">a</text><text x="92" y="44">m</text><text x="172" y="44">b</text></g></svg></div>
+            <h4 data-i18n="m5Title">PERT de tres tiempos</h4>
+            <p data-i18n="m5Desc">Duraciones optimista, más probable y pesimista. De dónde salen la media y la varianza de cada actividad, y qué supone la beta.</p>
+            <p class="topics" data-i18n="m5Topics">a · m · b · Media · Varianza</p>
+            <div class="card-foot"><span class="soon" data-i18n="soonPhase4">Fase 4 · en preparación</span></div>
+          </article>
+
+          <article class="module-card tone-soon">
+            <div class="card-top"><span class="card-num">M6</span><span class="card-q" data-i18n="m6Question">¿Cuánto nos fiamos de la normal?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><path class="il-line il-dash" d="M20 50 C 60 50, 70 8, 100 8 C 130 8, 140 50, 180 50"></path><path class="il-crit il-thin" d="M20 50 C 70 50, 84 10, 112 10 C 138 10, 150 50, 180 50"></path><path class="il-line" d="M20 50 H180"></path><path class="il-ink" d="M100 4 V54"></path></svg></div>
+            <h4 data-i18n="m6Title">El TCL y sus trampas</h4>
+            <p data-i18n="m6Desc">La probabilidad de terminar a tiempo según el teorema central del límite, y por qué mirar solo el camino crítico medio subestima el riesgo.</p>
+            <p class="topics" data-i18n="m6Topics">Normal · Sesgo de fusión · Caminos casi críticos</p>
+            <div class="card-foot"><span class="soon" data-i18n="soonPhase4">Fase 4 · en preparación</span></div>
+          </article>
+
+          <article class="module-card tone-soon">
+            <div class="card-top"><span class="card-num">M7</span><span class="card-q" data-i18n="m7Question">¿Qué actividad importa de verdad?</span></div>
+            <div class="card-art" aria-hidden="true"><svg width="200" height="60" viewBox="0 0 200 60"><g class="il-bars"><rect x="40" y="42" width="12" height="10"></rect><rect x="56" y="30" width="12" height="22"></rect><rect x="72" y="14" width="12" height="38"></rect><rect x="88" y="8" width="12" height="44"></rect><rect x="104" y="18" width="12" height="34"></rect><rect x="120" y="32" width="12" height="20"></rect><rect x="136" y="44" width="12" height="8"></rect></g><path class="il-line" d="M30 52 H160"></path></svg></div>
+            <h4 data-i18n="m7Title">Montecarlo e índices</h4>
+            <p data-i18n="m7Desc">Simula miles de veces el proyecto y mide con qué frecuencia es crítica cada actividad y cuánto influye en la duración total.</p>
+            <p class="topics" data-i18n="m7Topics">Simulación · Índice de criticidad · Crucialidad</p>
+            <div class="card-foot"><span class="soon" data-i18n="soonPhase4">Fase 4 · en preparación</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="fit-section" aria-labelledby="fit-title">
+        <div class="section-head"><h2 id="fit-title" data-i18n="fitTitle">Así encajan</h2><p data-i18n="fitNote">La misma tabla de principio a fin</p></div>
+        <div class="flow-band">
+          <p class="eyebrow" data-i18n="fitKnown">Duraciones conocidas</p>
+          <ol class="flow">
+            <li><strong data-i18n="fitTable">Enunciado → tabla</strong><span data-i18n="fitTableSub">M0 · precedencias</span></li>
+            <li class="wide"><strong><span class="c-blue" data-i18n="fitRoy">Red ROY</span> <span class="flow-or" data-i18n="fitOr">o</span> <span data-i18n="fitPert">Red PERT</span></strong><span data-i18n="fitNetSub">M1 · M2 · dos dibujos de la misma tabla</span></li>
+            <li><strong class="c-amber" data-i18n="fitTimes">Tiempos</strong><span data-i18n="fitTimesSub">M3 · hacia delante y hacia atrás</span></li>
+            <li><strong class="c-red" data-i18n="fitFloats">Holguras y camino crítico</strong><span data-i18n="fitFloatsSub">M4 · cuatro holguras · Gantt</span></li>
+          </ol>
+          <p class="flow-next"><span aria-hidden="true">↓</span> <span data-i18n="fitNext">La misma red entra en la fila de abajo con duraciones aleatorias</span></p>
+        </div>
+        <div class="flow-band flow-band-alt">
+          <p class="eyebrow" data-i18n="fitUncertain">Duraciones inciertas</p>
+          <ol class="flow">
+            <li><strong data-i18n="fitThree">Tres tiempos</strong><span data-i18n="fitThreeSub">M5 · media y varianza</span></li>
+            <li><strong data-i18n="fitNormal">Aproximación normal</strong><span data-i18n="fitNormalSub">M6 · y por qué falla</span></li>
+            <li><strong data-i18n="fitMc">Montecarlo</strong><span data-i18n="fitMcSub">M7 · criticidad y crucialidad</span></li>
+          </ol>
+        </div>
+        <p class="fit-explain" data-i18n="fitExplain">ROY y PERT parten de la misma tabla y llegan a los mismos tiempos; cambian el dibujo y la necesidad de ficticias. El bloque de incertidumbre reutiliza la red ya construida, y el taller sirve para todos los módulos.</p>
+      </section>
+
+      <section id="workshop" class="tools-section" aria-labelledby="tools-title">
+        <div class="section-head"><h2 id="tools-title" data-i18n="toolsTitle">Para todos los módulos</h2><p data-i18n="toolsNote">Tus propios proyectos y ejercicios</p></div>
+        <div class="card-grid">
+          <article class="module-card">
+            <p class="eyebrow" data-i18n="workEyebrow">Taller</p>
+            <h4 data-i18n="workTitle">Tu propia tabla</h4>
+            <p data-i18n="workDesc">Escribe o pega desde una hoja de cálculo cualquier proyecto de hasta 30 actividades y resuélvelo paso a paso. El enlace guarda la tabla para compartirla.</p>
+            <p class="topics" data-i18n="workTopics">Predecesoras o posteriores · Pegar desde una hoja de cálculo · Enlace para compartir</p>
+            <div class="card-foot"><a class="button" href="cpm.html#v=work&amp;lang=es" data-lab="work"><span data-i18n="openWorkshop">Abrir el taller</span><span aria-hidden="true">↗</span></a><span class="ok" data-i18n="available">Disponible</span></div>
+          </article>
+          <article class="module-card">
+            <p class="eyebrow" data-i18n="practiceEyebrow">Práctica</p>
+            <h4 data-i18n="practiceTitle">Ejercicios generados</h4>
+            <p data-i18n="practiceDesc">Proyectos nuevos con su enunciado y su solución, corrección con error consecuente y un modo detective para encontrar el fallo en una red ya resuelta.</p>
+            <p class="topics" data-i18n="practiceTopics">Generador · Semilla · Error consecuente</p>
+            <div class="card-foot"><span class="soon" data-i18n="soonPhase3">Fase 3 · en preparación</span></div>
+          </article>
+          <article class="module-card">
+            <p class="eyebrow" data-i18n="moodleEyebrow">Profesorado</p>
+            <h4 data-i18n="moodleTitle">Banco de Moodle</h4>
+            <p data-i18n="moodleDesc">Preguntas en Moodle XML con tiempos, holguras, caminos y probabilidades. Cada pregunta enlaza su ejercicio resuelto paso a paso en el laboratorio.</p>
+            <p class="topics" data-i18n="moodleTopics">Moodle XML · Cloze · Numérica</p>
+            <div class="card-foot"><span class="soon" data-i18n="soonPhase3">Fase 3 · en preparación</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="learning-section" aria-labelledby="learning-title">
+        <div class="learning-intro">
+          <p class="eyebrow" data-i18n="learnEyebrow">En clase o por tu cuenta</p>
+          <h2 id="learning-title" data-i18n="learnTitle">Aprende haciendo.</h2>
+          <p data-i18n="learnLead">Todos los módulos comparten la misma forma de trabajar. Elige un ejemplo y sigue cada decisión del cálculo.</p>
+        </div>
+        <ul class="features">
+          <li><span class="feature-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 2 L13 8 L4 14 Z"></path></svg></span><div><strong data-i18n="featStepTitle">Sigue cada paso</strong><p data-i18n="featStepDesc">Cada valor aparece con su explicación, su fórmula y la línea del pseudocódigo que lo calcula.</p></div></li>
+          <li><span class="feature-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 13 L4 9.5 L11 2.5 L13.5 5 L6.5 12 Z"></path></svg></span><div><strong data-i18n="featPredictTitle">Predice el resultado</strong><p data-i18n="featPredictDesc">Escribe el valor antes de verlo y comprueba tu respuesta en el modo predicción.</p></div></li>
+          <li><span class="feature-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 5 H12 M9 2 L12 5 L9 8 M14 11 H4 M7 8 L4 11 L7 14"></path></svg></span><div><strong data-i18n="featWhatIfTitle">Pregunta «¿y si…?»</strong><p data-i18n="featWhatIfDesc">Cambia una duración y mira qué tiempos, holguras y caminos críticos se mueven.</p></div></li>
+          <li><span class="feature-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"></rect><path d="M2 7 H14 M7 3 V13"></path></svg></span><div><strong data-i18n="featNotationTitle">Usa tu notación</strong><p data-i18n="featNotationDesc">Español o inglés, siglas anglosajonas o españolas y la caja de nodo que uses en clase.</p></div></li>
+        </ul>
+      </section>
+
+      <section id="manual" class="manual-section" aria-labelledby="manual-title">
+        <div class="manual-cover" aria-hidden="true"><span>PNL</span></div>
+        <div class="manual-copy">
+          <p class="eyebrow eyebrow-amber" data-i18n="manualEyebrow">El manual · en preparación</p>
+          <h2 id="manual-title" data-i18n="manualTitle">Un manual breve para acompañar el laboratorio</h2>
+          <p data-i18n="manualDesc">Un recorrido corto por los módulos, con ejemplos resueltos y actividades para hacer en el laboratorio. Lo publicaremos aquí, en español y en inglés.</p>
+          <p class="topics" data-i18n="manualTopics">Explicaciones · Ejemplos resueltos · Actividades</p>
+          <div class="card-foot plain"><span class="soon" data-i18n="soonManual">En preparación</span></div>
+        </div>
+      </section>
+
+      <section id="about" class="about-section" aria-labelledby="about-title">
+        <div>
+          <p class="eyebrow" data-i18n="aboutEyebrow">Herramientas docentes abiertas</p>
+          <h2 id="about-title" data-i18n="aboutTitle">Para enseñar y aprender.</h2>
+          <p class="about-lead" data-i18n="aboutLead">Este portal reúne los módulos de redes de proyectos para cursos de organización y dirección de proyectos en ingeniería, en grado y en máster.</p>
+          <p class="about-lead"><span data-i18n="siblingText">Es hermano del</span> <a href="https://josemagalan.github.io/genetic-algorithms-lab/"><span data-i18n="siblingLink">Laboratorio de algoritmos genéticos</span> <span aria-hidden="true">↗</span></a></p>
+        </div>
+        <div class="credits">
+          <p class="credits-scope" data-i18n="creditsScope">Equipo del laboratorio de redes de proyectos</p>
+          <p class="authors"><span class="author"><a href="https://sites.google.com/site/josemagalan/">José Manuel Galán</a><sup>1,*</sup> <a class="orcid" href="https://orcid.org/0000-0003-3360-7602" aria-label="ORCID: José Manuel Galán">iD</a></span> · <span class="author"><a href="https://produccioncientifica.usal.es/investigadores/2300823/detalle?lang=en_US">Silvia Díaz-de la Fuente</a><sup>2</sup> <a class="orcid" href="https://orcid.org/0000-0002-5961-3368" aria-label="ORCID: Silvia Díaz-de la Fuente">iD</a></span> · <span class="author"><a href="https://investigacion.ubu.es/investigadores/34947/detalle">Virginia Ahedo</a><sup>1</sup> <a class="orcid" href="https://orcid.org/0000-0002-9812-388X" aria-label="ORCID: Virginia Ahedo">iD</a></span> · <span class="author"><a href="https://portalcientifico.upm.es/es/ipublic/researcher/331932">María Pereda</a><sup>3,4</sup> <a class="orcid" href="https://orcid.org/0000-0002-6151-1176" aria-label="ORCID: María Pereda">iD</a></span> · <span class="author"><a href="https://investigacion.ubu.es/investigadores/35543/detalle">José Ignacio Santos</a><sup>1</sup> <a class="orcid" href="https://orcid.org/0000-0002-6653-043X" aria-label="ORCID: José Ignacio Santos">iD</a></span></p>
+          <p class="credits-links" data-i18n="creditsLinks">Los nombres enlazan a páginas personales o perfiles académicos, e «iD», a su registro ORCID.</p>
+          <p class="affiliations"><sup>1</sup> Departamento de Ingeniería de Organización, Escuela Politécnica Superior, Universidad de Burgos. Edificio A1, Avda. Cantabria s/n, 09006 Burgos<br><sup>2</sup> Departamento de Cartografía e Ingeniería del Terreno, Escuela Politécnica Superior de Ávila, Universidad de Salamanca. Hornos Caleros 50, 05003 Ávila<br><sup>3</sup> Grupo de investigación Ingeniería de Organización y Logística (IOL), Escuela Técnica Superior de Ingenieros Industriales, Universidad Politécnica de Madrid. C/ José Gutiérrez Abascal 2, 28006 Madrid<br><sup>4</sup> Grupo Interdisciplinar de Sistemas Complejos, Madrid<br><sup>*</sup> <span data-i18n="correspondingAuthor">Autor de correspondencia</span></p>
+          <p class="license-note" data-i18n="licenses">Código MIT · contenido docente CC BY 4.0.</p>
+          <p class="feedback-note"><span data-i18n="feedbackText">¿Has visto un error o tienes una sugerencia?</span> <a href="https://github.com/josemagalan/project-network-lab/issues" data-i18n="feedbackLink">Coméntalo en GitHub</a> · <span data-i18n="feedbackAuthors">sin GitHub, escribe a los autores desde sus páginas, enlazadas arriba.</span></p>
+        </div>
+      </section>
+      <div class="institution-logos" role="group" aria-label="Instituciones participantes" data-i18n-aria="institutions"><img src="img/logos/ubu.png" alt="Universidad de Burgos" width="178" height="64" loading="lazy"><img src="img/logos/usal.png" alt="Universidad de Salamanca" width="178" height="64" loading="lazy"><img src="img/logos/upm.png" alt="Universidad Politécnica de Madrid" width="178" height="64" loading="lazy"><img src="img/logos/goonies.png" alt="Los Goonies" width="154" height="64" loading="lazy"></div>
+    </main>
+
+    <footer class="footer"><span data-i18n="footerText">Laboratorio de redes de proyectos · Herramientas docentes abiertas · v0.1.0</span><a href="#top"><span data-i18n="backTop">Volver arriba</span> <span aria-hidden="true">↑</span></a></footer>
+    <noscript><p class="noscript-note">Puedes abrir todos los módulos sin JavaScript. Actívalo para cambiar el idioma de este portal. / All module links work without JavaScript. Enable it to change this portal’s language.</p></noscript>
+  </div>
+</body>
+</html>
