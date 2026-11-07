@@ -4,20 +4,110 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Laboratorio de redes de proyectos · PERT · CPM · ROY</title>
-  <meta name="description" content="Laboratorio interactivo y bilingüe para enseñar redes de proyectos: ROY (actividad en nodo), PERT (actividad en arco), tiempos, holguras y camino crítico.">
+  <meta name="description" content="Laboratorio interactivo y bilingüe para enseñar redes de proyectos: ROY (actividad en nodo), tiempos, holguras y camino crítico, paso a paso. Interactive bilingual lab for teaching project networks.">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <a class="skip" href="#main" id="skipLink">Saltar al contenido</a>
+  <a class="skip" href="#main" data-i18n="app.skip">Saltar al contenido</a>
   <header class="site-head">
-    <h1 id="appTitle">Laboratorio de redes de proyectos</h1>
-    <p id="appSubtitle">PERT · CPM · ROY</p>
+    <div class="brand">
+      <strong data-i18n="app.title">Laboratorio de redes de proyectos</strong>
+      <span data-i18n="app.subtitle">PERT · CPM · ROY</span>
+    </div>
+    <nav class="tabs" data-i18n-label="nav.label" aria-label="Secciones">
+      <a href="#" id="navRoute" data-i18n="nav.route">Ruta guiada</a>
+      <a href="#" id="navWork" data-i18n="nav.work">Taller</a>
+    </nav>
+    <div class="controls">
+      <label><span data-i18n="ctl.lang">Idioma</span>
+        <select id="selLang"><option value="es">ES</option><option value="en">EN</option></select></label>
+      <label><span data-i18n="ctl.nota">Notación</span>
+        <select id="selNota"><option value="en" data-i18n="ctl.notaEn">ES · EF · LS · LF</option><option value="es" data-i18n="ctl.notaEs">tᵢ · fᵢ · tᵢ* · fᵢ*</option></select></label>
+      <label><span data-i18n="ctl.box">Caja</span>
+        <select id="selBox"><option value="7" data-i18n="ctl.box7">7 campos</option><option value="4" data-i18n="ctl.box4">4 campos</option><option value="c" data-i18n="ctl.boxc">Compacta</option></select></label>
+    </div>
   </header>
+
   <main id="main" tabindex="-1">
     <noscript><p>Esta herramienta necesita JavaScript para funcionar. · This tool needs JavaScript to work.</p></noscript>
-    <p id="status">En construcción: fase 1 (CPM determinista con la red ROY).</p>
+    <p id="urlWarning" class="banner" role="status" hidden></p>
+
+    <section id="workshop" class="card workshop" hidden></section>
+
+    <div id="stage" class="stage">
+      <section class="card panel-main" id="panelMain">
+        <div class="panel-head">
+          <div class="seg" role="group" id="viewGroup" data-i18n-label="view.label" aria-label="Vista">
+            <button type="button" id="btnNet" data-i18n="view.net">Red</button>
+            <button type="button" id="btnMatrix" data-i18n="view.matrix">Matriz</button>
+          </div>
+          <span id="unitLine" class="muted"></span>
+        </div>
+        <div id="netView" class="scroll-box"></div>
+        <div id="matrixView" class="scroll-box" hidden></div>
+        <p class="muted small"><span id="boxHint"></span> <button type="button" class="linklike" id="btnTable" aria-controls="altTable" aria-expanded="false"></button></p>
+        <div id="altTable" class="scroll-box" hidden></div>
+        <div id="resultsView" hidden></div>
+        <div id="ganttView" class="scroll-box" hidden></div>
+      </section>
+
+      <aside class="side" id="side">
+        <div class="card narration">
+          <span id="stepTitle" class="eyebrow"></span>
+          <p id="stepText"></p>
+          <div id="formula" class="formula"></div>
+          <div id="predictBox" class="predict" hidden></div>
+          <div class="row-wrap">
+            <label class="check"><input type="checkbox" id="chkPredict"> <span data-i18n="predict.toggle">Modo predicción</span></label>
+            <button type="button" class="ghost push" id="btnWhatIf" aria-expanded="false" aria-controls="whatIfBox" data-i18n="whatif.button">¿Y si…?</button>
+            <button type="button" class="ghost" id="btnLearn" data-i18n="learn.button">Aprende más</button>
+          </div>
+          <div id="whatIfBox" class="whatif" hidden></div>
+        </div>
+        <div class="card player">
+          <div class="player-line muted small"><span id="stepCounter"></span><span id="phaseCounter"></span></div>
+          <div class="bar"><div id="barFill"></div></div>
+          <div class="player-buttons">
+            <button type="button" id="btnFirst" data-i18n-label="player.first" aria-label="Inicio">⏮</button>
+            <button type="button" id="btnPrev" data-i18n-label="player.prev" aria-label="Anterior">←</button>
+            <button type="button" id="btnPlay" class="primary" data-i18n-label="player.play" aria-label="Reproducir">▶</button>
+            <button type="button" id="btnNext" data-i18n-label="player.next" aria-label="Siguiente">→</button>
+          </div>
+          <span class="muted small center" data-i18n="player.keys">← → avanzar o retroceder · Espacio reproducir · Inicio volver</span>
+        </div>
+        <div class="legend muted small" id="legend"></div>
+      </aside>
+    </div>
+
+    <p id="live" class="sr-only" aria-live="polite"></p>
   </main>
+
+  <dialog id="learnDialog" aria-labelledby="learnTitle">
+    <div class="dialog-head"><h2 id="learnTitle"></h2><button type="button" id="btnLearnClose" data-i18n="learn.close">Cerrar</button></div>
+    <div id="learnBody"></div>
+  </dialog>
+
+  <footer class="site-foot muted small" data-i18n="app.footer">Código con licencia MIT · contenido docente CC BY 4.0 · Universidad de Burgos</footer>
+
   <script src="vendor/d3.min.js"></script>
   <script src="js/i18n.js"></script>
+  <script src="js/core/topo.js"></script>
+  <script src="js/core/project.js"></script>
+  <script src="js/core/cpm.js"></script>
+  <script src="js/core/matrix.js"></script>
+  <script src="js/core/urlstate.js"></script>
+  <script src="js/core/examples.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/narrate.js"></script>
+  <script src="js/learn.js"></script>
+  <script src="js/predict.js"></script>
+  <script src="js/dom.js"></script>
+  <script src="js/views/layout.js"></script>
+  <script src="js/views/roy-view.js"></script>
+  <script src="js/views/matrix-view.js"></script>
+  <script src="js/views/results.js"></script>
+  <script src="js/views/gantt.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
