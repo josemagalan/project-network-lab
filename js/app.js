@@ -147,7 +147,7 @@
     $('resultsView').hidden = !lateSteps;
     if (lateSteps) {
       const rv = clear($('resultsView'));
-      const tb = h('div', { class: 'scroll-box' });
+      const tb = h('div', { class: 'scroll-box', tabindex: '0' });
       rv.appendChild(tb);
       G.results.table(tb, ctx);
       if (criticalOn) { const pv = h('div', { class: 'paths-box' }); rv.appendChild(pv); G.results.paths(pv, ctx); }
@@ -259,7 +259,7 @@
     if (topic === 'table' || topic === 'build') { body.appendChild(h('h3', {}, [t('learn.history')])); body.appendChild(h('p', {}, [LR.history[lang()]])); }
     body.appendChild(h('h3', {}, [t('learn.pseudo')]));
     const on = new Set(LR.pseudoLines(step));
-    body.appendChild(h('pre', { class: 'code' }, LR.pseudo[lang()].map((line, i) => h('span', { class: on.has(i) ? 'on' : '' }, [line]))));
+    body.appendChild(h('pre', { class: 'code', tabindex: '0', 'aria-label': t('learn.pseudo') }, LR.pseudo[lang()].map((line, i) => h('span', { class: on.has(i) ? 'on' : '' }, [line]))));
     body.appendChild(h('h3', {}, [t('learn.refs')]));
     body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
     const dlg = $('learnDialog');

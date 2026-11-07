@@ -14,3 +14,20 @@ jobs:
         run: npm test
       - name: Cobertura del núcleo (≥ 90 % de líneas en js/core/)
         run: npm run coverage
+  browser:
+    # Tier 2 (principio 3): Playwright y axe-core solo se instalan aquí, nunca en package.json.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Playwright y axe-core sin tocar package.json
+        run: npm install --no-save --no-package-lock playwright@1.63.0 axe-core@4.10.2
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Pruebas de navegador (ruta, URL, matriz, teclado, axe y presupuesto de 1 MB)
+        run: node tests/browser/run.js
+        env:
+          CI: true

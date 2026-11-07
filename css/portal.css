@@ -177,8 +177,8 @@ h1 .accent { color: var(--accent); }
 .credits p { line-height: 1.6; }
 .authors { font-size: 14.5px; color: var(--ink); line-height: 1.8 !important; }
 .author { white-space: nowrap; }
-.orcid { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #a6ce39; color: #ffffff; font-size: 9px; font-weight: 700; text-decoration: none; vertical-align: 1px; }
-.orcid:hover { color: #ffffff; background: #7fa32a; }
+.orcid { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #a6ce39; color: #1d1d1b; font-size: 9px; font-weight: 700; text-decoration: none; vertical-align: 1px; }
+.orcid:hover { color: #1d1d1b; background: #8db82a; }
 .affiliations, .license-note { font-size: 12.5px; color: var(--muted); }
 .institution-logos { display: flex; gap: 28px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: -32px; }
 .institution-logos img { height: 48px; width: auto; }

@@ -22,7 +22,9 @@
 html, body { margin: 0; }
 body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); }
 a { color: var(--accent); }
-button, select, input { font: inherit; color: inherit; }
+button, select, input, textarea { font: inherit; color: inherit; }
+/* Sin fondo propio, el control nativo toma el del sistema y en modo oscuro deja texto claro sobre fondo claro. */
+select, textarea, input:not([type="checkbox"]):not([type="radio"]) { background: var(--card); border: 1px solid var(--edge); border-radius: 6px; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -51,7 +53,7 @@ main { max-width: 1440px; margin: 0 auto; padding: 16px 24px; }
 .seg { display: flex; gap: 4px; }
 .seg button { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--accent); font-weight: 600; font-size: 14px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.scroll-box { overflow: auto; max-width: 100%; }
+.scroll-box { position: relative; overflow: auto; max-width: 100%; }
 .linklike { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font-size: 13px; }
 
 .narration { padding: 16px; display: flex; flex-direction: column; gap: 10px; }

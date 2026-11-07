@@ -43,12 +43,12 @@
           </div>
           <span id="unitLine" class="muted"></span>
         </div>
-        <div id="netView" class="scroll-box"></div>
-        <div id="matrixView" class="scroll-box" hidden></div>
+        <div id="netView" class="scroll-box" tabindex="0" role="region" data-i18n-label="view.net" aria-label="Red"></div>
+        <div id="matrixView" class="scroll-box" tabindex="0" role="region" data-i18n-label="view.matrix" aria-label="Matriz" hidden></div>
         <p class="muted small"><span id="boxHint"></span> <button type="button" class="linklike" id="btnTable" aria-controls="altTable" aria-expanded="false"></button></p>
-        <div id="altTable" class="scroll-box" hidden></div>
+        <div id="altTable" class="scroll-box" tabindex="0" hidden></div>
         <div id="resultsView" hidden></div>
-        <div id="ganttView" class="scroll-box" hidden></div>
+        <div id="ganttView" class="scroll-box" tabindex="0" role="region" data-i18n-label="steps.gantt" aria-label="Diagrama de Gantt" hidden></div>
       </section>
 
       <aside class="side" id="side">
@@ -83,7 +83,7 @@
   </main>
 
   <dialog id="learnDialog" aria-labelledby="learnTitle">
-    <div class="dialog-head"><h2 id="learnTitle"></h2><button type="button" id="btnLearnClose" data-i18n="learn.close">Cerrar</button></div>
+    <div class="dialog-head"><h2 id="learnTitle"></h2><button type="button" class="ghost" id="btnLearnClose" data-i18n="learn.close">Cerrar</button></div>
     <div id="learnBody"></div>
   </dialog>
 

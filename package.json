@@ -7,6 +7,7 @@
     "start": "node scripts/serve.cjs",
     "check": "node scripts/check.cjs",
     "test": "node scripts/check.cjs && node --test \"tests/*.test.js\"",
+    "test:browser": "node tests/browser/run.js",
     "coverage": "node --test --experimental-test-coverage --test-coverage-include=\"js/core/**\" --test-coverage-lines=90 \"tests/*.test.js\""
   },
   "engines": { "node": ">=22" },
