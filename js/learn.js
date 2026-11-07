@@ -1,7 +1,7 @@
 /*
  * learn — contenido del panel «Aprende más» en ES y EN: teoría del paso, un poco de historia,
  * pseudocódigo con la línea activa y referencias. Texto docente con licencia CC BY 4.0.
- * PENDIENTE DE REVISIÓN DEL AUTOR (tarea T017): la versión en español es la de referencia.
+ * Revisado por el autor (tarea T017); la versión en español es la de referencia.
  */
 (function (root) {
   'use strict';
@@ -58,9 +58,9 @@
     },
     build: {
       es: ['En la red ROY (actividad en nodo) cada actividad es un nodo y cada flecha una precedencia. No hacen falta actividades ficticias, salvo los nodos de inicio y fin, que tienen duración 0.',
-        'Los nodos se colocan por niveles: una actividad va una columna a la derecha de su predecesora más alejada del inicio.'],
+        'Los nodos se colocan por niveles: una actividad va una columna a la derecha de su predecesora de nivel más alto, la que tiene más flechas desde el inicio.'],
       en: ['In an activity-on-node network (Roy’s method) each activity is a node and each arrow a precedence. No dummy activities are needed, apart from the start and end nodes, which take 0 time.',
-        'Nodes are placed in levels: an activity goes one column to the right of its predecessor furthest from the start.'],
+        'Nodes are placed in levels: an activity goes one column to the right of its highest-level predecessor, the one with the most arrows from the start.'],
     },
     forward: {
       es: ['La pasada hacia delante calcula lo antes que puede empezar (ES) y terminar (EF) cada actividad. Se recorren las actividades en orden topológico, de modo que cuando llegamos a una ya conocemos todas sus predecesoras.',
@@ -77,7 +77,7 @@
     float: {
       es: ['Las holguras miden cuánto margen tiene una actividad. Aquí se usan las cuatro de Klastorin (2010): total, libre, de seguridad e independiente.',
         'La total mira solo al proyecto; la libre, a las sucesoras; la de seguridad, a las predecesoras; y la independiente, a las dos a la vez. Por eso la independiente puede salir negativa en la fórmula: se acota a 0.'],
-      en: ['Floats measure how much slack an activity has. Here we use Klastorin’s four (2010): total, free, safety and independent.',
+      en: ['Floats measure how much slack an activity has. Here we use Klastorin’s four (2010): total, free, safety and independent (Klastorin calls them slacks).',
         'Total float looks only at the project; free float, at the successors; safety float, at the predecessors; and independent float, at both at once. That is why the independent float formula can turn negative: it is bounded at 0.'],
     },
     critical: {
@@ -87,20 +87,20 @@
         'There can be more than one critical path. Activities with little total float deserve attention too: a small delay makes them critical.'],
     },
     gantt: {
-      es: ['El diagrama de Gantt sitúa cada actividad en el tiempo. Con fechas tempranas, cada barra empieza en su ES; la línea discontinua llega hasta su LF y representa la holgura total.'],
-      en: ['The Gantt chart places each activity in time. With early dates, each bar starts at its ES; the dashed line reaches its LF and represents the total float.'],
+      es: ['El diagrama de Gantt sitúa cada actividad en el tiempo. Con fechas tempranas, cada barra empieza en su ES; la línea discontinua llega hasta su LF y representa la holgura total. Con fechas tardías, la barra termina en su LF y la línea discontinua va desde su ES hasta su LS.'],
+      en: ['The Gantt chart places each activity in time. With early dates, each bar starts at its ES; the dashed line reaches its LF and represents the total float. With late dates, the bar ends at its LF and the dashed line runs from its ES to its LS.'],
     },
     matrix: {
       es: ['La matriz de encadenamiento permite calcular los tiempos sin dibujar la red. Cada fila es una actividad y en ella aparecen, en la columna de cada predecesora, la duración de esa predecesora.',
-        'El tiempo mínimo de una fila es el máximo de «tiempo mínimo de la columna + valor de la celda». El tiempo máximo de una columna es el mínimo de «tiempo máximo de la fila − valor de la celda».'],
+        'El tiempo mínimo de comienzo de una fila es el máximo de «tiempo mínimo de comienzo de la columna + valor de la celda». El tiempo máximo de comienzo de una columna es el mínimo de «tiempo máximo de comienzo de la fila − valor de la celda».'],
       en: ['The chain matrix lets you compute the times without drawing the network. Each row is an activity and shows, in the column of each predecessor, that predecessor’s duration.',
-        'The earliest time of a row is the maximum of “earliest time of the column + cell value”. The latest time of a column is the minimum of “latest time of the row − cell value”.'],
+        'The earliest start time of a row is the maximum of “earliest start time of the column + cell value”. The latest start time of a column is the minimum of “latest start time of the row − cell value”.'],
     },
   };
 
   const history = {
-    es: 'CPM nació en 1957–1958 en DuPont y Remington Rand (Kelley y Walker); PERT, en 1958, en la oficina de proyectos especiales de la Marina de EE. UU. para el programa de submarinos Polaris. Las dos usaban redes con las actividades en las flechas. Por las mismas fechas, Bernard Roy desarrolló en Francia el método de los potenciales (MPM), con las actividades en los nodos: es la representación que hoy usan casi todos los programas de gestión de proyectos.',
-    en: 'CPM was born in 1957–1958 at DuPont and Remington Rand (Kelley and Walker); PERT, in 1958, at the US Navy Special Projects Office for the Polaris submarine programme. Both used networks with the activities on the arrows. Around the same time, Bernard Roy developed the potentials method (MPM) in France, with the activities on the nodes: the representation almost all project management software uses today.',
+    es: 'CPM nació en 1957–1958 en DuPont y Remington Rand (Kelley y Walker); PERT, en 1958, en la oficina de proyectos especiales de la Marina de EE. UU. para el programa de submarinos Polaris. Las dos usaban redes con las actividades en las flechas. Por las mismas fechas, en 1958, Bernard Roy desarrolló en la SEMA (París) el método de los potenciales Metra (MPM), con las actividades en los nodos: es la representación que hoy usan casi todos los programas de gestión de proyectos.',
+    en: 'CPM was born in 1957–1958 at DuPont and Remington Rand (Kelley and Walker); PERT, in 1958, at the US Navy Special Projects Office for the Polaris submarine programme. Both used networks with the activities on the arrows. Around the same time, in 1958, Bernard Roy developed the Metra potential method (MPM) at SEMA in Paris, with the activities on the nodes: the representation almost all project management software uses today.',
   };
 
   const refs = [
@@ -109,6 +109,7 @@
     'Kelley, J. E., & Walker, M. R. (1959). Critical-path planning and scheduling. Proceedings of the Eastern Joint Computer Conference, 160–173.',
     'Klastorin, T. (2010). Gestión de proyectos. Profit Editorial.',
     'Malcolm, D. G., Roseboom, J. H., Clark, C. E., & Fazar, W. (1959). Application of a technique for research and development program evaluation. Operations Research, 7(5), 646–669.',
+    'Roy, B. (Dir.) (1964). Les problèmes d’ordonnancement : applications et méthodes. Dunod.',
     'Sniedovich, M. (2005). Towards an AoA-free courseware for the critical path method. INFORMS Transactions on Education, 5(2), 47–63.',
   ];
 
