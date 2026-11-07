@@ -259,7 +259,7 @@
     if (topic === 'table' || topic === 'build') { body.appendChild(h('h3', {}, [t('learn.history')])); body.appendChild(h('p', {}, [LR.history[lang()]])); }
     body.appendChild(h('h3', {}, [t('learn.pseudo')]));
     const on = new Set(LR.pseudoLines(step));
-    body.appendChild(h('pre', { class: 'code', tabindex: '0', 'aria-label': t('learn.pseudo') }, LR.pseudo[lang()].map((line, i) => h('span', { class: on.has(i) ? 'on' : '' }, [line]))));
+    body.appendChild(h('pre', { class: 'code', tabindex: '0', role: 'region', 'aria-label': t('learn.pseudo') }, LR.pseudo[lang()].map((line, i) => h('span', { class: on.has(i) ? 'on' : '' }, [line]))));
     body.appendChild(h('h3', {}, [t('learn.refs')]));
     body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
     const dlg = $('learnDialog');

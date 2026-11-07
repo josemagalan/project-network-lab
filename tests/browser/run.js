@@ -12,7 +12,8 @@
  *
  *   node tests/browser/run.js                  → todas las comprobaciones
  *   node tests/browser/run.js --only axe       → solo las que contienen «axe» en el nombre
- *   node tests/browser/run.js --shots <dir>    → además, capturas de cada paso (evidencia T025)
+ *   node tests/browser/run.js --shots <dir>    → además, capturas de cada paso e informe de axe
+ *                                                (axe-report.json) en <dir>: evidencia de T025
  */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
@@ -78,19 +79,24 @@ const go = (page, n) => page.evaluate((k) => PNL.app.go(k), n);
 const visible = (page, sel) => page.locator(sel).first().isVisible();
 const trace = (page) => page.evaluate(() => PNL.app.model().solution.trace.map((s) => ({ kind: s.kind, act: s.act, fields: s.reveals.map((r) => r.field) })));
 
+const axeLog = [];
 async function axe(page, label) {
   if (!(await page.evaluate(() => !!window.axe))) await page.addScriptTag({ content: axeSource });
-  const violations = await page.evaluate(async (tags) => {
-    const r = await window.axe.run(document, { runOnly: { type: 'tag', values: tags }, resultTypes: ['violations'] });
-    return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 4).map((n) => n.target.join(' ')).join(' | ')}`);
+  const r = await page.evaluate(async (tags) => {
+    const res = await window.axe.run(document, { runOnly: { type: 'tag', values: tags } });
+    return {
+      violations: res.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 4).map((n) => n.target.join(' ')).join(' | ')}`),
+      passes: res.passes.length, incomplete: res.incomplete.map((v) => v.id), inapplicable: res.inapplicable.length,
+    };
   }, AXE_TAGS);
-  assert.deepEqual(violations, [], `axe en «${label}»`);
+  axeLog.push(Object.assign({ view: label }, r));
+  assert.deepEqual(r.violations, [], `axe en «${label}»`);
 }
 
-async function shot(page, name) {
+async function shot(page, name, full) {
   if (!SHOTS) return;
   fs.mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+  await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: !!full });
 }
 
 const cases = [];
@@ -157,14 +163,24 @@ check('AC15 · los seis ejemplos caben en 1280×720 y la matriz o la red se desp
   }
 });
 
-check('AC15 · a 360 px no hay desplazamiento horizontal de página (portada, ruta, matriz y taller)', async () => {
-  const views = [['index.html', 'index'], ['cpm.html#v=route&ex=ej6&step=0&lang=es', 'route-0'], ['cpm.html#v=route&ex=ej6&step=6&lang=es', 'route-6'],
-    ['cpm.html#v=route&ex=ej6&step=6&view=matrix&lang=es', 'matrix-6'], ['cpm.html#v=route&ex=ej6&step=31&lang=en', 'route-31'], ['cpm.html#v=work&lang=es', 'work']];
-  for (const [url, name] of views) {
+check('AC15 · a 360 px no hay desplazamiento horizontal de página en la portada, el taller ni en ningún paso de la ruta', async () => {
+  for (const [url, name] of [['index.html', 'index'], ['cpm.html#v=work&lang=es', 'work-es'], ['cpm.html#v=route&ex=ej6&step=6&view=matrix&lang=es', 'matrix-es']]) {
     const page = await open(url, { width: 360, height: 740 });
     const w = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(w <= 360, `${url}: ${w} px`);
-    await shot(page, `w360-${name}`);
+    await shot(page, `w360-${name}`, true);
+    await close(page);
+  }
+  for (const lang of ['es', 'en']) {
+    const page = await lab(`v=route&ex=ej6&step=0&lang=${lang}`, { width: 360, height: 740 });
+    const total = (await trace(page)).length;
+    for (let i = 0; i < total; i++) {
+      const s = await step(page);
+      const w = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(w <= 360, `${lang}, paso ${i}: ${w} px`);
+      await shot(page, `route-${lang}-360-${String(i + 1).padStart(2, '0')}-${s.kind}`, true);
+      if (i < total - 1) await page.locator('#btnNext').click();
+    }
     await close(page);
   }
 });
@@ -480,6 +496,10 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   }
   await browser.close();
   child.kill();
+  if (SHOTS) {
+    fs.mkdirSync(SHOTS, { recursive: true });
+    fs.writeFileSync(path.join(SHOTS, 'axe-report.json'), JSON.stringify({ axe: require('axe-core/package.json').version, tags: AXE_TAGS, views: axeLog }, null, 2));
+  }
   console.log(`\n${run.length - failed} de ${run.length} comprobaciones de navegador en verde (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
   process.exitCode = failed ? 1 : 0;
 })().catch((err) => { console.error(err); process.exit(1); });
