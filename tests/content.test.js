@@ -91,6 +91,22 @@ test('mientras se predice, la narración no dice qué término manda ni da los v
   }
 });
 
+test('mientras se predice, con una sola predecesora o sucesora no se pregunta «cuál» (ronda 2, H4)', () => {
+  const ex = E.get('ej6');
+  const project = P.parse(ex.rows, ex.mode).project;
+  const solution = C.solve(project);
+  const one = solution.trace.filter((s) => (s.kind === 'forward' || s.kind === 'backward') && s.formula.terms.length === 1
+    && ![C.START, C.END].includes(s.formula.terms[0].from) && ![C.START, C.END].includes(s.act));
+  assert.ok(one.length >= 2, 'el Ejercicio 6 tiene pasos con un solo término');
+  for (const lang of ['es', 'en']) {
+    for (const step of one) {
+      const txt = N.narrate(step, { lang, nota: 'en', solution, project, unit: '', hide: true }).text;
+      assert.doesNotMatch(txt, /¿Cuál|Which one/, `${lang} ${step.kind} ${step.act}: ${txt}`);
+      assert.match(txt, new RegExp(`\\b${step.formula.terms[0].from}\\b`));
+    }
+  }
+});
+
 test('los decimales usan coma en español y punto en inglés', () => {
   assert.equal(N.fmt('es', 2.5), '2,5');
   assert.equal(N.fmt('en', 2.5), '2.5');

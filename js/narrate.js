@@ -54,7 +54,7 @@
           out.text = t(hk('narr.forwardFirst'), { act: a });
         } else {
           out.title = t('steps.forward', { act: a });
-          out.text = t(hk('narr.forward'), { act: a, preds: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
+          out.text = t(ctx.hide && terms.length === 1 ? 'narr.forwardOneHidden' : hk('narr.forward'), { act: a, preds: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
         }
         out.lines.push(`${N.ES}(${nm(a)}) = ${max} { ${terms.map((x) => `${N.EF}(${nm(x.from)})`).join(', ')} } = ${max} { ${terms.map((x) => num(x.value)).join(', ')} } = ${num(ES)}`);
         if (a !== END) out.lines.push(`${N.EF}(${a}) = ${N.ES}(${a}) + d(${a}) = ${num(ES)} + ${num(dur(a))} = ${num(EF)}`);
@@ -73,7 +73,7 @@
         }
         out.title = t('steps.backward', { act: a });
         out.text = terms.length === 1 && terms[0].from === END ? t(hk('narr.backwardLast'), { act: a })
-          : t(hk('narr.backward'), { act: a, succs: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
+          : t(ctx.hide && terms.length === 1 ? 'narr.backwardOneHidden' : hk('narr.backward'), { act: a, succs: I.list(lang, terms.map((x) => nm(x.from))), chosen: I.list(lang, step.formula.chosen.map(nm)) });
         out.lines.push(`${N.LF}(${a}) = ${min} { ${terms.map((x) => `${N.LS}(${nm(x.from)})`).join(', ')} } = ${min} { ${terms.map((x) => num(x.value)).join(', ')} } = ${num(LF)}`);
         out.lines.push(`${N.LS}(${a}) = ${N.LF}(${a}) − d(${a}) = ${num(LF)} − ${num(dur(a))} = ${num(LS)}`);
         break;

@@ -237,6 +237,17 @@ check('AC7 · mientras se predice, ni la red, ni la matriz, ni el texto delatan 
   assert.match(await page.locator('#stepText').innerText(), /B/);
   assert.ok((await boxE()).includes('3'), 'al mostrar, la caja de E enseña ES');
   assert.ok(!(await page.locator('#btnNext').isDisabled()));
+  // Lo mismo en un paso de la pasada hacia atrás (A: LF = mín{LS(D), LS(E)}), en inglés y en la matriz (ronda 2, H1).
+  const kb = (await trace(page)).findIndex((s) => s.kind === 'backward' && s.act === 'B');
+  await page.selectOption('#selLang', 'en');
+  await go(page, kb);
+  assert.ok(await page.locator('#btnNext').isDisabled(), 'predicción activa en el paso hacia atrás');
+  assert.equal(await page.locator('#netView .chosen').count(), 0, 'hacia atrás: ninguna flecha marcada');
+  assert.doesNotMatch(await page.locator('#stepText').innerText(), /decides|manda/i);
+  await page.locator('#btnMatrix').click();
+  assert.equal(await page.locator('#matrixView .cellchosen').count(), 0, 'hacia atrás: ninguna casilla marcada en la matriz');
+  await page.locator('#predictBox button').nth(1).click();
+  assert.ok((await page.locator('#matrixView .cellchosen').count()) >= 1, 'al mostrar, la matriz marca la casilla');
   await close(page);
 });
 
@@ -363,6 +374,24 @@ check('AC2 · dos caminos críticos se resaltan en la red, en la tabla y en la l
   assert.deepEqual((await page.locator('#resultsView tr.crit th').allInnerTexts()).map((x) => x.trim()[0]).sort(), ['A', 'B', 'C']);
   assert.ok((await page.locator('#netView path.edge.crit').count()) >= 4, 'inicio→A, inicio→B, A→C y B→C resaltadas');
   assert.match(await page.locator('#stepText').innerText(), /\b2\b/);
+  await close(page);
+});
+
+check('Resultados · con más caminos críticos de los que se listan, se avisa de cuántos faltan (ronda 2, H2)', async () => {
+  const rows = []; let prev = '';
+  for (let k = 1; k <= 6; k++) { rows.push(R(`P${k}`, 1, prev), R(`Q${k}`, 1, prev), R(`J${k}`, 1, `P${k}, Q${k}`)); prev = `J${k}`; }
+  const page = await workshop(rows);
+  await page.evaluate(() => PNL.app.go(PNL.app.model().solution.trace.findIndex((s) => s.kind === 'critical')));
+  assert.equal(await page.locator('#resultsView .crit-path').count(), 6);
+  assert.match(await page.locator('#resultsView .crit-more').innerText(), /\b58\b/);
+  assert.match(await page.locator('#stepText').innerText(), /\b64\b/);
+  await close(page);
+});
+
+check('Ruta · un enlace con la tabla vacía abre el ejemplo en vez de una página en blanco (ronda 2, H3)', async () => {
+  const page = await lab('v=route&t=&lang=es');
+  assert.ok(await page.locator('#stage').isVisible());
+  assert.ok((await page.evaluate(() => PNL.app.model().project.activities.length)) > 0);
   await close(page);
 });
 

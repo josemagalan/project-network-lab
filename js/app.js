@@ -33,7 +33,9 @@
 
   function compute() {
     let rows; let mode; let name; let unit = '';
-    if (state.t) {
+    // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
+    const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
+    if (state.t && (hasRows || state.v === 'work')) {
       rows = state.t; mode = state.mode; name = t('nav.work');
     } else {
       const ex = EX.get(state.ex) || EX.get('ej6');
