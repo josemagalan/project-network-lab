@@ -4,7 +4,7 @@
   --line: #dcdad3; --line-2: #e6e4dd; --tint: #f5f4f0; --band: #edece7; --term: #f3f2ee;
   --accent: #1f5f8b; --accent-hover: #163f5c; --accent-ink: #ffffff;
   --amber: #b7791f; --amber-text: #7a4f0c; --critical: #a3271d; --critical-text: #8f2017; --critical-soft: #fdf1ee;
-  --ok: #22603f; --ok-soft: #e3f1e9; --edge: #9c9a92; --edge-2: #b9b7af; --soon-line: #a9a79f;
+  --ok: #22603f; --ok-soft: #e3f1e9; --edge: #8a8881; --edge-2: #b9b7af; --soon-line: #a9a79f;
   --mark-a: #1f5f8b; --mark-b: #b7791f; --mark-c: #a3271d;
   --shadow: 0 10px 30px rgba(28, 28, 31, 0.08);
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -73,7 +73,7 @@ h1 .accent { color: var(--accent); }
 .hero-net { display: block; width: 100%; height: auto; }
 .hero-card figcaption { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 4px; }
 .crit-line { width: 16px; border-top: 2.6px solid var(--critical); }
-.he path { fill: none; stroke: var(--edge-2); stroke-width: 1.3; }
+.he path { fill: none; stroke: var(--edge); stroke-width: 1.3; }
 .he-c path { fill: none; stroke: var(--critical); stroke-width: 2.6; }
 .mk { fill: var(--edge); } .mk-c { fill: var(--critical); }
 .hn rect { fill: var(--card); stroke: var(--edge); stroke-width: 1.2; }

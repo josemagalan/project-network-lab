@@ -3,8 +3,8 @@
   --bg: #fafaf7; --card: #ffffff; --ink: #1d1d1b; --muted: #55554f; --line: #d8d6cf; --soft: #f3f2ee;
   --accent: #1f5f8b; --accent-ink: #ffffff; --accent-soft: #eef4f9; --accent-mid: #cfe0ee;
   --critical: #a3271d; --critical-text: #8f2017; --critical-soft: #fdf1ee;
-  --ok: #2e6b3a; --ok-soft: #eef6ef; --warn: #7a5a00; --warn-soft: #fbf4dc; --warn-line: #c9a227;
-  --edge: #9c9a92; --focus: #1f5f8b;
+  --ok: #2e6b3a; --ok-soft: #eef6ef; --warn: #7a5a00; --warn-soft: #fbf4dc; --warn-line: #9a7b14;
+  --edge: #8a8881; --focus: #1f5f8b;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: light dark;
@@ -39,7 +39,7 @@ button, select, input { font: inherit; color: inherit; }
 .tabs a[aria-current="page"] { background: var(--accent); color: var(--accent-ink); }
 .controls { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 13px; }
 .controls label { display: flex; align-items: center; gap: 6px; }
-.controls select { padding: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 6px; }
+.controls select { padding: 4px; background: var(--card); border: 1px solid var(--edge); border-radius: 6px; }
 
 main { max-width: 1440px; margin: 0 auto; padding: 16px 24px; }
 .banner { background: var(--warn-soft); border: 1px solid var(--warn-line); color: var(--ink); border-radius: 10px; padding: 8px 12px; }
@@ -133,7 +133,7 @@ table.data tr.crit { color: var(--critical-text); font-weight: 600; }
 .predict .mark.ok { color: var(--ok); } .predict .mark.wrong { color: var(--critical-text); }
 .whatif { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-top: 1px solid var(--line); padding-top: 10px; font-size: 14px; }
 .whatif label { display: flex; flex-direction: column; gap: 2px; }
-.whatif input, .whatif select { height: 34px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); padding: 0 6px; }
+.whatif input, .whatif select { height: 34px; border: 1px solid var(--edge); border-radius: 6px; background: var(--card); padding: 0 6px; }
 
 /* Taller */
 .workshop { padding: 14px 16px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 16px; }
@@ -142,7 +142,7 @@ table.data tr.crit { color: var(--critical-text); font-weight: 600; }
 .work-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .work-tools select, .work-tools button { height: 36px; }
 fieldset.mode { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 14px; }
-.edit-table input { height: 32px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); padding: 0 8px; width: 100%; }
+.edit-table input { height: 32px; border: 1px solid var(--edge); border-radius: 6px; background: var(--card); padding: 0 8px; width: 100%; }
 .edit-table input[aria-invalid="true"] { border: 2px solid var(--critical); }
 .edit-table input.warn { border: 2px solid var(--warn-line); }
 .edit-table td { padding: 3px 4px; } .edit-table .computed { color: var(--muted); font-size: 13px; text-align: left; }
@@ -151,7 +151,7 @@ fieldset.mode { border: 1px solid var(--line); border-radius: 8px; padding: 8px 
 .issues.warn { background: var(--warn-soft); border: 1px solid var(--warn-line); }
 .issues.okbox { background: var(--ok-soft); border: 1px solid var(--ok); }
 .issues p { margin: 0; font-size: 14px; }
-textarea.paste { width: 100%; min-height: 120px; font-family: var(--mono); font-size: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); padding: 8px; }
+textarea.paste { width: 100%; min-height: 120px; font-family: var(--mono); font-size: 13px; border: 1px solid var(--edge); border-radius: 8px; background: var(--card); padding: 8px; }
 
 dialog { max-width: min(760px, 94vw); border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); padding: 0; }
 dialog::backdrop { background: rgba(0,0,0,.4); }
