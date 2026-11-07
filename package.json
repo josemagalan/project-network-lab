@@ -1,0 +1,17 @@
+{
+  "name": "project-network-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bilingual interactive lab for teaching project networks: PERT · CPM · ROY",
+  "scripts": {
+    "start": "node scripts/serve.cjs",
+    "check": "node scripts/check.cjs",
+    "test": "node scripts/check.cjs && node --test \"tests/*.test.js\"",
+    "coverage": "node --test --experimental-test-coverage --test-coverage-include=\"js/core/**\" --test-coverage-lines=90 \"tests/*.test.js\""
+  },
+  "engines": { "node": ">=22" },
+  "license": "(MIT AND CC-BY-4.0)",
+  "author": "José Manuel Galán, Silvia Díaz-de la Fuente, Virginia Ahedo, María Pereda, José Ignacio Santos",
+  "homepage": "https://josemagalan.github.io/project-network-lab/",
+  "repository": { "type": "git", "url": "https://github.com/josemagalan/project-network-lab.git" }
+}

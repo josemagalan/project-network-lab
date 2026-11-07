@@ -1,0 +1,41 @@
+/* Project Network Lab — tokens de color (claro y oscuro, contraste AA) y estilos base. */
+:root {
+  --bg: #fafaf7;
+  --card: #ffffff;
+  --ink: #1d1d1b;
+  --muted: #55554f;
+  --line: #d8d6cf;
+  --accent: #1f5f8b;
+  --accent-ink: #ffffff;
+  --critical: #a3271d;
+  --critical-text: #8f2017;
+  --focus: #1f5f8b;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --card: #20201e;
+    --ink: #ecebe6;
+    --muted: #b4b2aa;
+    --line: #3a3935;
+    --accent: #7db7e0;
+    --accent-ink: #0d1b26;
+    --critical: #ff8a7a;
+    --critical-text: #ff9d8f;
+    --focus: #7db7e0;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font); }
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.skip { position: absolute; left: -999px; top: 0; }
+.skip:focus { left: 8px; top: 8px; background: var(--card); padding: 8px 12px; z-index: 10; }
+.site-head { padding: 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+.site-head h1 { margin: 0; font-size: 1.35rem; }
+.site-head p { margin: 2px 0 0; color: var(--muted); }
+main { max-width: 1280px; margin: 0 auto; padding: 16px; }
