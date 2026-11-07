@@ -366,6 +366,20 @@ check('Taller · tabla vacía: invita a empezar, sin −∞ ni errores', async (
   await close(page);
 });
 
+check('Taller · con la predicción activa, el resumen no adelanta la duración hasta revelar el fin (revisión, H5)', async () => {
+  const page = await workshop([R('A', 6), R('B', 7, 'A'), R('C', 2)]);
+  assert.match(await sideText(page), /\b13\b/, 'sin predicción, el resumen da la duración');
+  await page.locator('#chkPredict').check();
+  assert.doesNotMatch(await sideText(page), /13/, 'con predicción, en el paso 0');
+  const kEnd = await page.evaluate(() => PNL.app.model().solution.trace.findIndex((s) => s.kind === 'forward' && s.act === PNL.cpm.END));
+  await go(page, kEnd);
+  assert.ok(await visible(page, '#predictBox'), 'se predice el paso del fin');
+  assert.doesNotMatch(await sideText(page), /13/, 'mientras se predice el fin');
+  await page.locator('#predictBox button').nth(1).click();   // Mostrar los valores correctos
+  assert.match(await sideText(page), /\b13\b/, 'al revelar el fin, vuelve la duración');
+  await close(page);
+});
+
 check('AC2 · dos caminos críticos se resaltan en la red, en la tabla y en la lista', async () => {
   const page = await workshop([R('A', 3), R('B', 3), R('C', 1, 'A, B')]);
   const k = await page.evaluate(() => PNL.app.model().solution.trace.findIndex((s) => s.kind === 'critical'));

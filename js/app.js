@@ -96,6 +96,14 @@
     return !!state.pred && PR.hasPrediction(step) && !(pred.step === state.step && pred.done);
   }
 
+  // Con la predicción activa, el resumen del taller calla la duración hasta que se revela EF del fin (revisión, H5).
+  function durationHidden() {
+    const sol = model.solution;
+    if (!state.pred || !sol) return false;
+    const k = Math.min(state.step, sol.trace.length - 1);
+    return !revealedMap(sol.trace, k, predicting(sol.trace[k])).has(`${C.END}.EF`);
+  }
+
   // ---------- Render ----------
 
   function renderTexts() {
@@ -117,7 +125,7 @@
     renderTexts();
     const work = state.v === 'work';
     $('workshop').hidden = !work;
-    if (work) editor.render(Object.assign({}, model, { showComputed, numFmt }), !!(opts && opts.fullEditor));
+    if (work) editor.render(Object.assign({}, model, { showComputed, numFmt, hideDuration: durationHidden() }), !!(opts && opts.fullEditor));
     const sol = model.solution;
     $('stage').hidden = !sol;
     if (!sol) return;

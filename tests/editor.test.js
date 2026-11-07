@@ -59,6 +59,20 @@ test('AC5: una redundancia es un aviso en su campo, y la tabla sigue dando resul
   }
 });
 
+test('con hideDuration el resumen da el número de actividades pero no la duración (revisión, H5)', () => {
+  const rows = [row('A', 6), row('B', 7, 'A'), row('C', 2)];
+  for (const lang of ['es', 'en']) {
+    const { report } = show(lang, rows);
+    const { project } = P.parse(rows, 'pred');
+    const fmt = (v) => N.fmt(lang, v);
+    const hidden = Ed.messages(lang, report, project, C.solve(project), fmt, true).ready;
+    const shown = Ed.messages(lang, report, project, C.solve(project), fmt, false).ready;
+    assert.match(hidden, /\b3\b/);
+    assert.doesNotMatch(hidden, /13/);
+    assert.match(shown, /\b13\b/);
+  }
+});
+
 test('una tabla vacía invita a empezar en vez de dar resultados', () => {
   for (const lang of ['es', 'en']) {
     const { msg } = show(lang, []);

@@ -23,7 +23,8 @@
   }
 
   // Lo que dice el panel lateral: errores, avisos y, si la tabla es válida, el resumen o la invitación a empezar.
-  function messages(lang, report, project, solution, numFmt) {
+  // Con hideDuration (predicción activa y fin aún sin revelar) el resumen no da la duración (revisión, H5).
+  function messages(lang, report, project, solution, numFmt, hideDuration) {
     const t = (k, p) => I.t(lang, k, p);
     const n = report.errors.length;
     const w = report.warnings.length;
@@ -32,7 +33,8 @@
       errors: report.errors.map((is) => issueText(lang, is)),
       warningsHead: w ? (w === 1 ? t('work.warningsOne') : t('work.warnings', { n: w })) : null,
       warnings: report.warnings.map((is) => issueText(lang, is)),
-      ready: !n && project && solution ? t('work.ready', { n: project.activities.length, d: numFmt(solution.duration) }) : null,
+      ready: !n && project && solution ? (hideDuration ? t('work.readyNoDuration', { n: project.activities.length })
+        : t('work.ready', { n: project.activities.length, d: numFmt(solution.duration) })) : null,
       empty: !n && !project ? t('work.empty') : null,
     };
   }
@@ -125,7 +127,7 @@
         tr.querySelector('td[data-computed]').textContent = other[id] || (ctx.project && other[id] === '' ? '—' : '');
       });
       clear(refs.side);
-      const msg = messages(hooks.lang(), report, ctx.project, ctx.solution, ctx.numFmt);
+      const msg = messages(hooks.lang(), report, ctx.project, ctx.solution, ctx.numFmt, ctx.hideDuration);
       if (msg.errorsHead) refs.side.appendChild(h('div', { class: 'issues err', role: 'alert' }, [h('strong', {}, [msg.errorsHead]),
         ...msg.errors.map((x) => h('p', {}, [x]))]));
       if (msg.warningsHead) refs.side.appendChild(h('div', { class: 'issues warn' }, [h('strong', {}, [msg.warningsHead]),
