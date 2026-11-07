@@ -437,9 +437,18 @@ check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () =
   const foreign = await page.evaluate(() => {
     const flat = (o, out = {}, pre = '') => { for (const [k, v] of Object.entries(o)) { if (v && typeof v === 'object') flat(v, out, `${pre}${k}.`); else out[pre + k] = String(v); } return out; };
     const es = flat(PNL.i18n.dict.es); const en = flat(PNL.i18n.dict.en);
-    const pieces = (a, b) => Object.keys(a).filter((k) => a[k] !== b[k]).flatMap((k) => a[k].split(/\{[^}]*\}/)).map((s) => s.trim()).filter((s) => s.length >= 10);
-    return { es: [...new Set(pieces(es, en))], en: [...new Set(pieces(en, es))] };
+    // Trozos de cada cadena que cambia de un idioma a otro, sin los huecos {x}, con al menos tres caracteres y una letra.
+    const pieces = (a, b) => [...new Set(Object.keys(a).filter((k) => a[k] !== b[k]).flatMap((k) => a[k].split(/\{[^}]*\}/))
+      .map((s) => s.trim()).filter((s) => s.length >= 3 && /\p{L}/u.test(s)))];
+    return { es: pieces(es, en), en: pieces(en, es), all: { es: Object.values(es).join('\n'), en: Object.values(en).join('\n') } };
   });
+  // Revisión, F18: también se buscan los trozos cortos (antes, solo los de 10 caracteres o más). Un trozo corto solo cuenta
+  // como palabra completa («Red» no salta dentro de «Reduce») y se descarta si el otro idioma también usa esa palabra
+  // («total» es español e inglés), porque entonces su presencia no prueba nada.
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const found = (text, s) => (s.length >= 10 ? text.includes(s) : new RegExp(`(?<![\\p{L}\\p{N}])${esc(s)}(?![\\p{L}\\p{N}])`, 'u').test(text));
+  for (const [a, b] of [['es', 'en'], ['en', 'es']]) foreign[a] = foreign[a].filter((s) => !found(foreign.all[b], s));
+  assert.ok(foreign.es.filter((s) => s.length < 10).length > 20, 'quedan trozos cortos que vigilar');
   const corpus = (p) => p.evaluate(() => [document.body.innerText, document.title,
     ...[...document.querySelectorAll('[aria-label]')].filter((e) => e.checkVisibility()).map((e) => e.getAttribute('aria-label'))].join('\n'));
   for (const [lang, other] of [['en', 'es'], ['es', 'en']]) {
@@ -449,7 +458,7 @@ check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () =
       for (const view of ['#btnNet', '#btnMatrix']) {
         await page.locator(view).click();
         const text = await corpus(page);
-        const left = foreign[other].filter((s) => text.includes(s));
+        const left = foreign[other].filter((s) => found(text, s));
         assert.deepEqual(left, [], `${lang}, paso ${n}, ${view}`);
       }
     }
@@ -459,7 +468,7 @@ check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () =
   for (const [lang, other] of [['en', 'es'], ['es', 'en']]) {
     await page.selectOption('#selLang', lang);
     const text = await corpus(page);
-    assert.deepEqual(foreign[other].filter((s) => text.includes(s)), [], `taller en ${lang}`);
+    assert.deepEqual(foreign[other].filter((s) => found(text, s)), [], `taller en ${lang}`);
   }
   await close(page);
 });
