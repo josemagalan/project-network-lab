@@ -86,3 +86,18 @@ test('el "¿y si…?" solo admite identificadores válidos y duraciones no negat
   assert.deepEqual(state.wi, [['E', 6], ['G', 3]]);
   assert.equal(warning, 'malformed');
 });
+
+test('el "¿y si…?" tiene límites: duraciones de 12 caracteres como mucho y un par por fila (revisión, F15)', () => {
+  const huge = U.decode(`#wi=E:${'9'.repeat(400)};G:3`);
+  assert.deepEqual(huge.state.wi, [['G', 3]], 'una duración enorme no llega como Infinity');
+  assert.equal(huge.warning, 'malformed');
+  const edge = U.decode(`#wi=E:${'9'.repeat(U.LIMITS.duration)}`);
+  assert.deepEqual(edge.state.wi, [['E', Number('9'.repeat(U.LIMITS.duration))]], 'en el límite se acepta');
+  assert.equal(edge.warning, undefined);
+  const many = U.decode('#wi=' + Array.from({ length: U.LIMITS.rows + 5 }, (_, i) => `A${i}:1`).join(';'));
+  assert.equal(many.state.wi.length, U.LIMITS.rows);
+  assert.equal(many.warning, 'malformed');
+  const ok = U.decode('#wi=' + Array.from({ length: U.LIMITS.rows }, (_, i) => `A${i}:1`).join(';'));
+  assert.equal(ok.state.wi.length, U.LIMITS.rows);
+  assert.equal(ok.warning, undefined);
+});

@@ -85,10 +85,13 @@
       if (EXAMPLES.includes(q.get('ex'))) state.ex = q.get('ex'); else malformed = true;
     }
     if (q.has('wi')) {
+      // Como mucho un par por fila y duraciones de la misma longitud que en la tabla (revisión, F15).
       const pairs = [];
-      for (const part of q.get('wi').split(';')) {
+      const parts = q.get('wi').split(';');
+      if (parts.length > LIMITS.rows) malformed = true;
+      for (const part of parts.slice(0, LIMITS.rows)) {
         const m = part.match(/^([^:]+):(\d+(?:\.\d+)?)$/);
-        if (m && ID_RE.test(m[1])) pairs.push([m[1].toUpperCase(), Number(m[2])]); else malformed = true;
+        if (m && ID_RE.test(m[1]) && m[2].length <= LIMITS.duration) pairs.push([m[1].toUpperCase(), Number(m[2])]); else malformed = true;
       }
       state.wi = pairs.length ? pairs : null;
     }
