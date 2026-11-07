@@ -37,7 +37,8 @@ try {
 }
 
 const BUDGET = 1024 * 1024;
-const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+// best-practice añade, entre otras, page-has-heading-one y heading-order (T027).
+const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
 
 // ---------- Servidor y utilidades ----------
 

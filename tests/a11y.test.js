@@ -168,6 +168,17 @@ test('cada página declara el idioma y tiene un enlace para saltar a un destino 
   }
 });
 
+test('cada página tiene un solo <h1> y los encabezados no se saltan niveles (axe: page-has-heading-one, heading-order)', () => {
+  for (const page of PAGES) {
+    const levels = [...read(page).matchAll(/<h([1-6])[\s>]/g)].map((m) => Number(m[1]));
+    assert.equal(levels.filter((l) => l === 1).length, 1, `${page}: debe tener exactamente un <h1>`);
+    assert.equal(levels[0], 1, `${page}: el primer encabezado debe ser <h1>`);
+    levels.forEach((l, i) => {
+      if (i) assert.ok(l <= levels[i - 1] + 1, `${page}: salta de <h${levels[i - 1]}> a <h${l}> (encabezado n.º ${i + 1})`);
+    });
+  }
+});
+
 test('cada imagen tiene texto alternativo y cada botón y control de formulario tiene nombre', () => {
   for (const page of PAGES) {
     const html = read(page);

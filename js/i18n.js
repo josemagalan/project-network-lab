@@ -30,6 +30,7 @@
       view: {
         label: 'Vista', net: 'Red', matrix: 'Matriz', asTable: 'Ver como tabla', hideTable: 'Ocultar la tabla',
         matrixHint: 'Fila: actividad · columna: su predecesora · celda: duración de la predecesora',
+        matrixCorner: 'Actividad (fila) / predecesora (columna)',
         boxHint7: 'Caja: ES · d · EF arriba, actividad en medio, LS · TF · LF abajo.',
         boxHint4: 'Caja: actividad arriba, ES a la izquierda, LS a la derecha y duración abajo.',
         boxHintc: 'Sobre cada nodo: ES / duración / LS.',
@@ -127,6 +128,7 @@
       view: {
         label: 'View', net: 'Network', matrix: 'Matrix', asTable: 'Show as a table', hideTable: 'Hide the table',
         matrixHint: 'Row: activity · column: its predecessor · cell: duration of the predecessor',
+        matrixCorner: 'Activity (row) / predecessor (column)',
         boxHint7: 'Box: ES · d · EF on top, activity in the middle, LS · TF · LF at the bottom.',
         boxHint4: 'Box: activity on top, ES on the left, LS on the right and duration at the bottom.',
         boxHintc: 'Above each node: ES / duration / LS.',

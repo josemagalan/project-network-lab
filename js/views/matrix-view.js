@@ -26,7 +26,9 @@
       if (id === G.topo.START) return revealed.has(`${labels[1]}.LS`) ? numFmt(matrix.TRow[0]) : '';
       return revealed.has(`${id}.LS`) ? numFmt(revealed.get(`${id}.LS`)) : '';
     };
-    const head = h('tr', {}, [h('th', { scope: 'col' }, ['']),
+    // La esquina lleva texto solo para lectores de pantalla (axe: empty-table-header).
+    const corner = h('th', { scope: 'col' }, [h('span', { class: 'sr-only' }, [G.i18n.t(lang, 'view.matrixCorner')])]);
+    const head = h('tr', {}, [corner,
       ...labels.map((l, j) => h('th', { scope: 'col', class: a.col === j ? 'on' : '' }, [name(l)])),
       h('th', { scope: 'col', class: 'on' }, [N.ES])]);
     const body = labels.map((row, i) => h('tr', {}, [
