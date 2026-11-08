@@ -51,6 +51,7 @@
       predict: {
         toggle: 'Modo predicción', check: 'Comprobar', show: 'Mostrar la solución', ok: 'correcto', wrong: 'revisar',
         summary: '{ok} correctas · {wrong} por revisar · {empty} sin rellenar',
+        summaryOne: '{ok} correcta · {wrong} por revisar · {empty} sin rellenar',
         hidden: 'El paso siguiente no se muestra hasta comprobar o mostrar la solución.', your: 'Tu respuesta',
         ruleActs: 'Actividades a las que se aplica', ruleCount: 'Ficticias que crea', missing: 'falta', extra: 'sobra',
       },
@@ -218,6 +219,7 @@
       predict: {
         toggle: 'Prediction mode', check: 'Check', show: 'Show the answers', ok: 'correct', wrong: 'review',
         summary: '{ok} correct · {wrong} to review · {empty} left',
+        summaryOne: '{ok} correct · {wrong} to review · {empty} left',
         hidden: 'The next step stays hidden until you check or show the answers.', your: 'Your answer',
         ruleActs: 'Activities it applies to', ruleCount: 'Dummies it adds', missing: 'missing', extra: 'not this one',
       },

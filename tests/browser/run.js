@@ -296,6 +296,15 @@ check('F2a AC8 · predicción de una regla: nada se ve ni se resalta hasta compr
   await close(page);
 });
 
+check('F2a · la tabla de posteriores no cambia el ancho de sus columnas al rellenarse la de papeles', async () => {
+  const page = await lab('graph=aoa&ex=ej6&step=0&lang=es');
+  const widths = () => page.locator('#netView table.succ thead th').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().width)));
+  const before = await widths();
+  await go(page, 2);
+  assert.deepEqual(await widths(), before);
+  await close(page);
+});
+
 // ---------- AC8 y AC19: enlace y recarga ----------
 
 check('AC8 · el enlace copiado reproduce el mismo estado en otro navegador', async () => {

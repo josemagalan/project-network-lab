@@ -218,6 +218,9 @@ table.scheme-tab .hl { color: var(--select); }
 .net .tbox line { stroke: var(--edge); }
 .net .tbox text { text-anchor: middle; font-size: 12px; font-weight: 600; fill: var(--ink); }
 .net .tbox text.late { fill: var(--critical-text); }
+/* Anchos fijos: la columna de papeles no cambia la tabla al rellenarse en los pasos de regla. */
+table.succ { table-layout: fixed; width: 100%; }
+table.succ th:nth-child(1) { width: 20%; } table.succ th:nth-child(2) { width: 32%; }
 table.succ tr.sup { background: var(--accent-soft); }
 table.succ tr.sub, table.succ tr.share, table.succ tr.equal { background: var(--select-soft); }
 table.arcs tr.sel { background: var(--select-soft); }

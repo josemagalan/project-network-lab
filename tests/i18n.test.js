@@ -47,6 +47,12 @@ test('t() sustituye parámetros y list() une con «y» o «and»', () => {
   assert.equal(I.list('en', ['A']), 'A');
 });
 
+test('el resumen de la predicción concuerda en número con una sola correcta', () => {
+  assert.equal(I.t('es', 'predict.summaryOne', { ok: 1, wrong: 2, empty: 0 }), '1 correcta · 2 por revisar · 0 sin rellenar');
+  assert.equal(I.t('es', 'predict.summary', { ok: 2, wrong: 1, empty: 0 }), '2 correctas · 1 por revisar · 0 sin rellenar');
+  assert.equal(I.t('en', 'predict.summaryOne', { ok: 1, wrong: 2, empty: 0 }), '1 correct · 2 to review · 0 left');
+});
+
 test('una clave inexistente devuelve la propia clave (visible en las pruebas) y no rompe', () => {
   assert.equal(I.t('es', 'no.existe'), 'no.existe');
 });

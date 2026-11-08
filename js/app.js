@@ -289,7 +289,8 @@
       h('button', { type: 'button', class: 'ghost primary', onclick: () => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); } }, [t('predict.check')]),
       h('button', { type: 'button', class: 'ghost', onclick: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); } }, [t('predict.show')]),
     ]));
-    if (pred.result) box.appendChild(h('p', { class: 'small', role: 'status' }, [t('predict.summary', PR.summary(pred.result))]));
+    const sum = pred.result && PR.summary(pred.result);
+    if (sum) box.appendChild(h('p', { class: 'small', role: 'status' }, [t(sum.ok === 1 ? 'predict.summaryOne' : 'predict.summary', sum)]));
     else if (hide) box.appendChild(h('p', { class: 'muted small' }, [t('predict.hidden')]));
   }
 
