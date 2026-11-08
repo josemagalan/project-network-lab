@@ -3,7 +3,9 @@
  * valores revelados hasta el paso actual. No calcula nada: la red sale de core/aoa y las holguras, de la
  * Solution de ROY (plan F2a §2). Textos con .text(), nunca HTML.
  *   render(el, ctx): la red (desde el paso «colocar»). ctx = { net, lay, step, revealed, solution, lang, nota,
- *     criticalOn, numFmt, name, selected, onSelect, hide, numbered, durations }
+ *     criticalOn, numFmt, name, selected, onSelect, hide, numbered, durations, emph, idPrefix }
+ *     emph: ficticias que se destacan (las que aprovechan una precedencia implícita en la red mínima, T021);
+ *     idPrefix: prefijo de los marcadores, para dibujar dos redes PERT en la misma página sin repetir id.
  *   succTable(el, ctx): la tabla de posteriores de los pasos de construcción, con el papel de cada actividad.
  *   arcTable(el, ctx): la alternativa en texto (un arco por fila), con botones para seleccionar.
  */
@@ -34,6 +36,7 @@
         if (slack(d.from) === 0 && slack(d.to) === 0 && Math.abs(te(d.from) - te(d.to)) < 1e-9) set(d.name, 'crit');
       }
     }
+    if (ctx.emph) for (const label of ctx.emph) set(label, 'rule');
     if (selected) set(selected, 'sel');
     return cls;
   }
@@ -58,11 +61,12 @@
       .attr('style', `max-width:${width}px;min-width:${Math.min(width, 560)}px`).attr('viewBox', `0 0 ${width} ${height}`)
       .attr('role', 'img').attr('aria-label', G.i18n.t(ctx.lang, 'pert.netLabel', { name: ctx.name, e: net.events.length, n: net.arcs.length, f: net.dummies.length }));
     const defs = svg.append('defs');
-    for (const [id, c] of [['pnl-pk', 'mk'], ['pnl-pk-a', 'mk-a'], ['pnl-pk-c', 'mk-c'], ['pnl-pk-s', 'mk-s'], ['pnl-pk-r', 'mk-r']]) {
+    const pre = ctx.idPrefix || 'pnl-pk';
+    for (const [id, c] of [[pre, 'mk'], [`${pre}-a`, 'mk-a'], [`${pre}-c`, 'mk-c'], [`${pre}-s`, 'mk-s'], [`${pre}-r`, 'mk-r']]) {
       defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
         .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto').append('path').attr('d', 'M0 0L10 5L0 10z').attr('class', c);
     }
-    const marker = (c) => ({ chosen: 'pnl-pk-a', compared: 'pnl-pk-a', crit: 'pnl-pk-c', sel: 'pnl-pk-s', rule: 'pnl-pk-r' }[c] || 'pnl-pk');
+    const marker = (c) => ({ chosen: `${pre}-a`, compared: `${pre}-a`, crit: `${pre}-c`, sel: `${pre}-s`, rule: `${pre}-r` }[c] || pre);
 
     const eg = svg.append('g');
     const lg = svg.append('g');

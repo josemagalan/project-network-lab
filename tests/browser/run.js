@@ -368,6 +368,106 @@ check('F2a AC6–AC7 · lado a lado: seleccionar una ficticia o una actividad la
   }
 });
 
+// ---------- F2a · AC9 y AC16: contador de ficticias y red mínima ----------
+
+// Taller con una tabla de posteriores en la red PERT (graph=aoa), esperando a que el contador tenga el mínimo.
+async function pertWork(succ, opts = {}) {
+  const page = await lab(`v=work&lang=${opts.lang || 'es'}`, opts);
+  const rows = Object.keys(succ).map((id) => ({ id, name: '', duration: '2', links: succ[id].join(', ') }));
+  const hash = await page.evaluate(([r, l, extra]) => PNL.urlstate.encode(Object.assign(PNL.urlstate.defaults(),
+    { v: 'work', t: r, mode: 'succ', lang: l, graph: 'aoa' }, extra)), [rows, opts.lang || 'es', opts.extra || {}]);
+  await page.evaluate((h) => { location.hash = h; }, hash);
+  await page.waitForFunction(() => PNL.app.state().t && PNL.app.state().graph === 'aoa');
+  await minReady(page);
+  return page;
+}
+const minReady = (page) => page.waitForFunction(() => { const c = document.getElementById('dummyCounter'); return c && !c.hidden && !/calculando|working it out/.test(c.textContent); }, null, { timeout: 30000 });
+const AC16 = { A: ['C', 'D', 'E'], B: ['C', 'E'], C: [], D: ['E'], E: [] };
+
+check('F2a AC9 y AC16 · contador «reglas 3 · mínimo 2», su explicación y la red mínima al lado (min=1)', async () => {
+  const page = await pertWork(AC16);
+  const counter = page.locator('#dummyCounter');
+  let txt = await counter.innerText();
+  assert.match(txt, /3\s+reglas/, txt);
+  assert.match(txt, /2\s+mínimo/, txt);
+  assert.match(txt, /Exacto: no hay ninguna red con 1 ficticia/);
+  assert.match(txt, /Las reglas ponen 1 ficticia de más/);
+  await axe(page, 'contador con las reglas por encima del mínimo');
+  const btn = page.locator('#btnMin');
+  assert.equal(await btn.getAttribute('aria-pressed'), 'false');
+  await btn.click();
+  assert.equal((await state(page)).min, 1);
+  assert.match(page.url(), /min=1/);
+  assert.equal(await page.locator('#btnMin').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#netView svg.net.pert').count(), 2, 'las dos redes PERT');
+  const heads = await page.locator('#netView .side-by-side h2').allInnerTexts();
+  assert.deepEqual(heads, ['Red de las reglas · 3 ficticias', 'Red mínima · 2 ficticias']);
+  assert.match(await page.locator('#netView .count-explain').innerText(), /A → E \(A → D → E\)/);
+  assert.equal(await page.locator('#netView .min-net .edge.rule').count(), 2, 'F1 y F2 destacadas en la mínima');
+  assert.match(await page.locator('#legend').innerText(), /precedencia implícita/);
+  const ids = await page.evaluate(() => [...document.querySelectorAll('[id]')].map((e) => e.id));
+  assert.equal(new Set(ids).size, ids.length, 'sin id repetidos con dos redes PERT');
+  assert.ok(await page.evaluate(() => document.getElementById('stage').classList.contains('wide')));
+  await axe(page, 'red de las reglas y red mínima');
+  await shot(page, 'f2a-min-compare');
+  // El enlace reproduce la comparación.
+  const url = page.url();
+  await close(page);
+  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const p2 = await ctx2.newPage();
+  await p2.goto(url);
+  await p2.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
+  await p2.waitForFunction(() => document.querySelectorAll('#netView svg.net.pert').length === 2, null, { timeout: 30000 });
+  // «Lado a lado» deja la comparación.
+  await p2.locator('#btnSide').click();
+  assert.deepEqual([(await state(p2)).min, (await state(p2)).view], [0, 'side']);
+  assert.equal(await p2.locator('#netView svg.net:not(.pert)').count(), 1);
+  await ctx2.close();
+  // Mientras se predicen las reglas, el contador no da números y no hay botón.
+  const p3 = await pertWork(AC16, { extra: { pred: 1 } });
+  txt = await p3.locator('#dummyCounter').innerText();
+  assert.match(txt, /\?\s+reglas/, txt);
+  assert.match(txt, /al colocar la red/);
+  assert.equal(await p3.locator('#btnMin').count(), 0);
+  await close(p3);
+  // EN, oscuro y 360 px.
+  for (const [opts, label] of [[{ scheme: 'dark' }, 'oscuro'], [{ width: 360, height: 740 }, '360 px']]) {
+    const p4 = await pertWork(AC16, Object.assign({ lang: 'en', extra: { min: 1 } }, opts));
+    await p4.waitForFunction(() => document.querySelectorAll('#netView svg.net.pert').length === 2);
+    assert.match(await p4.locator('#dummyCounter').innerText(), /The rules add 1 dummy too many/);
+    assert.ok(await p4.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `sin desbordar (${label})`);
+    await axe(p4, `red mínima ${label} (EN)`);
+    await close(p4);
+  }
+});
+
+check('F2a AC9 · con las reglas en el mínimo no hay botón; con el presupuesto agotado, «entre L y V»', async () => {
+  const page = await lab('graph=aoa&ex=ej6&step=0&lang=es');
+  await minReady(page);
+  const txt = await page.locator('#dummyCounter').innerText();
+  assert.match(txt, /3\s+reglas/);
+  assert.match(txt, /3\s+mínimo/);
+  assert.match(txt, /ya dan el mínimo/);
+  assert.equal(await page.locator('#btnMin').count(), 0);
+  await page.locator('#btnAon').click();
+  assert.ok(await page.locator('#dummyCounter').isHidden(), 'en ROY no hay contador');
+  await close(page);
+  // Tabla de 14 actividades que agota el presupuesto (cota 6, mejor red 7, reglas 10).
+  const big = { A: ['C'], B: ['E', 'C'], C: ['H', 'I'], D: ['I', 'E'], E: ['J'], F: ['J'], G: ['H', 'L', 'M'], H: ['M'], I: ['N', 'J'], J: ['L', 'M'], K: ['M'], L: ['N'], M: ['N'], N: [] };
+  const p2 = await pertWork(big);
+  const t2 = await p2.locator('#dummyCounter').innerText();
+  assert.match(t2, /10\s+reglas/, t2);
+  assert.match(t2, /mínimo: entre 6 y 7/, t2);
+  assert.match(t2, /presupuesto fijo/);
+  await p2.locator('#btnMin').click();
+  assert.deepEqual(await p2.locator('#netView .side-by-side h2').allInnerTexts(), ['Red de las reglas · 10 ficticias', 'Mejor red encontrada · 7 ficticias']);
+  await p2.locator('#dummyCounter button', { hasText: /Aprende más/ }).click();
+  assert.equal(await p2.locator('#learnTitle').innerText(), 'Ficticias: las reglas y el mínimo');
+  assert.match(await p2.locator('#learnBody').innerText(), /Krishnamoorthy/);
+  await axe(p2, '«Aprende más» del contador');
+  await close(p2);
+});
+
 // ---------- AC8 y AC19: enlace y recarga ----------
 
 check('AC8 · el enlace copiado reproduce el mismo estado en otro navegador', async () => {

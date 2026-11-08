@@ -3,14 +3,15 @@
  * Cada cambio pasa por dispatch(): reduce el estado, recalcula si cambian los datos, reescribe el
  * #hash y vuelve a pintar. Las vistas solo leen la Solution y el paso actual (plan f1-cpm-roy §2).
  * Para las pruebas de navegador expone PNL.app.state(), PNL.app.step() y PNL.app.go(n).
- * F2a: con graph=aoa se reproduce la traza de la red PERT (core/aoa) en lugar de la de ROY (plan f2a §2 y §4).
+ * F2a: con graph=aoa se reproduce la traza de la red PERT (core/aoa) en lugar de la de ROY (plan f2a §2 y §4),
+ * con el contador de ficticias (reglas frente al mínimo de core/mindummy) y, con min=1, la red mínima al lado.
  */
 (function () {
   'use strict';
 
   const G = window.PNL;
   const { i18n: I, urlstate: U, store: S, project: P, cpm: C, matrix: MX, examples: EX, narrate: NR,
-    layout: L, predict: PR, learn: LR, aoa: A, aoaLayout: AL, dom } = G;
+    layout: L, predict: PR, learn: LR, aoa: A, aoaLayout: AL, mindummy: MD, dom } = G;
   const { h, clear } = dom;
   const $ = (id) => document.getElementById(id);
 
@@ -25,6 +26,7 @@
   let lastAnnounced = '';
   let editor;
   let selected = null;     // actividad o ficticia seleccionada (sin URL; se borra al cambiar de tabla)
+  let minCache = { key: null, res: null, lay: null };   // mínimo de ficticias de la estructura actual
   // P9: hasta T022 el selector ROY/PERT solo aparece si se ha llegado a la red PERT escribiendo graph=aoa.
   const PERT_PUBLIC = false;
   let pertSeen = false;
@@ -172,31 +174,40 @@
     $('btnAon').setAttribute('aria-pressed', String(!isPert));
     $('btnAoa').setAttribute('aria-pressed', String(isPert));
     $('btnAon').disabled = !sol;
+    // Contador de ficticias (AC9): mientras se predicen las reglas no da números, para no adelantar la respuesta.
+    const placeIdx = isPert ? tr.findIndex((s) => s.kind === 'place') : -1;
+    const countHidden = isPert && !!state.pred && k < placeIdx;
+    const count = renderCounter(isPert, countHidden);
+    // Con min=1 y una red con menos ficticias que las reglas, las dos se ven juntas (y no la ROY de al lado).
+    const minOn = !!(count && count.extra && state.min);
     // Lado a lado solo en PERT y con duraciones: los ejemplos solo de estructura no tienen red ROY.
-    const side = isPert && state.view === 'side' && !!sol;
-    $('btnNet').setAttribute('aria-pressed', String(state.view === 'net' || (state.view === 'side' && !side)));
+    const side = isPert && state.view === 'side' && !!sol && !minOn;
+    $('btnNet').setAttribute('aria-pressed', String(!minOn && (state.view === 'net' || (state.view === 'side' && !side))));
     $('btnMatrix').setAttribute('aria-pressed', String(state.view === 'matrix'));
     $('btnMatrix').hidden = isPert;
     $('btnSide').hidden = !isPert;
     $('btnSide').disabled = !sol;
     $('btnSide').setAttribute('aria-pressed', String(side));
-    $('stage').classList.toggle('wide', side);
+    $('stage').classList.toggle('wide', side || minOn);
     // Lado a lado ocupa todo el ancho: el panel del paso pasa debajo de las redes y antes de la tabla
     // de resultados, para que la explicación y los controles sigan junto a ellas (el orden del DOM es
     // el orden de lectura y de tabulación).
     const sideEl = $('side');
     // Dentro de la sección principal deja de ser un punto de referencia (complementary) propio.
-    if (side && sideEl.parentNode !== $('panelMain')) { $('panelMain').insertBefore(sideEl, $('altTable')); sideEl.setAttribute('role', 'none'); }
-    else if (!side && sideEl.parentNode !== $('stage')) { $('stage').appendChild(sideEl); sideEl.removeAttribute('role'); }
+    const wide = side || minOn;
+    if (wide && sideEl.parentNode !== $('panelMain')) { $('panelMain').insertBefore(sideEl, $('altTable')); sideEl.setAttribute('role', 'none'); }
+    else if (!wide && sideEl.parentNode !== $('stage')) { $('stage').appendChild(sideEl); sideEl.removeAttribute('role'); }
     $('unitLine').textContent = t('view.unitLine', { name: model.name, n: model.project.activities.length, unit: model.unit || '—' });
     $('netView').hidden = state.view === 'matrix';
     $('matrixView').hidden = state.view !== 'matrix';
 
-    const placeIdx = isPert ? tr.findIndex((s) => s.kind === 'place') : -1;
     const pctx = isPert ? pertCtx(ctx, tr, k) : null;
     const selInfo = selectable() ? NR.selection(selected, Object.assign({}, ctx, { numbered: !isPert || k >= tr.findIndex((s) => s.kind === 'number') })) : null;
     const royCtx = (c) => Object.assign({}, c, selectable() ? { selected, selPrecs: selInfo ? selInfo.precs : [], onSelect: toggleSel } : {});
-    if (isPert) {
+    if (isPert && minOn) {
+      minCompare(pctx, count);
+      $('boxHint').textContent = t('view.pertHint');
+    } else if (isPert) {
       const holder = side ? sideBySide() : $('netView');
       if (k < placeIdx) G.pertView.succTable(holder, pctx); else G.pertView.render(holder, pctx);
       $('boxHint').textContent = t(side ? 'view.sideHint' : (k < placeIdx ? 'view.succHint' : 'view.pertHint'));
@@ -206,7 +217,7 @@
       $('boxHint').textContent = state.view === 'matrix' ? t('view.matrixHint') : NR.relabel(t(`view.boxHint${state.box}`), state.nota);
     }
 
-    renderSelInfo(isPert && k < placeIdx ? null : selInfo);
+    renderSelInfo(isPert && k < placeIdx && !minOn ? null : selInfo);
 
     const lateSteps = ['float', 'floats', 'critical', 'gantt'].includes(step.kind);
     // En PERT la tabla de arcos es la alternativa en texto de la red: se ofrece en todos los pasos desde «colocar».
@@ -264,7 +275,7 @@
     $('btnNext').disabled = k >= tr.length - 1 || hide;
     $('btnPlay').textContent = timer ? '⏸' : '▶';
     $('btnPlay').setAttribute('aria-label', t(timer ? 'player.pause' : 'player.play'));
-    renderLegend(isPert);
+    renderLegend(isPert, minOn && count.emph.length > 0);
 
     const announce = `${n.title}. ${hide ? t('predict.hidden') : n.text}`;
     if (announce !== lastAnnounced) { $('live').textContent = announce; lastAnnounced = announce; }
@@ -308,6 +319,74 @@
     const quiet = !!state.pred && k < floatsIdx;
     return Object.assign({}, ctx, { step: null, hide: false, fit: true, criticalOn: !quiet,
       revealed: quiet ? new Map() : revealedMap(sol.trace, sol.trace.length - 1, false) });
+  }
+
+  // ---------- Contador de ficticias y red mínima (F2a, AC9 y AC16) ----------
+
+  // El mínimo solo depende de la estructura (no de las duraciones de «¿Y si…?»). Se calcula después de pintar:
+  // el contador dice «calculando…» y cambiar de paso no espera a la búsqueda. Devuelve null mientras tanto.
+  function minResult() {
+    const project = model.project;
+    const key = JSON.stringify(project.activities.map((a) => [a.id, project.succs[a.id]]));
+    if (minCache.key === key) return minCache.res;
+    minCache = { key, res: null, lay: null };
+    setTimeout(() => {
+      if (minCache.key !== key) return;
+      const res = MD.solve(project);
+      minCache = { key, res, lay: AL.layout(res.net) };
+      render();
+    }, 0);
+    return null;
+  }
+
+  // Pinta #dummyCounter y devuelve los textos de narrate.dummyCount (null si no se muestra).
+  function renderCounter(isPert, hidden) {
+    const box = clear($('dummyCounter'));
+    box.hidden = !(isPert && model.net);
+    if (box.hidden) return null;
+    const rules = model.net.dummies.length;
+    const res = hidden ? null : minResult();
+    const c = NR.dummyCount(hidden ? null : Object.assign({ rules }, res), { lang: lang(), succs: model.succs, hidden });
+    const numeric = /^(\d+|\?)$/.test(c.min);
+    box.appendChild(h('p', { class: 'count-line' }, [
+      h('span', { class: 'eyebrow' }, [c.label]),
+      h('span', {}, [h('strong', {}, [c.rules]), ` ${t('count.rules')}`]),
+      h('span', {}, numeric ? [h('strong', {}, [c.min]), ` ${t('count.min')}`] : [`${t('count.min')}: `, h('strong', {}, [c.min])]),
+    ]));
+    if (c.note) box.appendChild(h('p', { class: 'muted small' }, [c.note]));
+    const learn = h('button', { type: 'button', class: 'ghost', onclick: () => openLearn({ topic: 'minDummies' }) }, [t('learn.button')]);
+    if (c.title) {
+      box.appendChild(h('p', { class: 'count-title' }, [h('strong', {}, [c.title])]));
+      box.appendChild(h('p', {}, [c.text]));
+      box.appendChild(h('div', { class: 'row-wrap' }, [
+        h('button', { type: 'button', class: 'ghost', id: 'btnMin', 'aria-pressed': String(!!state.min), onclick: toggleMin }, [c.show]),
+        learn]));
+    } else if (res && !res.exact) box.appendChild(h('div', { class: 'row-wrap' }, [learn]));
+    return c;
+  }
+
+  function toggleMin() {
+    stopPlay();
+    if (!state.min && state.view === 'side') dispatch({ type: 'set', key: 'view', value: 'net' });
+    dispatch({ type: 'set', key: 'min', value: state.min ? 0 : 1 });
+  }
+
+  // Las dos redes juntas en #netView: la de las reglas en el paso actual (numerada) y la mínima, con las
+  // ficticias que aprovechan precedencias implícitas destacadas y la explicación debajo.
+  function minCompare(pctx, c) {
+    const res = minCache.res;
+    const n = (v) => t(v === 0 ? 'view.dummiesNone' : v === 1 ? 'view.dummiesOne' : 'view.dummiesN', { n: v });
+    const rulesBox = h('div', { class: 'scroll-box', tabindex: '0', role: 'region', 'aria-label': t('count.rulesNet') });
+    const minBox = h('div', { class: 'scroll-box', tabindex: '0', role: 'region', 'aria-label': c.netTitle });
+    const nv = clear($('netView'));
+    nv.appendChild(h('div', { class: 'side-by-side' }, [
+      h('section', {}, [h('h2', {}, [`${t('count.rulesNet')} · ${n(model.net.dummies.length)}`]), rulesBox]),
+      h('section', { class: 'min-net' }, [h('h2', {}, [`${c.netTitle} · ${n(res.value)}`]), minBox]),
+    ]));
+    nv.appendChild(h('p', { class: 'small count-explain' }, [c.explain]));
+    G.pertView.render(rulesBox, Object.assign({}, pctx, { numbered: true }));
+    G.pertView.render(minBox, { net: res.net, lay: minCache.lay, revealed: new Map(), step: null, lang: lang(), nota: state.nota,
+      numFmt, name: `${model.name} · ${c.netTitle}`, criticalOn: false, numbered: true, emph: c.emph, idPrefix: 'pnl-pm' });
   }
 
   function renderSelInfo(info) {
@@ -398,7 +477,7 @@
     }
   }
 
-  function renderLegend(isPert) {
+  function renderLegend(isPert, implied) {
     const lg = clear($('legend'));
     const sw = (style, label) => h('span', {}, [h('span', { class: 'sw', style, 'aria-hidden': 'true' }), label]);
     lg.appendChild(sw('border:2.5px solid var(--accent);background:var(--accent-soft)', t('legend.active')));
@@ -408,21 +487,26 @@
     if (isPert) {
       lg.appendChild(sw('height:0;border-top:2px dashed var(--edge)', t('legend.dummy')));
       lg.appendChild(sw('height:0;border-top:3px solid var(--select)', t('legend.rule')));
+      if (implied) lg.appendChild(sw('height:0;border-top:3px dashed var(--select)', t('legend.implied')));
     }
   }
 
-  // Con un tema (el de la regla de una ficticia seleccionada), «Aprende más» abre ese tema.
+  // Con un tema (el de la regla de una ficticia seleccionada), «Aprende más» abre ese tema. Con { topic }, un
+  // tema que no es de ningún paso (el del contador): su pseudocódigo es el de colocar la red.
   function openLearn(forTopic) {
     const tr = trace();
     if (!tr) return;
     const cur = tr[Math.min(state.step, tr.length - 1)];
+    const own = forTopic && typeof forTopic === 'object' ? forTopic.topic : null;
     // El tema de una regla vive en la traza PERT, también si se abre desde la red ROY.
-    const ruleStep = typeof forTopic === 'string' && model.net ? model.net.trace.find((s) => s.kind === forTopic) : null;
+    const kind = own ? 'place' : forTopic;
+    const ruleStep = typeof kind === 'string' && model.net ? model.net.trace.find((s) => s.kind === kind) : null;
     const graph = ruleStep ? 'aoa' : state.graph;
     const step = ruleStep || cur;
-    const topic = LR.topicFor(step, state.view, graph);
+    const topic = own || LR.topicFor(step, state.view, graph);
     const body = clear($('learnBody'));
-    $('learnTitle').textContent = NR.narrate(step, { lang: lang(), nota: state.nota, solution: model.solution, project: model.project, unit: model.unit, net: model.net }).title;
+    $('learnTitle').textContent = own ? t('count.learnTitle')
+      : NR.narrate(step, { lang: lang(), nota: state.nota, solution: model.solution, project: model.project, unit: model.unit, net: model.net }).title;
     LR.topics[topic][lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
     if (LR.schemes[topic]) renderScheme(body, LR.schemes[topic], topic);
     if (['table', 'build', 'succTable'].includes(topic)) { body.appendChild(h('h3', {}, [t('learn.history')])); body.appendChild(h('p', {}, [LR.history[lang()]])); }
@@ -488,9 +572,10 @@
     $('btnPrev').addEventListener('click', () => dispatch({ type: 'prev' }));
     $('btnFirst').addEventListener('click', () => dispatch({ type: 'first' }));
     $('btnPlay').addEventListener('click', togglePlay);
-    $('btnNet').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'net' }));
+    // «Red» y «Lado a lado» dejan la comparación con la red mínima.
+    $('btnNet').addEventListener('click', () => { if (state.min) dispatch({ type: 'set', key: 'min', value: 0 }); dispatch({ type: 'set', key: 'view', value: 'net' }); });
     $('btnMatrix').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'matrix' }));
-    $('btnSide').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'side' }));
+    $('btnSide').addEventListener('click', () => { if (state.min) dispatch({ type: 'set', key: 'min', value: 0 }); dispatch({ type: 'set', key: 'view', value: 'side' }); });
     $('btnAon').addEventListener('click', () => switchGraph('aon'));
     $('btnAoa').addEventListener('click', () => switchGraph('aoa'));
     $('selLang').addEventListener('change', (e) => dispatch({ type: 'set', key: 'lang', value: e.target.value }));

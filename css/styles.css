@@ -238,3 +238,13 @@ table.succ tr.sup { background: var(--accent-soft); }
 table.succ tr.sub, table.succ tr.share, table.succ tr.equal { background: var(--select-soft); }
 table.arcs tr.sel { background: var(--select-soft); }
 .mono { font-family: var(--mono); }
+/* Contador de ficticias y red mínima (F2a, T021) */
+.counter { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.counter p { margin: 0; }
+.counter .count-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; font-size: 15px; }
+.counter .count-line .eyebrow { color: var(--muted); }
+.counter .count-line strong { font-size: 22px; }
+.counter .count-title strong { font-size: 16px; }
+.side-by-side > section.min-net { border: 2px solid var(--accent); }
+.count-explain { margin: 8px 2px 0; }
+.counter button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

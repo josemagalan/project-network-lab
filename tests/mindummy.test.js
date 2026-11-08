@@ -84,3 +84,45 @@ test('aoa.methods.min delega en el mínimo', () => {
   assert.equal(net.dummies.length, 2);
   assert.deepEqual(A.verify(net, p), { ok: true, problems: [] });
 });
+
+// ---------- T021: precedencias implícitas que aprovecha cada ficticia (contador, AC9 y AC16) ----------
+
+test('AC16: la red mínima de A<C,D,E; B<C,E; D<E aprovecha la precedencia implícita A → E', () => {
+  const p = fromSucc({ A: ['C', 'D', 'E'], B: ['C', 'E'], C: [], D: ['E'], E: [] });
+  const { net } = M.solve(p);
+  const pairs = [...new Set(net.dummies.flatMap((d) => d.implied.map(([a, b]) => `${a}>${b}`)))];
+  assert.deepEqual(pairs, ['A>E']);
+  assert.ok(net.dummies.every((d) => Array.isArray(d.implied)));
+  // Lo mismo sin escribir A→E: la tabla reducida es la misma.
+  const q = fromSucc({ A: ['C', 'D'], B: ['C', 'E'], C: [], D: ['E'], E: [] });
+  assert.deepEqual(M.solve(q).net.dummies.map((d) => d.implied), net.dummies.map((d) => d.implied));
+});
+
+test('AC9: la red de las reglas nunca aprovecha una precedencia implícita (seis ejercicios y 1000 tablas)', () => {
+  for (const id of ['ej1', 'ej2', 'ej3', 'ej4', 'ej6', 'ej7']) {
+    assert.ok(A.build(loadEx(id)).dummies.every((d) => d.implied.length === 0), id);
+  }
+  const rand = rng(21);
+  for (let i = 0; i < 1000; i++) {
+    const net = A.build(fromSucc(randomSucc(rand, 2 + Math.floor(rand() * 9), 0.4)));
+    assert.ok(net.dummies.every((d) => d.implied.length === 0), `tabla ${i}`);
+  }
+});
+
+test('AC9: lo implícito que aprovecha la red mínima es siempre una precedencia transitiva de la tabla', () => {
+  const rand = rng(7);
+  let seen = 0;
+  for (let i = 0; i < 300; i++) {
+    const succ = randomSucc(rand, 3 + Math.floor(rand() * 5), 0.45);
+    const p = fromSucc(succ);
+    const { reach, direct } = A._reduce(p);
+    for (const d of M.solve(p).net.dummies) {
+      for (const [a, b] of d.implied) {
+        seen++;
+        assert.ok(reach[a].has(b), `tabla ${i}: ${a} → ${b} no es una precedencia`);
+        assert.ok(!direct[a].includes(b), `tabla ${i}: ${a} → ${b} es directa`);
+      }
+    }
+  }
+  assert.ok(seen > 0, 'la muestra incluye casos que aprovechan precedencias implícitas');
+});

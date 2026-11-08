@@ -199,7 +199,64 @@
     return { title: x, text, precs, learn };
   }
 
-  const api = { narrate, relabel, nodeName, fmt, selection, SHOWN_PATHS };
+  // Camino más corto de a a b por las precedencias directas (para nombrar una precedencia implícita).
+  function chain(succs, a, b) {
+    const prev = new Map([[a, null]]);
+    const queue = [a];
+    while (queue.length) {
+      const x = queue.shift();
+      if (x === b) break;
+      for (const y of succs[x] || []) if (!prev.has(y)) { prev.set(y, x); queue.push(y); }
+    }
+    if (!prev.has(b)) return [a, b];
+    const out = [];
+    for (let x = b; x != null; x = prev.get(x)) out.unshift(x);
+    return out;
+  }
+
+  // Contador de ficticias (F2a, AC9 y AC16). info = { rules, value, lower, exact, net } de core/mindummy más las
+  // ficticias de las reglas; sin value, el mínimo aún se está calculando. ctx = { lang, succs, hidden }: succs son las
+  // posteriores directas; hidden, que se están prediciendo las reglas. Devuelve los textos del contador y, si las
+  // reglas quedan por encima, los de la tarjeta, la explicación y las ficticias que aprovechan precedencias implícitas.
+  function dummyCount(info, ctx) {
+    const { lang } = ctx;
+    const t = (k, p) => I.t(lang, k, p);
+    const out = { label: t('count.label'), rules: t('count.unknown'), min: t('count.unknown'), note: '', extra: 0,
+      title: null, text: null, show: null, netTitle: null, explain: null, emph: [] };
+    if (ctx.hidden || !info) { out.note = t('count.hidden'); return out; }
+    out.rules = String(info.rules);
+    if (info.value == null) { out.min = t('count.pending'); return out; }
+    out.min = info.exact ? String(info.value) : t('count.between', { l: info.lower, v: info.value });
+    if (!info.exact) out.note = t('count.noteRange');
+    else if (info.rules === 0) out.note = t('count.noteNone');
+    else if (info.value === info.rules) out.note = t('count.noteSame');
+    else {
+      const k = info.value - 1;
+      out.note = t(k === 0 ? 'count.noteExactZero' : k === 1 ? 'count.noteExactOne' : 'count.noteExact', { k });
+    }
+    const n = info.rules - info.value;
+    if (n <= 0) return out;
+    out.extra = n;
+    const best = !info.exact;
+    out.title = t(`count.${best ? 'less' : 'extra'}${n === 1 ? 'One' : 'N'}`, { n });
+    out.text = t(best ? 'count.textBest' : 'count.text');
+    out.show = t(best ? 'count.showBest' : 'count.show');
+    out.netTitle = t(best ? 'count.bestNet' : 'count.minNet');
+    const ds = info.net.dummies.filter((d) => d.implied && d.implied.length);
+    const pairs = [];
+    for (const d of ds) for (const [a, b] of d.implied) if (!pairs.some((p) => p[0] === a && p[1] === b)) pairs.push([a, b]);
+    out.emph = ds.map((d) => d.name);
+    if (!pairs.length) {
+      out.explain = t('count.other', { n: t(n === 1 ? 'view.dummiesOne' : 'view.dummiesN', { n }) });
+      return out;
+    }
+    const named = pairs.map(([a, b]) => `${a} → ${b} (${chain(ctx.succs, a, b).join(' → ')})`);
+    out.explain = t(pairs.length === 1 ? 'count.implicitOne' : 'count.implicitN',
+      { pairs: I.list(lang, named), dummies: I.list(lang, out.emph), a: pairs[0][0], b: pairs[0][1] });
+    return out;
+  }
+
+  const api = { narrate, relabel, nodeName, fmt, selection, dummyCount, SHOWN_PATHS };
   root.PNL = root.PNL || {};
   root.PNL.narrate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

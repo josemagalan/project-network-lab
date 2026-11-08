@@ -332,3 +332,102 @@ test('AC6–AC7: el texto de cualquier selección de los siete ejercicios está 
     }
   }
 });
+
+// ---------- T021: contador de ficticias y red mínima (AC9 y AC16) ----------
+
+const M = require('../js/core/mindummy.js');
+const countCtx = (succ, lang) => {
+  const ids = Object.keys(succ).sort();
+  const p = P.parse(ids.map((id) => ({ id, duration: '1', links: succ[id].join(', ') })), 'succ').project;
+  const rules = A.build(p).dummies.length;
+  const r = M.solve(p);
+  return { info: Object.assign({ rules }, r), ctx: { lang, succs: A._reduce(p).direct } };
+};
+const AC16 = { A: ['C', 'D', 'E'], B: ['C', 'E'], C: [], D: ['E'], E: [] };
+
+test('AC16: el contador dice «reglas 3 · mínimo 2», que es exacto y que la mínima aprovecha A → E (A → D → E)', () => {
+  const { info, ctx } = countCtx(AC16, 'es');
+  const c = N.dummyCount(info, ctx);
+  assert.deepEqual([c.rules, c.min], ['3', '2']);
+  assert.equal(c.extra, 1);
+  assert.match(c.note, /Exacto: no hay ninguna red con 1 ficticia\./);
+  assert.match(c.title, /1 ficticia de más/);
+  assert.match(c.text, /mismas precedencias/);
+  assert.equal(c.show, 'Ver la red mínima');
+  assert.equal(c.netTitle, 'Red mínima');
+  assert.match(c.explain, /A → E \(A → D → E\)/, c.explain);
+  assert.match(c.explain, /F1 y F2/, c.explain);
+  assert.deepEqual(c.emph, ['F1', 'F2']);
+  const en = N.dummyCount(info, Object.assign({}, ctx, { lang: 'en' }));
+  assert.match(en.note, /Exact: no network has 1 dummy\./);
+  assert.match(en.title, /1 dummy too many/);
+  assert.match(en.explain, /A → E \(A → D → E\)/);
+  assert.equal(en.show, 'Show the minimum network');
+});
+
+test('AC9: con las reglas ya en el mínimo no hay tarjeta; sin ficticias lo dice', () => {
+  const ej6 = pertCtx('ej6', 'es', 'en').net;
+  const c = N.dummyCount({ rules: 3, value: 3, lower: 3, exact: true, net: ej6 }, { lang: 'es', succs: {} });
+  assert.deepEqual([c.rules, c.min, c.extra], ['3', '3', 0]);
+  assert.match(c.note, /ya dan el mínimo/);
+  assert.equal(c.title, null);
+  const none = N.dummyCount({ rules: 0, value: 0, lower: 0, exact: true, net: { dummies: [] } }, { lang: 'en', succs: {} });
+  assert.match(none.note, /needs no dummies/);
+});
+
+test('AC9: con el presupuesto agotado, «entre L y V» y la mejor red encontrada', () => {
+  for (const lang of ['es', 'en']) {
+    const net = { dummies: [{ name: 'F1', implied: [] }] };
+    const c = N.dummyCount({ rules: 10, value: 7, lower: 6, exact: false, net }, { lang, succs: {} });
+    assert.equal(c.min, lang === 'es' ? 'entre 6 y 7' : 'between 6 and 7');
+    assert.match(c.note, lang === 'es' ? /presupuesto fijo/ : /fixed work budget/);
+    assert.match(c.title, lang === 'es' ? /3 ficticias menos/ : /3 fewer dummies/);
+    assert.equal(c.show, lang === 'es' ? 'Ver la mejor red encontrada' : 'Show the best network found');
+    assert.match(c.explain, lang === 'es' ? /otra manera/ : /differently/);
+    assert.deepEqual(c.emph, []);
+    // Agotado y sin mejora: intervalo, pero sin tarjeta.
+    const same = N.dummyCount({ rules: 5, value: 5, lower: 3, exact: false, net }, { lang, succs: {} });
+    assert.equal(same.min, lang === 'es' ? 'entre 3 y 5' : 'between 3 and 5');
+    assert.equal(same.title, null);
+  }
+});
+
+test('AC9: mientras se calcula o se predicen las reglas, el contador no da números', () => {
+  for (const lang of ['es', 'en']) {
+    const hidden = N.dummyCount(null, { lang, succs: {}, hidden: true });
+    assert.deepEqual([hidden.rules, hidden.min, hidden.title], ['?', '?', null]);
+    assert.match(hidden.note, lang === 'es' ? /al colocar la red/ : /once the network is placed/);
+    const pending = N.dummyCount({ rules: 3 }, { lang, succs: {} });
+    assert.equal(pending.rules, '3');
+    assert.equal(pending.min, lang === 'es' ? 'calculando…' : 'working it out…');
+  }
+});
+
+test('AC9: el texto del contador está completo en ES y EN para 200 tablas al azar', () => {
+  let r = 5;
+  const rand = () => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r / 4294967296; };
+  let extra = 0;
+  for (let i = 0; i < 200; i++) {
+    const n = 3 + Math.floor(rand() * 5);
+    const ids = Array.from({ length: n }, (_, j) => String.fromCharCode(65 + j));
+    const succ = Object.fromEntries(ids.map((a, j) => [a, ids.slice(j + 1).filter(() => rand() < 0.45)]));
+    for (const lang of ['es', 'en']) {
+      const { info, ctx } = countCtx(succ, lang);
+      const c = N.dummyCount(info, ctx);
+      if (c.extra) extra++;
+      for (const s of [c.label, c.rules, c.min, c.note, c.title, c.text, c.explain].filter(Boolean)) {
+        assert.doesNotMatch(s, /\b(count|view|pert)\.|\{\w+\}|undefined|NaN/, `${JSON.stringify(succ)} ${lang}: ${s}`);
+      }
+    }
+  }
+  assert.ok(extra > 0, 'la muestra incluye tablas en las que las reglas quedan por encima del mínimo');
+});
+
+test('«Aprende más» tiene un tema propio para el contador, en ES y EN', () => {
+  for (const lang of ['es', 'en']) {
+    const ps = Lrn.topics.minDummies[lang];
+    assert.equal(ps.length, Lrn.topics.minDummies.es.length);
+    assert.match(ps.join(' '), /NP/);
+    assert.match(ps.join(' '), /Krishnamoorthy/);
+  }
+});

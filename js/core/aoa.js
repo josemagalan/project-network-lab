@@ -158,11 +158,19 @@
       dReach.set(u, set);
       return set;
     };
+    // implied: parejas que la ficticia une sin ser precedencias directas. En una red correcta son
+    // precedencias implícitas (transitivas) que la red aprovecha; las reglas nunca lo hacen (T021).
+    const acts = arcsK.map((e) => e.act).sort(byId);
+    const direct = new Set(pairs.map(([a, b]) => `${a}>${b}`));
+    const byPair = (x, y) => byId(x[0], y[0]) || byId(x[1], y[1]);
     const dummiesN = dummiesK.map((d) => {
-      const represents = pairs.filter(([a, b]) => reachD(toOf[a]).has(d.from) && reachD(d.to).has(fromOf[b]))
-        .sort((x, y) => byId(x[0], y[0]) || byId(x[1], y[1]));
+      const before = acts.filter((a) => reachD(toOf[a]).has(d.from));
+      const after = acts.filter((b) => reachD(d.to).has(fromOf[b]));
+      const encoded = before.flatMap((a) => after.map((b) => [a, b]));
+      const represents = encoded.filter(([a, b]) => direct.has(`${a}>${b}`)).sort(byPair);
+      const implied = encoded.filter(([a, b]) => !direct.has(`${a}>${b}`)).sort(byPair);
       const because = d.because || [...new Set(represents.flat())].sort(byId);
-      return { from: n.get(d.from), to: n.get(d.to), rule: d.rule, because, represents };
+      return { from: n.get(d.from), to: n.get(d.to), rule: d.rule, because, represents, implied };
     });
     dummiesN.sort((x, y) => (RULE_ORDER[x.rule] - RULE_ORDER[y.rule]) || byId(x.because[0] || '', y.because[0] || '') || (x.from - y.from) || (x.to - y.to));
     const dummies = dummiesN.map((d, i) => Object.assign({ name: `F${i + 1}` }, d));
