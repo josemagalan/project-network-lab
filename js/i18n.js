@@ -13,6 +13,8 @@
     en: { ES: 'ES', EF: 'EF', LS: 'LS', LF: 'LF', TF: 'TF', FF: 'FF', IF: 'IF', SF: 'SF' },
     es: { ES: 'tᵢ', EF: 'fᵢ', LS: 'tᵢ*', LF: 'fᵢ*', TF: 'HT', FF: 'HL', IF: 'HI', SF: 'HS' },
   };
+  // Tiempos de los sucesos de la red PERT (F2a): TE y TL, o tᵢ y tᵢ* como en el Tema 6a.
+  const EVENT_NOTATION = { en: { TE: 'TE', TL: 'TL' }, es: { TE: 'tᵢ', TL: 'tᵢ*' } };
 
   const dict = {
     es: {
@@ -121,6 +123,15 @@
       },
       node: { start: 'Inicio', end: 'Fin' },
       a11y: { tableCaption: 'Tiempos de {name} hasta el paso actual' },
+      pert: {
+        netLabel: 'Red PERT de {name}: {e} sucesos, {n} actividades y {f} ficticias',
+        arcsCaption: 'Arcos de la red PERT de {name}', colFrom: 'Desde el suceso', colTo: 'Hasta el suceso', colArc: 'Actividad o ficticia',
+        colDur: 'Duración', colRule: 'Por qué', dummy: 'ficticia', select: 'Seleccionar {x}',
+        rule: { equal: 'Conjuntos iguales', contained: 'Conjuntos contenidos', shared: 'Conjuntos compartidos', min: 'Red mínima' },
+        succCaption: 'Tabla de posteriores de {name}', colAct: 'Actividad', colSucc: 'Posteriores', colRole: 'Papel en esta regla',
+        roleSup: 'su conjunto contiene otro', roleSub: 'su conjunto está contenido en otro', roleShare: 'comparte parte de sus posteriores',
+        roleEqual: 'paralela a otra actividad', none: 'ninguna',
+      },
     },
     en: {
       app: {
@@ -227,6 +238,15 @@
       },
       node: { start: 'Start', end: 'End' },
       a11y: { tableCaption: 'Times of {name} up to the current step' },
+      pert: {
+        netLabel: 'Activity-on-arrow network of {name}: {e} events, {n} activities and {f} dummies',
+        arcsCaption: 'Arrows of the activity-on-arrow network of {name}', colFrom: 'From event', colTo: 'To event', colArc: 'Activity or dummy',
+        colDur: 'Duration', colRule: 'Why', dummy: 'dummy', select: 'Select {x}',
+        rule: { equal: 'Equal sets', contained: 'Contained sets', shared: 'Shared sets', min: 'Minimum network' },
+        succCaption: 'Successor table of {name}', colAct: 'Activity', colSucc: 'Successors', colRole: 'Role in this rule',
+        roleSup: 'its set contains another', roleSub: 'its set is contained in another', roleShare: 'shares part of its successors',
+        roleEqual: 'parallel to another activity', none: 'none',
+      },
     },
   };
 
@@ -254,8 +274,9 @@
   }
 
   const notation = (nota) => Object.assign({}, NOTATION[nota] || NOTATION.en);
+  const eventNotation = (nota) => Object.assign({}, EVENT_NOTATION[nota] || EVENT_NOTATION.en);
 
-  const api = { languages, dict, SAME_IN_BOTH, t, list, notation };
+  const api = { languages, dict, SAME_IN_BOTH, t, list, notation, eventNotation };
   root.PNL = root.PNL || {};
   root.PNL.i18n = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

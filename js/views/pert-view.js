@@ -1,0 +1,184 @@
+/*
+ * views/pert-view — dibuja la red PERT (actividad en arco) con D3 a partir de views/aoa-layout y de los
+ * valores revelados hasta el paso actual. No calcula nada: la red sale de core/aoa y las holguras, de la
+ * Solution de ROY (plan F2a §2). Textos con .text(), nunca HTML.
+ *   render(el, ctx): la red (desde el paso «colocar»). ctx = { net, lay, step, revealed, solution, lang, nota,
+ *     criticalOn, numFmt, name, selected, onSelect, hide, numbered, durations }
+ *   succTable(el, ctx): la tabla de posteriores de los pasos de construcción, con el papel de cada actividad.
+ *   arcTable(el, ctx): la alternativa en texto (un arco por fila), con botones para seleccionar.
+ */
+(function (root) {
+  'use strict';
+
+  const G = root.PNL;
+  const GEO = { colGap: 150, rowGap: 112, r: 18, pad: 34, top: 30 };
+
+  const t = (ctx, k, p) => G.i18n.t(ctx.lang, k, p);
+
+  // Clases de cada arco según el paso, el camino crítico y la selección.
+  function classes(ctx) {
+    const { net, step, solution, revealed, criticalOn, hide, selected } = ctx;
+    const cls = new Map();
+    const set = (label, c) => cls.set(label, c);
+    if (step && step.rule && !hide) for (const d of step.rule.dummies) set(d, 'rule');
+    if (step && step.formula && (step.kind === 'eventForward' || step.kind === 'eventBackward')) {
+      const chosen = new Set(hide ? [] : step.formula.chosen);
+      for (const term of step.formula.terms) set(term.via, chosen.has(term.via) ? 'chosen' : 'compared');
+    }
+    if (criticalOn && solution) {
+      const slack = (n) => (revealed.has(`${n}.TE`) && revealed.has(`${n}.TL`) ? revealed.get(`${n}.TL`) - revealed.get(`${n}.TE`) : null);
+      for (const e of net.arcs) if (!cls.has(e.act) && Math.abs(solution.floats[e.act].TF) < 1e-9) set(e.act, 'crit');
+      for (const d of net.dummies) {
+        if (cls.has(d.name)) continue;
+        const te = (n) => revealed.get(`${n}.TE`);
+        if (slack(d.from) === 0 && slack(d.to) === 0 && Math.abs(te(d.from) - te(d.to)) < 1e-9) set(d.name, 'crit');
+      }
+    }
+    if (selected) set(selected, 'sel');
+    return cls;
+  }
+
+  function render(container, ctx) {
+    const d3 = root.d3;
+    const { net, lay, revealed, numFmt, onSelect } = ctx;
+    const N = G.i18n.eventNotation(ctx.nota);
+    const rows = [...Object.values(lay.pos), ...Object.values(lay.bends).flat()].map((p) => p.row);
+    const minRow = Math.min(...rows); const maxRow = Math.max(...rows);
+    const X = (col) => GEO.pad + col * GEO.colGap;
+    const Y = (row) => GEO.pad + GEO.top + (row - minRow) * GEO.rowGap;
+    const width = GEO.pad * 2 + (lay.cols - 1) * GEO.colGap;
+    const height = GEO.pad * 2 + GEO.top + (maxRow - minRow) * GEO.rowGap;
+    const at = (n) => ({ x: X(lay.pos[n].col), y: Y(lay.pos[n].row) });
+    const cls = classes(ctx);
+    const dur = ctx.durations || {};
+
+    const sel = d3.select(container);
+    sel.selectAll('*').remove();
+    const svg = sel.append('svg').attr('class', 'net pert').attr('width', '100%')
+      .attr('style', `max-width:${width}px;min-width:${Math.min(width, 560)}px`).attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('role', 'img').attr('aria-label', G.i18n.t(ctx.lang, 'pert.netLabel', { name: ctx.name, e: net.events.length, n: net.arcs.length, f: net.dummies.length }));
+    const defs = svg.append('defs');
+    for (const [id, c] of [['pnl-pk', 'mk'], ['pnl-pk-a', 'mk-a'], ['pnl-pk-c', 'mk-c'], ['pnl-pk-s', 'mk-s'], ['pnl-pk-r', 'mk-r']]) {
+      defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
+        .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto').append('path').attr('d', 'M0 0L10 5L0 10z').attr('class', c);
+    }
+    const marker = (c) => ({ chosen: 'pnl-pk-a', compared: 'pnl-pk-a', crit: 'pnl-pk-c', sel: 'pnl-pk-s', rule: 'pnl-pk-r' }[c] || 'pnl-pk');
+
+    const eg = svg.append('g');
+    const lg = svg.append('g');
+    const edges = [...net.arcs.map((e) => ({ label: e.act, from: e.from, to: e.to, dummy: false })),
+      ...net.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, dummy: true }))];
+    for (const e of edges) {
+      const a = at(e.from); const b = at(e.to);
+      const pts = [a, ...(lay.bends[e.label] || []).map((p) => ({ x: X(p.col), y: Y(p.row) })), b];
+      const curved = lay.curved.includes(e.label);
+      // Recorte para que la flecha empiece y acabe en el borde del círculo.
+      const clip = (p, q, r) => { const dx = q.x - p.x; const dy = q.y - p.y; const L = Math.hypot(dx, dy) || 1; return { x: p.x + dx * r / L, y: p.y + dy * r / L }; };
+      let d; let mid;
+      if (curved) {
+        const bow = GEO.colGap * 0.35;
+        const s = clip(a, { x: a.x + bow, y: a.y }, GEO.r); const f = clip(b, { x: b.x + bow, y: b.y }, GEO.r + 1);
+        d = `M${s.x} ${s.y} C ${a.x + bow} ${a.y}, ${b.x + bow} ${b.y}, ${f.x} ${f.y}`;
+        mid = { x: a.x + bow * 0.8, y: (a.y + b.y) / 2 };
+      } else {
+        const s = clip(pts[0], pts[1], GEO.r); const f = clip(pts[pts.length - 1], pts[pts.length - 2], GEO.r + 1);
+        const ps = [s, ...pts.slice(1, -1), f];
+        d = `M${ps[0].x} ${ps[0].y}`;
+        for (let i = 1; i < ps.length; i++) {
+          const p = ps[i - 1]; const q = ps[i];
+          d += (p.y === q.y || i === ps.length - 1 && ps.length === 2) ? ` L${q.x} ${q.y}` : ` C ${(p.x + q.x) / 2} ${p.y}, ${(p.x + q.x) / 2} ${q.y}, ${q.x} ${q.y}`;
+        }
+        const k = Math.floor((ps.length - 1) / 2);
+        mid = { x: (ps[k].x + ps[k + 1].x) / 2, y: (ps[k].y + ps[k + 1].y) / 2 };
+      }
+      const c = cls.get(e.label) || '';
+      const path = eg.append('path').attr('d', d).attr('class', `edge${e.dummy ? ' dummy' : ''}${c ? ` ${c}` : ''}`).attr('marker-end', `url(#${marker(c)})`);
+      const vertical = !curved && a.x === b.x;
+      const txt = e.dummy ? e.label : (dur[e.label] == null ? e.label : `${e.label} = ${numFmt(dur[e.label])}`);
+      const label = lg.append('text').attr('class', `elabel${e.dummy ? ' dummy' : ''}${c ? ` ${c}` : ''}`)
+        .attr('x', mid.x + (vertical ? 10 : 0)).attr('y', mid.y + (vertical ? 4 : -7)).attr('text-anchor', vertical ? 'start' : 'middle').text(txt);
+      if (onSelect) {
+        for (const el of [path, label]) el.style('cursor', 'pointer').on('click', () => onSelect(e.label));
+      }
+    }
+
+    const ng = svg.append('g');
+    const active = ctx.step && ctx.step.event;
+    const show = (n, f) => (revealed.has(`${n}.${f}`) ? numFmt(revealed.get(`${n}.${f}`)) : '·');
+    for (const ev of net.events) {
+      const p = at(ev.n);
+      const crit = ctx.criticalOn && revealed.has(`${ev.n}.TE`) && revealed.get(`${ev.n}.TL`) - revealed.get(`${ev.n}.TE`) === 0;
+      const g = ng.append('g').attr('class', `ev${ev.n === active ? ' active' : ''}${crit ? ' crit' : ''}`).attr('transform', `translate(${p.x},${p.y})`);
+      g.append('circle').attr('r', GEO.r);
+      g.append('text').attr('class', 'nid').attr('y', 5).text(ctx.numbered ? String(ev.n) : '');
+      if (revealed.has(`${ev.n}.TE`) || revealed.has(`${ev.n}.TL`)) {
+        const tb = g.append('g').attr('class', 'tbox').attr('transform', `translate(-26,${-GEO.r - 24})`);
+        tb.append('rect').attr('width', 52).attr('height', 20).attr('rx', 4);
+        tb.append('line').attr('x1', 26).attr('x2', 26).attr('y1', 0).attr('y2', 20);
+        tb.append('text').attr('x', 13).attr('y', 15).text(show(ev.n, 'TE')).append('title').text(N.TE);
+        tb.append('text').attr('class', 'late').attr('x', 39).attr('y', 15).text(show(ev.n, 'TL')).append('title').text(N.TL);
+      }
+    }
+    return { width, height };
+  }
+
+  // Papel de cada actividad en el paso de regla (para marcar la tabla de posteriores).
+  function roles(ctx) {
+    const { net, step } = ctx;
+    const out = new Map();
+    if (!step || !step.rule || ctx.hide) return out;
+    const endsAt = (n) => net.arcs.filter((e) => e.to === n).map((e) => e.act);
+    for (const name of step.rule.dummies) {
+      const d = net.dummies.find((x) => x.name === name);
+      if (d.rule === 'equal') { for (const a of d.because) out.set(a, 'equal'); continue; }
+      if (d.rule === 'shared') { for (const a of endsAt(d.from)) out.set(a, 'share'); continue; }
+      for (const a of endsAt(d.from)) if (!out.has(a)) out.set(a, 'sup');
+      for (const a of endsAt(d.to)) out.set(a, 'sub');
+    }
+    return out;
+  }
+
+  function succTable(container, ctx) {
+    const { h, clear } = G.dom;
+    clear(container);
+    const role = roles(ctx);
+    const label = { sup: 'pert.roleSup', sub: 'pert.roleSub', share: 'pert.roleShare', equal: 'pert.roleEqual' };
+    const succ = ctx.succs;
+    const ids = Object.keys(succ).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+    container.appendChild(h('table', { class: 'data succ' }, [
+      h('caption', { class: 'sr-only' }, [t(ctx, 'pert.succCaption', { name: ctx.name })]),
+      h('thead', {}, [h('tr', {}, [t(ctx, 'pert.colAct'), t(ctx, 'pert.colSucc'), t(ctx, 'pert.colRole')].map((x) => h('th', { scope: 'col' }, [x])))]),
+      h('tbody', {}, ids.map((a) => h('tr', { class: role.get(a) || '' }, [
+        h('th', { scope: 'row' }, [a]),
+        h('td', { class: 'mono' }, [succ[a].length ? `{ ${succ[a].join(', ')} }` : '—']),
+        h('td', {}, [role.has(a) ? t(ctx, label[role.get(a)]) : '']),
+      ]))),
+    ]));
+  }
+
+  function arcTable(container, ctx) {
+    const { h, clear } = G.dom;
+    clear(container);
+    const { net, numFmt } = ctx;
+    const dur = ctx.durations || {};
+    const rows = [...net.arcs.map((e) => ({ label: e.act, from: e.from, to: e.to, d: dur[e.act], why: '' })),
+      ...net.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, d: 0, why: `${t(ctx, `pert.rule.${d.rule}`)}: ${G.i18n.list(ctx.lang, d.because)}`, dummy: true }))]
+      .sort((x, y) => x.from - y.from || x.to - y.to);
+    container.appendChild(h('table', { class: 'data arcs' }, [
+      h('caption', { class: 'sr-only' }, [t(ctx, 'pert.arcsCaption', { name: ctx.name })]),
+      h('thead', {}, [h('tr', {}, [t(ctx, 'pert.colArc'), t(ctx, 'pert.colFrom'), t(ctx, 'pert.colTo'), t(ctx, 'pert.colDur'), t(ctx, 'pert.colRule')]
+        .map((x) => h('th', { scope: 'col' }, [x])))]),
+      h('tbody', {}, rows.map((r) => h('tr', { class: ctx.selected === r.label ? 'sel' : '' }, [
+        h('th', { scope: 'row' }, [ctx.onSelect
+          ? h('button', { type: 'button', class: 'link', 'aria-pressed': String(ctx.selected === r.label), 'aria-label': t(ctx, 'pert.select', { x: r.label }), onclick: () => ctx.onSelect(r.label) }, [r.dummy ? `${r.label} (${t(ctx, 'pert.dummy')})` : r.label])
+          : (r.dummy ? `${r.label} (${t(ctx, 'pert.dummy')})` : r.label)]),
+        h('td', {}, [String(r.from)]), h('td', {}, [String(r.to)]),
+        h('td', {}, [r.d == null ? '—' : numFmt(r.d)]), h('td', {}, [r.why]),
+      ]))),
+    ]));
+  }
+
+  const api = { render, succTable, arcTable, roles, classes, GEO };
+  root.PNL = root.PNL || {};
+  root.PNL.pertView = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
