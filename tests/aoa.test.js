@@ -144,3 +144,99 @@ test('aoa.methods registra el método de las reglas', () => {
 test('un método de construcción desconocido es un error explícito', () => {
   assert.throws(() => A.build(loadEx('ej6'), { method: 'nope' }), /método desconocido/);
 });
+
+// ---------- T007: tiempos de sucesos y traza de la red PERT (AC2, AC3, AC5, AC10) ----------
+
+const C = require('../js/core/cpm.js');
+const pairsOf = (t) => Object.keys(t.TE).map((n) => [t.TE[n], t.TL[n]]).sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+const sortPairs = (ps) => ps.slice().sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+const durOf = (s, a) => s.times[a].EF - s.times[a].ES;
+
+test('AC2: los tiempos de los sucesos de los ejercicios 4, 6 y 7 coinciden con la solución del autor', () => {
+  for (const id of ['ej4', 'ej6', 'ej7']) {
+    const p = loadEx(id);
+    const s = C.solve(p);
+    const t = A.times(A.build(p), s);
+    assert.deepEqual(pairsOf(t), sortPairs(E.get(id).expected.aoa.eventTimes), id);
+    assert.equal(t.TE[A.build(p).events.length], E.get(id).expected.duration, `${id}: duración`);
+  }
+});
+
+test('AC3: en 2000 tablas aleatorias y en los ejemplos de ROY, duración, crítico y holgura total salen igual en PERT', () => {
+  const rand = rng(7);
+  const projects = ['roy10', 'roy6', 'klastorin', 'hillier', 'ej4', 'ej6', 'ej7'].map(loadEx);
+  for (let i = 0; i < 2000; i++) projects.push(randomProject(rand, 1 + Math.floor(rand() * 14)));
+  projects.forEach((p, i) => {
+    const s = C.solve(p);
+    const net = A.build(p);
+    const t = A.times(net, s);
+    assert.equal(t.TE[net.events.length], s.duration, `tabla ${i}: duración`);
+    for (const e of net.arcs) {
+      const tf = t.TL[e.to] - t.TE[e.from] - durOf(s, e.act);
+      assert.ok(Math.abs(tf - s.floats[e.act].TF) < 1e-9, `tabla ${i}: TF(${e.act}) ${tf} ≠ ${s.floats[e.act].TF}`);
+    }
+  });
+});
+
+test('AC5: la traza PERT tiene el orden de pasos del plan y un paso por suceso hacia delante y hacia atrás', () => {
+  const p = loadEx('ej6');
+  const net = A.build(p);
+  const kinds = net.trace.map((st) => st.kind);
+  const N = net.events.length;
+  assert.deepEqual(kinds, ['succTable', 'ruleEqual', 'ruleContained', 'ruleShared', 'place', 'number',
+    ...Array(N).fill('eventForward'), ...Array(N).fill('eventBackward'), 'eventSlack', 'floats', 'critical']);
+  assert.deepEqual(net.trace.filter((st) => st.kind === 'eventForward').map((st) => st.event), net.events.map((e) => e.n));
+  assert.deepEqual(net.trace.filter((st) => st.kind === 'eventBackward').map((st) => st.event), net.events.map((e) => e.n).reverse());
+});
+
+test('AC5: cada paso de regla nombra sus actividades y sus ficticias, o queda vacío si no se aplica', () => {
+  const net = A.build(loadEx('ej1'));
+  const step = (k) => net.trace.find((st) => st.kind === k);
+  assert.deepEqual(step('ruleEqual').rule, { acts: [], dummies: [] });
+  assert.deepEqual(step('ruleContained').rule, { acts: ['A', 'B', 'C', 'D'], dummies: ['F1', 'F2'] });
+  assert.deepEqual(step('ruleShared').rule, { acts: [], dummies: [] });
+  const n7 = A.build(loadEx('ej7'));
+  assert.deepEqual(n7.trace.find((st) => st.kind === 'ruleEqual').rule, { acts: ['G', 'I'], dummies: ['F1'] });
+});
+
+test('AC5: un paso hacia delante revela el tiempo temprano con su fórmula (máximo sobre lo que llega)', () => {
+  const p = loadEx('ej6');
+  const net = A.build(p);
+  const t = A.times(net, C.solve(p));
+  assert.equal(net.trace.filter((x) => x.kind === 'eventForward').length, net.events.length);
+  for (const st of net.trace.filter((x) => x.kind === 'eventForward')) {
+    assert.deepEqual(st.reveals, [{ event: st.event, field: 'TE', value: t.TE[st.event] }]);
+    if (st.event === 1) continue;
+    assert.equal(st.formula.op, 'max');
+    assert.equal(Math.max(...st.formula.terms.map((x) => x.value)), t.TE[st.event]);
+    assert.ok(st.formula.chosen.length >= 1);
+  }
+  for (const st of net.trace.filter((x) => x.kind === 'eventBackward')) {
+    assert.deepEqual(st.reveals, [{ event: st.event, field: 'TL', value: t.TL[st.event] }]);
+  }
+});
+
+test('AC10: el paso de holguras de actividad revela las cuatro de ROY; Ejercicio 7: suceso de I 21 | 27 y HL(I) = 6', () => {
+  const p = loadEx('ej7');
+  const s = C.solve(p);
+  const net = A.build(p);
+  const fl = net.trace.find((st) => st.kind === 'floats');
+  for (const a of p.activities.map((x) => x.id)) {
+    for (const f of ['TF', 'FF', 'IF', 'SF']) {
+      assert.deepEqual(fl.reveals.find((r) => r.act === a && r.field === f).value, s.floats[a][f], `${a}.${f}`);
+    }
+  }
+  const t = A.times(net, s);
+  const endI = net.arcs.find((e) => e.act === 'I').to;
+  assert.deepEqual([t.TE[endI], t.TL[endI], t.slack[endI]], [21, 27, 6]);
+  assert.equal(fl.reveals.find((r) => r.act === 'I' && r.field === 'FF').value, 6);
+  const slack = net.trace.find((st) => st.kind === 'eventSlack');
+  assert.equal(slack.reveals.length, net.events.length);
+});
+
+test('las tablas solo de estructura terminan la traza en la numeración', () => {
+  for (const id of ['ej1', 'ej2', 'ej3']) {
+    const kinds = A.build(loadEx(id)).trace.map((st) => st.kind);
+    assert.deepEqual(kinds, ['succTable', 'ruleEqual', 'ruleContained', 'ruleShared', 'place', 'number'], id);
+  }
+});

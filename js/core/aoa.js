@@ -22,6 +22,9 @@
 
   const isNode = typeof module !== 'undefined' && module.exports;
   const T = isNode ? require('./topo.js') : root.PNL.topo;
+  const C = isNode ? require('./cpm.js') : root.PNL.cpm;
+  const EPS = 1e-9;
+  const rnd = (x) => { const v = Math.round(x * 1e9) / 1e9; return v === 0 ? 0 : v; };   // como core/cpm
   const { byId } = T;
   const RULE_ORDER = { equal: 0, contained: 1, shared: 2, min: 3 };
 
@@ -169,7 +172,54 @@
     const events = nodes.map((u) => ({ n: n.get(u), set: u === 'INI' || u === 'FIN' ? u : r.sets(u), kind: r.kind[u] }))
       .sort((x, y) => x.n - y.n);
     const arcs = arcsK.map((e) => ({ act: e.act, from: n.get(e.from), to: n.get(e.to) }));
-    return { method: 'rules', events, arcs, dummies, trace: [] };
+    const net = { method: 'rules', events, arcs, dummies, trace: [] };
+    net.trace = trace(net, p, opts && opts.solution);
+    return net;
+  }
+
+  // Tiempos de los sucesos (plan §3): TE = máx sobre lo que llega, TL = mín sobre lo que sale; las ficticias duran 0.
+  // Las duraciones se leen de la Solution de ROY (EF − ES), así que no hace falta el proyecto.
+  function times(net, s) {
+    const N = net.events.length;
+    const d = (e) => (e.act ? s.times[e.act].EF - s.times[e.act].ES : 0);
+    const edges = [...net.arcs, ...net.dummies];
+    const TE = { 1: 0 }; const TL = {}; const slack = {};
+    for (let n = 2; n <= N; n++) TE[n] = rnd(Math.max(...edges.filter((e) => e.to === n).map((e) => TE[e.from] + d(e))));
+    TL[N] = TE[N];
+    for (let n = N - 1; n >= 1; n--) TL[n] = rnd(Math.min(...edges.filter((e) => e.from === n).map((e) => TL[e.to] - d(e))));
+    for (let n = 1; n <= N; n++) slack[n] = rnd(TL[n] - TE[n]);
+    return { TE, TL, slack };
+  }
+
+  // Traza de la red PERT (plan §3): construcción y, si hay duraciones, cálculo sobre sucesos y holguras de ROY.
+  function trace(net, p, solution) {
+    const ruleStep = (kind, rule) => {
+      const ds = net.dummies.filter((x) => x.rule === rule);
+      return { kind, reveals: [], rule: { acts: [...new Set(ds.flatMap((x) => x.because))].sort(byId), dummies: ds.map((x) => x.name) } };
+    };
+    const steps = [{ kind: 'succTable', reveals: [] }, ruleStep('ruleEqual', 'equal'), ruleStep('ruleContained', 'contained'),
+      ruleStep('ruleShared', 'shared'), { kind: 'place', reveals: [] }, { kind: 'number', reveals: [] }];
+    if (p.activities.some((a) => a.d === null)) return steps;   // solo estructura (ejercicios 1–3)
+    const s = solution || C.solve(p);
+    const t = times(net, s);
+    const label = (e) => e.act || e.name;
+    const d = (e) => (e.act ? s.times[e.act].EF - s.times[e.act].ES : 0);
+    const edges = [...net.arcs, ...net.dummies];
+    for (const ev of net.events) {
+      const terms = edges.filter((e) => e.to === ev.n).map((e) => ({ from: e.from, via: label(e), value: rnd(t.TE[e.from] + d(e)) }));
+      steps.push({ kind: 'eventForward', event: ev.n, reveals: [{ event: ev.n, field: 'TE', value: t.TE[ev.n] }],
+        formula: { op: 'max', terms, chosen: terms.filter((x) => Math.abs(x.value - t.TE[ev.n]) < EPS).map((x) => x.via) } });
+    }
+    for (const ev of [...net.events].reverse()) {
+      const terms = edges.filter((e) => e.from === ev.n).map((e) => ({ from: e.to, via: label(e), value: rnd(t.TL[e.to] - d(e)) }));
+      steps.push({ kind: 'eventBackward', event: ev.n, reveals: [{ event: ev.n, field: 'TL', value: t.TL[ev.n] }],
+        formula: { op: 'min', terms, chosen: terms.filter((x) => Math.abs(x.value - t.TL[ev.n]) < EPS).map((x) => x.via) } });
+    }
+    steps.push({ kind: 'eventSlack', reveals: net.events.map((ev) => ({ event: ev.n, field: 'slack', value: t.slack[ev.n] })) });
+    const order = [...p.activities.map((a) => a.id)].sort(byId);
+    steps.push({ kind: 'floats', reveals: order.flatMap((a) => C.FLOATS.map((f) => ({ act: a, field: f, value: s.floats[a][f] }))) });
+    steps.push({ kind: 'critical', reveals: [] });
+    return steps;
   }
 
   // ¿La red representa exactamente las precedencias del proyecto? (plan §3, postcondición de build)
@@ -211,7 +261,7 @@
   // Métodos de construcción intercambiables (plan P7): la F2b añadirá otros con el mismo contrato.
   const methods = { rules: (p) => build(p, { method: 'rules' }) };
 
-  const api = { build, verify, methods };
+  const api = { build, verify, times, methods };
   root.PNL = root.PNL || {};
   root.PNL.aoa = api;
   if (isNode) module.exports = api;
