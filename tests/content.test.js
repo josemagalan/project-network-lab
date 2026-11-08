@@ -14,7 +14,7 @@ const ctxFor = (id, lang, nota) => {
 };
 
 test('todos los pasos de los seis ejemplos tienen título y texto, en los dos idiomas y notaciones, sin claves sin traducir', () => {
-  for (const ex of E.list()) {
+  for (const ex of E.list().filter((e) => !e.structureOnly)) {
     for (const lang of ['es', 'en']) {
       for (const nota of ['en', 'es']) {
         const ctx = ctxFor(ex.id, lang, nota);

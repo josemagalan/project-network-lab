@@ -122,7 +122,14 @@
     return out;
   }
 
-  const api = { START, END, MAX_ACTIVITIES, parse, toRows, parsePasted, parseDuration };
+  // Una tabla con alguna fila y todas las duraciones vacías es solo de estructura (taller, T022): se construye su
+  // red PERT y no se calculan tiempos. Con alguna duración escrita, las vacías siguen siendo errores.
+  function blankDurations(rows) {
+    const used = (rows || []).filter((r) => !isEmptyRow(r));
+    return used.length > 0 && used.every((r) => !str(r.duration).trim());
+  }
+
+  const api = { START, END, MAX_ACTIVITIES, parse, toRows, parsePasted, parseDuration, blankDurations };
   root.PNL = root.PNL || {};
   root.PNL.project = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

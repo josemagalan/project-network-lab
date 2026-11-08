@@ -33,8 +33,11 @@
       errors: report.errors.map((is) => issueText(lang, is)),
       warningsHead: w ? (w === 1 ? t('work.warningsOne') : t('work.warnings', { n: w })) : null,
       warnings: report.warnings.map((is) => issueText(lang, is)),
+      // Sin ninguna duración (T022) la tabla vale para construir la red PERT, pero no hay tiempos que dar.
       ready: !n && project && solution ? (hideDuration ? t('work.readyNoDuration', { n: project.activities.length })
-        : t('work.ready', { n: project.activities.length, d: numFmt(solution.duration) })) : null,
+        : t('work.ready', { n: project.activities.length, d: numFmt(solution.duration) }))
+        : (!n && project ? t('work.readyStructure', { n: project.activities.length }) : null),
+      structureOnly: !n && !!project && !solution,
       empty: !n && !project ? t('work.empty') : null,
     };
   }
@@ -137,7 +140,7 @@
           h('p', {}, [msg.ready]),
           h('div', { class: 'row-wrap' }, [
             h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage(0) }, [t('work.stepByStep')]),
-            h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage('critical') }, [t('work.results')]),
+            msg.structureOnly ? null : h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage('critical') }, [t('work.results')]),
           ]),
         ]));
       } else if (msg.empty) {

@@ -170,3 +170,11 @@ test('structureOnly: una duración escrita mal sigue siendo un error', () => {
   assert.equal(project, null);
   assert.deepEqual(report.errors.map((e) => e.code), ['badDuration']);
 });
+
+test('T022: una tabla con todas las duraciones vacías es solo de estructura (blankDurations)', () => {
+  assert.equal(P.blankDurations([row('A', '', 'B'), row('B', '  '), row('', '', '')]), true);
+  assert.equal(P.blankDurations([row('A', '', 'B'), row('B', '3')]), false, 'basta una duración escrita');
+  assert.equal(P.blankDurations([]), false, 'la tabla vacía no es de estructura');
+  assert.equal(P.blankDurations([row('', '', '')]), false);
+  assert.equal(P.blankDurations([{ id: 'A' }]), true, 'una duración ausente cuenta como vacía');
+});

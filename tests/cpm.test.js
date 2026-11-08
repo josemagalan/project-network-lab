@@ -16,7 +16,7 @@ const load = (rows, mode = 'pred') => {
 const solveEx = (id) => { const ex = E.get(id); return C.solve(load(ex.rows, ex.mode)); };
 
 test('AC1: los seis ejemplos dan exactamente los valores de su fuente', () => {
-  for (const ex of E.list()) {
+  for (const ex of E.list().filter((e) => !e.structureOnly)) {
     const s = C.solve(load(ex.rows, ex.mode));
     const exp = ex.expected;
     assert.equal(s.duration, exp.duration, `${ex.id}: duración`);

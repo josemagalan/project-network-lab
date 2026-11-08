@@ -6,8 +6,9 @@ const E = require('../js/core/examples.js');
 const P = require('../js/core/project.js');
 const U = require('../js/core/urlstate.js');
 
-test('hay seis ejemplos visibles y todos los identificadores (también los ocultos) coinciden con los que admite la URL', () => {
-  assert.equal(E.list().length, 6);
+test('hay diez ejemplos visibles y sus identificadores coinciden con los que admite la URL', () => {
+  assert.equal(E.list().length, 10);
+  assert.deepEqual(E.list().map((e) => e.id), U.EXAMPLES);
   assert.deepEqual(E.list({ all: true }).map((e) => e.id), U.EXAMPLES);
 });
 
@@ -16,13 +17,13 @@ test('cada ejemplo tiene título y fuente en ES y EN, unidad y duración esperad
     for (const k of ['title', 'source', 'unit']) {
       assert.ok(ex[k].es && ex[k].en, `${ex.id}.${k}`);
     }
-    assert.ok(Number.isFinite(ex.expected.duration), ex.id);
+    if (!ex.structureOnly) assert.ok(Number.isFinite(ex.expected.duration), ex.id);
   }
 });
 
 test('cada ejemplo se carga sin errores ni avisos en su forma original', () => {
   for (const ex of E.list()) {
-    const { project, report } = P.parse(ex.rows, ex.mode);
+    const { project, report } = P.parse(ex.rows, ex.mode, { structureOnly: !!ex.structureOnly });
     assert.ok(project, ex.id);
     assert.deepEqual(report, { errors: [], warnings: [] }, ex.id);
   }
@@ -46,14 +47,12 @@ test('el Ejercicio 6 está en forma de posteriores, como en el enunciado', () =>
 
 // ---------- Fase 2a (T003): ejercicios de la red PERT ----------
 
-test('F2a: los cuatro ejercicios nuevos existen, ocultos en la lista hasta activar M2 (P9)', () => {
-  const all = E.list({ all: true }).map((e) => e.id);
-  for (const id of ['ej1', 'ej2', 'ej3', 'ej7']) {
-    assert.ok(all.includes(id), id);
-    assert.ok(E.get(id), id);
-    assert.equal(E.get(id).hidden, true, `${id} oculto`);
-    assert.ok(!E.list().some((e) => e.id === id), `${id} no sale en la lista visible`);
-  }
+test('T022: con M2 activo, los cuatro ejercicios nuevos salen en la lista y ninguno queda oculto', () => {
+  const shown = E.list().map((e) => e.id);
+  for (const id of ['ej1', 'ej2', 'ej3', 'ej7']) assert.ok(shown.includes(id), id);
+  assert.ok(E.list({ all: true }).every((e) => !e.hidden));
+  // ej1–ej3 solo tienen estructura (solo en la red PERT); ej7 tiene duraciones.
+  assert.deepEqual(E.list().filter((e) => e.structureOnly).map((e) => e.id), ['ej1', 'ej2', 'ej3']);
 });
 
 test('F2a: los ejercicios 1, 2 y 3 son solo de estructura y se cargan con structureOnly', () => {

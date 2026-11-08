@@ -9,6 +9,7 @@ const U = require('../js/core/urlstate.js');
 const P = require('../js/core/project.js');
 const E = require('../js/core/examples.js');
 const C = require('../js/core/cpm.js');
+const A = require('../js/core/aoa.js');
 
 const ROOT = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -65,10 +66,11 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
   assert.throws(() => labHref('m1', 'fr'));
 });
 
-test('ocho módulos, tres de ellos disponibles; ids únicos y anclas que existen', () => {
+test('ocho módulos, cuatro de ellos disponibles; ids únicos y anclas que existen', () => {
   assert.equal((html.match(/class="module-card tone-/g) || []).length, 8);
   for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 4, 'M1, M3, M4 y el taller');
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 5, 'M1, M2, M3, M4 y el taller');
+  assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 1, 'de la fase 2 solo queda M0 en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
   for (const m of html.matchAll(/href="#([^"]+)"/g)) assert.ok(ids.includes(m[1]), m[1]);
@@ -83,4 +85,17 @@ test('scripts, estilos, iconos y logotipos son locales y existen; sin CDN ni inn
   for (const f of ['js/portal.js', 'js/portal-content.js']) assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), 'utf8'), /innerHTML/);
   const images = [...html.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
   for (const img of images) assert.match(img, /alt="[^"]+"/);
+});
+
+test('AC14: M2 abre la construcción de la red PERT del Ejercicio 6 (paso 0) en el idioma elegido', () => {
+  const ex = E.get('ej6');
+  const trace = A.build(P.parse(ex.rows, ex.mode).project).trace;
+  for (const lang of ['es', 'en']) {
+    const { state, warning } = U.decode('#' + labHref('m2', lang).split('#')[1]);
+    assert.equal(warning, undefined);
+    assert.deepEqual([state.v, state.ex, state.graph, state.step, state.lang], ['route', 'ej6', 'aoa', 0, lang]);
+    assert.equal(trace[state.step].kind, 'succTable');
+  }
+  assert.ok(html.includes('data-lab="m2"'));
+  for (const lang of ['es', 'en']) assert.ok(messages[lang].m2Open, lang);
 });

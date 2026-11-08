@@ -27,9 +27,6 @@
   let editor;
   let selected = null;     // actividad o ficticia seleccionada (sin URL; se borra al cambiar de tabla)
   let minCache = { key: null, res: null, lay: null };   // mínimo de ficticias de la estructura actual
-  // P9: hasta T022 el selector ROY/PERT solo aparece si se ha llegado a la red PERT escribiendo graph=aoa.
-  const PERT_PUBLIC = false;
-  let pertSeen = false;
 
   const lang = () => state.lang || 'es';
   const t = (k, p) => I.t(lang(), k, p);
@@ -44,6 +41,8 @@
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
     if (state.t && (hasRows || state.v === 'work')) {
       rows = state.t; mode = state.mode; name = t('nav.work');
+      // Sin ninguna duración, la tabla del taller es solo de estructura, como los ejercicios 1–3 (T022).
+      structureOnly = P.blankDurations(rows);
     } else {
       const ex = EX.get(state.ex) || EX.get('ej6');
       structureOnly = !!ex.structureOnly;
@@ -78,6 +77,11 @@
   }
 
   const pert = () => state.graph === 'aoa';
+  // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022).
+  function fitGraph() {
+    if (!model.structureOnly || !model.project || pert()) return;
+    state = Object.assign({}, state, { graph: 'aoa', view: state.view === 'matrix' ? 'net' : state.view, step: 0 });
+  }
   // La traza que se reproduce: la de la red PERT con graph=aoa y la de ROY en otro caso.
   function trace() {
     if (!model) return null;
@@ -98,7 +102,7 @@
     const before = state;
     state = S.reduce(state, action, total());
     const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
-    if (dataChanged) { compute(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
+    if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     if (dataChanged || before.graph !== state.graph) state = S.reduce(state, { type: 'go', n: state.step }, total());
     if (before.step !== state.step || dataChanged || before.graph !== state.graph) resetPred();
     writeHash(before.v !== state.v);
@@ -169,8 +173,6 @@
     const ctx = { project: model.project, solution: sol, lay: model.lay, matrix: model.matrix, step, stepIndex: k, revealed,
       box: state.box, lang: lang(), nota: state.nota, criticalOn, numFmt, name: model.name, unit: model.unit, hide, net: model.net };
 
-    if (isPert) pertSeen = true;
-    $('graphGroup').hidden = !(PERT_PUBLIC || pertSeen);
     $('btnAon').setAttribute('aria-pressed', String(!isPert));
     $('btnAoa').setAttribute('aria-pressed', String(isPert));
     $('btnAon').disabled = !sol;
@@ -202,8 +204,8 @@
     $('matrixView').hidden = state.view !== 'matrix';
 
     const pctx = isPert ? pertCtx(ctx, tr, k) : null;
-    const selInfo = selectable() ? NR.selection(selected, Object.assign({}, ctx, { numbered: !isPert || k >= tr.findIndex((s) => s.kind === 'number') })) : null;
-    const royCtx = (c) => Object.assign({}, c, selectable() ? { selected, selPrecs: selInfo ? selInfo.precs : [], onSelect: toggleSel } : {});
+    const selInfo = NR.selection(selected, Object.assign({}, ctx, { numbered: !isPert || k >= tr.findIndex((s) => s.kind === 'number') }));
+    const royCtx = (c) => Object.assign({}, c, { selected, selPrecs: selInfo ? selInfo.precs : [], onSelect: toggleSel });
     if (isPert && minOn) {
       minCompare(pctx, count);
       $('boxHint').textContent = t('view.pertHint');
@@ -294,8 +296,6 @@
 
   // ---------- Selección compartida y lado a lado (F2a, AC6 y AC7) ----------
 
-  // P9: en ROY solo se selecciona si el selector de red está a la vista.
-  const selectable = () => pert() || PERT_PUBLIC || pertSeen;
   function toggleSel(x) { selected = selected === x ? null : x; render(); }
 
   // Dos columnas dentro de #netView: la red PERT (devuelve su contenedor) y la ROY (#royHolder).
@@ -610,6 +610,7 @@
     if (!s.lang) s.lang = q === 'en' || q === 'es' ? q : ((navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'es');
     state = s;
     compute();
+    fitGraph();
     state = S.reduce(state, { type: 'go', n: state.step }, total());
     resetPred();
     const banner = $('urlWarning');

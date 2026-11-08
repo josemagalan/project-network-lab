@@ -90,3 +90,19 @@ test('cada código que señala una fila tiene campo y texto en los dos idiomas',
     }
   }
 });
+
+test('T022: una tabla sin ninguna duración se da por buena, solo para la red PERT, y no ofrece resultados', () => {
+  for (const lang of ['es', 'en']) {
+    const rows = [row('A', '', 'B, C'), row('B', ''), row('C', '')];
+    const { project, report } = P.parse(rows, 'succ', { structureOnly: P.blankDurations(rows) });
+    const msg = Ed.messages(lang, report, project, null, (v) => N.fmt(lang, v));
+    assert.equal(msg.structureOnly, true);
+    assert.match(msg.ready, lang === 'es' ? /3 actividades, sin duraciones/ : /3 activities, no durations/);
+    assert.match(msg.ready, lang === 'es' ? /red PERT/ : /activity-on-arrow/);
+    assert.equal(msg.errorsHead, null);
+  }
+  // Con una duración escrita, las vacías vuelven a ser errores.
+  const mixed = [row('A', '2', 'B'), row('B', '')];
+  assert.equal(P.blankDurations(mixed), false);
+  assert.ok(show('es', mixed).msg.errorsHead);
+});

@@ -14,7 +14,7 @@ const prep = (id) => {
 };
 
 test('cada actividad va en la columna de su nivel; inicio en la 0 y fin en la última', () => {
-  for (const ex of E.list()) {
+  for (const ex of E.list().filter((e) => !e.structureOnly)) {
     const { p, s } = prep(ex.id);
     const lay = L.layout(s, p);
     for (const [id, lv] of s.levels) assert.equal(lay.nodes[id].col, lv, `${ex.id}:${id}`);
@@ -23,7 +23,7 @@ test('cada actividad va en la columna de su nivel; inicio en la 0 y fin en la ú
 });
 
 test('no hay dos nodos en la misma posición', () => {
-  for (const ex of E.list()) {
+  for (const ex of E.list().filter((e) => !e.structureOnly)) {
     const { p, s } = prep(ex.id);
     const lay = L.layout(s, p);
     const seen = new Set();
@@ -36,7 +36,7 @@ test('no hay dos nodos en la misma posición', () => {
 });
 
 test('los barridos por baricentro no aumentan los cruces respecto al orden inicial', () => {
-  for (const ex of E.list()) {
+  for (const ex of E.list().filter((e) => !e.structureOnly)) {
     const { p, s } = prep(ex.id);
     const lay = L.layout(s, p);
     const initial = L.layout(s, p, { sweeps: 0 });
@@ -51,7 +51,7 @@ test('el Ejercicio 6 queda con un solo cruce: el inevitable de E y F hacia H e I
 });
 
 test('las flechas largas tienen un punto de paso por columna intermedia y nunca coinciden con una caja', () => {
-  for (const ex of E.list()) {
+  for (const ex of E.list().filter((e) => !e.structureOnly)) {
     const { p, s } = prep(ex.id);
     const lay = L.layout(s, p);
     const g = L.graph(s, p);

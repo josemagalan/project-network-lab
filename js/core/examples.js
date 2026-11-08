@@ -1,6 +1,6 @@
 /*
  * core/examples — los seis ejemplos de referencia de la fase 1 (spec f1-cpm-roy, tabla de referencias) y los
- * ejercicios 1, 2, 3 y 7 de la fase 2a (spec f2a-pert-ficticias), ocultos hasta activar M2. expected.aoa
+ * ejercicios 1, 2, 3 y 7 de la fase 2a (spec f2a-pert-ficticias), visibles desde T022 (M2). expected.aoa
  * guarda las ficticias, los sucesos y los tiempos de sucesos de la red PERT dibujada por el autor.
  * Cada ejemplo trae sus filas tal como aparecen en la fuente (mode 'pred' o 'succ'), nombres en ES/EN,
  * la fuente citada y los valores ESPERADOS copiados de la fuente (no calculados aquí): las pruebas de
@@ -137,7 +137,6 @@
     },
     {
       id: 'ej7',
-      hidden: true,   // F2a: se muestra al activar M2 (T022, P9)
       title: { es: 'Ejercicio 7', en: 'Exercise 7' },
       source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), hoja de ejercicios del Tema 6, ejercicio 7, y su solución en «Ejercicios CPM PERT»',
                 en: 'J. M. Galán, Project Management (University of Burgos), Unit 6 exercise sheet, exercise 7, and its solution in «Ejercicios CPM PERT»' },
@@ -155,7 +154,6 @@
     },
     {
       id: 'ej1',
-      hidden: true,
       structureOnly: true,
       title: { es: 'Nave almacén (Ejercicio 1)', en: 'Warehouse (Exercise 1)' },
       source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), Tema 6a y hoja de ejercicios del Tema 6, ejercicio 1',
@@ -177,7 +175,6 @@
     },
     {
       id: 'ej2',
-      hidden: true,
       structureOnly: true,
       title: { es: 'Ejercicio 2', en: 'Exercise 2' },
       source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), hoja de ejercicios del Tema 6, ejercicio 2, y su solución en «Ejercicios CPM PERT»',
@@ -193,7 +190,6 @@
     },
     {
       id: 'ej3',
-      hidden: true,
       structureOnly: true,
       title: { es: 'Ejercicio 3', en: 'Exercise 3' },
       source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), hoja de ejercicios del Tema 6, ejercicio 3, y su solución en «Ejercicios CPM PERT»',

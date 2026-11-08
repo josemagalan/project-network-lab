@@ -151,7 +151,7 @@ for (const lang of ['es', 'en']) {
 
 check('AC15 · los seis ejemplos caben en 1280×720 y la matriz o la red se desplazan dentro de su panel', async () => {
   const probe = await lab('v=route&ex=ej6&step=0&lang=es');
-  const ids = await probe.evaluate(() => PNL.examples.list().map((e) => e.id));
+  const ids = await probe.evaluate(() => PNL.examples.list().filter((e) => !e.structureOnly).map((e) => e.id));
   await close(probe);
   assert.ok(ids.length >= 6);
   for (const ex of ids) {
@@ -846,7 +846,7 @@ check('AC14 · axe sin violaciones en la portada y en cada vista del laboratorio
 
 check('AC20 · la portada abre cada módulo en su paso con el idioma elegido y el laboratorio vuelve a ella', async () => {
   const noJs = await open('index.html', { js: false });
-  for (const lab of ['m1', 'm3', 'm4']) assert.match(await noJs.locator(`a[data-lab="${lab}"]`).getAttribute('href'), /^cpm\.html#v=route/);
+  for (const lab of ['m1', 'm2', 'm3', 'm4']) assert.match(await noJs.locator(`a[data-lab="${lab}"]`).getAttribute('href'), /^cpm\.html#v=route/);
   await close(noJs);
   const page = await open('index.html?lang=en');
   for (const [labId, n] of [['m1', 1], ['m3', 2], ['m4', 26]]) {
@@ -859,6 +859,51 @@ check('AC20 · la portada abre cada módulo en su paso con el idioma elegido y e
     await page.locator('#brandLink').click();
     await page.waitForURL(/index\.html\?lang=en/);
   }
+  await close(page);
+});
+
+// ---------- F2a · T022: M2 visible en la portada y ejemplos nuevos en el taller ----------
+
+check('F2a AC14 · M2 abre la construcción de la red PERT del Ejercicio 6 en el idioma elegido; el selector de red está a la vista', async () => {
+  const page = await open('index.html?lang=en');
+  const card = page.locator('a[data-lab="m2"]');
+  assert.match(await card.innerText(), /^Open activity on arrow/);
+  await card.click();
+  await page.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
+  const s = await state(page);
+  assert.deepEqual([s.graph, s.ex, s.step, s.lang], ['aoa', 'ej6', 0, 'en']);
+  assert.equal((await step(page)).kind, 'succTable');
+  assert.ok(await visible(page, '#graphGroup'));
+  assert.equal(await page.locator('#btnAoa').getAttribute('aria-pressed'), 'true');
+  await close(page);
+  // En la ruta de la fase 1 (ROY) el selector también se ve y lleva a la red PERT.
+  const p2 = await lab('v=route&ex=ej6&step=0&lang=es');
+  assert.ok(await visible(p2, '#graphGroup'));
+  await p2.locator('#btnAoa').click();
+  assert.equal((await state(p2)).graph, 'aoa');
+  assert.ok(await visible(p2, '#dummyCounter'));
+  await close(p2);
+});
+
+check('F2a T022 · el taller ofrece los ejercicios 1, 2, 3 y 7; una tabla sin duraciones se construye en la red PERT', async () => {
+  const page = await lab('v=work&lang=es');
+  const options = await page.locator('#workshop .work-tools select option').evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
+  for (const id of ['ej1', 'ej2', 'ej3', 'ej7']) assert.ok(options.includes(id), id);
+  await page.locator('#workshop .work-tools select').selectOption('ej1');
+  await page.waitForFunction(() => PNL.app.state().t && PNL.app.state().graph === 'aoa');
+  await minReady(page);
+  const side = await sideText(page);
+  assert.match(side, /9 actividades, sin duraciones/, side);
+  assert.doesNotMatch(side, /error/i);
+  assert.equal(await page.locator('#workshop .work-side button', { hasText: /Resultados/ }).count(), 0);
+  assert.ok(await page.locator('#stage').isVisible());
+  assert.ok(await page.locator('#btnAon').isDisabled(), 'sin duraciones no hay red ROY');
+  assert.match(await page.locator('#dummyCounter').innerText(), /2\s+reglas/);
+  await axe(page, 'taller con el Ejercicio 1 (sin duraciones)');
+  // Con una sola duración escrita, las demás vuelven a ser errores.
+  await page.locator('#workshop input[data-f="duration"]').first().fill('3');
+  await page.waitForFunction(() => /error/i.test(document.querySelector('#workshop .work-side').textContent));
+  assert.ok(await page.locator('#stage').isHidden());
   await close(page);
 });
 
