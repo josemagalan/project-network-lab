@@ -260,6 +260,11 @@
         f.appendChild(h('div', {}, parts.map((p, i) => h('span', { class: 'seg' }, [i < parts.length - 1 ? `${p} = ` : p]))));
       });
     }
+    // Si alguna línea no cabe, la fórmula se desplaza en horizontal: entonces también se alcanza con el teclado
+    // (WCAG 2.1.1; axe, scrollable-region-focusable). Pasa con las cuatro holguras de la red PERT (T023).
+    if (f.scrollWidth > f.clientWidth + 1) {
+      f.setAttribute('tabindex', '0'); f.setAttribute('role', 'region'); f.setAttribute('aria-label', t('view.formula'));
+    } else { f.removeAttribute('tabindex'); f.removeAttribute('role'); f.removeAttribute('aria-label'); }
     renderPredict(step, hide);
     $('btnWhatIf').hidden = !sol;
     renderWhatIf();

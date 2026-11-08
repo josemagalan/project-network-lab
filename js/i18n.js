@@ -33,7 +33,7 @@
       view: {
         graphLabel: 'Tipo de red', graphAon: 'Red ROY', graphAoa: 'Red PERT',
         side: 'Lado a lado', sideHint: 'Pulsa una actividad o una ficticia para verla en las dos redes.',
-        dummiesN: '{n} ficticias', dummiesOne: '1 ficticia', dummiesNone: 'sin ficticias',
+        formula: 'Fórmula', dummiesN: '{n} ficticias', dummiesOne: '1 ficticia', dummiesNone: 'sin ficticias',
         pertHint: 'Cada círculo es un suceso con su número; a su lado, el tiempo temprano y el tardío. Las flechas discontinuas son ficticias.',
         succHint: 'Las reglas de los conjuntos se aplican sobre esta tabla; la última columna dice qué papel tiene cada actividad en la regla del paso.',
         label: 'Vista', net: 'Red', matrix: 'Matriz', asTable: 'Ver como tabla', hideTable: 'Ocultar la tabla',
@@ -232,7 +232,7 @@
       view: {
         graphLabel: 'Network type', graphAon: 'AON (ROY)', graphAoa: 'AOA (PERT)',
         side: 'Side by side', sideHint: 'Click an activity or a dummy to see it in both networks.',
-        dummiesN: '{n} dummies', dummiesOne: '1 dummy', dummiesNone: 'no dummies',
+        formula: 'Formula', dummiesN: '{n} dummies', dummiesOne: '1 dummy', dummiesNone: 'no dummies',
         pertHint: 'Each circle is an event with its number; next to it, its early and late times. Dashed arrows are dummies.',
         succHint: 'The set rules are applied to this table; the last column says what role each activity plays in this step’s rule.',
         label: 'View', net: 'Network', matrix: 'Matrix', asTable: 'Show as a table', hideTable: 'Hide the table',

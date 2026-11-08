@@ -468,6 +468,157 @@ check('F2a AC9 · con las reglas en el mínimo no hay botón; con el presupuesto
   await close(p2);
 });
 
+// ---------- F2a · T023: la ruta PERT completa, con y sin predicción, enlaces, 360 px y axe ----------
+
+const pertTrace = (page) => page.evaluate(() => PNL.app.model().net.trace.map((s) => ({ kind: s.kind, event: s.event, reveals: s.reveals.length })));
+
+for (const lang of ['es', 'en']) {
+  check(`F2a AC5 y AC12 · ruta PERT del Ejercicio 6 en ${lang.toUpperCase()}: pasos en orden, texto y fórmula, red y explicación a la vista en 1280×720`, async () => {
+    const page = await lab(`graph=aoa&ex=ej6&step=0&lang=${lang}`);
+    const steps = await pertTrace(page);
+    assert.match(steps.map((x) => x.kind).join(' '), /^succTable ruleEqual ruleContained ruleShared place number (eventForward ){9}(eventBackward ){9}eventSlack floats critical$/);
+    assert.deepEqual(steps.filter((x) => x.kind === 'eventForward').map((x) => x.event), [1, 2, 3, 4, 5, 6, 7, 8, 9], 'hacia delante en orden de numeración');
+    assert.deepEqual(steps.filter((x) => x.kind === 'eventBackward').map((x) => x.event), [9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    const placeIdx = steps.findIndex((x) => x.kind === 'place');
+    for (let i = 0; i < steps.length; i++) {
+      const sx = await step(page);
+      assert.equal(sx.kind, steps[i].kind, `paso ${i}`);
+      const title = (await page.locator('#stepTitle').innerText()).trim();
+      const text = (await page.locator('#stepText').innerText()).trim();
+      assert.ok(title && text, `paso ${i}: sin título o sin texto`);
+      assert.doesNotMatch(`${title} ${text}`, /\b(pertNarr|pert|steps|count|narr)\.\w|\{\w+\}|undefined|NaN/, `paso ${i}`);
+      if (sx.kind === 'eventForward' || sx.kind === 'eventBackward') {
+        assert.match(await page.locator('#formula').innerText(), /T[EL]\(\d\) = /, `paso ${i}: sin fórmula`);
+      }
+      if (i >= placeIdx) assert.equal(await page.locator('#netView svg.net.pert').count(), 1, `paso ${i}: sin red`);
+      else assert.equal(await page.locator('#netView table.succ').count(), 1, `paso ${i}: sin tabla de posteriores`);
+      if (!['floats', 'critical'].includes(sx.kind)) {
+        const box = await page.evaluate(() => {
+          const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+          const nv = document.getElementById('netView');
+          return { net: r('#netView > *').bottom, text: r('.narration').bottom, over: nv.scrollWidth - nv.clientWidth, page: document.documentElement.scrollWidth };
+        });
+        assert.ok(box.net <= 720 && box.text <= 720, `paso ${i}: la red o la explicación quedan por debajo de 720 px (${JSON.stringify(box)})`);
+        assert.ok(box.over <= 1 && box.page <= 1280, `paso ${i}: desbordamiento horizontal`);
+      }
+      await shot(page, `pert-${lang}-1280-${String(i + 1).padStart(2, '0')}-${sx.kind}`);
+      if (i < steps.length - 1) await page.keyboard.press('ArrowRight');
+    }
+    assert.ok((await page.locator('#netView svg.pert .edge.crit').count()) >= 1, 'el camino crítico se ve en la red PERT');
+    assert.ok(await visible(page, '#resultsView table'), 'las holguras de ROY se ven debajo');
+    await close(page);
+  });
+}
+
+check('F2a AC13 · la red PERT de cada ejemplo cabe en 1280×720 sin desplazar la página', async () => {
+  const probe = await lab('graph=aoa&ex=ej6&lang=es');
+  const ids = await probe.evaluate(() => PNL.examples.list().map((e) => e.id));
+  await close(probe);
+  for (const ex of ids) {
+    const page = await lab(`graph=aoa&ex=${ex}&lang=es`);
+    const kinds = (await pertTrace(page)).map((x) => x.kind);
+    for (const kind of ['number', kinds.includes('eventForward') ? 'eventForward' : 'number']) {
+      await go(page, kinds.indexOf(kind));
+      const box = await page.evaluate(() => {
+        const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+        const nv = document.getElementById('netView');
+        return { net: r('#netView svg').bottom, text: r('.narration').bottom, over: nv.scrollWidth - nv.clientWidth, page: document.documentElement.scrollWidth, n: PNL.app.model().project.activities.length };
+      });
+      assert.ok(box.page <= 1280, `${ex}: desplazamiento horizontal de página`);
+      if (box.n <= 14) assert.ok(box.net <= 720 && box.text <= 720 && box.over <= 1, `${ex} ${kind}: ${JSON.stringify(box)}`);
+    }
+    await close(page);
+  }
+});
+
+check('F2a AC8 · la ruta PERT entera en modo predicción: cada paso con preguntas espera a «Mostrar» y nada se adelanta', async () => {
+  const page = await lab('graph=aoa&ex=ej6&step=0&pred=1&lang=es');
+  const steps = await pertTrace(page);
+  const placeIdx = steps.findIndex((x) => x.kind === 'place');
+  let asked = 0;
+  for (let i = 0; i < steps.length; i++) {
+    const hidden = await page.locator('#predictBox').isVisible();
+    if (i < placeIdx) assert.match(await page.locator('#dummyCounter').innerText(), /\?\s+reglas/, `paso ${i}: el contador no adelanta las reglas`);
+    if (hidden) {
+      asked++;
+      assert.ok(await page.locator('#btnNext').isDisabled(), `paso ${i}: se puede avanzar sin responder`);
+      assert.equal((await page.locator('#formula').innerText()).trim(), '', `paso ${i}: la fórmula delata el resultado`);
+      await page.locator('#predictBox button', { hasText: /Mostrar/ }).click();
+      assert.ok(await page.locator('#btnNext').isEnabled() || i === steps.length - 1, `paso ${i}: tras mostrar sigue bloqueado`);
+    }
+    if (i < steps.length - 1) await page.keyboard.press('ArrowRight');
+  }
+  // Se predicen las tres reglas, los 18 tiempos de sucesos, las holguras de suceso y las de actividad.
+  assert.equal(asked, 3 + 18 + 2, `pasos con preguntas: ${asked}`);
+  await close(page);
+});
+
+check('F2a AC11 · enlaces: los de la fase 1 siguen igual, los de la red PERT se reproducen y los imposibles avisan', async () => {
+  // Un enlace de la fase 1 (sin graph) abre la red ROY en su paso y la URL no gana claves nuevas.
+  const old = 'v=route&ex=ej6&step=5&lang=en';
+  const p1 = await lab(old);
+  const s1 = await state(p1);
+  assert.deepEqual([s1.graph, s1.step, s1.lang], ['aon', 5, 'en']);
+  assert.doesNotMatch(p1.url(), /graph=|min=/);
+  assert.ok(await p1.locator('#urlWarning').isHidden());
+  await close(p1);
+  // Un enlace de la red PERT se reproduce en otro navegador.
+  const p2 = await lab('graph=aoa&view=side&ex=ej7&step=12&nota=es&lang=en');
+  const before = await state(p2);
+  const url = p2.url();
+  await close(p2);
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const p3 = await ctx.newPage();
+  await p3.goto(url);
+  await p3.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
+  assert.deepEqual(await state(p3), before);
+  assert.equal(await p3.locator('#btnSide').getAttribute('aria-pressed'), 'true');
+  await ctx.close();
+  // Un ejemplo sin duraciones pedido en ROY abre la red PERT con aviso.
+  const p4 = await lab('graph=aon&ex=ej1&lang=es');
+  assert.equal((await state(p4)).graph, 'aoa');
+  assert.ok(await p4.locator('#urlWarning').isVisible());
+  assert.match(await p4.locator('#urlWarning').innerText(), /solo tiene precedencias/);
+  await close(p4);
+});
+
+check('F2a AC13 · a 360 px no hay desplazamiento horizontal de página en ningún paso de la ruta PERT, en ES y EN', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await lab(`graph=aoa&ex=ej6&step=0&lang=${lang}`, { width: 360, height: 740 });
+    const steps = await pertTrace(page);
+    for (let i = 0; i < steps.length; i++) {
+      await go(page, i);
+      const w = await page.evaluate(() => document.documentElement.scrollWidth);
+      assert.ok(w <= 360, `${lang} paso ${i}: ${w} px`);
+      await shot(page, `pert-${lang}-360-${String(i + 1).padStart(2, '0')}-${steps[i].kind}`, true);
+    }
+    await close(page);
+  }
+});
+
+check('F2a AC14 · axe sin violaciones en cada tipo de paso de la red PERT, en claro y oscuro, ES y EN', async () => {
+  for (const scheme of ['light', 'dark']) {
+    for (const lang of ['es', 'en']) {
+      const page = await lab(`graph=aoa&ex=ej6&step=0&lang=${lang}`, { scheme });
+      const kinds = (await pertTrace(page)).map((x) => x.kind);
+      for (const kind of ['succTable', 'ruleContained', 'place', 'number', 'eventForward', 'eventBackward', 'eventSlack', 'floats', 'critical']) {
+        await go(page, kinds.indexOf(kind));
+        await axe(page, `PERT ${lang} ${scheme} ${kind}`);
+        // Una fórmula que se desplaza se alcanza con el teclado; si no se desplaza, no añade una parada de tabulación.
+        const f = await page.evaluate(() => { const el = document.getElementById('formula'); return { scrolls: el.scrollWidth > el.clientWidth + 1, tab: el.getAttribute('tabindex') }; });
+        assert.equal(f.tab, f.scrolls ? '0' : null, `PERT ${lang} ${kind}: fórmula ${JSON.stringify(f)}`);
+      }
+      await page.locator('#btnTable').click();
+      await page.locator('#chkPredict').check();
+      await axe(page, `PERT ${lang} ${scheme} tabla de arcos y predicción`);
+      await page.locator('#btnLearn').click();
+      await axe(page, `PERT ${lang} ${scheme} aprende más`);
+      await page.keyboard.press('Escape');
+      await close(page);
+    }
+  }
+});
+
 // ---------- AC8 y AC19: enlace y recarga ----------
 
 check('AC8 · el enlace copiado reproduce el mismo estado en otro navegador', async () => {
@@ -910,7 +1061,7 @@ check('F2a T022 · el taller ofrece los ejercicios 1, 2, 3 y 7; una tabla sin du
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
-  for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es']) {
+  for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
