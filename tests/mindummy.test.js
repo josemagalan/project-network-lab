@@ -126,3 +126,48 @@ test('AC9: lo implícito que aprovecha la red mínima es siempre una precedencia
   }
   assert.ok(seen > 0, 'la muestra incluye casos que aprovechan precedencias implícitas');
 });
+
+// ---------- Revisión de cierre de la F2a, F1: el presupuesto acota todo el trabajo ----------
+
+// Las llamadas que podrían no terminar van en otro proceso con tiempo máximo: node:test no corta un bucle síncrono.
+const { spawnSync } = require('node:child_process');
+function solveApart(succ, budget, timeout) {
+  const code = `const P = require(${JSON.stringify(require.resolve('../js/core/project.js'))});
+    const A = require(${JSON.stringify(require.resolve('../js/core/aoa.js'))});
+    const M = require(${JSON.stringify(require.resolve('../js/core/mindummy.js'))});
+    const succ = ${JSON.stringify(succ)};
+    const p = P.parse(Object.keys(succ).map((id) => ({ id, duration: '', links: succ[id].join(', ') })), 'succ', { structureOnly: true }).project;
+    const r = M.solve(p, ${budget == null ? 'undefined' : JSON.stringify({ budget })});
+    process.stdout.write(JSON.stringify({ work: r.work, exact: r.exact, lower: r.lower, value: r.value, ok: A.verify(r.net, p).ok }));`;
+  const run = spawnSync(process.execPath, ['-e', code], { timeout, encoding: 'utf8' });
+  assert.equal(run.signal, null, `no termina en ${timeout / 1000} s`);
+  assert.equal(run.status, 0, run.stderr);
+  return JSON.parse(run.stdout);
+}
+const independentSucc = (k) => Object.fromEntries(Array.from({ length: k }, (_, i) => [`A${i}`, []]));
+
+test('F1: con muchas actividades sin predecesoras el presupuesto se respeta (antes no terminaba)', () => {
+  const small = solveApart(independentSucc(12), 2000, 20000);
+  assert.equal(small.exact, false);
+  assert.ok(small.work <= 2000 + 5, `trabajo ${small.work}`);
+  assert.ok(small.lower <= small.value && small.value <= 11);
+  assert.equal(small.ok, true);
+  // Mismo enlace, mismo intervalo: el trabajo no depende del reloj.
+  assert.deepEqual(solveApart(independentSucc(12), 2000, 20000), small);
+});
+
+test('F1: las tablas de 30 actividades más difíciles para la búsqueda terminan dentro del presupuesto por defecto', () => {
+  const layers = {};   // 15 capas de 2, cada actividad precede a las dos de la capa siguiente
+  for (let l = 0; l < 15; l++) for (const x of ['A', 'B']) layers[`${x}${l}`] = l < 14 ? [`A${l + 1}`, `B${l + 1}`] : [];
+  const mixed = independentSucc(20);   // 20 sin predecesoras y una cadena de 10
+  for (let i = 0; i < 10; i++) mixed[`C${i}`] = i < 9 ? [`C${i + 1}`] : [];
+  const rand = rng(7);   // dispersa: densidad 0,05
+  const ids = Array.from({ length: 30 }, (_, i) => `S${i}`);
+  const sparse = Object.fromEntries(ids.map((a, j) => [a, ids.slice(j + 1).filter(() => rand() < 0.05)]));
+  for (const [name, succ] of [['30 sin predecesoras', independentSucc(30)], ['capas de 2', layers], ['20 + cadena de 10', mixed], ['dispersa', sparse]]) {
+    const r = solveApart(succ, null, 30000);
+    assert.ok(r.work <= M.DEFAULT_BUDGET + 5, `${name}: trabajo ${r.work}`);
+    assert.ok(r.lower <= r.value, name);
+    assert.equal(r.ok, true, `${name}: la red devuelta es correcta`);
+  }
+});

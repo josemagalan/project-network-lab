@@ -582,6 +582,46 @@ check('F2a AC11 · enlaces: los de la fase 1 siguen igual, los de la red PERT se
   await close(p4);
 });
 
+check('Revisión F2 · sin red ROY no hay lado a lado: un enlace con ej1 y view=side y una tabla del taller que se queda sin duraciones', async () => {
+  const page = await lab('v=route&graph=aoa&ex=ej1&step=5&view=side&lang=es');
+  assert.deepEqual([(await state(page)).view, (await state(page)).graph], ['net', 'aoa']);
+  assert.equal(await page.locator('#netView svg.net.pert').count(), 1, 'la red PERT se pinta');
+  assert.ok(await page.locator('#btnSide').isDisabled());
+  await close(page);
+  // En el taller: lado a lado con una tabla con duraciones; al vaciar todas las duraciones pasa a la red sola.
+  const p2 = await pertWork({ A: ['C'], B: ['C'], C: [] }, { extra: { view: 'side', step: 6 } });
+  assert.equal((await state(p2)).view, 'side');
+  const inputs = p2.locator('#workshop input[data-f="duration"]');
+  for (let i = 0; i < 3; i++) await inputs.nth(i).fill('');
+  await p2.waitForFunction(() => PNL.app.state().view === 'net');
+  assert.equal(await p2.locator('#netView svg.net.pert').count() + await p2.locator('#netView table.succ').count(), 1, 'se ve la red PERT o su tabla');
+  assert.equal(await p2.locator('#netView svg.net:not(.pert)').count(), 0);
+  await close(p2);
+});
+
+check('Revisión F4 · la selección se borra al pasar a otro ejemplo o a otra tabla, y se conserva al cambiar de paso', async () => {
+  const page = await lab('v=route&graph=aoa&ex=ej6&step=6&lang=es');
+  await page.locator('#netView svg.pert text.elabel', { hasText: /^F1$/ }).click();
+  assert.equal((await state(page)).sel, 'F1');
+  await page.keyboard.press('ArrowRight');
+  assert.equal((await state(page)).sel, 'F1', 'cambiar de paso no la borra');
+  // Otro ejemplo por la dirección.
+  const hash = await page.evaluate(() => PNL.urlstate.encode(Object.assign({}, PNL.app.state(), { ex: 'ej7', step: 6 })));
+  await page.evaluate((h) => { location.hash = h; }, hash);
+  await page.waitForFunction(() => PNL.app.state().ex === 'ej7');
+  assert.equal((await state(page)).sel, null);
+  assert.ok(await page.locator('#selInfo').isHidden());
+  // Otra tabla por la dirección (cambia t).
+  await page.locator('#netView svg.pert text.elabel', { hasText: /^F1$/ }).click();
+  assert.equal((await state(page)).sel, 'F1');
+  const rows = await page.evaluate(() => PNL.examples.get('ej6').rows.map((r) => ({ id: r.id, name: '', duration: String(r.duration), links: r.links })));
+  const hashT = await page.evaluate((r) => PNL.urlstate.encode(Object.assign({}, PNL.app.state(), { v: 'work', ex: null, t: r, mode: 'succ', step: 6 })), rows);
+  await page.evaluate((h) => { location.hash = h; }, hashT);
+  await page.waitForFunction(() => PNL.app.state().t);
+  assert.equal((await state(page)).sel, null, 'al cambiar de tabla por la dirección');
+  await close(page);
+});
+
 check('F2a AC13 · a 360 px no hay desplazamiento horizontal de página en ningún paso de la ruta PERT, en ES y EN', async () => {
   for (const lang of ['es', 'en']) {
     const page = await lab(`graph=aoa&ex=ej6&step=0&lang=${lang}`, { width: 360, height: 740 });

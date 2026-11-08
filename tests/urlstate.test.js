@@ -157,3 +157,13 @@ test('F2a: un ejemplo solo de estructura con graph=aon abre la red PERT con avis
   assert.equal(U.decode('#v=route&ex=ej1&graph=aoa').warning, undefined);
   assert.deepEqual(U.STRUCTURE_ONLY, ['ej1', 'ej2', 'ej3']);
 });
+
+test('Revisión F2: un ejemplo solo de estructura no tiene vista lado a lado (no hay red ROY): se abre la red PERT sola', () => {
+  for (const id of ['ej1', 'ej2', 'ej3']) {
+    const { state, warning } = U.decode(`#v=route&graph=aoa&ex=${id}&view=side`);
+    assert.deepEqual([state.graph, state.view, warning], ['aoa', 'net', 'malformed'], id);
+  }
+  // Con un ejemplo con duraciones, lado a lado sigue valiendo.
+  const ok = U.decode('#v=route&graph=aoa&ex=ej7&view=side');
+  assert.deepEqual([ok.state.view, ok.warning], ['side', undefined]);
+});

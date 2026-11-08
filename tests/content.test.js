@@ -431,3 +431,18 @@ test('«Aprende más» tiene un tema propio para el contador, en ES y EN', () =>
     assert.match(ps.join(' '), /Krishnamoorthy/);
   }
 });
+
+test('Revisión F8: la explicación del contador concuerda en número (una precedencia implícita o varias; 1 ficticia)', () => {
+  const { info, ctx } = countCtx(AC16, 'es');
+  const one = N.dummyCount(info, ctx);
+  assert.match(one.explain, /^La red mínima aprovecha la precedencia implícita A → E/);
+  const net2 = { dummies: [{ name: 'F1', implied: [['A', 'E']] }, { name: 'F2', implied: [['B', 'F']] }] };
+  const two = N.dummyCount({ rules: 4, value: 2, lower: 2, exact: true, net: net2 }, { lang: 'es', succs: { A: ['D'], D: ['E'], B: ['C'], C: ['F'] } });
+  assert.match(two.explain, /las precedencias implícitas A → E \(A → D → E\) y B → F \(B → C → F\)/);
+  const enTwo = N.dummyCount({ rules: 4, value: 2, lower: 2, exact: true, net: net2 }, { lang: 'en', succs: {} });
+  assert.match(enTwo.explain, /the implicit precedences A → E \(A → E\) and B → F/);
+  for (const [lang, re] of [['es', /se ahorra 1 ficticia\./], ['en', /saves 1 dummy\./]]) {
+    const c = N.dummyCount({ rules: 4, value: 3, lower: 3, exact: true, net: { dummies: [] } }, { lang, succs: {} });
+    assert.match(c.explain, re);
+  }
+});

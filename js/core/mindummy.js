@@ -14,6 +14,8 @@
  *     (a ≺ b y toda precedente de b precede a toda posterior de a), se admite un suceso sin actividades, y
  *     para cada reparto se buscan las ficticias: cada requisito pendiente obliga a una ficticia que sale (o
  *     llega) de un suceso concreto o alcanzable, y se ramifica sobre ella. Para en cuanto alcanza la cota.
+ *   - el presupuesto cuenta todo lo que se examina, también los repartos y las estructuras que se descartan:
+ *     así acota de verdad el tiempo, también con muchas actividades equivalentes (revisión de cierre, F1).
  * Comprobado contra el oráculo de fuerza bruta (tests/oracle-mindummy.js). Prototipo: 02-DOCS (no público).
  */
 (function (root) {
@@ -23,6 +25,12 @@
   const A = isNode ? require('./aoa.js') : root.PNL.aoa;
   const DEFAULT_BUDGET = 80000;   // calibrado en T010: ≈ 2 s como mucho con 30 actividades (plan §7)
   const MAX_PURE = 1;
+  // El presupuesto se cobra en operaciones elementales (revisión de cierre de la F2a, F1): cada reparto, cada
+  // estructura candidata y cada nodo de la búsqueda pagan lo que cuestan según el tamaño de la tabla, se descarten
+  // o no. Una unidad del presupuesto son OPS_PER_UNIT operaciones. Con 800, los seis ejercicios y las tablas de
+  // clase siguen igual de exactos que en la calibración de T010, y ninguna tabla de 30 actividades (tampoco las de
+  // muchas actividades equivalentes, que antes no terminaban) pasa del tiempo de las de la calibración.
+  const OPS_PER_UNIT = 800;
 
   function* partitions(items) {
     if (!items.length) { yield []; return; }
@@ -52,7 +60,13 @@
     const headKey = (a) => [...reach[a]].sort().join(',');
     const tailKey = (b) => predStar[b].slice().sort().join(',');
     // Fundir el destino de a con el origen de b: a ≺ b y toda precedente de b precede a toda posterior de a.
-    const mergeable = (a, b) => before(a, b) && predStar[b].every((d) => [...reach[a]].every((c) => before(d, c)));
+    // Se calcula una vez por pareja: la búsqueda lo consulta muchas veces (revisión de cierre, F1).
+    const memo = new Map();
+    const mergeable = (a, b) => {
+      const k = `${a}>${b}`;
+      if (!memo.has(k)) memo.set(k, before(a, b) && predStar[b].every((d) => [...reach[a]].every((c) => before(d, c))));
+      return memo.get(k);
+    };
     return { ids, reach, before, hasse, predStar, headKey, tailKey, mergeable };
   }
 
@@ -89,10 +103,19 @@
     const { ids, before, hasse, headKey, tailKey, mergeable } = o;
     let work = 0; let exhausted = false;
     let best = null; let bestVal = upper;
+    // Todo lo que la búsqueda examina cuenta, también lo que descarta: así el presupuesto acota el tiempo
+    // (revisión de cierre de la F2a, F1).
+    const charge = (ops) => { work += ops / OPS_PER_UNIT; if (work > budget) exhausted = true; return exhausted; };
+    const n = ids.length;
 
     function* structures() {
-      for (const heads of refining(groupBy(ids, headKey))) {
-        for (const tails of refining(groupBy(ids, tailKey))) {
+      const headClasses = groupBy(ids, headKey); const tailClasses = groupBy(ids, tailKey);
+      // Generar un reparto recorre la recursión de cada clase: del orden de tamaño² por clase.
+      const sq = (cs) => cs.reduce((acc, c) => acc + c.length * c.length, 0);
+      const pairOps = n + sq(headClasses) + sq(tailClasses);
+      for (const heads of refining(headClasses)) {
+        for (const tails of refining(tailClasses)) {
+          if (charge(pairOps)) return;
           const hb = new Map(); heads.forEach((b, i) => b.forEach((a) => hb.set(a, i)));
           const tb = new Map(); tails.forEach((b, i) => b.forEach((a) => tb.set(a, i)));
           const pairs = new Set();
@@ -105,11 +128,14 @@
           };
           for (const m of match(0, new Set(), [])) {
             for (let pure = 0; pure <= MAX_PURE; pure++) {
-              const headNode = []; const tailNode = []; let n = 0;
+              const headNode = []; const tailNode = []; let count = 0;
               const merged = new Map(m.map(([i, j]) => [j, i]));
-              heads.forEach((_, i) => { headNode[i] = n++; });
-              tails.forEach((_, j) => { tailNode[j] = merged.has(j) ? headNode[merged.get(j)] : n++; });
-              const nodes = n + pure;
+              heads.forEach((_, i) => { headNode[i] = count++; });
+              tails.forEach((_, j) => { tailNode[j] = merged.has(j) ? headNode[merged.get(j)] : count++; });
+              const nodes = count + pure;
+              // Construir la estructura cuesta del orden de nodos² + actividades² (la matriz ok), más el
+              // emparejamiento de sucesos de origen y destino que la ha producido.
+              if (charge(nodes * nodes + n * n + heads.length * tails.length)) return;
               const arcs = ids.map((a) => ({ act: a, from: tailNode[tb.get(a)], to: headNode[hb.get(a)] }));
               const endsAt = Array.from({ length: nodes }, () => []);
               const startsAt = Array.from({ length: nodes }, () => []);
@@ -125,8 +151,10 @@
               const out = Array.from({ length: nodes }, () => []);
               for (const e of arcs) out[e.from].push(e.to);
               for (let u = 0; u < nodes; u++) for (let v = 0; v < nodes; v++) if (ok(u, v)) out[u].push(v);
-              const reachable = (u, w) => { const seen = new Set([u]); const st = [u]; while (st.length) { const x = st.pop(); if (x === w) return true; for (const y of out[x]) if (!seen.has(y)) { seen.add(y); st.push(y); } } return false; };
-              if (hasse.some(([a, b]) => !reachable(arcOf[a].to, arcOf[b].from))) continue;
+              let visits = 0;
+              const reachable = (u, w) => { const seen = new Set([u]); const st = [u]; while (st.length) { const x = st.pop(); if (x === w) return true; for (const y of out[x]) { visits++; if (!seen.has(y)) { seen.add(y); st.push(y); } } } return false; };
+              const reaches = hasse.every(([a, b]) => reachable(arcOf[a].to, arcOf[b].from));
+              if (charge(visits + hasse.length) || !reaches) { if (exhausted) return; continue; }
               yield { nodes, arcs, arcOf, ok, lower: lb };
             }
           }
@@ -162,7 +190,8 @@
         return false;
       };
       const dfs = () => {
-        if (++work > budget) { exhausted = true; return false; }
+        // Un nodo de la búsqueda recorre el alcance (sucesos × flechas) y las parejas de actividades.
+        if (exhausted || charge(s.nodes * (s.arcs.length + dummies.length) + n * n)) return false;
         const key = dummies.map((d) => `${d.from}>${d.to}`).sort().join(' ');
         if (failed.has(key)) return false;
         const res = explore();
@@ -207,7 +236,7 @@
 
     for (const s of structures()) {
       if (bestVal <= lower) break;
-      if (++work > budget) { exhausted = true; break; }
+      if (charge(n)) break;
       const limit = bestVal - 1;
       if (s.lower > limit) continue;
       for (let k = s.lower; k <= limit; k++) {
@@ -217,7 +246,7 @@
       }
       if (exhausted) break;
     }
-    return { best, bestVal, exhausted };
+    return { best, bestVal, exhausted, work };
   }
 
   // De una red con sucesos numerados 0..n−1 a una red del formato de core/aoa.
@@ -239,10 +268,10 @@
     const o = order(p);
     const lower = Math.min(upper, lowerBound(o));
     const asMin = Object.assign({}, rulesNet, { method: 'min', trace: [] });
-    if (lower === upper) return { value: upper, exact: true, lower, net: asMin };
-    const { best, bestVal, exhausted } = search(o, upper, lower, budget);
+    if (lower === upper) return { value: upper, exact: true, lower, net: asMin, work: 0 };
+    const { best, bestVal, exhausted, work } = search(o, upper, lower, budget);
     const net = best ? toNet(best, o) : asMin;
-    return { value: bestVal, exact: !exhausted, lower: exhausted ? lower : bestVal, net };
+    return { value: bestVal, exact: !exhausted, lower: exhausted ? lower : bestVal, net, work };
   }
 
   const api = { solve, DEFAULT_BUDGET };

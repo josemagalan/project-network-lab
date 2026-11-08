@@ -77,10 +77,13 @@
   }
 
   const pert = () => state.graph === 'aoa';
-  // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022).
+  // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022), y sin
+  // la vista lado a lado ni la matriz, que necesitan la red ROY (revisión de cierre, F2).
   function fitGraph() {
-    if (!model.structureOnly || !model.project || pert()) return;
-    state = Object.assign({}, state, { graph: 'aoa', view: state.view === 'matrix' ? 'net' : state.view, step: 0 });
+    if (!model.structureOnly || !model.project) return;
+    const view = state.view === 'matrix' || state.view === 'side' ? 'net' : state.view;
+    if (pert() && view === state.view) return;
+    state = Object.assign({}, state, { graph: 'aoa', view, step: pert() ? state.step : 0 });
   }
   // La traza que se reproduce: la de la red PERT con graph=aoa y la de ROY en otro caso.
   function trace() {
@@ -604,7 +607,10 @@
     });
     window.addEventListener('hashchange', () => {
       if (location.hash === U.encode(state)) return;
+      // Otro ejemplo u otra tabla: la selección era de la red anterior (revisión de cierre, F4).
+      const before = state;
       load();
+      if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null;
       render({ fullEditor: true });
     });
   }

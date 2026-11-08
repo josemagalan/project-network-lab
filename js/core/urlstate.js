@@ -105,6 +105,8 @@
     if ((state.view === 'matrix' && state.graph === 'aoa') || (state.view === 'side' && state.graph === 'aon')) {
       state.view = 'net'; malformed = true;
     }
+    // Un ejemplo solo de estructura no tiene red ROY, así que tampoco vista lado a lado (revisión de cierre, F2).
+    if (!state.t && STRUCTURE_ONLY.includes(state.ex) && state.view === 'side') { state.view = 'net'; malformed = true; }
     let structure = false;
     if (!state.t && STRUCTURE_ONLY.includes(state.ex) && state.graph === 'aon') {
       state.graph = 'aoa'; structure = true;

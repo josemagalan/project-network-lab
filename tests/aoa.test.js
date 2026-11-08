@@ -131,6 +131,55 @@ test('verify detecta una red mal construida', () => {
   assert.ok(v.problems.length >= 1);
 });
 
+// Revisión de cierre de la F2a, F3: verify es el oráculo de AC1 y AC15, así que cada una de sus comprobaciones
+// tiene que verse fallar con una red rota a propósito (y pasar con la buena).
+const codesOf = (net, p) => A.verify(net, p).problems.map((x) => x.code);
+const ev = (n) => Array.from({ length: n }, (_, i) => ({ n: i + 1, set: [], kind: 'event' }));
+
+test('F3: verify detecta una precedencia falsa (una ficticia de más)', () => {
+  const p = table('A<C;B<D');
+  const net = A.build(p);
+  assert.deepEqual(A.verify(net, p), { ok: true, problems: [] });
+  const arc = (x) => net.arcs.find((e) => e.act === x);
+  // Una ficticia del final de A al origen de D (o del de B al de C) mete una precedencia que la tabla no tiene.
+  const [u, v] = arc('A').to < arc('D').from ? [arc('A').to, arc('D').from] : [arc('B').to, arc('C').from];
+  const bad = Object.assign({}, net, { dummies: [...net.dummies, { name: 'FX', from: u, to: v, rule: 'min', because: [], represents: [], implied: [] }] });
+  const v1 = A.verify(bad, p);
+  assert.equal(v1.ok, false);
+  assert.deepEqual([...new Set(v1.problems.map((x) => x.code))], ['falsePrecedence']);
+});
+
+test('F3: verify detecta un arco que va de un suceso mayor a uno menor, y dos actividades paralelas', () => {
+  const p = table('A<C;B<C');
+  const net = A.build(p);
+  const flipped = Object.assign({}, net, { arcs: net.arcs.map((e) => (e.act === 'C' ? { act: 'C', from: e.to, to: e.from } : e)) });
+  assert.ok(codesOf(flipped, p).includes('order'));
+  const a = net.arcs.find((e) => e.act === 'A');
+  const parallel = Object.assign({}, net, { arcs: net.arcs.map((e) => (e.act === 'B' ? { act: 'B', from: a.from, to: a.to } : e)) });
+  assert.ok(codesOf(parallel, p).includes('parallel'));
+});
+
+test('F3: verify exige un solo suceso inicial y un solo suceso final, y que estén todas las actividades', () => {
+  const p = table('A<C;B<C');
+  // Dos sucesos iniciales: A sale de 1 y B de 2.
+  const twoStarts = { events: ev(4), arcs: [{ act: 'A', from: 1, to: 3 }, { act: 'B', from: 2, to: 3 }, { act: 'C', from: 3, to: 4 }], dummies: [] };
+  assert.deepEqual(codesOf(twoStarts, p), ['start']);
+  const q = table('A<B,C');
+  // Dos sucesos finales: B termina en 3 y C en 4.
+  const twoEnds = { events: ev(4), arcs: [{ act: 'A', from: 1, to: 2 }, { act: 'B', from: 2, to: 3 }, { act: 'C', from: 2, to: 4 }], dummies: [] };
+  assert.deepEqual(codesOf(twoEnds, q), ['end']);
+  const missing = Object.assign({}, A.build(q), { arcs: A.build(q).arcs.filter((e) => e.act !== 'C') });
+  assert.ok(codesOf(missing, q).includes('missingArc'));
+});
+
+test('Revisión F6: cada ficticia de compartidos la piden las dos actividades cuyos conjuntos comparten la parte común', () => {
+  const net = A.build(table('X<P,Q;Y<Q,R'));
+  assert.deepEqual(net.dummies.map((d) => [d.rule, d.because, d.represents]), [
+    ['shared', ['X', 'Y'], [['X', 'Q']]],
+    ['shared', ['X', 'Y'], [['Y', 'Q']]],
+  ]);
+});
+
 test('determinismo: la misma tabla da la misma red', () => {
   assert.ok(A.build(loadEx('ej3')).events.length > 0);
   assert.deepEqual(A.build(loadEx('ej3')), A.build(loadEx('ej3')));
@@ -176,6 +225,24 @@ test('AC3: en 2000 tablas aleatorias y en los ejemplos de ROY, duración, críti
       assert.ok(Math.abs(tf - s.floats[e.act].TF) < 1e-9, `tabla ${i}: TF(${e.act}) ${tf} ≠ ${s.floats[e.act].TF}`);
     }
   });
+});
+
+test('AC3: también con tablas grandes (300 tablas de 16 a 30 actividades): duración, crítico y holgura total iguales en PERT', () => {
+  const rand = rng(30);
+  for (let i = 0; i < 300; i++) {
+    const p = randomProject(rand, 16 + Math.floor(rand() * 15));
+    const s = C.solve(p);
+    const net = A.build(p);
+    const t = A.times(net, s);
+    assert.equal(t.TE[net.events.length], s.duration, `tabla ${i}: duración`);
+    for (const e of net.arcs) {
+      const tf = t.TL[e.to] - t.TE[e.from] - durOf(s, e.act);
+      assert.ok(Math.abs(tf - s.floats[e.act].TF) < 1e-9, `tabla ${i}: TF(${e.act}) ${tf} ≠ ${s.floats[e.act].TF}`);
+    }
+    const critPert = net.arcs.filter((e) => Math.abs(t.TL[e.to] - t.TE[e.from] - durOf(s, e.act)) < 1e-9).map((e) => e.act).sort();
+    assert.deepEqual(critPert, p.activities.map((a) => a.id).filter((a) => Math.abs(s.floats[a].TF) < 1e-9).sort(), `tabla ${i}: crítico`);
+    assert.deepEqual(A.verify(net, p), { ok: true, problems: [] }, `tabla ${i}`);
+  }
 });
 
 test('AC5: la traza PERT tiene el orden de pasos del plan y un paso por suceso hacia delante y hacia atrás', () => {
