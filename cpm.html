@@ -53,14 +53,16 @@
 
       <aside class="side" id="side">
         <div class="card narration">
-          <span id="stepTitle" class="eyebrow"></span>
+          <div class="step-head">
+            <span id="stepTitle" class="eyebrow"></span>
+            <button type="button" class="learn-btn" id="btnLearn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"></path><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"></path></svg><span class="lbl" data-i18n="learn.button">Aprende más</span></button>
+          </div>
           <p id="stepText"></p>
           <div id="formula" class="formula"></div>
           <div id="predictBox" class="predict" hidden></div>
           <div class="row-wrap">
             <label class="check"><input type="checkbox" id="chkPredict"> <span data-i18n="predict.toggle">Modo predicción</span></label>
             <button type="button" class="ghost push" id="btnWhatIf" aria-expanded="false" aria-controls="whatIfBox" data-i18n="whatif.button">¿Y si…?</button>
-            <button type="button" class="ghost" id="btnLearn" data-i18n="learn.button">Aprende más</button>
           </div>
           <div id="whatIfBox" class="whatif" hidden></div>
         </div>
