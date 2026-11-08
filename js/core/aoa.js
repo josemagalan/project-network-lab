@@ -140,6 +140,38 @@
     return { n, col };
   }
 
+  // Monta una red a partir de sucesos con nombre (claves): numera con i < j, ordena y nombra las ficticias
+  // y calcula qué precedencias directas representa cada una. Lo comparten las reglas y el mínimo.
+  //   arcsK: [{act, from, to}]; dummiesK: [{from, to, rule, because?}]; pairs: precedencias directas [a, b].
+  function assemble(arcsK, dummiesK, pairs, kindOf, setOf) {
+    const nodes = [...new Set(['INI', 'FIN', ...arcsK.flatMap((e) => [e.from, e.to]), ...dummiesK.flatMap((d) => [d.from, d.to])])];
+    const { n } = number(nodes, arcsK, dummiesK);
+    const fromOf = Object.fromEntries(arcsK.map((e) => [e.act, e.from]));
+    const toOf = Object.fromEntries(arcsK.map((e) => [e.act, e.to]));
+    const dOut = new Map(nodes.map((u) => [u, []]));
+    for (const d of dummiesK) dOut.get(d.from).push(d.to);
+    const dReach = new Map();
+    const reachD = (u) => {
+      if (dReach.has(u)) return dReach.get(u);
+      const set = new Set([u]);
+      for (const v of dOut.get(u)) for (const w of reachD(v)) set.add(w);
+      dReach.set(u, set);
+      return set;
+    };
+    const dummiesN = dummiesK.map((d) => {
+      const represents = pairs.filter(([a, b]) => reachD(toOf[a]).has(d.from) && reachD(d.to).has(fromOf[b]))
+        .sort((x, y) => byId(x[0], y[0]) || byId(x[1], y[1]));
+      const because = d.because || [...new Set(represents.flat())].sort(byId);
+      return { from: n.get(d.from), to: n.get(d.to), rule: d.rule, because, represents };
+    });
+    dummiesN.sort((x, y) => (RULE_ORDER[x.rule] - RULE_ORDER[y.rule]) || byId(x.because[0] || '', y.because[0] || '') || (x.from - y.from) || (x.to - y.to));
+    const dummies = dummiesN.map((d, i) => Object.assign({ name: `F${i + 1}` }, d));
+    const events = nodes.map((u) => ({ n: n.get(u), set: u === 'INI' || u === 'FIN' ? u : setOf(u), kind: kindOf(u) }))
+      .sort((x, y) => x.n - y.n);
+    const arcs = arcsK.map((e) => ({ act: e.act, from: n.get(e.from), to: n.get(e.to) }));
+    return { events, arcs, dummies };
+  }
+
   function build(p, opts) {
     const method = (opts && opts.method) || 'rules';
     if (method !== 'rules') {
@@ -148,30 +180,8 @@
     }
     const r = rules(p);
     const arcsK = r.ids.map((a) => ({ act: a, from: r.from[a], to: r.to[a] }));
-    const nodes = [...new Set(['INI', 'FIN', ...arcsK.flatMap((e) => [e.from, e.to]), ...r.dummies.flatMap((d) => [d.from, d.to])])];
-    const { n } = number(nodes, arcsK, r.dummies);
-
-    // Precedencias directas que representa cada ficticia: los pares (a, b) cuyo camino de ficticias pasa por ella.
-    const dOut = new Map(nodes.map((u) => [u, []]));
-    for (const d of r.dummies) dOut.get(d.from).push(d.to);
-    const dReach = new Map();
-    const reachD = (u) => {
-      if (dReach.has(u)) return dReach.get(u);
-      const s = new Set([u]);
-      for (const v of dOut.get(u)) for (const w of reachD(v)) s.add(w);
-      dReach.set(u, s);
-      return s;
-    };
     const pairs = r.ids.flatMap((a) => r.direct[a].map((b) => [a, b]));
-    const dummiesN = r.dummies.map((d) => ({
-      from: n.get(d.from), to: n.get(d.to), rule: d.rule, because: d.because,
-      represents: pairs.filter(([a, b]) => reachD(r.to[a]).has(d.from) && reachD(d.to).has(r.from[b])).sort((x, y) => byId(x[0], y[0]) || byId(x[1], y[1])),
-    }));
-    dummiesN.sort((x, y) => (RULE_ORDER[x.rule] - RULE_ORDER[y.rule]) || byId(x.because[0], y.because[0]) || (x.from - y.from) || (x.to - y.to));
-    const dummies = dummiesN.map((d, i) => Object.assign({ name: `F${i + 1}` }, d));
-    const events = nodes.map((u) => ({ n: n.get(u), set: u === 'INI' || u === 'FIN' ? u : r.sets(u), kind: r.kind[u] }))
-      .sort((x, y) => x.n - y.n);
-    const arcs = arcsK.map((e) => ({ act: e.act, from: n.get(e.from), to: n.get(e.to) }));
+    const { events, arcs, dummies } = assemble(arcsK, r.dummies, pairs, (u) => r.kind[u], r.sets);
     const net = { method: 'rules', events, arcs, dummies, trace: [] };
     net.trace = trace(net, p, opts && opts.solution);
     return net;
@@ -259,9 +269,16 @@
   }
 
   // Métodos de construcción intercambiables (plan P7): la F2b añadirá otros con el mismo contrato.
-  const methods = { rules: (p) => build(p, { method: 'rules' }) };
+  const methods = {
+    rules: (p) => build(p, { method: 'rules' }),
+    // El mínimo vive en core/mindummy (se carga después que este módulo en el navegador).
+    min: (p, opts) => {
+      const M = isNode ? require('./mindummy.js') : root.PNL.mindummy;
+      return M.solve(p, opts).net;
+    },
+  };
 
-  const api = { build, verify, times, methods };
+  const api = { build, verify, times, methods, _assemble: assemble, _reduce: reduce };
   root.PNL = root.PNL || {};
   root.PNL.aoa = api;
   if (isNode) module.exports = api;
