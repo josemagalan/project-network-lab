@@ -273,3 +273,62 @@ test('«Aprende más» de cada regla: esquema de ejemplo de los apuntes del auto
     assert.match(Lrn.schemeCredit[lang], /José Manuel Galán/);
   }
 });
+
+// ---------- F2a · AC6 y AC7: selección compartida ----------
+
+test('AC6: una ficticia seleccionada se nombra con su regla y dice qué precedencias de ROY representa', () => {
+  const es = N.selection('F3', Object.assign(pertCtx('ej6', 'es', 'en'), { numbered: true }));
+  assert.equal(es.title, 'F3');
+  assert.match(es.text, /Conjuntos contenidos/);
+  for (const x of ['E', 'F', 'G']) assert.match(es.text, new RegExp(`\\b${x}\\b`), es.text);
+  assert.match(es.text, /E → I y F → I/);
+  assert.deepEqual(es.precs, [['E', 'I'], ['F', 'I']]);
+  assert.equal(es.learn, 'ruleContained');
+  const one = N.selection('F1', Object.assign(pertCtx('ej6', 'en', 'en'), { numbered: true }));
+  assert.match(one.text, /Contained sets/);
+  assert.match(one.text, /\bB → E\b/);
+  assert.match(one.text, /the arrow B → E/, 'en singular con una sola precedencia');
+  assert.deepEqual(one.precs, [['B', 'E']]);
+});
+
+test('AC6: la ficticia de identidad no representa ninguna precedencia y lo dice', () => {
+  for (const lang of ['es', 'en']) {
+    const s = N.selection('F1', Object.assign(pertCtx('ej7', lang, 'en'), { numbered: true }));
+    assert.match(s.text, lang === 'es' ? /identidad/ : /identity/);
+    assert.match(s.text, /\bG\b/);
+    assert.match(s.text, /\bI\b/);
+    assert.match(s.text, lang === 'es' ? /ninguna precedencia/ : /no precedence/);
+    assert.deepEqual(s.precs, []);
+    assert.equal(s.learn, 'ruleEqual');
+  }
+});
+
+test('AC7: una actividad seleccionada dice su flecha en PERT (con sucesos si ya están numerados) y su nodo en ROY', () => {
+  const ctx = pertCtx('ej6', 'es', 'en');
+  const arc = ctx.net.arcs.find((a) => a.act === 'E');
+  const s = N.selection('E', Object.assign({}, ctx, { numbered: true }));
+  assert.equal(s.title, 'E');
+  assert.match(s.text, new RegExp(`suceso ${arc.from} al ${arc.to}\\b`), s.text);
+  assert.deepEqual(s.precs, []);
+  assert.equal(s.learn, null);
+  const before = N.selection('E', Object.assign({}, ctx, { numbered: false }));
+  assert.doesNotMatch(before.text, /\d/, 'sin numerar no hay números de suceso');
+  assert.match(N.selection('E', Object.assign(pertCtx('ej6', 'en', 'en'), { numbered: true })).text, /AON/);
+  assert.equal(N.selection('Z', ctx), null);
+  assert.equal(N.selection(null, ctx), null);
+});
+
+test('AC6–AC7: el texto de cualquier selección de los siete ejercicios está traducido en ES y EN', () => {
+  for (const ex of E.list({ all: true })) {
+    for (const lang of ['es', 'en']) {
+      const ctx = pertCtx(ex.id, lang, 'en');
+      for (const x of [...ctx.net.arcs.map((a) => a.act), ...ctx.net.dummies.map((d) => d.name)]) {
+        for (const numbered of [false, true]) {
+          const s = N.selection(x, Object.assign({}, ctx, { numbered }));
+          assert.ok(s && s.text, `${ex.id} ${lang} ${x}`);
+          assert.doesNotMatch(s.text, /\b(sel|view|pert)\.|\{\w+\}|undefined|NaN/, `${ex.id} ${lang} ${x}: ${s.text}`);
+        }
+      }
+    }
+  }
+});

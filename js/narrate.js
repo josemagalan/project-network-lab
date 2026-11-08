@@ -175,7 +175,31 @@
     return out;
   }
 
-  const api = { narrate, relabel, nodeName, fmt, SHOWN_PATHS };
+  // Selección compartida (F2a, AC6 y AC7): qué es en cada red la actividad o ficticia seleccionada.
+  // Devuelve { title, text, precs, learn }: precs son las precedencias de ROY que representa una
+  // ficticia (para resaltarlas en la red ROY) y learn, el tema de «Aprende más» de su regla.
+  function selection(x, ctx) {
+    const { net, lang } = ctx;
+    if (!x || !net) return null;
+    const t = (k, p) => I.t(lang, k, p);
+    const arc = net.arcs.find((a) => a.act === x);
+    if (arc) {
+      const text = ctx.numbered ? t('sel.act', { act: x, from: arc.from, to: arc.to }) : t('sel.actUnnumbered', { act: x });
+      return { title: x, text, precs: [], learn: null };
+    }
+    const d = net.dummies.find((f) => f.name === x);
+    if (!d) return null;
+    const rule = t(`pert.rule.${d.rule}`);
+    const because = I.list(lang, d.because);
+    const precs = d.represents.map((p) => p.slice());
+    const learn = { equal: 'ruleEqual', contained: 'ruleContained', shared: 'ruleShared' }[d.rule] || null;
+    let text;
+    if (d.rule === 'equal') text = t('sel.dummyEqual', { name: x, rule, because });
+    else text = t(precs.length === 1 ? 'sel.dummyOne' : 'sel.dummy', { name: x, rule, because, precs: I.list(lang, precs.map(([a, b]) => `${a} → ${b}`)) });
+    return { title: x, text, precs, learn };
+  }
+
+  const api = { narrate, relabel, nodeName, fmt, selection, SHOWN_PATHS };
   root.PNL = root.PNL || {};
   root.PNL.narrate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -32,6 +32,8 @@
       },
       view: {
         graphLabel: 'Tipo de red', graphAon: 'Red ROY', graphAoa: 'Red PERT',
+        side: 'Lado a lado', sideHint: 'Pulsa una actividad o una ficticia para verla en las dos redes.',
+        dummiesN: '{n} ficticias', dummiesOne: '1 ficticia', dummiesNone: 'sin ficticias',
         pertHint: 'Cada círculo es un suceso con su número; a su lado, el tiempo temprano y el tardío. Las flechas discontinuas son ficticias.',
         succHint: 'Las reglas de los conjuntos se aplican sobre esta tabla; la última columna dice qué papel tiene cada actividad en la regla del paso.',
         label: 'Vista', net: 'Red', matrix: 'Matriz', asTable: 'Ver como tabla', hideTable: 'Ocultar la tabla',
@@ -54,6 +56,14 @@
         summaryOne: '{ok} correcta · {wrong} por revisar · {empty} sin rellenar',
         hidden: 'El paso siguiente no se muestra hasta comprobar o mostrar la solución.', your: 'Tu respuesta',
         ruleActs: 'Actividades a las que se aplica', ruleCount: 'Ficticias que crea', missing: 'falta', extra: 'sobra',
+      },
+      sel: {
+        label: 'Selección', clear: 'Quitar la selección',
+        dummy: '{name} es una ficticia de la regla «{rule}», que piden {because}. En la red ROY equivale a las flechas {precs}: allí no hace falta ninguna ficticia.',
+        dummyOne: '{name} es una ficticia de la regla «{rule}», que piden {because}. En la red ROY equivale a la flecha {precs}: allí no hace falta ninguna ficticia.',
+        dummyEqual: '{name} es una ficticia de identidad (regla «{rule}»): {because} irían del mismo suceso al mismo suceso, y la ficticia las distingue. No representa ninguna precedencia: en la red ROY son dos nodos distintos y no hace falta nada más.',
+        act: 'La actividad {act} es en la red PERT la flecha del suceso {from} al {to}, y en la red ROY, el nodo {act}.',
+        actUnnumbered: 'La actividad {act} es una flecha en la red PERT y un nodo en la red ROY.',
       },
       whatif: {
         button: '¿Y si…?', title: '¿Y si cambia una duración?', activity: 'Actividad', duration: 'Nueva duración',
@@ -200,6 +210,8 @@
       },
       view: {
         graphLabel: 'Network type', graphAon: 'AON (ROY)', graphAoa: 'AOA (PERT)',
+        side: 'Side by side', sideHint: 'Click an activity or a dummy to see it in both networks.',
+        dummiesN: '{n} dummies', dummiesOne: '1 dummy', dummiesNone: 'no dummies',
         pertHint: 'Each circle is an event with its number; next to it, its early and late times. Dashed arrows are dummies.',
         succHint: 'The set rules are applied to this table; the last column says what role each activity plays in this step’s rule.',
         label: 'View', net: 'Network', matrix: 'Matrix', asTable: 'Show as a table', hideTable: 'Hide the table',
@@ -222,6 +234,14 @@
         summaryOne: '{ok} correct · {wrong} to review · {empty} left',
         hidden: 'The next step stays hidden until you check or show the answers.', your: 'Your answer',
         ruleActs: 'Activities it applies to', ruleCount: 'Dummies it adds', missing: 'missing', extra: 'not this one',
+      },
+      sel: {
+        label: 'Selection', clear: 'Clear selection',
+        dummy: '{name} is a dummy from the “{rule}” rule, required by {because}. In the AON network it is just the arrows {precs}: no dummy is needed there.',
+        dummyOne: '{name} is a dummy from the “{rule}” rule, required by {because}. In the AON network it is just the arrow {precs}: no dummy is needed there.',
+        dummyEqual: '{name} is an identity dummy (“{rule}” rule): {because} would run from the same event to the same event, and the dummy tells them apart. It represents no precedence: in the AON network they are two separate nodes and nothing else is needed.',
+        act: 'In the AOA network, activity {act} is the arrow from event {from} to event {to}; in the AON network, it is node {act}.',
+        actUnnumbered: 'Activity {act} is an arrow in the AOA network and a node in the AON network.',
       },
       whatif: {
         button: 'What if…?', title: 'What if a duration changes?', activity: 'Activity', duration: 'New duration',

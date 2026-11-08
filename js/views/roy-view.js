@@ -2,6 +2,9 @@
  * views/roy-view — dibuja la red ROY con D3 a partir de la colocación de views/layout y de los valores
  * revelados hasta el paso actual. No calcula nada: todo sale de la Solution de core/cpm (plan §2).
  * Los textos entran con .text() (nunca HTML). Tres formatos de caja: '7', '4' y 'c' (compacta).
+ * Selección compartida con la red PERT (F2a): ctx.selected (actividad), ctx.selPrecs (precedencias
+ * [a, b] que representa la ficticia seleccionada), ctx.onSelect(id) al pulsar un nodo y ctx.fit
+ * (lado a lado: la red se encoge con su columna en vez de mantener 560 px).
  */
 (function (root) {
   'use strict';
@@ -52,17 +55,18 @@
         edgeClass.set(key, chosen.has(t.from) ? 'chosen' : 'compared');
       }
     }
+    for (const [a, b] of ctx.selPrecs || []) edgeClass.set(`${a}>${b}`, 'sel');
     const isCritNode = (id) => id === START || id === END || crit.has(id);
     const tight = (a, b) => Math.abs(solution.times[a].EF - solution.times[b].ES) < 1e-9;
 
     const sel = d3.select(container);
     sel.selectAll('*').remove();
     // En pantallas estrechas la red no baja de 560 px: el contenedor se desplaza en horizontal.
-    const svg = sel.append('svg').attr('class', 'net').attr('width', '100%').attr('style', `max-width:${width}px;min-width:${Math.min(width, 560)}px`)
+    const svg = sel.append('svg').attr('class', 'net').attr('width', '100%').attr('style', `max-width:${width}px;min-width:${ctx.fit ? 0 : Math.min(width, 560)}px`)
       .attr('viewBox', `0 0 ${width} ${height}`).attr('role', 'img')
       .attr('aria-label', G.i18n.t(lang, 'view.netLabel', { name: ctx.name, n: project.activities.length }));
     const defs = svg.append('defs');
-    for (const [id, cls] of [['pnl-mk', 'mk'], ['pnl-mk-a', 'mk-a'], ['pnl-mk-c', 'mk-c']]) {
+    for (const [id, cls] of [['pnl-mk', 'mk'], ['pnl-mk-a', 'mk-a'], ['pnl-mk-c', 'mk-c'], ['pnl-mk-s', 'mk-s']]) {
       defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
         .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto')
         .append('path').attr('d', 'M0 0L10 5L0 10z').attr('class', cls);
@@ -95,7 +99,7 @@
       let cls = edgeClass.get(`${u}>${v}`) || '';
       if (!cls && criticalOn && isCritNode(u) && isCritNode(v) && tight(u, v) && (crit.has(u) || crit.has(v))) cls = 'crit';
       eg.append('path').attr('d', d).attr('class', `edge ${cls}`)
-        .attr('marker-end', `url(#${cls === 'chosen' || cls === 'compared' ? 'pnl-mk-a' : cls === 'crit' ? 'pnl-mk-c' : 'pnl-mk'})`);
+        .attr('marker-end', `url(#${{ chosen: 'pnl-mk-a', compared: 'pnl-mk-a', crit: 'pnl-mk-c', sel: 'pnl-mk-s' }[cls] || 'pnl-mk'})`);
     }
 
     const ng = svg.append('g');
@@ -108,7 +112,9 @@
         continue;
       }
       const active = step && step.act === id;
-      const cls = `box${active ? ' active' : ''}${!active && crit.has(id) ? ' crit' : ''}`;
+      const cls = `box${active ? ' active' : ''}${!active && crit.has(id) ? ' crit' : ''}${ctx.selected === id ? ' sel' : ''}`;
+      gg.attr('class', 'node');
+      if (ctx.onSelect) gg.style('cursor', 'pointer').on('click', () => ctx.onSelect(id));
       const txt = (x, y, f, k) => gg.append('text').attr('class', f === 'id' ? 'nid' : `val${val(id, f) === '·' ? ' hidden' : ''}`)
         .attr('x', x).attr('y', y).text(val(id, f)).append('title').text(f === 'id' || f === 'd' ? (f === 'd' ? 'd' : id) : N[f] || k);
       if (box === 'c') {

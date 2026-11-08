@@ -172,22 +172,41 @@
     $('btnAon').setAttribute('aria-pressed', String(!isPert));
     $('btnAoa').setAttribute('aria-pressed', String(isPert));
     $('btnAon').disabled = !sol;
-    $('btnNet').setAttribute('aria-pressed', String(state.view !== 'matrix'));
+    // Lado a lado solo en PERT y con duraciones: los ejemplos solo de estructura no tienen red ROY.
+    const side = isPert && state.view === 'side' && !!sol;
+    $('btnNet').setAttribute('aria-pressed', String(state.view === 'net' || (state.view === 'side' && !side)));
     $('btnMatrix').setAttribute('aria-pressed', String(state.view === 'matrix'));
     $('btnMatrix').hidden = isPert;
+    $('btnSide').hidden = !isPert;
+    $('btnSide').disabled = !sol;
+    $('btnSide').setAttribute('aria-pressed', String(side));
+    $('stage').classList.toggle('wide', side);
+    // Lado a lado ocupa todo el ancho: el panel del paso pasa debajo de las redes y antes de la tabla
+    // de resultados, para que la explicación y los controles sigan junto a ellas (el orden del DOM es
+    // el orden de lectura y de tabulación).
+    const sideEl = $('side');
+    // Dentro de la sección principal deja de ser un punto de referencia (complementary) propio.
+    if (side && sideEl.parentNode !== $('panelMain')) { $('panelMain').insertBefore(sideEl, $('altTable')); sideEl.setAttribute('role', 'none'); }
+    else if (!side && sideEl.parentNode !== $('stage')) { $('stage').appendChild(sideEl); sideEl.removeAttribute('role'); }
     $('unitLine').textContent = t('view.unitLine', { name: model.name, n: model.project.activities.length, unit: model.unit || '—' });
     $('netView').hidden = state.view === 'matrix';
     $('matrixView').hidden = state.view !== 'matrix';
 
     const placeIdx = isPert ? tr.findIndex((s) => s.kind === 'place') : -1;
     const pctx = isPert ? pertCtx(ctx, tr, k) : null;
+    const selInfo = selectable() ? NR.selection(selected, Object.assign({}, ctx, { numbered: !isPert || k >= tr.findIndex((s) => s.kind === 'number') })) : null;
+    const royCtx = (c) => Object.assign({}, c, selectable() ? { selected, selPrecs: selInfo ? selInfo.precs : [], onSelect: toggleSel } : {});
     if (isPert) {
-      if (k < placeIdx) G.pertView.succTable($('netView'), pctx); else G.pertView.render($('netView'), pctx);
-      $('boxHint').textContent = t(k < placeIdx ? 'view.succHint' : 'view.pertHint');
+      const holder = side ? sideBySide() : $('netView');
+      if (k < placeIdx) G.pertView.succTable(holder, pctx); else G.pertView.render(holder, pctx);
+      $('boxHint').textContent = t(side ? 'view.sideHint' : (k < placeIdx ? 'view.succHint' : 'view.pertHint'));
+      if (side) G.royView.render($('royHolder'), royCtx(sideRoyCtx(ctx, tr, k)));
     } else {
-      if (state.view === 'net') G.royView.render($('netView'), ctx); else G.matrixView.render($('matrixView'), ctx);
+      if (state.view === 'net') G.royView.render($('netView'), royCtx(ctx)); else G.matrixView.render($('matrixView'), ctx);
       $('boxHint').textContent = state.view === 'matrix' ? t('view.matrixHint') : NR.relabel(t(`view.boxHint${state.box}`), state.nota);
     }
+
+    renderSelInfo(isPert && k < placeIdx ? null : selInfo);
 
     const lateSteps = ['float', 'floats', 'critical', 'gantt'].includes(step.kind);
     // En PERT la tabla de arcos es la alternativa en texto de la red: se ofrece en todos los pasos desde «colocar».
@@ -258,8 +277,47 @@
     return Object.assign({}, ctx, {
       lay: model.aoaLay, numbered: k >= tr.findIndex((s) => s.kind === 'number'), succs: model.succs, selected,
       durations: Object.fromEntries(model.project.activities.map((a) => [a.id, a.d])),
-      onSelect: (x) => { selected = selected === x ? null : x; render(); },
+      onSelect: toggleSel,
     });
+  }
+
+  // ---------- Selección compartida y lado a lado (F2a, AC6 y AC7) ----------
+
+  // P9: en ROY solo se selecciona si el selector de red está a la vista.
+  const selectable = () => pert() || PERT_PUBLIC || pertSeen;
+  function toggleSel(x) { selected = selected === x ? null : x; render(); }
+
+  // Dos columnas dentro de #netView: la red PERT (devuelve su contenedor) y la ROY (#royHolder).
+  function sideBySide() {
+    const nd = model.net.dummies.length;
+    const count = t(nd === 0 ? 'view.dummiesNone' : nd === 1 ? 'view.dummiesOne' : 'view.dummiesN', { n: nd });
+    const pertBox = h('div', { class: 'scroll-box', tabindex: '0', role: 'region', 'aria-label': t('view.graphAoa') });
+    const royBox = h('div', { class: 'scroll-box', tabindex: '0', role: 'region', 'aria-label': t('view.graphAon'), id: 'royHolder' });
+    clear($('netView')).appendChild(h('div', { class: 'side-by-side' }, [
+      h('section', {}, [h('h2', {}, [`${t('view.graphAoa')} · ${count}`]), pertBox]),
+      h('section', {}, [h('h2', {}, [`${t('view.graphAon')} · ${t('view.dummiesNone')}`]), royBox]),
+    ]));
+    return pertBox;
+  }
+
+  // La red ROY de al lado enseña el resultado final; mientras se predice, sin valores hasta que la
+  // red PERT haya revelado todos los tiempos (paso de holguras), para no adelantar la respuesta.
+  function sideRoyCtx(ctx, tr, k) {
+    const sol = model.solution;
+    const floatsIdx = tr.findIndex((s) => s.kind === 'floats');
+    const quiet = !!state.pred && k < floatsIdx;
+    return Object.assign({}, ctx, { step: null, hide: false, fit: true, criticalOn: !quiet,
+      revealed: quiet ? new Map() : revealedMap(sol.trace, sol.trace.length - 1, false) });
+  }
+
+  function renderSelInfo(info) {
+    const box = clear($('selInfo'));
+    box.hidden = !info;
+    if (!info) return;
+    box.appendChild(h('span', { class: 'tag' }, [info.title]));
+    box.appendChild(h('p', {}, [info.text]));
+    if (info.learn) box.appendChild(h('button', { type: 'button', class: 'ghost', onclick: () => openLearn(info.learn) }, [t('learn.button')]));
+    box.appendChild(h('button', { type: 'button', class: 'ghost', onclick: () => toggleSel(selected) }, [t('sel.clear')]));
   }
 
   function predictLabel(rv) {
@@ -353,19 +411,24 @@
     }
   }
 
-  function openLearn() {
+  // Con un tema (el de la regla de una ficticia seleccionada), «Aprende más» abre ese tema.
+  function openLearn(forTopic) {
     const tr = trace();
     if (!tr) return;
-    const step = tr[Math.min(state.step, tr.length - 1)];
-    const topic = LR.topicFor(step, state.view, state.graph);
+    const cur = tr[Math.min(state.step, tr.length - 1)];
+    // El tema de una regla vive en la traza PERT, también si se abre desde la red ROY.
+    const ruleStep = typeof forTopic === 'string' && model.net ? model.net.trace.find((s) => s.kind === forTopic) : null;
+    const graph = ruleStep ? 'aoa' : state.graph;
+    const step = ruleStep || cur;
+    const topic = LR.topicFor(step, state.view, graph);
     const body = clear($('learnBody'));
     $('learnTitle').textContent = NR.narrate(step, { lang: lang(), nota: state.nota, solution: model.solution, project: model.project, unit: model.unit, net: model.net }).title;
     LR.topics[topic][lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
     if (LR.schemes[topic]) renderScheme(body, LR.schemes[topic], topic);
     if (['table', 'build', 'succTable'].includes(topic)) { body.appendChild(h('h3', {}, [t('learn.history')])); body.appendChild(h('p', {}, [LR.history[lang()]])); }
     body.appendChild(h('h3', {}, [t('learn.pseudo')]));
-    const on = new Set(LR.pseudoLines(step, state.graph));
-    const code = pert() ? LR.pseudoPert : LR.pseudo;
+    const on = new Set(LR.pseudoLines(step, graph));
+    const code = graph === 'aoa' ? LR.pseudoPert : LR.pseudo;
     body.appendChild(h('pre', { class: 'code', tabindex: '0', role: 'region', 'aria-label': t('learn.pseudo') }, code[lang()].map((line, i) => h('span', { class: on.has(i) ? 'on' : '' }, [line]))));
     body.appendChild(h('h3', {}, [t('learn.refs')]));
     body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
@@ -427,6 +490,7 @@
     $('btnPlay').addEventListener('click', togglePlay);
     $('btnNet').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'net' }));
     $('btnMatrix').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'matrix' }));
+    $('btnSide').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'side' }));
     $('btnAon').addEventListener('click', () => switchGraph('aon'));
     $('btnAoa').addEventListener('click', () => switchGraph('aoa'));
     $('selLang').addEventListener('change', (e) => dispatch({ type: 'set', key: 'lang', value: e.target.value }));
@@ -435,7 +499,7 @@
     $('chkPredict').addEventListener('change', (e) => dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }));
     $('btnTable').addEventListener('click', () => { tableOpen = !tableOpen; render(); });
     $('btnWhatIf').addEventListener('click', () => { whatIfOpen = !whatIfOpen; render(); });
-    $('btnLearn').addEventListener('click', openLearn);
+    $('btnLearn').addEventListener('click', () => openLearn());
     $('btnLearnClose').addEventListener('click', () => $('learnDialog').close());
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
@@ -490,6 +554,6 @@
     render({ fullEditor: true });
   }
 
-  G.app = { state: () => state, step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model };
+  G.app = { state: () => Object.assign({ sel: selected }, state), step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model };
   init();
 })();

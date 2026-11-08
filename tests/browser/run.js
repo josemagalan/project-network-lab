@@ -305,6 +305,69 @@ check('F2a · la tabla de posteriores no cambia el ancho de sus columnas al rell
   await close(page);
 });
 
+// ---------- F2a · AC6 y AC7: selección compartida y lado a lado ----------
+
+check('F2a AC6–AC7 · lado a lado: seleccionar una ficticia o una actividad la resalta en las dos redes y se conserva al cambiar de red', async () => {
+  const n = await (async () => { const p = await lab('graph=aoa&ex=ej6&lang=es'); const k = await p.evaluate(() => PNL.app.model().net.trace.length); await close(p); return k; })();
+  const page = await lab(`graph=aoa&view=side&ex=ej6&step=${n - 1}&lang=es`);
+  assert.equal(await page.locator('#btnSide').getAttribute('aria-pressed'), 'true');
+  assert.ok(await page.locator('#btnMatrix').isHidden(), 'en PERT no hay matriz');
+  assert.equal(await page.locator('#netView svg.net.pert').count(), 1);
+  assert.equal(await page.locator('#netView svg.net:not(.pert)').count(), 1, 'la red ROY está al lado');
+  assert.match(await page.locator('#netView').innerText(), /3 ficticias/);
+  assert.match(await page.locator('#netView').innerText(), /sin ficticias/);
+  // Ficticia F3 (contenidos): en ROY representa E → I y F → I.
+  await page.locator('#netView svg.pert text.elabel', { hasText: /^F3$/ }).click();
+  assert.equal((await state(page)).sel, 'F3');
+  assert.equal(await page.locator('#netView svg.pert .edge.sel').count(), 1);
+  assert.equal(await page.locator('#netView svg.net:not(.pert) .edge.sel').count(), 2, 'en ROY, E → I y F → I');
+  assert.ok(await visible(page, '#selInfo'));
+  assert.match(await page.locator('#selInfo').innerText(), /Conjuntos contenidos/);
+  await axe(page, 'lado a lado con una ficticia seleccionada');
+  // Actividad E desde la red ROY.
+  // El texto del nodo lleva dentro su <title>: se busca por el primer nodo de texto.
+  const iE = await page.evaluate(() => [...document.querySelectorAll('#netView svg.net:not(.pert) g.node')]
+    .findIndex((g) => { const n = g.querySelector('text.nid'); return n && n.firstChild.nodeValue === 'E'; }));
+  await page.locator('#netView svg.net:not(.pert) g.node').nth(iE).click();
+  assert.equal((await state(page)).sel, 'E');
+  assert.equal(await page.locator('#netView svg.pert .edge.sel').count(), 1, 'la flecha E en PERT');
+  assert.equal(await page.locator('#netView svg.net:not(.pert) .box.sel').count(), 1, 'el nodo E en ROY');
+  // Al cambiar de red se conserva.
+  await page.locator('#btnAon').click();
+  assert.equal((await state(page)).view, 'net');
+  assert.equal((await state(page)).sel, 'E');
+  assert.equal(await page.locator('#netView .box.sel').count(), 1);
+  await page.locator('#btnAoa').click();
+  assert.equal(await page.locator('#netView svg.pert .edge.sel').count(), 1);
+  // Con el teclado: la tabla de arcos selecciona y el panel quita la selección.
+  await page.locator('#btnTable').click();
+  await page.locator('#altTable button', { hasText: /^F1/ }).focus();
+  await page.keyboard.press('Enter');
+  assert.equal((await state(page)).sel, 'F1');
+  await page.locator('#selInfo button', { hasText: /Quitar/ }).click();
+  assert.equal((await state(page)).sel, null);
+  assert.ok(await page.locator('#selInfo').isHidden());
+  await close(page);
+  // Mientras se predice un suceso, la red ROY de al lado no adelanta tiempos.
+  const p2 = await lab('graph=aoa&view=side&ex=ej6&lang=es');
+  const kf = await p2.evaluate(() => PNL.app.model().net.trace.findIndex((s) => s.kind === 'eventForward' && s.event === 3));
+  await go(p2, kf);
+  await p2.locator('#chkPredict').check();
+  // Solo se ven las duraciones (dato de la tabla): ni tiempos, ni holguras, ni camino crítico.
+  const royVals = await p2.locator('#netView svg.net:not(.pert) text.val:not(.hidden)').count();
+  assert.equal(royVals, await p2.evaluate(() => PNL.app.model().project.activities.length), 'ROY sin tiempos mientras se predice');
+  assert.equal(await p2.locator('#netView svg.net:not(.pert) .box.crit, #netView svg.net:not(.pert) .edge.crit').count(), 0);
+  await close(p2);
+  for (const [opts, label] of [[{ scheme: 'dark' }, 'oscuro'], [{ width: 360, height: 740 }, '360 px']]) {
+    const p3 = await lab(`graph=aoa&view=side&ex=ej7&step=5&lang=en`, opts);
+    assert.ok(await p3.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `sin desbordar (${label})`);
+    await p3.locator('#netView svg.pert text.elabel', { hasText: /^F2$/ }).click();
+    assert.match(await p3.locator('#selInfo').innerText(), /Shared sets/);
+    await axe(p3, `lado a lado ${label} (EN)`);
+    await close(p3);
+  }
+});
+
 // ---------- AC8 y AC19: enlace y recarga ----------
 
 check('AC8 · el enlace copiado reproduce el mismo estado en otro navegador', async () => {
