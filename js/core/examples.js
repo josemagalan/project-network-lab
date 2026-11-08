@@ -1,5 +1,7 @@
 /*
- * core/examples — los seis ejemplos de referencia de la fase 1 (spec f1-cpm-roy, tabla de referencias).
+ * core/examples — los seis ejemplos de referencia de la fase 1 (spec f1-cpm-roy, tabla de referencias) y los
+ * ejercicios 1, 2, 3 y 7 de la fase 2a (spec f2a-pert-ficticias), ocultos hasta activar M2. expected.aoa
+ * guarda las ficticias, los sucesos y los tiempos de sucesos de la red PERT dibujada por el autor.
  * Cada ejemplo trae sus filas tal como aparecen en la fuente (mode 'pred' o 'succ'), nombres en ES/EN,
  * la fuente citada y los valores ESPERADOS copiados de la fuente (no calculados aquí): las pruebas de
  * core/cpm comparan contra ellos (AC1). Solo se incluyen los valores que la fuente da explícitamente.
@@ -30,6 +32,8 @@
         IF: map('A B C D E F G H I J K', [1, 0, 1, 4, 0, 1, 0, 4, 0, 0, 0]),
         FF: map('A B C D E F G H I J K', [1, 0, 1, 4, 0, 1, 2, 4, 0, 0, 0]),
         critical: ['B', 'E', 'I', 'J', 'K'],
+        aoa: { dummies: 3, events: 9,   // grafo PERT del Tema 6a (F2a)
+          eventTimes: [[0, 0], [3, 3], [3, 3], [3, 5], [7, 7], [7, 7], [9, 9], [12, 12], [13, 13]] },
       },
     },
     {
@@ -127,12 +131,87 @@
         duration: 24,
         TF: map('A B C E F H I K L M', [0, 1, 1, 0, 3, 0, 1, 6, 0, 6]),
         critical: ['A', 'E', 'H', 'J', 'L'],   // camino crítico del enunciado (spec, tabla de referencias)
+        aoa: { dummies: 3, events: 10,   // grafo PERT del Tema 6a (F2a)
+          eventTimes: [[0, 0], [5, 5], [5, 5], [8, 8], [8, 8], [12, 12], [13, 14], [13, 19], [18, 18], [24, 24]] },
       },
+    },
+    {
+      id: 'ej7',
+      hidden: true,   // F2a: se muestra al activar M2 (T022, P9)
+      title: { es: 'Ejercicio 7', en: 'Exercise 7' },
+      source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), hoja de ejercicios del Tema 6, ejercicio 7, y su solución en «Ejercicios CPM PERT»',
+                en: 'J. M. Galán, Project Management (University of Burgos), Unit 6 exercise sheet, exercise 7, and its solution in «Ejercicios CPM PERT»' },
+      unit: { es: 'días', en: 'days' },
+      mode: 'succ',   // «A < D, H; B < C, D; E < G, H, I; C, D, H < J»
+      rows: [
+        r('A', 10, 'D, H'), r('B', 8, 'C, D'), r('C', 5, 'J'), r('D', 4, 'J'), r('E', 12, 'G, H, I'),
+        r('G', 6, ''), r('H', 7, 'J'), r('I', 9, ''), r('J', 8, ''),
+      ],
+      expected: {   // solución del autor (red PERT dibujada a mano)
+        duration: 27,
+        aoa: { dummies: 5, events: 9,
+          eventTimes: [[0, 0], [8, 14], [10, 12], [10, 15], [12, 12], [12, 12], [19, 19], [21, 27], [27, 27]] },
+      },
+    },
+    {
+      id: 'ej1',
+      hidden: true,
+      structureOnly: true,
+      title: { es: 'Nave almacén (Ejercicio 1)', en: 'Warehouse (Exercise 1)' },
+      source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), Tema 6a y hoja de ejercicios del Tema 6, ejercicio 1',
+                en: 'J. M. Galán, Project Management (University of Burgos), Unit 6a and Unit 6 exercise sheet, exercise 1' },
+      unit: { es: '—', en: '—' },
+      mode: 'succ',   // «A precede a D, E y G. B precede a D. C precede a H e I. D precede a H. G y H preceden a J.»
+      rows: [
+        r('A', '', 'D, E, G', 'Contratar personal de obra', 'Hire site staff'),
+        r('B', '', 'D', 'Allanar el solar', 'Level the site'),
+        r('C', '', 'H, I', 'Adquirir materiales de construcción', 'Buy building materials'),
+        r('D', '', 'H', 'Excavar cimientos', 'Dig the foundations'),
+        r('E', '', '', 'Pavimentación de los accesos', 'Pave the access roads'),
+        r('G', '', 'J', 'Contratar trabajos de carpintería', 'Hire carpentry work'),
+        r('H', '', 'J', 'Cimentación y estructura', 'Foundations and structure'),
+        r('I', '', '', 'Pagar materiales', 'Pay for materials'),
+        r('J', '', '', 'Cerramiento de la nave', 'Enclose the warehouse'),
+      ],
+      expected: { aoa: { dummies: 2, events: 7 } },   // grafo PERT del Tema 6a
+    },
+    {
+      id: 'ej2',
+      hidden: true,
+      structureOnly: true,
+      title: { es: 'Ejercicio 2', en: 'Exercise 2' },
+      source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), hoja de ejercicios del Tema 6, ejercicio 2, y su solución en «Ejercicios CPM PERT»',
+                en: 'J. M. Galán, Project Management (University of Burgos), Unit 6 exercise sheet, exercise 2, and its solution in «Ejercicios CPM PERT»' },
+      unit: { es: '—', en: '—' },
+      mode: 'succ',   // «A < D, E; B, E < F, G, H; C < I, K; D < G, H; F, H, I < J; J < L, M; K < M»
+      rows: [
+        r('A', '', 'D, E'), r('B', '', 'F, G, H'), r('C', '', 'I, K'), r('D', '', 'G, H'), r('E', '', 'F, G, H'),
+        r('F', '', 'J'), r('G', '', ''), r('H', '', 'J'), r('I', '', 'J'), r('J', '', 'L, M'), r('K', '', 'M'),
+        r('L', '', ''), r('M', '', ''),
+      ],
+      expected: { aoa: { dummies: 2, events: 9 } },
+    },
+    {
+      id: 'ej3',
+      hidden: true,
+      structureOnly: true,
+      title: { es: 'Ejercicio 3', en: 'Exercise 3' },
+      source: { es: 'J. M. Galán, Gestión de Proyectos (UBU), hoja de ejercicios del Tema 6, ejercicio 3, y su solución en «Ejercicios CPM PERT»',
+                en: 'J. M. Galán, Project Management (University of Burgos), Unit 6 exercise sheet, exercise 3, and its solution in «Ejercicios CPM PERT»' },
+      unit: { es: '—', en: '—' },
+      mode: 'succ',   // «A < D, E, F; B < D, E, F, G, H, I; C < H, I; D < L, M; E < L; F, G, H < J; I < J, K; J, K, L < N»
+      rows: [
+        r('A', '', 'D, E, F'), r('B', '', 'D, E, F, G, H, I'), r('C', '', 'H, I'), r('D', '', 'L, M'), r('E', '', 'L'),
+        r('F', '', 'J'), r('G', '', 'J'), r('H', '', 'J'), r('I', '', 'J, K'), r('J', '', 'N'), r('K', '', 'N'),
+        r('L', '', 'N'), r('M', '', ''), r('N', '', ''),
+      ],
+      expected: { aoa: { dummies: 4, events: 10 } },
     },
   ];
 
   const byId = Object.fromEntries(list.map((e) => [e.id, e]));
-  const api = { list: () => list, get: (id) => byId[id] || null };
+  // list() da los ejemplos visibles; list({ all: true }), también los ocultos (F2a, P9).
+  const api = { list: (opts) => (opts && opts.all ? list : list.filter((e) => !e.hidden)), get: (id) => byId[id] || null };
   root.PNL = root.PNL || {};
   root.PNL.examples = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

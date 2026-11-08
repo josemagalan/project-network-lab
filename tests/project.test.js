@@ -152,3 +152,21 @@ test('AC13: texto pegado separado por punto y coma, con tres columnas (sin nombr
     { id: 'B', name: '', duration: '3', links: 'A' },
   ]);
 });
+
+// ---------- Fase 2a (T003): tablas solo de estructura ----------
+
+test('structureOnly: una duración vacía es válida y queda como null; sin la opción sigue siendo un error', () => {
+  const rows = [{ id: 'A', duration: '', links: '' }, { id: 'B', duration: '', links: 'A' }];
+  const withOpt = P.parse(rows, 'pred', { structureOnly: true });
+  assert.deepEqual(withOpt.report, { errors: [], warnings: [] });
+  assert.deepEqual(withOpt.project.activities.map((a) => a.d), [null, null]);
+  const without = P.parse(rows, 'pred');
+  assert.equal(without.project, null);
+  assert.deepEqual(without.report.errors.map((e) => e.code), ['badDuration', 'badDuration']);
+});
+
+test('structureOnly: una duración escrita mal sigue siendo un error', () => {
+  const { project, report } = P.parse([{ id: 'A', duration: 'x', links: '' }], 'pred', { structureOnly: true });
+  assert.equal(project, null);
+  assert.deepEqual(report.errors.map((e) => e.code), ['badDuration']);
+});

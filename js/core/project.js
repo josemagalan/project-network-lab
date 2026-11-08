@@ -26,7 +26,9 @@
     return Number.isFinite(n) && n >= 0 ? n : null;
   }
 
-  function parse(rows, mode) {
+  // opts.structureOnly: tabla solo de estructura (ejercicios sin duraciones, F2a); una duración vacía vale null.
+  function parse(rows, mode, opts) {
+    const structureOnly = !!(opts && opts.structureOnly);
     const errors = [];
     const warnings = [];
     const items = [];
@@ -39,8 +41,9 @@
       if (RESERVED.has(id)) { errors.push({ code: 'reservedId', row: i, ids: [id] }); return; }
       if (seen.has(id)) { errors.push({ code: 'duplicateId', row: i, ids: [id] }); return; }
       seen.add(id);
-      const d = parseDuration(r.duration);
-      if (d === null) errors.push({ code: 'badDuration', row: i, ids: [id] });
+      const blank = !str(r.duration).trim();
+      const d = structureOnly && blank ? null : parseDuration(r.duration);
+      if (d === null && !(structureOnly && blank)) errors.push({ code: 'badDuration', row: i, ids: [id] });
       items.push({ row: i, id, name: r.name == null ? '' : r.name, d, links: uniq(splitLinks(r.links)) });
     });
     if (items.length > MAX_ACTIVITIES) errors.push({ code: 'tooMany', ids: [] });
