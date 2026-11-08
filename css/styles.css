@@ -188,6 +188,14 @@ pre.code span.on { background: color-mix(in srgb, var(--accent) 22%, transparent
 :root[data-theme="dark"] { --select: #f2b46d; --select-soft: #3a2c1c; }
 .net .edge.dummy { stroke-dasharray: 6 4; }
 .net .edge.rule, .net .edge.sel { stroke: var(--select); stroke-width: 3.2; }
+.scheme-box { margin: 8px 0 4px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+.scheme-box figcaption { flex-basis: 100%; }
+.scheme-pic { flex: 1 1 240px; max-width: 340px; }
+.net.scheme .edge.rule { stroke-width: 2.2; }
+table.scheme-tab { width: auto; }
+table.scheme-tab th { text-align: left; padding-right: 12px; }
+table.scheme-tab td { text-align: center; padding: 4px 12px; }
+table.scheme-tab .hl { color: var(--select); }
 .net .mk-s, .net .mk-r { fill: var(--select); }
 .net .elabel { font-size: 12px; font-weight: 600; fill: var(--ink); }
 .net .elabel.dummy { font-style: italic; fill: var(--muted); }

@@ -135,9 +135,9 @@
   Object.assign(topics, {
     succTable: {
       es: ['En la red PERT (actividad en arco) cada actividad es una flecha y los nodos son sucesos: instantes en que terminan unas actividades y pueden empezar otras. Para dibujarla conviene partir de la tabla de posteriores: qué actividades pueden empezar cuando termina cada una.',
-        'Las actividades con el mismo conjunto de posteriores terminan en el mismo suceso. Cuando los conjuntos no coinciden pero se tocan hacen falta actividades ficticias: flechas de duración 0 que solo transmiten precedencias. Las reglas de los conjuntos dicen dónde.'],
+        'Las actividades con el mismo conjunto de posteriores terminan en el mismo suceso. Cuando los conjuntos no coinciden pero se tocan hacen falta actividades ficticias: flechas de duración 0 que solo transmiten precedencias. Las reglas de los conjuntos (iguales, contenidos y compartidos), enunciadas por José Manuel Galán (Universidad de Burgos), dicen dónde.'],
       en: ['In an activity-on-arrow (PERT) network each activity is an arrow and the nodes are events: moments when some activities finish and others can start. To draw it, it helps to start from the successor table: which activities can start when each one finishes.',
-        'Activities with the same successor set end at the same event. When the sets differ but touch, dummy activities are needed: arrows that take 0 time and only carry precedences. The set rules say where.'],
+        'Activities with the same successor set end at the same event. When the sets differ but touch, dummy activities are needed: arrows that take 0 time and only carry precedences. The set rules (equal, contained and shared sets), stated by José Manuel Galán (University of Burgos), say where.'],
     },
     ruleEqual: {
       es: ['Dos actividades con las mismas precedentes y los mismos posteriores irían del mismo suceso al mismo suceso: serían dos flechas paralelas, y el par de sucesos (i, j) ya no identificaría cada actividad. Se resuelve con una ficticia de identidad: una de las dos termina en un suceso propio, unido al común por una ficticia.',
@@ -191,6 +191,38 @@
     },
   });
 
+  // Esquemas de ejemplo de cada regla, copiados de los apuntes del autor (Tema 6a, diapositiva 15): solo la parte de
+  // la red que explica la regla, con flechas abiertas en los extremos. Sucesos: número → [x, y]; un extremo [x, y] es
+  // una flecha abierta. arcs y dummies: [nombre, desde, hasta]. En la tabla, hl marca lo que comparten las columnas.
+  // La descripción en texto de cada esquema está en i18n (learn.schemeAlt).
+  const schemes = {
+    ruleEqual: {
+      w: 280, h: 116,
+      events: { 3: [120, 84], 4: [120, 30], 5: [210, 57] },
+      arcs: [['C', [36, 84], 3], ['D', 3, 5], ['E', 4, 5], ['H', 5, [270, 57]]],
+      dummies: [['F1', 3, 4]],
+      table: { pre: ['C', 'C'], act: ['D', 'E'], post: [['H'], ['H']], hl: ['C', 'H'] },
+    },
+    ruleContained: {
+      w: 260, h: 132,
+      events: { 3: [120, 32], 4: [120, 100] },
+      arcs: [['E', [36, 32], 3], ['F', [36, 100], 4], ['A', 3, [220, 32]], ['B', 4, [215, 76]], ['C', 4, [215, 124]]],
+      dummies: [['F1', 3, 4]],
+      table: { act: ['E', 'F'], post: [['A', 'B', 'C'], ['B', 'C']], hl: ['B', 'C'] },
+    },
+    ruleShared: {
+      w: 330, h: 140,
+      events: { 3: [110, 36], 4: [110, 104], 5: [210, 70] },
+      arcs: [['E', [30, 36], 3], ['F', [30, 104], 4], ['A', 3, [175, 8]], ['D', 4, [175, 132]], ['B', 5, [310, 40]], ['C', 5, [310, 100]]],
+      dummies: [['F1', 3, 5], ['F2', 4, 5]],
+      table: { act: ['E', 'F'], post: [['A', 'B', 'C'], ['D', 'B', 'C']], hl: ['B', 'C'] },
+    },
+  };
+  const schemeCredit = {
+    es: 'Esquema de los apuntes de José Manuel Galán (Universidad de Burgos), que enunció las reglas de los conjuntos.',
+    en: 'Diagram from the course notes of José Manuel Galán (University of Burgos), who stated the set rules.',
+  };
+
   const history = {
     es: 'CPM nació en 1957–1958 en DuPont y Remington Rand (Kelley y Walker); PERT, en 1958, en la oficina de proyectos especiales de la Marina de EE. UU. para el programa de submarinos Polaris. Las dos usaban redes con las actividades en las flechas. Por las mismas fechas, en 1958, Bernard Roy desarrolló en la SEMA (París) el método de los potenciales Metra (MPM), con las actividades en los nodos: es la representación que hoy usan casi todos los programas de gestión de proyectos.',
     en: 'CPM was born in 1957–1958 at DuPont and Remington Rand (Kelley and Walker); PERT, in 1958, at the US Navy Special Projects Office for the Polaris submarine programme. Both used networks with the activities on the arrows. Around the same time, in 1958, Bernard Roy developed the Metra potential method (MPM) at SEMA in Paris, with the activities on the nodes: the representation almost all project management software uses today.',
@@ -213,7 +245,7 @@
     return step ? (step.kind === 'table' ? 'table' : step.kind) : 'table';
   }
 
-  const api = { pseudo, pseudoPert, pseudoLines, topics, history, refs, topicFor };
+  const api = { pseudo, pseudoPert, pseudoLines, topics, schemes, schemeCredit, history, refs, topicFor };
   root.PNL = root.PNL || {};
   root.PNL.learn = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

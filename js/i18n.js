@@ -57,7 +57,14 @@
         button: '¿Y si…?', title: '¿Y si cambia una duración?', activity: 'Actividad', duration: 'Nueva duración',
         apply: 'Aplicar', reset: 'Volver a los datos originales', note: 'Duración del proyecto: {d} {unit} (antes {d0}).',
       },
-      learn: { button: 'Aprende más', close: 'Cerrar', refs: 'Referencias', pseudo: 'Pseudocódigo', history: 'Un poco de historia' },
+      learn: { button: 'Aprende más', close: 'Cerrar', refs: 'Referencias', pseudo: 'Pseudocódigo', history: 'Un poco de historia',
+        example: 'Un ejemplo', schemeTable: 'Tabla del ejemplo', schemePre: 'Actividad precedente', schemeAct: 'Actividad', schemePost: 'Actividad posterior',
+        schemeAlt: {
+          ruleEqual: 'C llega al suceso 3, del que sale D hacia el 5. E sale del suceso 4, unido al 3 por la ficticia F1, y también llega al 5. Del 5 sale H.',
+          ruleContained: 'E llega al suceso 3, del que sale A; F llega al 4, del que salen B y C. La ficticia F1 va del 3 al 4: B y C esperan también a E.',
+          ruleShared: 'E llega al suceso 3, del que sale A; F llega al 4, del que sale D. Las ficticias F1 y F2 van del 3 y del 4 al suceso 5, del que salen B y C.',
+        },
+      },
       legend: {
         active: 'Actividad del paso', chosen: 'Decide el máximo o el mínimo', compared: 'Se compara', critical: 'Crítica',
         noncritical: 'No crítica', float: 'Holgura total', dummy: 'Ficticia', rule: 'Ficticia que crea la regla',
@@ -213,7 +220,14 @@
         button: 'What if…?', title: 'What if a duration changes?', activity: 'Activity', duration: 'New duration',
         apply: 'Apply', reset: 'Back to the original data', note: 'Project duration: {d} {unit} (was {d0}).',
       },
-      learn: { button: 'Learn more', close: 'Close', refs: 'References', pseudo: 'Pseudocode', history: 'A bit of history' },
+      learn: { button: 'Learn more', close: 'Close', refs: 'References', pseudo: 'Pseudocode', history: 'A bit of history',
+        example: 'An example', schemeTable: 'Table of the example', schemePre: 'Predecessor', schemeAct: 'Activity', schemePost: 'Successor',
+        schemeAlt: {
+          ruleEqual: 'C reaches event 3, from which D goes to event 5. E leaves event 4, joined to 3 by the dummy F1, and also reaches event 5. H leaves event 5.',
+          ruleContained: 'E reaches event 3, from which A leaves; F reaches event 4, from which B and C leave. The dummy F1 runs from 3 to 4: B and C also wait for E.',
+          ruleShared: 'E reaches event 3, from which A leaves; F reaches event 4, from which D leaves. The dummies F1 and F2 run from 3 and 4 to event 5, from which B and C leave.',
+        },
+      },
       legend: {
         active: 'Activity of this step', chosen: 'Decides the maximum or minimum', compared: 'Compared', critical: 'Critical',
         noncritical: 'Not critical', float: 'Total float', dummy: 'Dummy', rule: 'Dummy created by the rule',

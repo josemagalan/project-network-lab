@@ -122,6 +122,40 @@
     return { width, height };
   }
 
+  // Esquema de ejemplo de una regla («Aprende más»): learn.schemes, copia de los apuntes del autor. Sin numeración
+  // calculada: los números son los de la diapositiva. Los marcadores llevan id propio para no repetir los de la red.
+  function scheme(container, sc, lang, key) {
+    const d3 = root.d3;
+    const R = 15;
+    const sel = d3.select(container);
+    sel.selectAll('*').remove();
+    const svg = sel.append('svg').attr('class', 'net pert scheme').attr('width', '100%').attr('style', `max-width:${sc.w}px`)
+      .attr('viewBox', `0 0 ${sc.w} ${sc.h}`).attr('role', 'img').attr('aria-label', G.i18n.t(lang, `learn.schemeAlt.${key}`));
+    const defs = svg.append('defs');
+    for (const [id, c] of [['pnl-sk', 'mk'], ['pnl-sk-r', 'mk-r']]) {
+      defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
+        .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto').append('path').attr('d', 'M0 0L10 5L0 10z').attr('class', c);
+    }
+    const pt = (x) => (Array.isArray(x) ? { x: x[0], y: x[1], open: true } : { x: sc.events[x][0], y: sc.events[x][1], open: false });
+    const clip = (p, q) => { if (p.open) return p; const dx = q.x - p.x; const dy = q.y - p.y; const L = Math.hypot(dx, dy) || 1; return { x: p.x + dx * (R + 1) / L, y: p.y + dy * (R + 1) / L }; };
+    const draw = ([label, from, to], dummy) => {
+      const a = pt(from); const b = pt(to);
+      const s0 = clip(a, b); const f = clip(b, a);
+      svg.append('path').attr('d', `M${s0.x} ${s0.y} L${f.x} ${f.y}`).attr('class', `edge${dummy ? ' dummy rule' : ''}`).attr('marker-end', `url(#${dummy ? 'pnl-sk-r' : 'pnl-sk'})`);
+      const vertical = Math.abs(a.x - b.x) < 1;
+      const mx = (s0.x + f.x) / 2; const my = (s0.y + f.y) / 2;
+      svg.append('text').attr('class', `elabel${dummy ? ' dummy rule' : ''}`).attr('x', mx + (vertical ? 8 : 0)).attr('y', my + (vertical ? 4 : -6))
+        .attr('text-anchor', vertical ? 'start' : 'middle').text(label);
+    };
+    sc.arcs.forEach((e) => draw(e, false));
+    sc.dummies.forEach((e) => draw(e, true));
+    for (const [n, [x, y]] of Object.entries(sc.events)) {
+      const g = svg.append('g').attr('class', 'ev').attr('transform', `translate(${x},${y})`);
+      g.append('circle').attr('r', R);
+      g.append('text').attr('class', 'nid').attr('y', 5).text(n);
+    }
+  }
+
   // Papel de cada actividad en el paso de regla (para marcar la tabla de posteriores).
   function roles(ctx) {
     const { net, step } = ctx;
@@ -178,7 +212,7 @@
     ]));
   }
 
-  const api = { render, succTable, arcTable, roles, classes, GEO };
+  const api = { render, scheme, succTable, arcTable, roles, classes, GEO };
   root.PNL = root.PNL || {};
   root.PNL.pertView = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

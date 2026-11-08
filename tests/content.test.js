@@ -240,3 +240,22 @@ test('«Aprende más» de la red PERT: cada paso tiene tema y líneas válidas d
   assert.equal(Lrn.topicFor({ kind: 'critical' }, 'net'), 'critical');
   assert.deepEqual(Lrn.pseudoLines({ kind: 'critical' }), [11]);
 });
+
+test('«Aprende más» de cada regla: esquema de ejemplo de los apuntes del autor, con su tabla y descripción en ES y EN', () => {
+  const want = { ruleEqual: 1, ruleContained: 1, ruleShared: 2 };
+  for (const [k, nd] of Object.entries(want)) {
+    const sc = Lrn.schemes[k];
+    assert.ok(sc, k);
+    for (const lang of ['es', 'en']) assert.ok(require('../js/i18n.js').dict[lang].learn.schemeAlt[k], `${lang}: descripción del esquema ${k}`);
+    assert.equal(sc.dummies.length, nd, `${k}: ficticias del esquema`);
+    const ev = (x) => Array.isArray(x) || Object.prototype.hasOwnProperty.call(sc.events, x);
+    for (const [, a, b] of [...sc.arcs, ...sc.dummies]) assert.ok(ev(a) && ev(b), `${k}: arco con un suceso que no existe`);
+    assert.equal(sc.table.act.length, sc.table.post.length, k);
+  }
+  assert.equal(Lrn.schemes.ruleEqual.table.pre.length, 2);
+  // Autoría de las reglas (el autor, 2026-11-08): las enunció José Manuel Galán.
+  for (const lang of ['es', 'en']) {
+    assert.match(Lrn.topics.succTable[lang].join(' '), /José Manuel Galán/);
+    assert.match(Lrn.schemeCredit[lang], /José Manuel Galán/);
+  }
+});

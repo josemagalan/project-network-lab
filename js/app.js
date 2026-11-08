@@ -332,6 +332,7 @@
     const body = clear($('learnBody'));
     $('learnTitle').textContent = NR.narrate(step, { lang: lang(), nota: state.nota, solution: model.solution, project: model.project, unit: model.unit, net: model.net }).title;
     LR.topics[topic][lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
+    if (LR.schemes[topic]) renderScheme(body, LR.schemes[topic], topic);
     if (['table', 'build', 'succTable'].includes(topic)) { body.appendChild(h('h3', {}, [t('learn.history')])); body.appendChild(h('p', {}, [LR.history[lang()]])); }
     body.appendChild(h('h3', {}, [t('learn.pseudo')]));
     const on = new Set(LR.pseudoLines(step, state.graph));
@@ -341,6 +342,25 @@
     body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
     const dlg = $('learnDialog');
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+
+  // Esquema de ejemplo de una regla de los conjuntos: tabla horizontal y dibujo, como en los apuntes del autor.
+  function renderScheme(body, sc, key) {
+    const hl = new Set(sc.table.hl);
+    const cell = (xs) => h('td', {}, xs.flatMap((x, i) => [i ? ', ' : null, hl.has(x) ? h('strong', { class: 'hl' }, [x]) : x]));
+    const row = (key, cells, head) => h('tr', {}, [h('th', { scope: 'row' }, [t(key)]), ...cells.map((c) => (head ? h('td', {}, [h('strong', {}, [c])]) : cell(c)))]);
+    const rows = [];
+    if (sc.table.pre) rows.push(row('learn.schemePre', sc.table.pre.map((x) => [x])));
+    rows.push(row('learn.schemeAct', sc.table.act, true));
+    rows.push(row('learn.schemePost', sc.table.post));
+    const pic = h('div', { class: 'scheme-pic' });
+    body.appendChild(h('h3', {}, [t('learn.example')]));
+    body.appendChild(h('figure', { class: 'scheme-box' }, [
+      h('table', { class: 'data scheme-tab' }, [h('caption', { class: 'sr-only' }, [t('learn.schemeTable')]), h('tbody', {}, rows)]),
+      pic,
+      h('figcaption', { class: 'muted small' }, [LR.schemeCredit[lang()]]),
+    ]));
+    G.pertView.scheme(pic, sc, lang(), key);
   }
 
   // ---------- Reproductor y teclado ----------
