@@ -16,7 +16,8 @@
     return /^-?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN;
   }
 
-  const key = (rv) => `${rv.act}.${rv.field}`;
+  // Valores de actividad (A.ES) o de suceso de la red PERT (3.TE): ningún campo se repite entre los dos.
+  const key = (rv) => `${rv.act != null ? rv.act : rv.event}.${rv.field}`;
 
   function check(step, answers) {
     const out = new Map();

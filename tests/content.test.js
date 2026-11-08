@@ -134,3 +134,109 @@ test('cada paso del Ejercicio 6 resalta líneas válidas del pseudocódigo', () 
     assert.ok(Lrn.topics[Lrn.topicFor(st, 'net')], st.kind);
   }
 });
+
+// ---------- Red PERT (F2a, T016): narración y «Aprende más» de cada paso de la traza PERT ----------
+const A = require('../js/core/aoa.js');
+
+const pertCtx = (id, lang, nota) => {
+  const ex = E.get(id);
+  const project = P.parse(ex.rows, ex.mode, { structureOnly: !!ex.structureOnly }).project;
+  const solution = ex.structureOnly ? null : C.solve(project);
+  const net = A.build(project, { solution });
+  return { lang, nota, project, solution, net, unit: ex.unit[lang] };
+};
+
+test('AC5: cada paso PERT de los siete ejercicios tiene título y texto en ES y EN, sin claves sin traducir', () => {
+  for (const ex of E.list({ all: true })) {
+    for (const lang of ['es', 'en']) {
+      for (const nota of ['en', 'es']) {
+        const ctx = pertCtx(ex.id, lang, nota);
+        for (const st of ctx.net.trace) {
+          for (const hide of [false, true]) {
+            const n = N.narrate(st, Object.assign({}, ctx, { hide }));
+            assert.ok(n.title && n.text, `${ex.id}/${lang}/${st.kind}/${hide}`);
+            for (const s of [n.title, n.text, ...n.lines]) assert.doesNotMatch(s, /\b(narr|steps|pertNarr|pertSteps|floatNarr|formula|pert)\.|\{\w+\}|undefined|NaN/, `${ex.id}/${lang}: ${s}`);
+          }
+        }
+      }
+    }
+  }
+});
+
+test('AC5: el paso de cada regla nombra las actividades que la cumplen y las ficticias que crea, o dice que no se aplica', () => {
+  const ctx = pertCtx('ej6', 'es', 'en');
+  const by = (k) => N.narrate(ctx.net.trace.find((s) => s.kind === k), ctx);
+  const cont = by('ruleContained');
+  assert.equal(cont.title, 'Regla de los conjuntos contenidos');
+  for (const x of ['A', 'B', 'C', 'E', 'F', 'G', 'F1', 'F2', 'F3']) assert.match(cont.text, new RegExp(`\\b${x}\\b`), cont.text);
+  assert.match(by('ruleEqual').text, /no se aplica/);
+  assert.match(by('ruleShared').text, /no se aplica/);
+  const en = pertCtx('ej6', 'en', 'en');
+  assert.match(N.narrate(en.net.trace.find((s) => s.kind === 'ruleEqual'), en).text, /does not apply/);
+  // Ejercicio 7: la ficticia de identidad la lleva I (paralela a G).
+  const e7 = pertCtx('ej7', 'es', 'en');
+  const eq = N.narrate(e7.net.trace.find((s) => s.kind === 'ruleEqual'), e7);
+  assert.match(eq.text, /\bG\b/);
+  assert.match(eq.text, /\bI\b/);
+  assert.doesNotMatch(eq.text, /no se aplica/);
+});
+
+test('AC5: tiempos de los sucesos del Ejercicio 6 con su fórmula, en las dos notaciones', () => {
+  const ctx = pertCtx('ej6', 'es', 'en');
+  const ev = (k, n) => ctx.net.trace.find((s) => s.kind === k && s.event === n);
+  const f3 = N.narrate(ev('eventForward', 3), ctx);
+  assert.equal(f3.title, 'Tiempos tempranos · suceso 3');
+  assert.match(f3.text, /F1/);
+  assert.deepEqual(f3.lines, ['TE(3) = máx { TE(1) + d(A), TE(2) + d(F1) } = máx { 2, 3 } = 3']);
+  assert.deepEqual(N.narrate(ev('eventForward', 2), ctx).lines, ['TE(2) = TE(1) + d(B) = 3']);
+  assert.deepEqual(N.narrate(ev('eventForward', 1), ctx).lines, ['TE(1) = 0']);
+  assert.deepEqual(N.narrate(ev('eventBackward', 5), ctx).lines, ['TL(5) = mín { TL(8) − d(H), TL(6) − d(F3) } = mín { 11, 7 } = 7']);
+  assert.deepEqual(N.narrate(ev('eventBackward', 9), ctx).lines, ['TL(9) = TE(9) = 13']);
+  assert.match(N.narrate(ev('eventForward', 9), ctx).text, /13 días/);
+  const es = pertCtx('ej6', 'es', 'es');
+  assert.deepEqual(N.narrate(es.net.trace.find((s) => s.kind === 'eventForward' && s.event === 3), es).lines, ['tᵢ(3) = máx { tᵢ(1) + d(A), tᵢ(2) + d(F1) } = máx { 2, 3 } = 3']);
+  const en = pertCtx('ej6', 'en', 'en');
+  assert.equal(N.narrate(en.net.trace.find((s) => s.kind === 'eventBackward' && s.event === 4), en).title, 'Late times · event 4');
+});
+
+test('AC5: un ejemplo sin duraciones termina en la numeración y lo dice', () => {
+  for (const lang of ['es', 'en']) {
+    const ctx = pertCtx('ej1', lang, 'en');
+    const last = ctx.net.trace[ctx.net.trace.length - 1];
+    assert.equal(last.kind, 'number');
+    assert.match(N.narrate(last, ctx).text, lang === 'es' ? /sin duraciones|no tiene duraciones/ : /no durations/);
+  }
+});
+
+test('mientras se predice un suceso, la narración no dice qué arco manda ni el valor', () => {
+  for (const lang of ['es', 'en']) {
+    const ctx = pertCtx('ej6', lang, 'en');
+    for (const st of ctx.net.trace.filter((s) => (s.kind === 'eventForward' || s.kind === 'eventBackward') && s.formula.terms.length > 1)) {
+      const hidden = N.narrate(st, Object.assign({}, ctx, { hide: true }));
+      const tail = hidden.text.slice(hidden.text.lastIndexOf('.', hidden.text.length - 2) + 1);
+      for (const c of st.formula.chosen) assert.ok(!tail.includes(c), `${lang} ${st.kind} ${st.event}: ${hidden.text}`);
+      // El número del suceso puede coincidir con su tiempo: se quita antes de buscar el valor.
+      assert.ok(!` ${hidden.text.replace(/\b(suceso|event) \d+/g, '')} `.includes(` ${N.fmt(lang, st.reveals[0].value)} `), hidden.text);
+    }
+  }
+});
+
+test('«Aprende más» de la red PERT: cada paso tiene tema y líneas válidas de su pseudocódigo, en ES y EN', () => {
+  assert.equal(Lrn.pseudoPert.es.length, Lrn.pseudoPert.en.length);
+  for (const id of ['ej6', 'ej7', 'ej1']) {
+    const ctx = pertCtx(id, 'es', 'en');
+    for (const st of ctx.net.trace) {
+      const topic = Lrn.topicFor(st, 'net', 'aoa');
+      assert.ok(Lrn.topics[topic], `${id} ${st.kind} → ${topic}`);
+      assert.equal(Lrn.topics[topic].es.length, Lrn.topics[topic].en.length, topic);
+      const lines = Lrn.pseudoLines(st, 'aoa');
+      assert.ok(lines.length > 0 && lines.every((i) => i >= 0 && i < Lrn.pseudoPert.es.length), `${id} ${st.kind}`);
+    }
+  }
+  // La holgura libre de I en el Ejercicio 7 (spec, Behaviour) y la complejidad del mínimo.
+  assert.match(Lrn.topics.pertFloats.es.join(' '), /Ejercicio 7/);
+  assert.ok(Lrn.refs.some((r) => /Krishnamoorthy/.test(r)));
+  // La fase 1 no cambia: sin graph, los temas y líneas de ROY.
+  assert.equal(Lrn.topicFor({ kind: 'critical' }, 'net'), 'critical');
+  assert.deepEqual(Lrn.pseudoLines({ kind: 'critical' }), [11]);
+});

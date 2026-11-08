@@ -37,9 +37,15 @@
     <div id="stage" class="stage">
       <section class="card panel-main" id="panelMain">
         <div class="panel-head">
-          <div class="seg" role="group" id="viewGroup" data-i18n-label="view.label" aria-label="Vista">
-            <button type="button" id="btnNet" data-i18n="view.net">Red</button>
-            <button type="button" id="btnMatrix" data-i18n="view.matrix">Matriz</button>
+          <div class="row-wrap">
+            <div class="seg" role="group" id="graphGroup" data-i18n-label="view.graphLabel" aria-label="Tipo de red" hidden>
+              <button type="button" id="btnAon" data-i18n="view.graphAon">Red ROY</button>
+              <button type="button" id="btnAoa" data-i18n="view.graphAoa">Red PERT</button>
+            </div>
+            <div class="seg" role="group" id="viewGroup" data-i18n-label="view.label" aria-label="Vista">
+              <button type="button" id="btnNet" data-i18n="view.net">Red</button>
+              <button type="button" id="btnMatrix" data-i18n="view.matrix">Matriz</button>
+            </div>
           </div>
           <span id="unitLine" class="muted"></span>
         </div>
@@ -97,6 +103,8 @@
   <script src="js/core/project.js"></script>
   <script src="js/core/cpm.js"></script>
   <script src="js/core/matrix.js"></script>
+  <script src="js/core/aoa.js"></script>
+  <script src="js/core/mindummy.js"></script>
   <script src="js/core/urlstate.js"></script>
   <script src="js/core/examples.js"></script>
   <script src="js/store.js"></script>
@@ -107,6 +115,8 @@
   <script src="js/views/layout.js"></script>
   <script src="js/views/roy-view.js"></script>
   <script src="js/views/matrix-view.js"></script>
+  <script src="js/views/aoa-layout.js"></script>
+  <script src="js/views/pert-view.js"></script>
   <script src="js/views/results.js"></script>
   <script src="js/views/gantt.js"></script>
   <script src="js/editor.js"></script>

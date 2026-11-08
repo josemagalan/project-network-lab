@@ -50,3 +50,17 @@ test('t() sustituye parámetros y list() une con «y» o «and»', () => {
 test('una clave inexistente devuelve la propia clave (visible en las pruebas) y no rompe', () => {
   assert.equal(I.t('es', 'no.existe'), 'no.existe');
 });
+
+test('F2a: cada tipo de paso PERT tiene título y narración en los dos idiomas', () => {
+  for (const lang of I.languages) {
+    for (const k of ['succTable', 'ruleEqual', 'ruleContained', 'ruleShared', 'place', 'number', 'eventForward', 'eventBackward', 'eventSlack', 'floats']) {
+      assert.ok(I.dict[lang].pertSteps[k], `${lang}.pertSteps.${k}`);
+    }
+    for (const k of ['succTable', 'ruleEqual', 'ruleEqualNone', 'ruleContained', 'ruleContainedNone', 'ruleShared', 'ruleSharedNone', 'place', 'number', 'numberEnd',
+      'eventFirst', 'eventForward', 'eventForwardOne', 'eventForwardEnd', 'eventBackwardEnd', 'eventBackward', 'eventBackwardOne', 'eventSlack', 'floats']) {
+      assert.ok(I.dict[lang].pertNarr[k], `${lang}.pertNarr.${k}`);
+    }
+    assert.ok(I.dict[lang].app.structureOnlyWarning, `${lang}.app.structureOnlyWarning`);
+    assert.ok(I.dict[lang].view.graphAon && I.dict[lang].view.graphAoa, `${lang}.view.graph*`);
+  }
+});

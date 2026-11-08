@@ -77,3 +77,56 @@ test('AC8 y AC19: cualquier estado producido por el reductor sobrevive a la URL'
   s = S.reduce(s, { type: 'whatif', id: 'F', d: 4.5 }, 32);
   assert.deepEqual(U.decode(U.encode(s)).state, s);
 });
+
+// ---------- F2a (T016): red PERT, vista lado a lado, red mínima y cambio de red ----------
+
+test('F2a: la matriz solo existe en ROY y la vista lado a lado solo en PERT', () => {
+  let s = S.reduce(s0(), { type: 'set', key: 'view', value: 'side' }, 32);
+  assert.equal(s.view, 'net', 'side no vale con graph=aon');
+  s = S.reduce(s, { type: 'graph', value: 'aoa', step: 0 }, 32);
+  assert.equal(s.graph, 'aoa');
+  s = S.reduce(s, { type: 'set', key: 'view', value: 'side' }, 32);
+  assert.equal(s.view, 'side');
+  s = S.reduce(s, { type: 'set', key: 'view', value: 'matrix' }, 32);
+  assert.equal(s.view, 'side', 'matrix no vale con graph=aoa');
+  s = S.reduce(s, { type: 'set', key: 'min', value: 1 }, 32);
+  assert.equal(s.min, 1);
+  s = S.reduce(s, { type: 'set', key: 'min', value: 7 }, 32);
+  assert.equal(s.min, 1);
+  s = S.reduce(s, { type: 'set', key: 'graph', value: 'aon' }, 32);
+  assert.equal(s.graph, 'aoa', 'graph solo cambia con la acción graph, que fija el paso');
+});
+
+test('F2a: cambiar de red ajusta la vista y lleva al paso indicado', () => {
+  let s = S.reduce(s0(), { type: 'set', key: 'view', value: 'matrix' }, 32);
+  s = S.reduce(s, { type: 'go', n: 9 }, 32);
+  s = S.reduce(s, { type: 'graph', value: 'aoa', step: 0 }, 32);
+  assert.deepEqual([s.graph, s.view, s.step], ['aoa', 'net', 0]);
+  s = S.reduce(s, { type: 'set', key: 'view', value: 'side' }, 32);
+  s = S.reduce(s, { type: 'graph', value: 'aon', step: 30 }, 32);
+  assert.deepEqual([s.graph, s.view, s.step], ['aon', 'net', 30]);
+  assert.equal(S.reduce(s, { type: 'graph', value: 'xyz', step: 0 }, 32).graph, 'aon');
+});
+
+test('F2a: los ejemplos solo de estructura solo se abren en PERT', () => {
+  let s = S.reduce(s0(), { type: 'example', id: 'ej1' }, 32);
+  assert.deepEqual([s.ex, s.graph], ['ej1', 'aoa']);
+  s = S.reduce(s, { type: 'graph', value: 'aon', step: 0 }, 32);
+  assert.equal(s.graph, 'aoa', 'ej1 no tiene duraciones: no hay red ROY');
+  s = S.reduce(s, { type: 'example', id: 'ej6' }, 32);
+  assert.equal(s.graph, 'aoa', 'cambiar a un ejemplo con duraciones conserva la red');
+});
+
+test('F2a: paso equivalente al cambiar de red (plan §4)', () => {
+  const roy = ['table', 'build', 'forward', 'forward', 'backward', 'backward', 'float', 'critical', 'gantt'].map((kind) => ({ kind }));
+  const pert = ['succTable', 'ruleEqual', 'ruleContained', 'ruleShared', 'place', 'number', 'eventForward', 'eventBackward', 'eventSlack', 'floats', 'critical'].map((kind) => ({ kind }));
+  assert.equal(S.equivalentStep(roy, 0, pert), 0);
+  assert.equal(S.equivalentStep(roy, 1, pert), 0);
+  assert.equal(S.equivalentStep(roy, 3, pert), 0, 'a mitad de la pasada hacia delante');
+  assert.equal(S.equivalentStep(roy, 5, pert), 10, 'todos los tiempos revelados → camino crítico');
+  assert.equal(S.equivalentStep(roy, 8, pert), 10);
+  assert.equal(S.equivalentStep(pert, 3, roy), 0);
+  assert.equal(S.equivalentStep(pert, 6, roy), 0);
+  assert.equal(S.equivalentStep(pert, 7, roy), 7);
+  assert.equal(S.equivalentStep(pert, 10, roy), 7);
+});

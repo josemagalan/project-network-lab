@@ -37,9 +37,42 @@
     ],
   };
 
-  // Líneas del pseudocódigo que se resaltan en cada tipo de paso.
-  function pseudoLines(step) {
+  // Pseudocódigo de la red PERT (F2a): reglas de los conjuntos, numeración y cálculo sobre sucesos.
+  const pseudoPert = {
+    es: [
+      'post(a) ← posteriores inmediatos de a, sin precedencias redundantes',
+      'actividades con el mismo post(a) → terminan en el mismo suceso',
+      'si además tienen las mismas precedentes → ficticia de identidad     // iguales',
+      'si post(x) ⊂ post(y), sin otro conjunto entre ellos → ficticia de y a x   // contenidos',
+      'si post(x) y post(y) se solapan → suceso de la parte común y una ficticia desde cada uno   // compartidos',
+      'cada actividad sale del suceso del menor conjunto que la contiene y llega al de post(a)',
+      'numerar: un suceso recibe número cuando ya lo tienen todos los que le llegan',
+      'TE(1) ← 0;   TE(j) ← máx { TE(i) + d(i, j) : flechas que llegan a j }',
+      'TL(fin) ← TE(fin);   TL(i) ← mín { TL(j) − d(i, j) : flechas que salen de i }',
+      'holgura(i) ← TL(i) − TE(i)',
+      'holguras de actividad y camino crítico ← los de la red ROY',
+    ],
+    en: [
+      'post(a) ← immediate successors of a, without redundant precedences',
+      'activities with the same post(a) → end at the same event',
+      'if they also have the same predecessors → identity dummy     // equal',
+      'if post(x) ⊂ post(y), with no set in between → dummy from y to x   // contained',
+      'if post(x) and post(y) overlap → event for the common part and a dummy from each   // shared',
+      'each activity leaves the event of the smallest set containing it and reaches that of post(a)',
+      'numbering: an event gets its number once every event leading into it has one',
+      'TE(1) ← 0;   TE(j) ← max { TE(i) + d(i, j) : arrows into j }',
+      'TL(end) ← TE(end);   TL(i) ← min { TL(j) − d(i, j) : arrows out of i }',
+      'slack(i) ← TL(i) − TE(i)',
+      'activity floats and critical path ← those of the activity-on-node network',
+    ],
+  };
+  const PERT_LINES = { succTable: [0], ruleEqual: [1, 2], ruleContained: [3], ruleShared: [4], place: [5], number: [6],
+    eventForward: [7], eventBackward: [8], eventSlack: [9], floats: [10], critical: [10] };
+
+  // Líneas del pseudocódigo que se resaltan en cada tipo de paso (graph 'aoa': las del pseudocódigo PERT).
+  function pseudoLines(step, graph) {
     if (!step) return [];
+    if (graph === 'aoa') return PERT_LINES[step.kind] || [];
     switch (step.kind) {
       case 'table': case 'build': return [0];
       case 'forward': return step.act === '@E' ? [3] : (step.formula.terms.length === 1 && step.formula.terms[0].from === '@S' ? [1, 4] : [3, 4]);
@@ -98,6 +131,66 @@
     },
   };
 
+  // Temas de la red PERT (F2a). Holguras: spec, Behaviour («Holguras ROY y PERT»).
+  Object.assign(topics, {
+    succTable: {
+      es: ['En la red PERT (actividad en arco) cada actividad es una flecha y los nodos son sucesos: instantes en que terminan unas actividades y pueden empezar otras. Para dibujarla conviene partir de la tabla de posteriores: qué actividades pueden empezar cuando termina cada una.',
+        'Las actividades con el mismo conjunto de posteriores terminan en el mismo suceso. Cuando los conjuntos no coinciden pero se tocan hacen falta actividades ficticias: flechas de duración 0 que solo transmiten precedencias. Las reglas de los conjuntos dicen dónde.'],
+      en: ['In an activity-on-arrow (PERT) network each activity is an arrow and the nodes are events: moments when some activities finish and others can start. To draw it, it helps to start from the successor table: which activities can start when each one finishes.',
+        'Activities with the same successor set end at the same event. When the sets differ but touch, dummy activities are needed: arrows that take 0 time and only carry precedences. The set rules say where.'],
+    },
+    ruleEqual: {
+      es: ['Dos actividades con las mismas precedentes y los mismos posteriores irían del mismo suceso al mismo suceso: serían dos flechas paralelas, y el par de sucesos (i, j) ya no identificaría cada actividad. Se resuelve con una ficticia de identidad: una de las dos termina en un suceso propio, unido al común por una ficticia.',
+        'Aquí la ficticia la lleva la actividad que va después en orden alfabético. Es una convención: el número de ficticias es el mismo.'],
+      en: ['Two activities with the same predecessors and the same successors would run from the same event to the same event: they would be two parallel arrows, and the pair of events (i, j) would no longer identify each activity. An identity dummy solves it: one of the two ends at an event of its own, joined to the common one by a dummy.',
+        'Here the dummy goes on the activity that comes later in alphabetical order. It is a convention: the number of dummies is the same.'],
+    },
+    ruleContained: {
+      es: ['Si los posteriores de X están contenidos en los de Y, lo que sigue a X también sigue a Y, pero no al revés. X e Y terminan en sucesos distintos y una ficticia va del suceso de Y al de X: así, lo que sale del suceso de X espera también a Y. Es una ficticia de dependencia.',
+        'En una cadena de contenidos (X dentro de Y e Y dentro de Z) solo se unen los vecinos: Z con Y e Y con X. La ficticia de Z a X sobraría, porque ya está implicada por las otras dos.'],
+      en: ['If the successors of X are contained in those of Y, whatever follows X also follows Y, but not the other way round. X and Y end at different events and a dummy runs from the event of Y to that of X: so whatever leaves the event of X also waits for Y. It is a dependency dummy.',
+        'In a chain of contained sets (X inside Y and Y inside Z) only neighbours are joined: Z to Y and Y to X. A dummy from Z to X would be redundant, because the other two already imply it.'],
+    },
+    ruleShared: {
+      es: ['Si dos conjuntos de posteriores se solapan sin que uno contenga al otro, la parte común necesita su propio suceso: de él salen las actividades comunes, y a él llega una ficticia desde el suceso de cada conjunto.',
+        'Si esa parte común ya es el conjunto de otra actividad, o la parte común de otro par, se usa ese suceso. Las partes comunes entran a su vez en las reglas de contenidos y compartidos.'],
+      en: ['If two successor sets overlap without one containing the other, the common part needs an event of its own: the common activities leave from it, and a dummy reaches it from the event of each set.',
+        'If that common part is already the set of another activity, or the common part of another pair, that event is used. Common parts in turn take part in the contained-sets and shared-sets rules.'],
+    },
+    place: {
+      es: ['Cada conjunto de posteriores, y cada parte común, es un suceso; se añaden un suceso inicial y otro final. Cada actividad sale del suceso del conjunto más pequeño que la contiene, o del inicial si no tiene precedentes, y llega al suceso de sus posteriores, o al final si no tiene.',
+        'Las reglas dan siempre una red correcta, pero no siempre con el menor número de ficticias. Encontrar el mínimo es un problema NP-completo (Krishnamoorthy y Deo, 1979): no se conoce un método rápido para todos los casos. La herramienta lo calcula aparte, con una búsqueda exacta, y lo compara con las reglas.'],
+      en: ['Each successor set, and each common part, is an event; a start event and an end event are added. Each activity leaves the event of the smallest set that contains it, or the start event if it has no predecessors, and reaches the event of its successors, or the end event if it has none.',
+        'The rules always give a correct network, but not always one with the fewest dummies. Finding the minimum is an NP-complete problem (Krishnamoorthy and Deo, 1979): no fast method is known for every case. The tool works it out separately, with an exact search, and compares it with the rules.'],
+    },
+    number: {
+      es: ['Los sucesos se numeran de modo que cada flecha vaya de un número menor (i) a uno mayor (j). Basta con dar número a un suceso cuando ya lo tienen todos los sucesos de los que le llegan flechas.',
+        'Así cada actividad queda identificada por su par (i, j), y los cálculos se pueden hacer recorriendo los sucesos en orden de numeración.'],
+      en: ['Events are numbered so that every arrow goes from a lower number (i) to a higher one (j). It is enough to number an event once every event with an arrow into it already has a number.',
+        'That way each activity is identified by its pair (i, j), and the calculations can be done by visiting the events in numbering order.'],
+    },
+    eventForward: {
+      es: ['La pasada hacia delante calcula el tiempo temprano de cada suceso (TE): lo antes que puede ocurrir. Un suceso ocurre cuando han terminado todas las flechas que llegan a él, así que TE(j) es el máximo de TE(i) + d sobre esas flechas. Las ficticias cuentan con duración 0.',
+        'El tiempo temprano del suceso final es la duración del proyecto, la misma que en la red ROY.'],
+      en: ['The forward pass works out the early time of each event (TE): the earliest it can happen. An event happens once every arrow into it has finished, so TE(j) is the maximum of TE(i) + d over those arrows. Dummies count with 0 duration.',
+        'The early time of the end event is the project duration, the same as in the activity-on-node network.'],
+    },
+    eventBackward: {
+      es: ['La pasada hacia atrás calcula el tiempo tardío de cada suceso (TL): lo más tarde que puede ocurrir sin retrasar el proyecto. Se parte del suceso final, con TL = TE, y TL(i) es el mínimo de TL(j) − d sobre las flechas que salen de i.'],
+      en: ['The backward pass works out the late time of each event (TL): the latest it can happen without delaying the project. It starts from the end event, with TL = TE, and TL(i) is the minimum of TL(j) − d over the arrows leaving i.'],
+    },
+    eventSlack: {
+      es: ['La holgura de un suceso es TL − TE. Los sucesos con holgura 0 marcan el camino crítico, pero una actividad entre dos sucesos con holgura 0 no tiene por qué ser crítica: hay que mirar su holgura total.'],
+      en: ['The slack of an event is TL − TE. Events with zero slack mark the critical path, but an activity between two zero-slack events need not be critical: its total float is what counts.'],
+    },
+    pertFloats: {
+      es: ['Las holguras de una actividad son propiedades de la actividad, no del dibujo, así que son las mismas que en la red ROY.',
+        'Muchos manuales las calculan sobre los sucesos, con tⱼ − tᵢ − d y tⱼ − tᵢ* − d. Con ficticias de identidad, o con sucesos de los que solo salen ficticias, esas fórmulas pueden dar menos de lo que hay. En el Ejercicio 7, la holgura libre de I sale 0 sobre los sucesos y en realidad es 6.'],
+      en: ['The floats of an activity belong to the activity, not to the drawing, so they are the same as in the activity-on-node network.',
+        'Many textbooks compute them on the events, with tⱼ − tᵢ − d and tⱼ − tᵢ* − d. With identity dummies, or with events that only dummies leave, those formulas can give less than the real float. In Exercise 7, the free float of I comes out as 0 on the events and is actually 6.'],
+    },
+  });
+
   const history = {
     es: 'CPM nació en 1957–1958 en DuPont y Remington Rand (Kelley y Walker); PERT, en 1958, en la oficina de proyectos especiales de la Marina de EE. UU. para el programa de submarinos Polaris. Las dos usaban redes con las actividades en las flechas. Por las mismas fechas, en 1958, Bernard Roy desarrolló en la SEMA (París) el método de los potenciales Metra (MPM), con las actividades en los nodos: es la representación que hoy usan casi todos los programas de gestión de proyectos.',
     en: 'CPM was born in 1957–1958 at DuPont and Remington Rand (Kelley and Walker); PERT, in 1958, at the US Navy Special Projects Office for the Polaris submarine programme. Both used networks with the activities on the arrows. Around the same time, in 1958, Bernard Roy developed the Metra potential method (MPM) at SEMA in Paris, with the activities on the nodes: the representation almost all project management software uses today.',
@@ -108,17 +201,19 @@
     'Hillier, F. S., & Lieberman, G. J. (2015). Introduction to operations research (10th ed.). McGraw-Hill.',
     'Kelley, J. E., & Walker, M. R. (1959). Critical-path planning and scheduling. Proceedings of the Eastern Joint Computer Conference, 160–173.',
     'Klastorin, T. (2010). Gestión de proyectos. Profit Editorial.',
+    'Krishnamoorthy, M. S., & Deo, N. (1979). Complexity of the minimum-dummy-activities problem in a PERT network. Networks, 9, 189–194.',
     'Malcolm, D. G., Roseboom, J. H., Clark, C. E., & Fazar, W. (1959). Application of a technique for research and development program evaluation. Operations Research, 7(5), 646–669.',
     'Roy, B. (Dir.) (1964). Les problèmes d’ordonnancement : applications et méthodes. Dunod.',
     'Sniedovich, M. (2005). Towards an AoA-free courseware for the critical path method. INFORMS Transactions on Education, 5(2), 47–63.',
   ];
 
-  function topicFor(step, view) {
+  function topicFor(step, view, graph) {
+    if (graph === 'aoa' && step) return step.kind === 'floats' ? 'pertFloats' : step.kind;
     if (view === 'matrix' && step && (step.kind === 'forward' || step.kind === 'backward')) return 'matrix';
     return step ? (step.kind === 'table' ? 'table' : step.kind) : 'table';
   }
 
-  const api = { pseudo, pseudoLines, topics, history, refs, topicFor };
+  const api = { pseudo, pseudoPert, pseudoLines, topics, history, refs, topicFor };
   root.PNL = root.PNL || {};
   root.PNL.learn = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

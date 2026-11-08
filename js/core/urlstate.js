@@ -10,6 +10,8 @@
 
   // Los cuatro últimos son los ejercicios de la fase 2a: se abren por la URL aunque aún no salgan en la lista.
   const EXAMPLES = ['ej6', 'roy10', 'roy6', 'klastorin', 'hillier', 'ej4', 'ej7', 'ej1', 'ej2', 'ej3'];
+  // Ejemplos solo de estructura (sin duraciones): no tienen red ROY, así que se abren siempre en PERT.
+  const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3'];
   const ENUMS = {
     v: ['route', 'work'], view: ['net', 'matrix', 'side'], lang: ['es', 'en'], nota: ['en', 'es'],
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
@@ -103,12 +105,17 @@
     if ((state.view === 'matrix' && state.graph === 'aoa') || (state.view === 'side' && state.graph === 'aon')) {
       state.view = 'net'; malformed = true;
     }
+    let structure = false;
+    if (!state.t && STRUCTURE_ONLY.includes(state.ex) && state.graph === 'aon') {
+      state.graph = 'aoa'; structure = true;
+      if (state.view === 'matrix') state.view = 'net';
+    }
     const out = { state };
-    if (malformed) out.warning = 'malformed'; else if (unknown) out.warning = 'unknownParam';
+    if (malformed) out.warning = 'malformed'; else if (unknown) out.warning = 'unknownParam'; else if (structure) out.warning = 'structureOnly';
     return out;
   }
 
-  const api = { EXAMPLES, LIMITS, defaults, encode, decode };
+  const api = { EXAMPLES, STRUCTURE_ONLY, LIMITS, defaults, encode, decode };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -96,6 +96,78 @@
         break;
       }
       case 'gantt': out.title = t('steps.gantt'); out.text = t('narr.gantt'); break;
+      default: return narratePert(step, ctx, out);
+    }
+    return out;
+  }
+
+  // Pasos de la traza PERT (F2a): construcción con las reglas de los conjuntos y cálculo sobre sucesos.
+  // Necesita ctx.net (core/aoa); las duraciones de las ficticias son 0.
+  function narratePert(step, ctx, out) {
+    const { lang, nota, net, unit } = ctx;
+    const hk = (k) => (ctx.hide ? `${k}Hidden` : k);
+    const t = (k, p) => I.t(lang, k, p);
+    const E = I.eventNotation(nota);
+    const num = (v) => fmt(lang, v);
+    const list = (xs) => I.list(lang, xs);
+    const ruleKind = { ruleEqual: 1, ruleContained: 1, ruleShared: 1 };
+    if (ruleKind[step.kind]) {
+      out.title = t(`pertSteps.${step.kind}`);
+      out.text = step.rule.acts.length ? t(`pertNarr.${step.kind}`, { acts: list(step.rule.acts), dummies: list(step.rule.dummies) })
+        : t(`pertNarr.${step.kind}None`);
+      return out;
+    }
+    switch (step.kind) {
+      case 'succTable': case 'place': case 'number': {
+        out.title = t(`pertSteps.${step.kind}`);
+        out.text = t(`pertNarr.${step.kind}`, { f: net ? net.dummies.length : 0 });
+        if (step.kind === 'number' && net && net.trace[net.trace.length - 1] === step) out.text += ` ${t('pertNarr.numberEnd')}`;
+        break;
+      }
+      case 'eventForward': {
+        const n = step.event;
+        const TE = step.reveals[0].value;
+        const terms = step.formula.terms;
+        const arcs = list(terms.map((x) => x.via));
+        const isEnd = net && net.events.some((e) => e.n === n && e.kind === 'end');
+        out.title = t('pertSteps.eventForward', { n });
+        if (!terms.length) out.text = t(hk('pertNarr.eventFirst'));
+        else if (isEnd) out.text = t(hk('pertNarr.eventForwardEnd'), { arcs, d: num(TE), unit });
+        else if (terms.length === 1) out.text = t(hk('pertNarr.eventForwardOne'), { n, arcs });
+        else out.text = t(hk('pertNarr.eventForward'), { n, arcs, chosen: list(step.formula.chosen) });
+        const term = (x) => `${E.TE}(${x.from}) + d(${x.via})`;
+        if (!terms.length) out.lines.push(`${E.TE}(${n}) = ${num(TE)}`);
+        else if (terms.length === 1) out.lines.push(`${E.TE}(${n}) = ${term(terms[0])} = ${num(TE)}`);
+        else out.lines.push(`${E.TE}(${n}) = ${lang === 'es' ? 'máx' : 'max'} { ${terms.map(term).join(', ')} } = ${lang === 'es' ? 'máx' : 'max'} { ${terms.map((x) => num(x.value)).join(', ')} } = ${num(TE)}`);
+        break;
+      }
+      case 'eventBackward': {
+        const n = step.event;
+        const TL = step.reveals[0].value;
+        const terms = step.formula.terms;
+        const arcs = list(terms.map((x) => x.via));
+        out.title = t('pertSteps.eventBackward', { n });
+        if (!terms.length) out.text = t(hk('pertNarr.eventBackwardEnd'), { d: num(TL), unit });
+        else if (terms.length === 1) out.text = t(hk('pertNarr.eventBackwardOne'), { n, arcs });
+        else out.text = t(hk('pertNarr.eventBackward'), { n, arcs, chosen: list(step.formula.chosen) });
+        const term = (x) => `${E.TL}(${x.from}) − d(${x.via})`;
+        if (!terms.length) out.lines.push(`${E.TL}(${n}) = ${E.TE}(${n}) = ${num(TL)}`);
+        else if (terms.length === 1) out.lines.push(`${E.TL}(${n}) = ${term(terms[0])} = ${num(TL)}`);
+        else out.lines.push(`${E.TL}(${n}) = ${lang === 'es' ? 'mín' : 'min'} { ${terms.map(term).join(', ')} } = ${lang === 'es' ? 'mín' : 'min'} { ${terms.map((x) => num(x.value)).join(', ')} } = ${num(TL)}`);
+        break;
+      }
+      case 'eventSlack':
+        out.title = t('pertSteps.eventSlack');
+        out.text = t('pertNarr.eventSlack');
+        out.lines.push(t('pertNarr.slackFormula', { TE: E.TE, TL: E.TL }));
+        break;
+      case 'floats': {
+        const N = I.notation(nota);
+        out.title = t('pertSteps.floats');
+        out.text = t('pertNarr.floats');
+        for (const f of ['TF', 'FF', 'IF', 'SF']) out.lines.push(`${N[f]} = ${relabel(t('formula.' + f), nota)}`);
+        break;
+      }
       default: break;
     }
     return out;

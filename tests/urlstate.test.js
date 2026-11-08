@@ -148,3 +148,12 @@ test('los ejercicios de la fase 2a se pueden abrir por la URL', () => {
     assert.equal(state.ex, ex);
   }
 });
+
+test('F2a: un ejemplo solo de estructura con graph=aon abre la red PERT con aviso propio', () => {
+  for (const id of ['ej1', 'ej2', 'ej3']) {
+    const { state, warning } = U.decode(`#v=route&ex=${id}&view=matrix`);
+    assert.deepEqual([state.graph, state.view, warning], ['aoa', 'net', 'structureOnly'], id);
+  }
+  assert.equal(U.decode('#v=route&ex=ej1&graph=aoa').warning, undefined);
+  assert.deepEqual(U.STRUCTURE_ONLY, ['ej1', 'ej2', 'ej3']);
+});
