@@ -113,6 +113,8 @@
     const ruleKind = { ruleEqual: 1, ruleContained: 1, ruleShared: 1 };
     if (ruleKind[step.kind]) {
       out.title = t(`pertSteps.${step.kind}`);
+      // Mientras se predice, el texto explica qué buscar sin decir a quién se aplica ni si se aplica (AC8).
+      if (ctx.hide) { out.text = t(`pertNarr.${step.kind}Hidden`); return out; }
       out.text = step.rule.acts.length ? t(`pertNarr.${step.kind}`, { acts: list(step.rule.acts), dummies: list(step.rule.dummies) })
         : t(`pertNarr.${step.kind}None`);
       return out;

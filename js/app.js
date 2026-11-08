@@ -272,6 +272,7 @@
     const on = !!state.pred && PR.hasPrediction(step);
     box.hidden = !on;
     if (!on) return;
+    if (step.rule) box.appendChild(ruleFields(step));
     const fields = h('div', { class: 'fields' });
     for (const rv of step.reveals) {
       const key = PR.key(rv);
@@ -283,13 +284,40 @@
       fields.appendChild(h('label', {}, [predictLabel(rv), input,
         res === 'ok' || res === 'wrong' ? h('span', { class: `mark ${res}` }, [res === 'ok' ? `✓ ${t('predict.ok')}` : `✗ ${t('predict.wrong')}`]) : null]));
     }
-    box.appendChild(fields);
+    if (step.reveals.length) box.appendChild(fields);
     box.appendChild(h('div', { class: 'row-wrap' }, [
       h('button', { type: 'button', class: 'ghost primary', onclick: () => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); } }, [t('predict.check')]),
       h('button', { type: 'button', class: 'ghost', onclick: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); } }, [t('predict.show')]),
     ]));
     if (pred.result) box.appendChild(h('p', { class: 'small', role: 'status' }, [t('predict.summary', PR.summary(pred.result))]));
     else if (hide) box.appendChild(h('p', { class: 'muted small' }, [t('predict.hidden')]));
+  }
+
+  // Paso de regla (AC8): una casilla por actividad y el número de ficticias que crea la regla.
+  // Tras comprobar, cada casilla mal puesta dice si falta o sobra; «Mostrar» marca las correctas.
+  function ruleFields(step) {
+    const shown = pred.done && !pred.result;
+    if (!pred.answers.has(PR.RULE_ACTS)) pred.answers.set(PR.RULE_ACTS, new Set());
+    const chosen = pred.answers.get(PR.RULE_ACTS);
+    const diff = pred.result ? PR.ruleDiff(step, pred.answers) : null;
+    const res = pred.result ? pred.result.get(PR.RULE_COUNT) : null;
+    const ids = model.project.activities.map((a) => a.id).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+    const acts = h('fieldset', { class: 'rule-acts' }, [h('legend', {}, [t('predict.ruleActs')]), ...ids.map((a) => {
+      const mark = diff && (diff.missing.includes(a) ? 'missing' : diff.extra.includes(a) ? 'extra' : null);
+      return h('label', { class: mark ? 'wrong' : '' }, [
+        h('input', { type: 'checkbox', value: a, checked: shown ? step.rule.acts.includes(a) : chosen.has(a),
+          onchange: (e) => { if (e.target.checked) chosen.add(a); else chosen.delete(a); } }),
+        NR.nodeName(lang(), a),
+        mark ? h('span', { class: 'mark wrong' }, [`✗ ${t(`predict.${mark}`)}`]) : null]);
+    })]);
+    const count = h('input', { inputmode: 'numeric', 'aria-label': t('predict.ruleCount'),
+      value: shown ? String(step.rule.dummies.length) : (pred.answers.get(PR.RULE_COUNT) || ''),
+      class: res === 'ok' ? 'ok' : res === 'wrong' ? 'wrong' : '', oninput: (e) => { pred.answers.set(PR.RULE_COUNT, e.target.value); } });
+    const actsRes = pred.result ? pred.result.get(PR.RULE_ACTS) : null;
+    return h('div', { class: 'rule-predict' }, [acts,
+      actsRes === 'ok' ? h('p', { class: 'mark ok' }, [`✓ ${t('predict.ok')}`]) : null,
+      h('label', { class: 'rule-count' }, [t('predict.ruleCount'), count,
+        res === 'ok' || res === 'wrong' ? h('span', { class: `mark ${res}` }, [res === 'ok' ? `✓ ${t('predict.ok')}` : `✗ ${t('predict.wrong')}`]) : null])]);
   }
 
   function renderWhatIf() {

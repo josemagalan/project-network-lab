@@ -251,6 +251,51 @@ check('AC7 · mientras se predice, ni la red, ni la matriz, ni el texto delatan 
   await close(page);
 });
 
+// ---------- F2a · AC8: predicción en un paso de regla de la red PERT ----------
+
+check('F2a AC8 · predicción de una regla: nada se ve ni se resalta hasta comprobar; cada casilla dice si falta o sobra', async () => {
+  // Ejercicio 6, regla de los conjuntos contenidos: A, B, C, E, F y G; ficticias F1, F2 y F3.
+  for (const scheme of ['light', 'dark']) {
+    const page = await lab('graph=aoa&ex=ej6&step=2&lang=es', { scheme });
+    await page.locator('#chkPredict').check();
+    const s = await step(page);
+    assert.equal(s.kind, 'ruleContained');
+    assert.ok(await visible(page, '#predictBox'));
+    const n = await page.evaluate(() => PNL.app.model().project.activities.length);
+    const boxes = page.locator('#predictBox input[type="checkbox"]');
+    assert.equal(await boxes.count(), n, 'una casilla por actividad');
+    assert.equal(await page.locator('#netView tr.sup, #netView tr.sub, #netView tr.share, #netView tr.equal').count(), 0, 'la tabla no marca papeles');
+    assert.doesNotMatch(await page.locator('#stepText').innerText(), /\bF\d\b|\b[A-H], /, 'el texto no nombra actividades ni ficticias');
+    assert.ok(await page.locator('#btnNext').isDisabled(), '→ queda bloqueado');
+    await axe(page, `PERT regla con predicción ${scheme}`);
+    for (const a of ['A', 'B', 'C', 'D', 'E', 'F']) await page.locator(`#predictBox input[type="checkbox"][value="${a}"]`).check();
+    await page.locator('#predictBox input[inputmode="numeric"]').fill('3');
+    await page.locator('#predictBox button').first().click();
+    const marks = await page.locator('#predictBox .rule-acts .mark.wrong').allInnerTexts();
+    assert.deepEqual(marks.map((x) => x.replace(/^\W+/, '')), ['sobra', 'falta'], 'D sobra y G falta');
+    assert.equal(await page.locator('#predictBox .rule-count .mark.ok').count(), 1, 'el número de ficticias es correcto');
+    assert.ok((await page.locator('#netView tr.sup, #netView tr.sub').count()) >= 6, 'tras comprobar, la tabla marca los papeles');
+    assert.match(await page.locator('#stepText').innerText(), /F1/);
+    assert.ok(!(await page.locator('#btnNext').isDisabled()), 'tras comprobar se puede avanzar');
+    await axe(page, `PERT regla comprobada ${scheme}`);
+    // La regla de identidad no se aplica: «Mostrar» deja todo sin marcar y pone 0.
+    await go(page, 1);
+    assert.ok(await page.locator('#btnNext').isDisabled(), 'también se predice una regla que no se aplica');
+    await page.locator('#predictBox button').nth(1).click();
+    assert.equal(await page.locator('#predictBox input[type="checkbox"]:checked').count(), 0);
+    assert.equal(await page.locator('#predictBox input[inputmode="numeric"]').inputValue(), '0');
+    assert.match(await page.locator('#stepText').innerText(), /no se aplica/);
+    await close(page);
+  }
+  const page = await lab('graph=aoa&ex=ej7&step=1&lang=en', { width: 360, height: 740 });
+  await page.locator('#chkPredict').check();
+  await page.locator('#predictBox button').nth(1).click();
+  assert.deepEqual(await page.locator('#predictBox input[type="checkbox"]:checked').evaluateAll((els) => els.map((e) => e.value)), ['G', 'I']);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'sin desbordar a 360 px');
+  await axe(page, 'PERT regla con predicción a 360 px (EN)');
+  await close(page);
+});
+
 // ---------- AC8 y AC19: enlace y recarga ----------
 
 check('AC8 · el enlace copiado reproduce el mismo estado en otro navegador', async () => {

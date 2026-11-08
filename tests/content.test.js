@@ -208,6 +208,20 @@ test('AC5: un ejemplo sin duraciones termina en la numeración y lo dice', () =>
   }
 });
 
+test('AC8: mientras se predice una regla, la narración no nombra actividades ni ficticias ni dice si se aplica', () => {
+  for (const id of ['ej6', 'ej7']) {
+    for (const lang of ['es', 'en']) {
+      const ctx = pertCtx(id, lang, 'en');
+      for (const st of ctx.net.trace.filter((s) => s.rule)) {
+        const hidden = N.narrate(st, Object.assign({}, ctx, { hide: true }));
+        assert.equal(hidden.title, N.narrate(st, ctx).title, 'el título no cambia');
+        for (const x of [...st.rule.acts, ...st.rule.dummies]) assert.doesNotMatch(hidden.text, new RegExp(`\\b${x}\\b`), `${id} ${lang} ${st.kind}: ${hidden.text}`);
+        assert.doesNotMatch(hidden.text, /no se aplica|does not apply|\d/, `${id} ${lang} ${st.kind}: ${hidden.text}`);
+      }
+    }
+  }
+});
+
 test('mientras se predice un suceso, la narración no dice qué arco manda ni el valor', () => {
   for (const lang of ['es', 'en']) {
     const ctx = pertCtx('ej6', lang, 'en');

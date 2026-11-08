@@ -57,9 +57,11 @@ test('F2a: cada tipo de paso PERT tiene título y narración en los dos idiomas'
       assert.ok(I.dict[lang].pertSteps[k], `${lang}.pertSteps.${k}`);
     }
     for (const k of ['succTable', 'ruleEqual', 'ruleEqualNone', 'ruleContained', 'ruleContainedNone', 'ruleShared', 'ruleSharedNone', 'place', 'number', 'numberEnd',
-      'eventFirst', 'eventForward', 'eventForwardOne', 'eventForwardEnd', 'eventBackwardEnd', 'eventBackward', 'eventBackwardOne', 'eventSlack', 'floats']) {
+      'eventFirst', 'eventForward', 'eventForwardOne', 'eventForwardEnd', 'eventBackwardEnd', 'eventBackward', 'eventBackwardOne', 'eventSlack', 'floats',
+      'ruleEqualHidden', 'ruleContainedHidden', 'ruleSharedHidden']) {
       assert.ok(I.dict[lang].pertNarr[k], `${lang}.pertNarr.${k}`);
     }
+    for (const k of ['ruleActs', 'ruleCount', 'missing', 'extra']) assert.ok(I.dict[lang].predict[k], `${lang}.predict.${k}`);
     assert.ok(I.dict[lang].app.structureOnlyWarning, `${lang}.app.structureOnlyWarning`);
     assert.ok(I.dict[lang].view.graphAon && I.dict[lang].view.graphAoa, `${lang}.view.graph*`);
   }

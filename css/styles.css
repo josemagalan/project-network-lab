@@ -138,6 +138,14 @@ table.data tr.crit { color: var(--critical-text); font-weight: 600; }
 .predict input.wrong { border: 2px solid var(--critical); background: var(--critical-soft); }
 .predict .mark { font-size: 12px; font-weight: 600; font-family: var(--font); }
 .predict .mark.ok { color: var(--ok); } .predict .mark.wrong { color: var(--critical-text); }
+.predict .rule-predict { display: flex; flex-direction: column; gap: 8px; }
+.predict .rule-acts { display: flex; flex-wrap: wrap; gap: 4px 14px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px 8px; margin: 0; }
+.predict .rule-acts legend { font-size: 13px; padding: 0 4px; }
+.predict .rule-count { font-family: var(--font); }
+.predict .rule-acts label { min-height: 34px; }
+.predict .rule-acts label.wrong { color: var(--critical-text); }
+.predict input[type="checkbox"] { width: 22px; height: 22px; margin: 0; accent-color: var(--accent); }
+.predict .rule-acts .mark, .predict p.mark { margin: 0; }
 .whatif { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; border-top: 1px solid var(--line); padding-top: 10px; font-size: 14px; }
 .whatif label { display: flex; flex-direction: column; gap: 2px; }
 .whatif input, .whatif select { height: 34px; border: 1px solid var(--edge); border-radius: 6px; background: var(--card); padding: 0 6px; }

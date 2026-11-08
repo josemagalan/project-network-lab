@@ -3,6 +3,9 @@
  * paso con lo que dice core/cpm, redondeando ambos a 2 decimales con el MISMO redondeo con que la
  * pantalla los muestra (narrate.fmt), para no rechazar el número que se ve; acepta coma o punto decimal.
  * No calcula nada por su cuenta: la solución es la de la traza.
+ * En los pasos de regla de la red PERT (F2a, AC8) se corrigen dos campos: las actividades a las que
+ * se aplica la regla (RULE_ACTS, un conjunto que debe ser exactamente step.rule.acts; vacío si la
+ * regla no se aplica) y el número de ficticias que crea (RULE_COUNT, un entero).
  */
 (function (root) {
   'use strict';
@@ -19,8 +22,25 @@
   // Valores de actividad (A.ES) o de suceso de la red PERT (3.TE): ningún campo se repite entre los dos.
   const key = (rv) => `${rv.act != null ? rv.act : rv.event}.${rv.field}`;
 
+  const RULE_ACTS = 'rule.acts';
+  const RULE_COUNT = 'rule.count';
+  const byId = (a, b) => a.localeCompare(b, 'en', { numeric: true });
+
+  // Qué actividades marcadas sobran y cuáles faltan respecto a la regla, ordenadas.
+  function ruleDiff(step, answers) {
+    const given = new Set(answers.get(RULE_ACTS) || []);
+    const want = new Set(step.rule.acts);
+    return { missing: [...want].filter((a) => !given.has(a)).sort(byId), extra: [...given].filter((a) => !want.has(a)).sort(byId) };
+  }
+
   function check(step, answers) {
     const out = new Map();
+    if (step.rule) {
+      const d = ruleDiff(step, answers);
+      out.set(RULE_ACTS, d.missing.length || d.extra.length ? 'wrong' : 'ok');
+      const c = parseAnswer(answers.get(RULE_COUNT));
+      out.set(RULE_COUNT, c === null ? 'empty' : (c === step.rule.dummies.length ? 'ok' : 'wrong'));
+    }
     for (const rv of step.reveals) {
       const a = parseAnswer(answers.get(key(rv)));
       out.set(key(rv), a === null ? 'empty' : (Number.isFinite(a) && r2(a) === r2(rv.value) ? 'ok' : 'wrong'));
@@ -34,9 +54,9 @@
     return c;
   }
 
-  const hasPrediction = (step) => step && step.reveals && step.reveals.length > 0;
+  const hasPrediction = (step) => !!step && (!!step.rule || (!!step.reveals && step.reveals.length > 0));
 
-  const api = { check, summary, key, parseAnswer, hasPrediction };
+  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, RULE_ACTS, RULE_COUNT };
   root.PNL = root.PNL || {};
   root.PNL.predict = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
