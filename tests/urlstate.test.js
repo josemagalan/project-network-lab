@@ -101,3 +101,50 @@ test('el "¿y si…?" tiene límites: duraciones de 12 caracteres como mucho y u
   assert.equal(ok.state.wi.length, U.LIMITS.rows);
   assert.equal(ok.warning, undefined);
 });
+
+// ---------- Fase 2a (T011): red PERT en la URL (AC11, plan P4) ----------
+
+test('AC11: ida y vuelta exacta con la red PERT, la vista lado a lado y la red mínima', () => {
+  const s = Object.assign(U.defaults(), { graph: 'aoa', view: 'side', min: 1, ex: 'ej7', step: 12, lang: 'es' });
+  const out = U.decode(U.encode(s));
+  assert.equal(out.warning, undefined);
+  assert.deepEqual(out.state, s);
+});
+
+test('AC11: un enlace de la fase 1 (sin graph) se decodifica como antes, en la red ROY', () => {
+  const { state, warning } = U.decode('#v=route&ex=ej6&step=7&view=matrix&lang=en&nota=es&box=4&mode=pred&pred=1');
+  assert.equal(warning, undefined);
+  assert.equal(state.graph, 'aon');
+  assert.equal(state.min, 0);
+  assert.equal(state.view, 'matrix');
+  assert.equal(state.step, 7);
+});
+
+test('AC11: el estado por defecto se codifica sin graph ni min, así que los enlaces de ROY no cambian', () => {
+  const hash = U.encode(Object.assign(U.defaults(), { step: 3 }));
+  assert.ok(!/(^|[#&])graph=/.test(hash), hash);
+  assert.ok(!/(^|[#&])min=/.test(hash), hash);
+  assert.match(U.encode(Object.assign(U.defaults(), { graph: 'aoa' })), /graph=aoa/);
+});
+
+test('combinaciones de vista imposibles vuelven a la vista de red con aviso', () => {
+  const a = U.decode('#graph=aoa&view=matrix');
+  assert.deepEqual([a.state.graph, a.state.view, a.warning], ['aoa', 'net', 'malformed']);
+  const b = U.decode('#view=side');
+  assert.deepEqual([b.state.graph, b.state.view, b.warning], ['aon', 'net', 'malformed']);
+});
+
+test('valores desconocidos de graph y min vuelven a su valor por defecto con aviso', () => {
+  const a = U.decode('#graph=pert');
+  assert.deepEqual([a.state.graph, a.warning], ['aon', 'malformed']);
+  const b = U.decode('#graph=aoa&min=2');
+  assert.deepEqual([b.state.min, b.warning], [0, 'malformed']);
+});
+
+test('los ejercicios de la fase 2a se pueden abrir por la URL', () => {
+  for (const ex of ['ej1', 'ej2', 'ej3', 'ej7']) {
+    const { state, warning } = U.decode(`#graph=aoa&ex=${ex}`);
+    assert.equal(warning, undefined, ex);
+    assert.equal(state.ex, ex);
+  }
+});

@@ -8,17 +8,18 @@
 (function (root) {
   'use strict';
 
-  const EXAMPLES = ['ej6', 'roy10', 'roy6', 'klastorin', 'hillier', 'ej4'];
+  // Los cuatro últimos son los ejercicios de la fase 2a: se abren por la URL aunque aún no salgan en la lista.
+  const EXAMPLES = ['ej6', 'roy10', 'roy6', 'klastorin', 'hillier', 'ej4', 'ej7', 'ej1', 'ej2', 'ej3'];
   const ENUMS = {
-    v: ['route', 'work'], view: ['net', 'matrix'], lang: ['es', 'en'], nota: ['en', 'es'],
-    box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'],
+    v: ['route', 'work'], view: ['net', 'matrix', 'side'], lang: ['es', 'en'], nota: ['en', 'es'],
+    box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
   };
-  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi'];
+  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min'];
   const LIMITS = { hash: 8000, rows: 40, id: 8, duration: 12, links: 200, name: 80, step: 999 };
   const ID_RE = /^[A-Za-z0-9]{1,4}$/;
 
   function defaults() {
-    return { v: 'route', ex: 'ej6', t: null, step: 0, view: 'net', lang: null, nota: 'en', box: '7', mode: 'pred', pred: 0, wi: null };
+    return { v: 'route', ex: 'ej6', t: null, step: 0, view: 'net', lang: null, nota: 'en', box: '7', mode: 'pred', pred: 0, wi: null, graph: 'aon', min: 0 };
   }
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -41,6 +42,8 @@
     const s = Object.assign(defaults(), state);
     const q = new URLSearchParams();
     q.set('v', s.v);
+    // graph y min solo se escriben si no valen lo de siempre: los enlaces de la fase 1 no cambian (F2a, P4).
+    if (s.graph === 'aoa') q.set('graph', 'aoa');
     if (s.t) q.set('t', encodeTable(s.t)); else if (s.ex) q.set('ex', s.ex);
     q.set('step', String(s.step));
     q.set('view', s.view);
@@ -50,6 +53,7 @@
     q.set('mode', s.mode);
     q.set('pred', String(s.pred));
     if (s.wi && s.wi.length) q.set('wi', s.wi.map(([id, d]) => `${id}:${d}`).join(';'));
+    if (s.min) q.set('min', '1');
     return '#' + q.toString();
   }
 
@@ -70,7 +74,7 @@
     for (const key of Object.keys(ENUMS)) {
       if (!q.has(key)) continue;
       const val = q.get(key);
-      if (ENUMS[key].includes(val)) state[key] = key === 'pred' ? Number(val) : val;
+      if (ENUMS[key].includes(val)) state[key] = key === 'pred' || key === 'min' ? Number(val) : val;
       else malformed = true;
     }
     if (q.has('step')) {
@@ -94,6 +98,10 @@
         if (m && ID_RE.test(m[1]) && m[2].length <= LIMITS.duration) pairs.push([m[1].toUpperCase(), Number(m[2])]); else malformed = true;
       }
       state.wi = pairs.length ? pairs : null;
+    }
+    // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
+    if ((state.view === 'matrix' && state.graph === 'aoa') || (state.view === 'side' && state.graph === 'aon')) {
+      state.view = 'net'; malformed = true;
     }
     const out = { state };
     if (malformed) out.warning = 'malformed'; else if (unknown) out.warning = 'unknownParam';

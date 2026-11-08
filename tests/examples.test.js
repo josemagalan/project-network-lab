@@ -6,8 +6,9 @@ const E = require('../js/core/examples.js');
 const P = require('../js/core/project.js');
 const U = require('../js/core/urlstate.js');
 
-test('hay seis ejemplos y sus identificadores coinciden con los que admite la URL', () => {
-  assert.deepEqual(E.list().map((e) => e.id), U.EXAMPLES);
+test('hay seis ejemplos visibles y todos los identificadores (también los ocultos) coinciden con los que admite la URL', () => {
+  assert.equal(E.list().length, 6);
+  assert.deepEqual(E.list({ all: true }).map((e) => e.id), U.EXAMPLES);
 });
 
 test('cada ejemplo tiene título y fuente en ES y EN, unidad y duración esperada', () => {
