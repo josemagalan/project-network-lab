@@ -29,7 +29,14 @@ Proyecto hermano de / Sister project of [Genetic Algorithms Lab](https://josemag
 - **Predicción también en la red PERT:** qué actividades cumple cada regla y cuántas ficticias crea, y los tiempos de cada suceso.
 - **Cuatro ejercicios más** de los apuntes, con la red del autor como referencia: los ejercicios 1, 2 y 3 (solo precedencias) y el 7. En el taller, una tabla sin ninguna duración también se construye en la red PERT.
 
-La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M1 (red ROY), M2 (red PERT y ficticias), M3 (cálculo de tiempos), M4 (holguras y caminos críticos) y el taller; el paso del enunciado a la tabla, el comparador de métodos de construcción, la práctica, Moodle y la parte estocástica llegarán en las fases siguientes.
+### Fase 2b: comparador de métodos y reto de ficticias
+
+- **Comparador de métodos** («Comparar métodos» en la red PERT, el taller y M2): [`cpm.html#graph=aoa&view=cmp&ex=ej6`](https://josemagalan.github.io/project-network-lab/cpm.html#graph=aoa&view=cmp&ex=ej6). Dibuja la red PERT de la misma tabla con siete métodos: dibujo progresivo, reglas de los conjuntos, agrupar por precedentes (Cohen y Sadeh, 2007), Kim (2008), Spinrad (1986), Corneil, Gotlieb y Lee (1973) y el mínimo exacto. Cada tarjeta da sus ficticias y sucesos, si la red es correcta y cuánto le falta para el mínimo, y marca las ficticias que se pueden quitar. Dos métodos se ven lado a lado y, al seleccionar una actividad o una ficticia, se resalta en todas las redes. Cada método tiene su «Aprende más» con la referencia, lo que garantiza y la lectura que ha elegido la herramienta.
+- **Dibujo progresivo paso a paso,** también en modo predicción: de qué suceso sale cada actividad y qué precedentes necesitan una ficticia, y por qué.
+- **Reto de ficticias** (en la red PERT, el comparador, el taller y M2): [`cpm.html#graph=aoa&view=reto&ex=ej6`](https://josemagalan.github.io/project-network-lab/cpm.html#graph=aoa&view=reto&ex=ej6). El alumno construye su propia red PERT con el menor número de ficticias, escribiendo los sucesos en una tabla o dibujándolos en un lienzo (con ratón, pulsaciones o solo con el teclado, sin arrastrar). Al comprobar, el diagnóstico nombra cada error con sus actividades o sucesos (precedencia que falta o que sobra, actividades paralelas sin ficticia, más de un suceso inicial o final, ciclo, numeración que no cumple i < j…) y, con la red correcta, cuántas ficticias tiene frente al mínimo y cuáles sobran. Se puede ver la red de cualquier método y volver a la propia, y la red del alumno viaja en el enlace.
+- **Cuatro tablas nuevas** en el taller, con las cifras de sus fuentes: Kim (2008), Cohen y Sadeh (2007), Sysło (1981) y un caso tipo en el que las reglas ponen una ficticia de más.
+
+La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos) y el taller; el paso del enunciado a la tabla, la práctica, Moodle y la parte estocástica llegarán en las fases siguientes.
 
 ### Usarlo sin conexión
 
@@ -46,7 +53,7 @@ npm run coverage       # cobertura de js/core (mínimo 90 % de líneas)
 npm run test:browser   # Chromium con Playwright y axe-core, si están instalados
 ```
 
-Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx playwright install chromium`; la integración continua las ejecuta en cada push. Recorren las rutas ROY y PERT en los dos idiomas, con y sin predicción, y comprueban el enlace y la recarga, la matriz, el lado a lado, el contador de ficticias, el teclado, 1280×720 y 360 px, axe en modo claro y oscuro, y que ninguna vista cargue más de 1 MB.
+Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx playwright install chromium`; la integración continua las ejecuta en cada push. Recorren las rutas ROY y PERT en los dos idiomas, con y sin predicción, y comprueban el enlace y la recarga, la matriz, el lado a lado, el contador de ficticias, el comparador, el dibujo progresivo, el reto (con un error de cada tipo), el teclado, 1280×720 y 360 px, axe en modo claro y oscuro, y que ninguna vista cargue más de 1 MB.
 
 ## English
 
@@ -69,7 +76,14 @@ Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx 
 - **Prediction on the activity-on-arrow network too:** which activities each rule applies to and how many dummies it adds, and the times of each event.
 - **Four more exercises** from the course notes, with the author’s network as reference: exercises 1, 2 and 3 (precedences only) and 7. In the workshop, a table with no durations at all is also built as an activity-on-arrow network.
 
-The home page (`index.html`) presents the eight modules of the learning path. M1 (activity-on-node network), M2 (activity-on-arrow network and dummies), M3 (scheduling), M4 (slack and critical paths) and the workshop are available today; from problem statement to table, the comparison of construction methods, practice, Moodle and the stochastic part will follow in later phases.
+### Phase 2b: method comparison and dummy challenge
+
+- **Method comparison** (“Compare methods” in the activity-on-arrow network, the workshop and M2): [`cpm.html#graph=aoa&view=cmp&ex=ej6`](https://josemagalan.github.io/project-network-lab/cpm.html#graph=aoa&view=cmp&ex=ej6&lang=en). It draws the activity-on-arrow network of the same table with seven methods: progressive drawing, the set rules, grouping by predecessors (Cohen & Sadeh, 2007), Kim (2008), Spinrad (1986), Corneil, Gotlieb & Lee (1973) and the exact minimum. Each card gives its dummies and events, whether the network is correct and how far it is from the minimum, and marks the dummies that can be removed. Two methods can be shown side by side, and selecting an activity or a dummy highlights it in every network. Each method has its “Learn more” with the reference, what it guarantees and the reading the tool has chosen.
+- **Progressive drawing step by step,** also in prediction mode: which event each activity leaves from, which predecessors need a dummy, and why.
+- **Dummy challenge** (in the activity-on-arrow network, the method comparison, the workshop and M2): [`cpm.html#graph=aoa&view=reto&ex=ej6`](https://josemagalan.github.io/project-network-lab/cpm.html#graph=aoa&view=reto&ex=ej6&lang=en). Students build their own activity-on-arrow network with as few dummies as possible, typing the events in a table or drawing them on a canvas (with the mouse, taps or the keyboard alone, with no dragging). On checking, the diagnosis names each mistake with its activities or events (a missing or false precedence, parallel activities without a dummy, more than one start or end event, a cycle, numbering that breaks i < j…) and, for a correct network, how many dummies it has compared with the minimum and which ones are not needed. Students can look at any method’s network and go back to their own, and their network travels in the link.
+- **Four new tables** in the workshop, with the figures from their sources: Kim (2008), Cohen & Sadeh (2007), Sysło (1981) and a typical case in which the set rules add one dummy too many.
+
+The home page (`index.html`) presents the eight modules of the learning path. M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths) and the workshop are available today; from problem statement to table, practice, Moodle and the stochastic part will follow in later phases.
 
 ### Offline use
 
@@ -86,7 +100,7 @@ npm run coverage       # js/core coverage (at least 90 % of lines)
 npm run test:browser   # Chromium with Playwright and axe-core, when installed
 ```
 
-Browser tests need `npm i --no-save playwright axe-core` and `npx playwright install chromium`; continuous integration runs them on every push. They walk the activity-on-node and activity-on-arrow tours in both languages, with and without prediction, and check links and reloads, the matrix, the side-by-side view, the dummy counter, keyboard use, 1280×720 and 360 px, axe in light and dark mode, and that no view loads more than 1 MB.
+Browser tests need `npm i --no-save playwright axe-core` and `npx playwright install chromium`; continuous integration runs them on every push. They walk the activity-on-node and activity-on-arrow tours in both languages, with and without prediction, and check links and reloads, the matrix, the side-by-side view, the dummy counter, the method comparison, progressive drawing, the dummy challenge (with one mistake of each kind), keyboard use, 1280×720 and 360 px, axe in light and dark mode, and that no view loads more than 1 MB.
 
 ## Equipo / Team
 
