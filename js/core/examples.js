@@ -32,6 +32,10 @@
         IF: map('A B C D E F G H I J K', [1, 0, 1, 4, 0, 1, 0, 4, 0, 0, 0]),
         FF: map('A B C D E F G H I J K', [1, 0, 1, 4, 0, 1, 2, 4, 0, 0, 0]),
         critical: ['B', 'E', 'I', 'J', 'K'],
+        methods: {   // spec F2b, tabla de cifras por método (validada por el autor, 2026-11-08)
+          min: { dummies: 3 }, prog: { dummies: 3, events: 9 }, rules: { dummies: 3, events: 9 },
+          cs: { dummies: 6, events: 11 }, kim: { dummies: 3, events: 9 },
+          spinrad: { dummies: 3, events: 9, model: { dummies: 10, events: 16 } }, cgl: { dummies: 3, events: 9 } },
         aoa: { dummies: 3, events: 9,   // grafo PERT del Tema 6a (F2a)
           eventTimes: [[0, 0], [3, 3], [3, 3], [3, 5], [7, 7], [7, 7], [9, 9], [12, 12], [13, 13]] },
       },
@@ -131,6 +135,10 @@
         duration: 24,
         TF: map('A B C E F H I K L M', [0, 1, 1, 0, 3, 0, 1, 6, 0, 6]),
         critical: ['A', 'E', 'H', 'J', 'L'],   // camino crítico del enunciado (spec, tabla de referencias)
+        methods: {   // spec F2b, tabla de cifras por método (validada por el autor, 2026-11-08)
+          min: { dummies: 3 }, prog: { dummies: 3, events: 10 }, rules: { dummies: 3, events: 10 },
+          cs: { dummies: 3, events: 10 }, kim: { dummies: 3, events: 10 },
+          spinrad: { dummies: 3, events: 10, model: { dummies: 11, events: 18 } }, cgl: { dummies: 3, events: 10 } },
         aoa: { dummies: 3, events: 10,   // grafo PERT del Tema 6a (F2a)
           eventTimes: [[0, 0], [5, 5], [5, 5], [8, 8], [8, 8], [12, 12], [13, 14], [13, 19], [18, 18], [24, 24]] },
       },
@@ -148,6 +156,10 @@
       ],
       expected: {   // solución del autor (red PERT dibujada a mano)
         duration: 27,
+        methods: {   // spec F2b, tabla de cifras por método (validada por el autor, 2026-11-08)
+          min: { dummies: 5 }, prog: { dummies: 5, events: 9 }, rules: { dummies: 5, events: 9 },
+          cs: { dummies: 5, events: 9 }, kim: { dummies: 5, events: 9 },
+          spinrad: { dummies: 5, events: 9, model: { dummies: 8, events: 12 } }, cgl: { dummies: 5, events: 9 } },
         aoa: { dummies: 5, events: 9,
           eventTimes: [[0, 0], [8, 14], [10, 12], [10, 15], [12, 12], [12, 12], [19, 19], [21, 27], [27, 27]] },
       },
@@ -171,7 +183,13 @@
         r('I', '', '', 'Pagar materiales', 'Pay for materials'),
         r('J', '', '', 'Cerramiento de la nave', 'Enclose the warehouse'),
       ],
-      expected: { aoa: { dummies: 2, events: 7 } },   // grafo PERT del Tema 6a
+      expected: {   // grafo PERT del Tema 6a
+        aoa: { dummies: 2, events: 7 },
+        methods: {   // spec F2b, tabla de cifras por método (validada por el autor, 2026-11-08)
+          min: { dummies: 2 }, prog: { dummies: 2, events: 7 }, rules: { dummies: 2, events: 7 },
+          cs: { dummies: 2, events: 7 }, kim: { dummies: 2, events: 7 },
+          spinrad: { dummies: 2, events: 7, model: { dummies: 7, events: 12 } }, cgl: { dummies: 2, events: 7 } },
+      },
     },
     {
       id: 'ej2',
@@ -186,7 +204,13 @@
         r('F', '', 'J'), r('G', '', ''), r('H', '', 'J'), r('I', '', 'J'), r('J', '', 'L, M'), r('K', '', 'M'),
         r('L', '', ''), r('M', '', ''),
       ],
-      expected: { aoa: { dummies: 2, events: 9 } },
+      expected: {
+        aoa: { dummies: 2, events: 9 },
+        methods: {   // spec F2b, tabla de cifras por método (validada por el autor, 2026-11-08)
+          min: { dummies: 2 }, prog: { dummies: 2, events: 9 }, rules: { dummies: 2, events: 9 },
+          cs: { dummies: 5, events: 11 }, kim: { dummies: 2, events: 9 },
+          spinrad: { dummies: 2, events: 9, model: { dummies: 9, events: 16 } }, cgl: { dummies: 2, events: 9 } },
+      },
     },
     {
       id: 'ej3',
@@ -201,7 +225,77 @@
         r('F', '', 'J'), r('G', '', 'J'), r('H', '', 'J'), r('I', '', 'J, K'), r('J', '', 'N'), r('K', '', 'N'),
         r('L', '', 'N'), r('M', '', ''), r('N', '', ''),
       ],
-      expected: { aoa: { dummies: 4, events: 10 } },
+      expected: {
+        aoa: { dummies: 4, events: 10 },
+        methods: {   // spec F2b, tabla de cifras por método (validada por el autor, 2026-11-08)
+          min: { dummies: 4 }, prog: { dummies: 4, events: 10 }, rules: { dummies: 4, events: 10 },
+          cs: { dummies: 4, events: 10 }, kim: { dummies: 4, events: 10 },
+          spinrad: { dummies: 4, events: 10, model: { dummies: 12, events: 18 } }, cgl: { dummies: 4, events: 10 } },
+      },
+    },
+    // ---------- F2b: tablas de las fuentes de los métodos del comparador (ocultas hasta T024, P9) ----------
+    {
+      id: 'kim2008',
+      structureOnly: true,
+      hidden: true,
+      title: { es: 'Kim (2008), tabla 1', en: 'Kim (2008), Table 1' },
+      source: { es: 'K. Kim (2008), «Identifying logical dummy activities in an activity-on-arrow network», Canadian Journal of Civil Engineering 35(7): 739–744, tabla 1 y figura 4',
+                en: 'K. Kim (2008), "Identifying logical dummy activities in an activity-on-arrow network", Canadian Journal of Civil Engineering 35(7): 739–744, Table 1 and Fig. 4' },
+      unit: { es: '—', en: '—' },
+      mode: 'succ',
+      rows: [
+        r('A', '', 'F, G'), r('B', '', 'J, L'), r('C', '', 'G, H'), r('D', '', 'M, N, P'), r('E', '', 'G, H'), r('F', '', 'I'),
+        r('G', '', 'I, K'), r('H', '', 'J, K, L'), r('I', '', 'M, N, P'), r('J', '', 'O, Q'), r('K', '', 'N, P'), r('L', '', 'O'),
+        r('M', '', ''), r('N', '', ''), r('O', '', ''), r('P', '', ''), r('Q', '', ''),
+      ],
+      // Figura 4: 8 ficticias lógicas (d1–d8) con varios sucesos iniciales y finales; con uno solo de cada, 2 de unicidad más.
+      expected: { methods: { kim: { dummies: 10, logical: 8 } } },
+    },
+    {
+      id: 'cs2007',
+      structureOnly: true,
+      hidden: true,
+      title: { es: 'Cohen y Sadeh (2007), tabla 1', en: 'Cohen and Sadeh (2007), Table 1' },
+      source: { es: 'Y. Cohen y A. Sadeh (2007), «A new approach for constructing and generating AOA networks», Journal of Engineering, Computing and Architecture 1(1): 1–13, tablas 1 y 4 (encofrado de hormigón)',
+                en: 'Y. Cohen and A. Sadeh (2007), "A new approach for constructing and generating AOA networks", Journal of Engineering, Computing and Architecture 1(1): 1–13, Tables 1 and 4 (concrete casting)' },
+      unit: { es: '—', en: '—' },
+      mode: 'pred',
+      rows: [
+        r('A', '', ''), r('B', '', ''), r('C', '', ''), r('D', '', ''), r('E', '', ''), r('F', '', 'A'), r('G', '', 'A'),
+        r('H', '', 'B'), r('I', '', 'E'), r('J', '', 'C, D, I'), r('K', '', 'H'), r('L', '', 'F, H'), r('M', '', 'G, H'),
+        r('N', '', 'G, K'), r('O', '', 'J, L, M, N'),
+      ],
+      // Tabla 4: 5 ficticias (G1, G2, H1, H2, D1) y 13 sucesos (0–12). Mínimo: 4 (spec F2b, clarify).
+      expected: { methods: { cs: { dummies: 5, events: 13 }, min: { dummies: 4 } } },
+    },
+    {
+      id: 'syslo1981',
+      structureOnly: true,
+      hidden: true,
+      title: { es: 'Sysło (1981), figura 2.3', en: 'Sysło (1981), Figure 2.3' },
+      source: { es: 'M. M. Sysło (1981), «Optimal constructions of event-node networks», RAIRO – Operations Research 15(3): 241–260, figura 2.3; la actividad b′ del artículo es aquí B2',
+                en: 'M. M. Sysło (1981), "Optimal constructions of event-node networks", RAIRO – Operations Research 15(3): 241–260, Figure 2.3; activity b′ in the paper is B2 here' },
+      unit: { es: '—', en: '—' },
+      mode: 'succ',
+      rows: [
+        r('A', '', 'E, H'), r('B', '', 'D, E, F, I'), r('B2', '', 'D, E, F, M'), r('C', '', 'D, F, J'), r('G', '', 'D'), r('K', '', 'E'),
+        r('L', '', 'F'), r('D', '', ''), r('E', '', ''), r('F', '', ''), r('H', '', ''), r('I', '', ''), r('J', '', ''), r('M', '', ''),
+      ],
+      // Figura 2.3 (b): Corneil, Gotlieb y Lee, 9 ficticias y 9 sucesos; (d): 8 ficticias, las de las reglas.
+      expected: { methods: { cgl: { dummies: 9, events: 9 }, rules: { dummies: 8 } } },
+    },
+    {
+      id: 'tipo',
+      structureOnly: true,
+      hidden: true,
+      title: { es: 'Caso tipo: una precedencia implícita', en: 'Typical case: an implied precedence' },
+      source: { es: 'Spec F2a, criterio 16: A < C, D, E; B < C, E; D < E (A → E es redundante y no se escribe)',
+                en: 'F2a spec, criterion 16: A < C, D, E; B < C, E; D < E (A → E is redundant and is left out)' },
+      unit: { es: '—', en: '—' },
+      mode: 'succ',
+      rows: [r('A', '', 'C, D'), r('B', '', 'C, E'), r('C', '', ''), r('D', '', 'E'), r('E', '', '')],
+      expected: { methods: { min: { dummies: 2 }, prog: { dummies: 2 }, rules: { dummies: 3 }, cs: { dummies: 3 }, kim: { dummies: 3 },
+        spinrad: { dummies: 2 }, cgl: { dummies: 2 } } },   // spec F2b, tabla de referencias
     },
   ];
 

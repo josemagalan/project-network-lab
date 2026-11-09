@@ -155,7 +155,9 @@ test('F2a: un ejemplo solo de estructura con graph=aon abre la red PERT con avis
     assert.deepEqual([state.graph, state.view, warning], ['aoa', 'net', 'structureOnly'], id);
   }
   assert.equal(U.decode('#v=route&ex=ej1&graph=aoa').warning, undefined);
-  assert.deepEqual(U.STRUCTURE_ONLY, ['ej1', 'ej2', 'ej3']);
+  // F2b (T006): las tablas de las fuentes de los métodos también son solo de estructura.
+  assert.deepEqual(U.STRUCTURE_ONLY, ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo']);
+  assert.deepEqual(U.decode('#v=route&ex=kim2008').state.graph, 'aoa');
 });
 
 test('Revisión F2: un ejemplo solo de estructura no tiene vista lado a lado (no hay red ROY): se abre la red PERT sola', () => {

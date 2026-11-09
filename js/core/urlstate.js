@@ -8,10 +8,10 @@
 (function (root) {
   'use strict';
 
-  // Los cuatro últimos son los ejercicios de la fase 2a: se abren por la URL aunque aún no salgan en la lista.
-  const EXAMPLES = ['ej6', 'roy10', 'roy6', 'klastorin', 'hillier', 'ej4', 'ej7', 'ej1', 'ej2', 'ej3'];
+  // Los cuatro últimos son las tablas de las fuentes de la F2b: se abren por la URL aunque aún no salgan en la lista.
+  const EXAMPLES = ['ej6', 'roy10', 'roy6', 'klastorin', 'hillier', 'ej4', 'ej7', 'ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo'];
   // Ejemplos solo de estructura (sin duraciones): no tienen red ROY, así que se abren siempre en PERT.
-  const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3'];
+  const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo'];
   const ENUMS = {
     v: ['route', 'work'], view: ['net', 'matrix', 'side'], lang: ['es', 'en'], nota: ['en', 'es'],
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
