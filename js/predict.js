@@ -6,6 +6,8 @@
  * En los pasos de regla de la red PERT (F2a, AC8) se corrigen dos campos: las actividades a las que
  * se aplica la regla (RULE_ACTS, un conjunto que debe ser exactamente step.rule.acts; vacío si la
  * regla no se aplica) y el número de ficticias que crea (RULE_COUNT, un entero).
+ * En los pasos de actividad del dibujo progresivo (F2b, AC8): de qué suceso sale (PROG_START, uno de PROG_STARTS)
+ * y, si tiene varias precedentes, cuáles necesitan una ficticia de dependencia (PROG_DUMMIES, un conjunto).
  */
 (function (root) {
   'use strict';
@@ -24,7 +26,17 @@
 
   const RULE_ACTS = 'rule.acts';
   const RULE_COUNT = 'rule.count';
+  const PROG_START = 'prog.start';
+  const PROG_DUMMIES = 'prog.dummies';
+  const PROG_STARTS = ['initial', 'pred', 'existing', 'new'];
   const byId = (a, b) => a.localeCompare(b, 'en', { numeric: true });
+
+  // Qué precedentes marcadas sobran y cuáles faltan respecto a las que llevan ficticia de dependencia.
+  function progDiff(step, answers) {
+    const given = new Set(answers.get(PROG_DUMMIES) || []);
+    const want = new Set(step.prog.preds.filter((x) => x.how === 'dummy').map((x) => x.act));
+    return { missing: [...want].filter((a) => !given.has(a)).sort(byId), extra: [...given].filter((a) => !want.has(a)).sort(byId) };
+  }
 
   // Qué actividades marcadas sobran y cuáles faltan respecto a la regla, ordenadas.
   function ruleDiff(step, answers) {
@@ -35,6 +47,15 @@
 
   function check(step, answers) {
     const out = new Map();
+    if (step.kind === 'progAct') {
+      const st = answers.get(PROG_START);
+      out.set(PROG_START, st == null || st === '' ? 'empty' : (st === step.prog.start ? 'ok' : 'wrong'));
+      if (step.prog.preds.length > 1) {
+        const d = progDiff(step, answers);
+        out.set(PROG_DUMMIES, d.missing.length || d.extra.length ? 'wrong' : 'ok');
+      }
+      return out;
+    }
     if (step.rule) {
       const d = ruleDiff(step, answers);
       out.set(RULE_ACTS, d.missing.length || d.extra.length ? 'wrong' : 'ok');
@@ -54,9 +75,9 @@
     return c;
   }
 
-  const hasPrediction = (step) => !!step && (!!step.rule || (!!step.reveals && step.reveals.length > 0));
+  const hasPrediction = (step) => !!step && (step.kind === 'progAct' || !!step.rule || (!!step.reveals && step.reveals.length > 0));
 
-  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, RULE_ACTS, RULE_COUNT };
+  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
   root.PNL = root.PNL || {};
   root.PNL.predict = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

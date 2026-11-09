@@ -7,7 +7,9 @@
  *     emph: ficticias que se destacan (las que aprovechan una precedencia implícita en la red mínima, T021);
  *     idPrefix: prefijo de los marcadores, para dibujar dos redes PERT en la misma página sin repetir id.
  *     F2b (comparador): removable, ficticias que se pueden quitar (en rojo); fit, la red se encoge con su
- *     tarjeta en vez de mantener 560 px de ancho mínimo.
+ *     tarjeta en vez de mantener 560 px de ancho mínimo; visible, si está, el conjunto de arcos y ficticias que se
+ *     dibujan (el dibujo progresivo enseña solo lo dibujado hasta el paso, con la colocación de la red final).
+ *   predTable(el, ctx): la tabla de precedentes del dibujo progresivo (ctx.project; ctx.act, la actividad del paso).
  *   succTable(el, ctx): la tabla de posteriores de los pasos de construcción, con el papel de cada actividad.
  *   arcTable(el, ctx): la alternativa en texto (un arco por fila), con botones para seleccionar.
  */
@@ -75,7 +77,9 @@
     const lg = svg.append('g');
     const edges = [...net.arcs.map((e) => ({ label: e.act, from: e.from, to: e.to, dummy: false })),
       ...net.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, dummy: true }))];
+    const vis = ctx.visible || null;
     for (const e of edges) {
+      if (vis && !vis.has(e.label)) continue;
       const a = at(e.from); const b = at(e.to);
       const pts = [a, ...(lay.bends[e.label] || []).map((p) => ({ x: X(p.col), y: Y(p.row) })), b];
       const curved = lay.curved.includes(e.label);
@@ -112,7 +116,9 @@
     const ng = svg.append('g');
     const active = ctx.step && ctx.step.event;
     const show = (n, f) => (revealed.has(`${n}.${f}`) ? numFmt(revealed.get(`${n}.${f}`)) : '·');
+    const touched = vis ? new Set(edges.filter((e) => vis.has(e.label)).flatMap((e) => [e.from, e.to])) : null;
     for (const ev of net.events) {
+      if (touched && !touched.has(ev.n)) continue;
       const p = at(ev.n);
       const crit = ctx.criticalOn && revealed.has(`${ev.n}.TE`) && revealed.get(`${ev.n}.TL`) - revealed.get(`${ev.n}.TE`) === 0;
       const g = ng.append('g').attr('class', `ev${ev.n === active ? ' active' : ''}${crit ? ' crit' : ''}`).attr('transform', `translate(${p.x},${p.y})`);
@@ -219,7 +225,23 @@
     ]));
   }
 
-  const api = { render, scheme, succTable, arcTable, roles, classes, GEO };
+  // Tabla de precedentes del dibujo progresivo: cada actividad con sus precedentes directas.
+  function predTable(container, ctx) {
+    const { h, clear } = G.dom;
+    clear(container);
+    const { project } = ctx;
+    const byId = (a, b) => a.localeCompare(b, 'en', { numeric: true });
+    const preds = (x) => project.activities.filter((a) => (project.succs[a.id] || []).includes(x)).map((a) => a.id).sort(byId);
+    container.appendChild(h('table', { class: 'data succ' }, [
+      h('caption', { class: 'sr-only' }, [t(ctx, 'pert.predCaption', { name: ctx.name })]),
+      h('thead', {}, [h('tr', {}, [t(ctx, 'pert.colAct'), t(ctx, 'pert.colPred')].map((x) => h('th', { scope: 'col' }, [x])))]),
+      h('tbody', {}, project.activities.map((a) => a.id).sort(byId).map((x) => h('tr', { class: x === ctx.act ? 'sup' : '' }, [
+        h('th', { scope: 'row' }, [x]), h('td', {}, [preds(x).join(', ') || t(ctx, 'pert.none')]),
+      ]))),
+    ]));
+  }
+
+  const api = { render, scheme, succTable, arcTable, predTable, roles, classes, GEO };
   root.PNL = root.PNL || {};
   root.PNL.pertView = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

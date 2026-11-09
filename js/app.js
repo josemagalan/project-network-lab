@@ -7,6 +7,8 @@
  * con el contador de ficticias (reglas frente al mínimo de core/mindummy) y, con min=1, la red mínima al lado.
  * F2b: con view=cmp, el comparador de métodos (core/compare y compare-view) ocupa el panel principal, en dos
  * tiempos: primero las tarjetas de los métodos visibles y, cuando termina la búsqueda del mínimo, las cifras.
+ * F2b: con m=prog, el reproductor recorre la traza del dibujo progresivo (core/aoamethods) en lugar de la de las
+ * reglas: solo lo dibujado hasta el paso, sin contador ni lado a lado, y con su predicción (T019).
  */
 (function () {
   'use strict';
@@ -77,9 +79,13 @@
     model.net = A.build(model.project, { solution: model.solution });
     model.aoaLay = AL.layout(model.net);
     model.succs = A._reduce(model.project).direct;
+    // Dibujo progresivo (F2b, T019): su red final, con su traza, colocada una vez; los pasos enseñan una parte.
+    model.progNet = A.build(model.project, { method: 'prog' });
+    model.progLay = AL.layout(model.progNet);
   }
 
   const pert = () => state.graph === 'aoa';
+  const prog = () => pert() && state.m === 'prog';
   // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022), y sin
   // la vista lado a lado ni la matriz, que necesitan la red ROY (revisión de cierre, F2).
   function fitGraph() {
@@ -91,7 +97,7 @@
   // La traza que se reproduce: la de la red PERT con graph=aoa y la de ROY en otro caso.
   function trace() {
     if (!model) return null;
-    if (pert()) return model.net ? model.net.trace : null;
+    if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
   const total = () => { const tr = trace(); return tr ? tr.length : 1; };
@@ -109,8 +115,9 @@
     state = S.reduce(state, action, total());
     const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
-    if (dataChanged || before.graph !== state.graph) state = S.reduce(state, { type: 'go', n: state.step }, total());
-    if (before.step !== state.step || dataChanged || before.graph !== state.graph) resetPred();
+    const traceChanged = before.graph !== state.graph || before.m !== state.m;
+    if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
+    if (before.step !== state.step || dataChanged || traceChanged) resetPred();
     writeHash(before.v !== state.v);
     const fullEditor = before.v !== state.v || before.lang !== state.lang || before.mode !== state.mode
       || (dataChanged && !(opts && opts.fromEditor));
@@ -135,7 +142,7 @@
   // Con la predicción activa, el resumen del taller calla la duración hasta que se revela EF del fin (revisión, H5).
   function durationHidden() {
     const tr = trace();
-    if (!state.pred || !tr || !model.solution) return false;
+    if (!state.pred || !tr || !model.solution || prog()) return false;
     const k = Math.min(state.step, tr.length - 1);
     const rev = revealedMap(tr, k, predicting(tr[k]));
     if (pert()) return !rev.has(`${model.net.events.find((e) => e.kind === 'end').n}.TE`);
@@ -176,7 +183,7 @@
     $('side').hidden = cmpOn;
     for (const id of ['netView', 'selInfo', 'altTable', 'resultsView', 'ganttView']) if (cmpOn) $(id).hidden = true;
     $('boxHint').parentNode.hidden = cmpOn;
-    if (cmpOn) { renderCompare(); return; }
+    if (cmpOn) { $('methodLine').hidden = true; renderCompare(); return; }
     $('netView').hidden = false;
     const k = Math.min(state.step, tr.length - 1);
     const step = tr[k];
@@ -186,22 +193,26 @@
     const criticalOn = critIdx >= 0 && k >= critIdx;
     const ctx = { project: model.project, solution: sol, lay: model.lay, matrix: model.matrix, step, stepIndex: k, revealed,
       box: state.box, lang: lang(), nota: state.nota, criticalOn, numFmt, name: model.name, unit: model.unit, hide, net: model.net };
+    const progOn = prog();
+    if (progOn) ctx.net = model.progNet;
 
     $('btnAon').setAttribute('aria-pressed', String(!isPert));
     $('btnAoa').setAttribute('aria-pressed', String(isPert));
     $('btnAon').disabled = !sol;
     // Contador de ficticias (AC9): mientras se predicen las reglas no da números, para no adelantar la respuesta.
-    const placeIdx = isPert ? tr.findIndex((s) => s.kind === 'place') : -1;
+    // En el progresivo no hay paso «colocar»: la red se dibuja desde el primer paso de actividad.
+    const placeIdx = isPert ? tr.findIndex((s) => s.kind === (progOn ? 'progAct' : 'place')) : -1;
     const countHidden = isPert && !!state.pred && k < placeIdx;
-    const count = renderCounter(isPert, countHidden);
+    const count = renderCounter(isPert && !progOn, countHidden);
     // Con min=1 y una red con menos ficticias que las reglas, las dos se ven juntas (y no la ROY de al lado).
     const minOn = !!(count && count.extra && state.min);
     // Lado a lado solo en PERT y con duraciones: los ejemplos solo de estructura no tienen red ROY.
-    const side = isPert && state.view === 'side' && !!sol && !minOn;
+    const side = isPert && state.view === 'side' && !!sol && !minOn && !progOn;
     $('btnNet').setAttribute('aria-pressed', String(!minOn && (state.view === 'net' || (state.view === 'side' && !side))));
     $('btnMatrix').setAttribute('aria-pressed', String(state.view === 'matrix'));
     $('btnMatrix').hidden = isPert;
-    $('btnSide').hidden = !isPert;
+    $('btnSide').hidden = !isPert || progOn;
+    renderMethodLine(progOn);
     $('btnSide').disabled = !sol;
     $('btnSide').setAttribute('aria-pressed', String(side));
     $('stage').classList.toggle('wide', side || minOn);
@@ -218,15 +229,17 @@
     $('matrixView').hidden = state.view !== 'matrix';
 
     const pctx = isPert ? pertCtx(ctx, tr, k) : null;
-    const selInfo = NR.selection(selected, Object.assign({}, ctx, { numbered: !isPert || k >= tr.findIndex((s) => s.kind === 'number') }));
+    const numIdx = tr.findIndex((s) => s.kind === (progOn ? 'progEnd' : 'number'));
+    const selInfo = NR.selection(selected, Object.assign({}, ctx, { numbered: !isPert || k >= numIdx }));
     const royCtx = (c) => Object.assign({}, c, { selected, selPrecs: selInfo ? selInfo.precs : [], onSelect: toggleSel });
     if (isPert && minOn) {
       minCompare(pctx, count);
       $('boxHint').textContent = t('view.pertHint');
     } else if (isPert) {
       const holder = side ? sideBySide() : $('netView');
-      if (k < placeIdx) G.pertView.succTable(holder, pctx); else G.pertView.render(holder, pctx);
-      $('boxHint').textContent = t(side ? 'view.sideHint' : (k < placeIdx ? 'view.succHint' : 'view.pertHint'));
+      if (progOn && k < placeIdx) G.pertView.predTable(holder, pctx);
+      else if (k < placeIdx) G.pertView.succTable(holder, pctx); else G.pertView.render(holder, pctx);
+      $('boxHint').textContent = progOn ? t('cmp.progHint') : t(side ? 'view.sideHint' : (k < placeIdx ? 'view.succHint' : 'view.pertHint'));
       if (side) G.royView.render($('royHolder'), royCtx(sideRoyCtx(ctx, tr, k)));
     } else {
       if (state.view === 'net') G.royView.render($('netView'), royCtx(ctx)); else G.matrixView.render($('matrixView'), ctx);
@@ -237,7 +250,7 @@
 
     const lateSteps = ['float', 'floats', 'critical', 'gantt'].includes(step.kind);
     // En PERT la tabla de arcos es la alternativa en texto de la red: se ofrece en todos los pasos desde «colocar».
-    const tableOk = isPert ? k >= placeIdx : !lateSteps;
+    const tableOk = isPert ? (progOn ? step.kind === 'progEnd' : k >= placeIdx) : !lateSteps;
     $('btnTable').hidden = !tableOk;
     $('btnTable').textContent = tableOpen ? t('view.hideTable') : t('view.asTable');
     $('btnTable').setAttribute('aria-expanded', String(tableOpen));
@@ -268,7 +281,11 @@
     $('stepText').textContent = n.text;
     const f = clear($('formula'));
     // Cada línea se parte solo en los signos «=», para que la fórmula no se corte a mitad de una expresión.
-    if (!hide) {
+    // En el dibujo progresivo las líneas son frases (por qué cada precedente termina allí o lleva ficticia), no fórmulas.
+    const prose = /^prog/.test(step.kind);
+    f.classList.toggle('prose', prose);
+    if (!hide && prose) n.lines.forEach((line) => f.appendChild(h('p', {}, [line])));
+    else if (!hide) {
       n.lines.forEach((line) => {
         const parts = line.split(' = ');
         f.appendChild(h('div', {}, parts.map((p, i) => h('span', { class: 'seg' }, [i < parts.length - 1 ? `${p} = ` : p]))));
@@ -302,15 +319,41 @@
     if (announce !== lastAnnounced) { $('live').textContent = announce; lastAnnounced = announce; }
   }
 
-  const PHASE = { forward: 'forward', backward: 'backward', float: 'float', eventForward: 'forward', eventBackward: 'backward' };
+  const PHASE = { forward: 'forward', backward: 'backward', float: 'float', eventForward: 'forward', eventBackward: 'backward', progAct: 'prog' };
 
   // Contexto de views/pert-view: el de ROY más la colocación, la numeración, las duraciones y la selección.
   function pertCtx(ctx, tr, k) {
-    return Object.assign({}, ctx, {
+    const c = Object.assign({}, ctx, {
       lay: model.aoaLay, numbered: k >= tr.findIndex((s) => s.kind === 'number'), succs: model.succs, selected,
       durations: Object.fromEntries(model.project.activities.map((a) => [a.id, a.d])),
       onSelect: toggleSel,
     });
+    return prog() ? Object.assign(c, progView(tr, k, ctx.hide)) : c;
+  }
+
+  // Dibujo progresivo (F2b, T019): lo dibujado hasta el paso k con la colocación de la red final. Mientras se
+  // predice, sin la actividad del paso; después, con ella y sus ficticias resaltadas (AC8).
+  function progView(tr, k, hide) {
+    const net = model.progNet;
+    const step = tr[k];
+    const upto = hide ? k - 1 : k;
+    const acts = new Set(tr.slice(0, upto + 1).filter((s) => s.kind === 'progAct').map((s) => s.act));
+    const dums = new Set(tr.slice(0, upto + 1).flatMap((s) => (s.prog ? s.prog.dummies : [])));
+    const done = step.kind === 'progUnique' || step.kind === 'progEnd';
+    const visible = done ? null : new Set([...acts, ...dums]);
+    const emph = hide || !step.prog ? [] : [step.act, ...step.prog.dummies].filter(Boolean);
+    return { net, lay: model.progLay, visible, emph, numbered: step.kind === 'progEnd', act: step.act,
+      name: `${model.name} · ${t('cmp.names.prog')}` };
+  }
+
+  // Línea del método en el reproductor (solo con m=prog): de dónde viene la red y cómo volver.
+  function renderMethodLine(on) {
+    const box = clear($('methodLine'));
+    box.hidden = !on;
+    if (!on) return;
+    box.appendChild(h('strong', {}, [t('cmp.progLine')]));
+    box.appendChild(h('button', { type: 'button', class: 'linklike', onclick: () => { stopPlay(); dispatch({ type: 'set', key: 'm', value: 'rules' }); } }, [t('cmp.progBackRules')]));
+    box.appendChild(h('button', { type: 'button', class: 'linklike', onclick: () => { stopPlay(); dispatch({ type: 'set', key: 'm', value: 'rules' }); dispatch({ type: 'set', key: 'view', value: 'cmp' }); } }, [t('cmp.progBackCmp')]));
   }
 
   // ---------- Selección compartida y lado a lado (F2a, AC6 y AC7) ----------
@@ -434,6 +477,8 @@
       onPair: (pair) => dispatch({ type: 'pair', value: pair }),
       onLearn: (m) => openMethodLearn(m),
       onLearnTopic: (topic) => openLearn(topic),
+      // «Ver paso a paso» del dibujo progresivo: el reproductor con su traza, desde el principio (T019).
+      onStep: () => { dispatch({ type: 'set', key: 'view', value: 'net' }); dispatch({ type: 'set', key: 'm', value: 'prog' }); dispatch({ type: 'first' }); },
     });
     $('stage').classList.add('wide');
     $('unitLine').textContent = t('view.unitLine', { name: model.name, n: project.activities.length, unit: model.unit || '—' });
@@ -487,6 +532,7 @@
     box.hidden = !on;
     if (!on) return;
     if (step.rule) box.appendChild(ruleFields(step));
+    if (step.kind === 'progAct') box.appendChild(progFields(step));
     const fields = h('div', { class: 'fields' });
     for (const rv of step.reveals) {
       const key = PR.key(rv);
@@ -533,6 +579,38 @@
       actsRes === 'ok' ? h('p', { class: 'mark ok' }, [`✓ ${t('predict.ok')}`]) : null,
       h('label', { class: 'rule-count' }, [t('predict.ruleCount'), count,
         res === 'ok' || res === 'wrong' ? h('span', { class: `mark ${res}` }, [res === 'ok' ? `✓ ${t('predict.ok')}` : `✗ ${t('predict.wrong')}`]) : null])]);
+  }
+
+  // Paso del dibujo progresivo (AC8): de qué suceso sale la actividad y, con varias precedentes, cuáles llevan
+  // ficticia de dependencia. Tras comprobar, cada opción mal marcada dice si falta o sobra.
+  function progFields(step) {
+    const shown = pred.done && !pred.result;
+    if (!pred.answers.has(PR.PROG_DUMMIES)) pred.answers.set(PR.PROG_DUMMIES, new Set());
+    const chosen = pred.answers.get(PR.PROG_DUMMIES);
+    const mark = (res) => (res === 'ok' || res === 'wrong' ? h('span', { class: `mark ${res}` }, [res === 'ok' ? `✓ ${t('predict.ok')}` : `✗ ${t('predict.wrong')}`]) : null);
+    const startRes = pred.result ? pred.result.get(PR.PROG_START) : null;
+    const name = `pnl-prog-start-${state.step}`;
+    const start = h('fieldset', { class: 'rule-acts prog-start' }, [h('legend', {}, [t('predict.progStart', { act: step.act })]),
+      ...PR.PROG_STARTS.map((v) => h('label', {}, [
+        h('input', { type: 'radio', name, value: v, checked: shown ? step.prog.start === v : pred.answers.get(PR.PROG_START) === v,
+          onchange: () => pred.answers.set(PR.PROG_START, v) }),
+        t(`predict.progStarts.${v}`)])),
+      mark(startRes)]);
+    const out = h('div', { class: 'rule-predict' }, [start]);
+    if (step.prog.preds.length > 1) {
+      const want = step.prog.preds.filter((q) => q.how === 'dummy').map((q) => q.act);
+      const diff = pred.result ? PR.progDiff(step, pred.answers) : null;
+      out.appendChild(h('fieldset', { class: 'rule-acts' }, [h('legend', {}, [t('predict.progDummies')]),
+        ...step.prog.preds.map((q) => {
+          const m = diff && (diff.missing.includes(q.act) ? 'missing' : diff.extra.includes(q.act) ? 'extra' : null);
+          return h('label', { class: m ? 'wrong' : '' }, [
+            h('input', { type: 'checkbox', value: q.act, checked: shown ? want.includes(q.act) : chosen.has(q.act),
+              onchange: (e) => { if (e.target.checked) chosen.add(q.act); else chosen.delete(q.act); } }),
+            q.act, m ? h('span', { class: 'mark wrong' }, [`✗ ${t(`predict.${m}`)}`]) : null]);
+        }),
+        mark(pred.result ? pred.result.get(PR.PROG_DUMMIES) : null)]));
+    }
+    return out;
   }
 
   function renderWhatIf() {
@@ -661,7 +739,7 @@
     $('chkPredict').addEventListener('change', (e) => dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }));
     $('btnTable').addEventListener('click', () => { tableOpen = !tableOpen; render(); });
     $('btnWhatIf').addEventListener('click', () => { whatIfOpen = !whatIfOpen; render(); });
-    $('btnLearn').addEventListener('click', () => openLearn());
+    $('btnLearn').addEventListener('click', () => (prog() ? openMethodLearn('prog') : openLearn()));
     $('btnLearnClose').addEventListener('click', () => $('learnDialog').close());
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });

@@ -679,3 +679,82 @@ test('T016 · AC4: «Aprende más» de Corneil, Gotlieb y Lee explica el contrae
   assert.equal(t.open, 'syslo1981');
   for (const m of Cmp.METHODS) assert.ok(Lrn.methods[m].open === null || E.get(Lrn.methods[m].open), m);
 });
+
+// ---------- F2b · T018: el dibujo progresivo en la página (AC8) ----------
+
+require('../js/core/aoamethods.js');
+const progCtx = (id, lang, hide) => {
+  const p = loadP(id);
+  return { lang, nota: 'en', project: p, net: A.build(p, { method: 'prog' }), unit: '', hide: !!hide };
+};
+const PROG_KINDS = ['progTable', 'progAct', 'progUnique', 'progEnd'];
+
+test('T018 · AC8: cada paso del dibujo progresivo de las catorce tablas tiene título y texto en ES y EN, también mientras se predice', () => {
+  for (const ex of E.list({ all: true })) {
+    for (const lang of ['es', 'en']) {
+      for (const hide of [false, true]) {
+        const ctx = progCtx(ex.id, lang, hide);
+        assert.deepEqual([...new Set(ctx.net.trace.map((s) => s.kind))].filter((k) => !PROG_KINDS.includes(k)), []);
+        for (const st of ctx.net.trace) {
+          const n = N.narrate(st, ctx);
+          assert.ok(n.title && n.text, `${ex.id}/${lang}/${st.kind}/${st.act}`);
+          for (const s of [n.title, n.text, ...n.lines]) assert.doesNotMatch(s, KEYS, `${ex.id}/${lang}/${st.kind}/${st.act}: ${s}`);
+        }
+      }
+    }
+  }
+});
+
+test('T018 · AC8: el paso de I en el Ejercicio 6 dice que sale de un suceso nuevo y por qué cada precedente termina allí o lleva ficticia (tablero 20)', () => {
+  const ctx = progCtx('ej6', 'es');
+  const step = (a) => ctx.net.trace.find((s) => s.kind === 'progAct' && s.act === a);
+  const i = N.narrate(step('I'), ctx);
+  assert.equal(i.title, 'Actividad I');
+  assert.match(i.text, /^I depende de E, F y G/);
+  assert.match(i.text, /sale de un suceso nuevo/);
+  assert.equal(i.lines.length, 2, 'una línea por grupo de precedentes');
+  assert.match(i.lines.find((l) => /^G /.test(l)), /termina directamente/);
+  const ef = i.lines.find((l) => /^E y F /.test(l));
+  assert.match(ef, /suceso del que sale H/);
+  assert.match(ef, /ficticia de dependencia, F3/);
+  // E: B tiene otra posterior (F) que no depende de A.
+  const e = N.narrate(step('E'), ctx);
+  const b = e.lines.find((l) => /^B /.test(l));
+  assert.match(b, /\bF\b/);
+  assert.match(b, /F1/);
+  // Una sola precedente y ninguna.
+  assert.match(N.narrate(step('F'), ctx).text, /solo tiene una precedente, B/);
+  assert.match(N.narrate(step('A'), ctx).text, /suceso inicial/);
+  const en = progCtx('ej6', 'en');
+  const ie = N.narrate(en.net.trace.find((s) => s.kind === 'progAct' && s.act === 'I'), en);
+  assert.equal(ie.title, 'Activity I');
+  assert.match(ie.text, /new event/);
+});
+
+test('T018 · AC8: mientras se predice, el paso no dice de qué suceso sale la actividad ni qué ficticias lleva', () => {
+  for (const id of ['ej6', 'ej7', 'tipo', 'syslo1981']) {
+    for (const lang of ['es', 'en']) {
+      const ctx = progCtx(id, lang, true);
+      for (const st of ctx.net.trace.filter((s) => s.kind === 'progAct')) {
+        const n = N.narrate(st, ctx);
+        assert.deepEqual(n.lines, [], `${id} ${st.act}: sin líneas`);
+        assert.doesNotMatch(n.text, lang === 'es' ? /inicial|nuevo|ya llegan|directamente|del final de|ficticia de dependencia/ : /start event|new event|already|directly|end of|dependency dummy/, `${id} ${lang} ${st.act}: ${n.text}`);
+        for (const d of st.prog.dummies) assert.doesNotMatch(n.text, new RegExp(`\\b${d}\\b`));
+      }
+    }
+  }
+});
+
+test('T018: las ficticias de unicidad y el final del dibujo progresivo', () => {
+  const e7 = progCtx('ej7', 'es');
+  const u = N.narrate(e7.net.trace.find((s) => s.kind === 'progUnique'), e7);
+  assert.equal(u.title, 'Ficticias de unicidad');
+  for (const x of ['G', 'I', 'F5']) assert.match(u.text, new RegExp(`\\b${x}\\b`), u.text);
+  const e6 = progCtx('ej6', 'es');
+  assert.match(N.narrate(e6.net.trace.find((s) => s.kind === 'progUnique'), e6).text, /no hacen? falta/);
+  const end = N.narrate(e6.net.trace.find((s) => s.kind === 'progEnd'), e6);
+  assert.match(end.text, /3 ficticias/);
+  assert.match(end.text, /9 sucesos/);
+  const t0 = N.narrate(e6.net.trace[0], e6);
+  assert.match(t0.text, /A, B, C, D, E, F, G, H, I, J y K/, 'el orden en que se dibujan');
+});

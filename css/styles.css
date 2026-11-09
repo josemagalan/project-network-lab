@@ -291,3 +291,11 @@ table.arcs button.link { background: none; border: 0; padding: 2px 0; color: var
 .cmp-card .row-wrap button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .cmp-table summary { cursor: pointer; color: var(--accent); font-size: 13px; }
 .cmp-table table.data { font-size: 13px; }
+/* Dibujo progresivo en el reproductor (F2b, T019) */
+.method-line { flex-basis: 100%; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; }
+.prog-start label { min-height: 34px; }
+.formula.prose { font-family: var(--font); font-size: 15px; line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
+.formula.prose p { margin: 0; }
+.predict input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+.predict .prog-start label { font-family: var(--font); }
+.predict .prog-start { flex-direction: column; }

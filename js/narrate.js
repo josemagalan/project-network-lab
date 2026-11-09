@@ -96,6 +96,7 @@
         break;
       }
       case 'gantt': out.title = t('steps.gantt'); out.text = t('narr.gantt'); break;
+      case 'progTable': case 'progAct': case 'progUnique': case 'progEnd': return narrateProg(step, ctx, out);
       default: return narratePert(step, ctx, out);
     }
     return out;
@@ -203,6 +204,87 @@
     const rm = (ctx.removable || []).find((r) => r.name === x);
     if (rm) text += ' ' + t(rm.how === 'merge' ? 'sel.removableMerge' : 'sel.removableDelete', { name: x });
     return { title: x, text, precs, learn, removable: rm ? rm.how : null };
+  }
+
+  // ---------- F2b: dibujo progresivo paso a paso (T018–T019, AC8) ----------
+
+  // ctx.net es la red final del progresivo (core/aoamethods, con su traza); ctx.project, la tabla. Cada paso dice
+  // de qué suceso sale la actividad y, por grupos de precedentes, si terminan allí o llevan ficticia y por qué.
+  function narrateProg(step, ctx, out) {
+    const { lang, net, project } = ctx;
+    const t = (k, p) => I.t(lang, k, p);
+    const list = (xs) => I.list(lang, xs);
+    const tr = net.trace;
+    out.title = t(`progSteps.${step.kind}`, { act: step.act });
+    if (step.kind === 'progTable') { out.text = t('progNarr.table', { order: list(tr.filter((s) => s.kind === 'progAct').map((s) => s.act)) }); return out; }
+    if (step.kind === 'progEnd') {
+      const f = net.dummies.length;
+      out.text = t('progNarr.end', { fs: t(f === 0 ? 'view.dummiesNone' : f === 1 ? 'view.dummiesOne' : 'view.dummiesN', { n: f }), e: net.events.length });
+      return out;
+    }
+    if (step.kind === 'progUnique') {
+      const ds = net.dummies.filter((d) => step.prog.dummies.includes(d.name));
+      if (!ds.length) out.text = t('progNarr.uniqNone');
+      else if (ds.length === 1) out.text = t('progNarr.uniqOne', { a: ds[0].because[0], b: ds[0].because[1], d: ds[0].name });
+      else out.text = t('progNarr.uniqN', { pairs: list(ds.map((d) => list(d.because))), ds: list(ds.map((d) => d.name)) });
+      return out;
+    }
+    const x = step.act;
+    const preds = step.prog.preds.map((q) => q.act);
+    if (ctx.hide) {
+      out.text = preds.length === 0 ? t('progNarr.hiddenNone', { act: x }) : preds.length === 1 ? t('progNarr.hiddenOne', { act: x, p: preds[0] }) : t('progNarr.hiddenN', { act: x, preds: list(preds) });
+      return out;
+    }
+    const arc = (a) => net.arcs.find((e) => e.act === a);
+    const k = tr.indexOf(step);
+    const drawn = tr.slice(0, k).filter((s) => s.kind === 'progAct').map((s) => s.act);
+    const leaving = (ev) => drawn.filter((a) => arc(a).from === ev);
+    const st = step.prog.start;
+    if (st === 'initial') { out.text = t('progNarr.initial', { act: x }); return out; }
+    if (st === 'pred') { out.text = t('progNarr.pred', { act: x, p: preds[0] }); return out; }
+    if (st === 'existing') { out.text = t('progNarr.existing', { act: x, preds: list(preds), other: list(leaving(arc(x).from)) }); return out; }
+    out.text = t('progNarr.new', { act: x, preds: list(preds) });
+    const others = (q) => list(preds.filter((r) => r !== q));
+    const dummyFrom = (ev) => (net.dummies.find((d) => d.from === ev && d.to === arc(x).from) || { name: '?' }).name;
+    const direct = step.prog.preds.filter((q) => q.how === 'direct').map((q) => q.act);
+    // Si x es la única posterior de todas ellas, se dice así (no hay «lo que va después» que comprobar).
+    const only = direct.every((q) => (project.succs[q] || []).every((y) => y === x));
+    const dk = `progNarr.direct${only ? 'Only' : ''}${direct.length === 1 ? 'One' : 'N'}`;
+    if (direct.length) out.lines.push(t(dk, { p: direct[0], ps: list(direct), others: others(direct[0]), act: x }));
+    // Las que no están libres se agrupan por el suceso en que terminan (una sola ficticia por suceso).
+    const groups = new Map();
+    for (const q of step.prog.preds.filter((z) => z.how === 'dummy' && z.why === 'notFree')) {
+      const ev = arc(q.act).to;
+      if (!groups.has(ev)) groups.set(ev, []);
+      groups.get(ev).push(q.act);
+    }
+    for (const [ev, ps] of groups) {
+      const users = leaving(ev).filter((a) => a !== x);
+      out.lines.push(t(ps.length === 1 ? 'progNarr.notFreeOne' : 'progNarr.notFreeN', { p: ps[0], ps: list(ps), users: list(users), d: dummyFrom(ev) }));
+    }
+    const anc = ancestors(project);
+    for (const q of step.prog.preds.filter((z) => z.how === 'dummy' && z.why === 'otherSuccs')) {
+      const rest = preds.filter((r) => r !== q.act);
+      const ys = (project.succs[q.act] || []).filter((y) => y !== x && rest.some((r) => !anc.get(y).has(r)));
+      out.lines.push(t('progNarr.otherSuccs', { p: q.act, ys: list(ys), others: others(q.act), act: x, d: dummyFrom(arc(q.act).to) }));
+    }
+    return out;
+  }
+
+  // Precedentes (transitivas) de cada actividad.
+  function ancestors(project) {
+    const preds = new Map(project.activities.map((a) => [a.id, []]));
+    for (const a of project.activities) for (const y of project.succs[a.id] || []) if (preds.has(y)) preds.get(y).push(a.id);
+    const memo = new Map();
+    const go = (y) => {
+      if (memo.has(y)) return memo.get(y);
+      const s = new Set();
+      memo.set(y, s);
+      for (const p of preds.get(y)) { s.add(p); for (const z of go(p)) s.add(z); }
+      return s;
+    };
+    for (const a of project.activities) go(a.id);
+    return memo;
   }
 
   // ---------- F2b: comparador de métodos (T016–T017) ----------

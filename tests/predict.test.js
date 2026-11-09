@@ -133,3 +133,27 @@ test('AC8: los sucesos se predicen con el mecanismo general (tiempos y holgura d
   assert.equal(r.size, net6.events.length);
   assert.deepEqual(Pr.summary(r), { ok: 2, wrong: 0, empty: net6.events.length - 2 });
 });
+
+// ---------- F2b · T018: predicción del dibujo progresivo (AC8) ----------
+require('../js/core/aoamethods.js');
+
+test('T018: en el progresivo se corrige de qué suceso sale la actividad y qué precedentes llevan ficticia de dependencia', () => {
+  const p = P.parse(ex.rows, ex.mode).project;
+  const tr = A.build(p, { method: 'prog' }).trace;
+  const st = (a) => tr.find((x) => x.kind === 'progAct' && x.act === a);
+  const I = st('I');
+  const ok = Pr.check(I, new Map([[Pr.PROG_START, 'new'], [Pr.PROG_DUMMIES, ['F', 'E']]]));
+  assert.deepEqual([...ok], [[Pr.PROG_START, 'ok'], [Pr.PROG_DUMMIES, 'ok']]);
+  assert.equal(Pr.check(I, new Map([[Pr.PROG_START, 'existing'], [Pr.PROG_DUMMIES, ['E']]])).get(Pr.PROG_START), 'wrong');
+  assert.equal(Pr.check(I, new Map([[Pr.PROG_START, 'new'], [Pr.PROG_DUMMIES, ['E']]])).get(Pr.PROG_DUMMIES), 'wrong');
+  assert.equal(Pr.check(I, new Map([[Pr.PROG_START, 'new'], [Pr.PROG_DUMMIES, ['E', 'F', 'G']]])).get(Pr.PROG_DUMMIES), 'wrong');
+  assert.equal(Pr.check(I, new Map()).get(Pr.PROG_START), 'empty');
+  // Con una sola precedente o ninguna no hay casillas de ficticias; H no lleva ninguna (marcar ninguna es responder).
+  assert.deepEqual([...Pr.check(st('F'), new Map([[Pr.PROG_START, 'pred']]))], [[Pr.PROG_START, 'ok']]);
+  assert.deepEqual([...Pr.check(st('A'), new Map([[Pr.PROG_START, 'initial']]))], [[Pr.PROG_START, 'ok']]);
+  assert.equal(Pr.check(st('H'), new Map([[Pr.PROG_START, 'new'], [Pr.PROG_DUMMIES, []]])).get(Pr.PROG_DUMMIES), 'ok');
+  assert.deepEqual(Pr.progDiff(I, new Map([[Pr.PROG_DUMMIES, ['E', 'G']]])), { missing: ['F'], extra: ['G'] });
+  // Solo los pasos de actividad se predicen.
+  for (const x of tr) assert.equal(Pr.hasPrediction(x), x.kind === 'progAct', x.kind);
+  assert.deepEqual(Pr.PROG_STARTS, ['initial', 'pred', 'existing', 'new']);
+});
