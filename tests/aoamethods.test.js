@@ -124,3 +124,107 @@ test('traza del dibujo progresivo del Ejercicio 6: tabla, una actividad por paso
 test('el dibujo progresivo llega al mínimo en el caso tipo (aprovecha la precedencia implícita A→E)', () => {
   assert.equal(A.build(loadEx('tipo'), { method: 'prog' }).dummies.length, 2);
 });
+
+// ---------- T009: Spinrad (1986) y Corneil, Gotlieb y Lee (1973) ----------
+const S = require('./oracle-spinrad.js');
+const AM = require('../js/core/aoamethods.js');
+
+// Órdenes serie-paralelo (composición recursiva) y de intervalo (intervalos al azar), como tablas de posteriores.
+function seriesParallel(rand, ids) {
+  if (ids.length === 1) return { acts: ids, rel: [] };
+  const cut = 1 + Math.floor(rand() * (ids.length - 1));
+  const L = seriesParallel(rand, ids.slice(0, cut)); const R = seriesParallel(rand, ids.slice(cut));
+  const rel = [...L.rel, ...R.rel];
+  if (rand() < 0.5) for (const a of L.acts) for (const b of R.acts) rel.push([a, b]);
+  return { acts: ids, rel };
+}
+function intervalOrder(rand, ids) {
+  const iv = ids.map(() => { const l = Math.floor(rand() * 10); return [l, l + Math.floor(rand() * 4)]; });
+  const rel = [];
+  ids.forEach((a, i) => ids.forEach((b, j) => { if (iv[i][1] < iv[j][0]) rel.push([a, b]); }));
+  return { acts: ids, rel };
+}
+const toSucc = ({ acts, rel }) => Object.fromEntries(acts.map((a) => [a, rel.filter(([x]) => x === a).map(([, y]) => y)]));
+
+test('Spinrad: en su modelo, igual al óptimo de su modelo en órdenes serie-paralelo y de intervalo (oráculo, hasta 5 tareas)', () => {
+  const rand = rng(1986);
+  let n = 0;
+  for (let k = 0; k < 120; k++) {
+    const ids = ['A', 'B', 'C', 'D', 'E'].slice(0, 2 + Math.floor(rand() * 4));
+    const succ = toSucc(k % 2 ? seriesParallel(rand, ids) : intervalOrder(rand, ids));
+    const p = fromSucc(succ);
+    assert.equal(AM.spinradModel(p).arcs, S.optimum(succ).arcs, JSON.stringify(succ));
+    n++;
+  }
+  assert.equal(n, 120);
+});
+
+test('Spinrad y Corneil-Gotlieb-Lee: cifras de la spec en los seis ejercicios y en el caso tipo', () => {
+  for (const id of ['ej1', 'ej2', 'ej3', 'ej4', 'ej6', 'ej7', 'tipo']) {
+    const p = loadEx(id);
+    for (const m of ['spinrad', 'cgl']) {
+      const want = E.get(id).expected.methods[m];
+      const net = A.build(p, { method: m });
+      assert.equal(net.dummies.length, want.dummies, `${id}.${m}: ficticias`);
+      if (want.events !== undefined) assert.equal(net.events.length, want.events, `${id}.${m}: sucesos`);
+      if (want.model) assert.deepEqual(net.model, want.model, `${id}.${m}: en su modelo`);
+    }
+  }
+});
+
+test('Corneil, Gotlieb y Lee (1973), figura 6: 9 ficticias creadas y 8 tras quitar la redundante de tipo (3)', () => {
+  const p = fromSucc({ A: ['E', 'F', 'G'], B: ['F', 'G', 'H'], C: ['G', 'H', 'I'], D: ['G', 'I', 'J'], E: [], F: [], G: [], H: [], I: [], J: [] });
+  assert.equal(AM.cgl(p, { cover: false }).dummies.length, 9);
+  const net = A.build(p, { method: 'cgl' });
+  assert.equal(net.dummies.length, 8);
+  assert.equal(net.approx, false);
+});
+
+test('Sysło (1981), figura 2.3: Corneil-Gotlieb-Lee da 9 ficticias y 9 sucesos; las reglas, 8', () => {
+  const p = loadEx('syslo1981');
+  const net = A.build(p, { method: 'cgl' });
+  assert.deepEqual([net.dummies.length, net.events.length], [9, 9]);
+  assert.equal(A.build(p).dummies.length, 8);
+});
+
+test('contraejemplo propio: Corneil-Gotlieb-Lee da 4 ficticias y el mínimo exacto es 3 (9 actividades, sin paralelas)', () => {
+  const p = fromSucc({ A1: ['A4', 'A5', 'A7'], A2: ['A3', 'A7'], A3: ['A7', 'A8', 'A9'], A4: ['A7', 'A8'], A5: ['A7'], A6: ['A8'], A7: [], A8: [], A9: [] });
+  assert.equal(A.build(p, { method: 'cgl' }).dummies.length, 4);
+  const min = M.solve(p);
+  assert.deepEqual([min.value, min.exact], [3, true]);
+});
+
+test('Spinrad y Corneil-Gotlieb-Lee: redes correctas en 1000 tablas de hasta 12 actividades y 150 de 16 a 30', () => {
+  const rand = rng(1973);
+  for (let k = 0; k < 1150; k++) {
+    const n = k < 1000 ? 1 + Math.floor(rand() * 12) : 16 + Math.floor(rand() * 15);
+    const p = fromSucc(randomSucc(rand, n));
+    for (const m of ['spinrad', 'cgl']) assert.deepEqual(logicErrors(A.build(p, { method: m }), p), [], `${m} n=${n}`);
+  }
+});
+
+test('Spinrad y Corneil-Gotlieb-Lee: nunca menos ficticias que el mínimo exacto (300 tablas de hasta 9 actividades)', () => {
+  const rand = rng(1981);
+  for (let k = 0; k < 300; k++) {
+    const p = fromSucc(randomSucc(rand, 1 + Math.floor(rand() * 9)));
+    const min = M.solve(p);
+    if (!min.exact) continue;
+    for (const m of ['spinrad', 'cgl']) assert.ok(A.build(p, { method: m }).dummies.length >= min.value, m);
+  }
+});
+
+test('Corneil-Gotlieb-Lee: con el presupuesto agotado, recubrimiento voraz marcado y la red sigue siendo correcta', () => {
+  const p = fromSucc({ A: ['E', 'F', 'G'], B: ['F', 'G', 'H'], C: ['G', 'H', 'I'], D: ['G', 'I', 'J'], E: [], F: [], G: [], H: [], I: [], J: [] });
+  const net = AM.cgl(p, { budget: 1 });
+  assert.equal(net.approx, true);
+  assert.deepEqual(logicErrors(net, p), []);
+  assert.equal(AM.CGL_BUDGET, 65536);
+});
+
+test('Spinrad: la red contraída no tiene ficticias que se puedan quitar y guarda la cifra de su modelo', () => {
+  const p = loadEx('ej6');
+  const net = A.build(p, { method: 'spinrad' });
+  assert.deepEqual(K.removable(net, p), []);
+  assert.ok(net.model.dummies > net.dummies.length);
+});
+

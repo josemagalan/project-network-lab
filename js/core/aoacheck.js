@@ -94,9 +94,10 @@
 
   // Ficticias que se pueden quitar: borrándola o, si no, fundiendo su destino con su origen (sin mirar
   // la numeración). Solo tiene sentido en una red lógicamente correcta.
-  function removableIn(g, p) {
+  function removableIn(g, p, first) {
     const out = [];
     for (const d of g.dummies) {
+      if (first && out.length) break;
       if (d.from === null || d.to === null) continue;
       const rest = g.dummies.filter((x) => x !== d);
       if (!logic({ events: g.events, arcs: g.arcs, dummies: rest }, p).length) { out.push({ i: d.i, name: d.name, how: 'delete' }); continue; }
@@ -119,12 +120,19 @@
     return { ok: problems.length === 0, problems };
   }
 
-  function removable(net, p) {
+  // opts.first: solo la primera que se pueda quitar, en el orden de las ficticias (lo usa la contracción de Spinrad).
+  function removable(net, p, opts) {
     const g = normalize(net);
-    return logic(g, p).length ? [] : removableIn(g, p);
+    return logic(g, p).length ? [] : removableIn(g, p, !!(opts && opts.first));
   }
 
-  const api = { diagnose, removable };
+  // ¿Correcta en lógica y numeración? (sin buscar ficticias que sobran; lo usan los métodos que prueban redes)
+  function valid(net, p) {
+    const g = normalize(net);
+    return logic(g, p).length === 0 && numbering(g).length === 0;
+  }
+
+  const api = { diagnose, removable, valid };
   root.PNL = root.PNL || {};
   root.PNL.aoacheck = api;
   if (isNode) module.exports = api;
