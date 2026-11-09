@@ -303,6 +303,9 @@ table.arcs button.link { background: none; border: 0; padding: 2px 0; color: var
 .reto { display: flex; flex-direction: column; gap: 12px; }
 .reto-title { margin: 0; font-weight: 600; }
 .reto-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.reto-left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.reto-res > p { margin: 0; }
+.reto-actions { justify-content: flex-end; }
 @media (max-width: 860px) { .reto-grid { grid-template-columns: minmax(0, 1fr); } }
 .reto-table, .reto-work { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .reto-table h2, .reto-work h2 { margin: 0; font-size: 16px; }
@@ -325,6 +328,38 @@ button.small-btn { font-size: 13px; padding: 3px 8px; min-height: 28px; }
 .reto-result li.bad { color: var(--ink); } .reto-result li.mute { color: var(--muted); } .reto-result li.warn { color: var(--ink); }
 .reto-result h2:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .reto-count { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-.reto-solution { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.reto-solution { display: flex; flex-direction: column; gap: 8px; }
 .reto-solution p { margin: 0; }
 .reto-solution select { font: inherit; padding: 4px 8px; color: var(--ink); }
+/* Lienzo del reto (F2b, T022; tablero 21) */
+.reto-canvas { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.reto-tools { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: space-between; }
+.reto-tools .seg { flex-wrap: wrap; }
+.reto-tools .seg button { font-size: 13px; padding: 5px 10px; }
+.reto-act { margin: 0; display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.reto-act select { font: inherit; padding: 3px 6px; color: var(--ink); }
+.reto-hint, .reto-status { margin: 0; }
+.reto-status { min-height: 1.3em; font-weight: 600; }
+.reto-canvas-box { border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.reto-svg { display: block; max-height: max(260px, calc(100vh - 400px)); min-width: 540px; }
+.reto-svg .reto-dot { fill: var(--line); }
+.reto-svg .reto-bg { cursor: crosshair; }
+.reto-svg .reto-ev, .reto-svg .reto-edge { cursor: pointer; }
+.reto-svg .reto-ev:focus-visible circle { stroke: var(--focus); stroke-width: 4; }
+.reto-svg .reto-edge:focus-visible .edge { stroke: var(--focus); stroke-width: 3.5; }
+.reto-svg .reto-ev.picked circle { fill: var(--select-soft); stroke: var(--select); stroke-width: 3.5; }
+.reto-svg .reto-ev.nonum .nid { font-style: italic; fill: var(--muted); }
+.reto-svg .hit { fill: none; stroke: transparent; stroke-width: 14; }
+.reto-svg .reto-empty { fill: var(--muted); font-size: 15px; }
+/* A 1280×720 la tabla y el lienzo caben sin desplazar la página (AC16): cada columna se desplaza por dentro. */
+@media (min-width: 861px) and (min-height: 600px) {
+  .reto-grid { height: calc(100vh - 230px); min-height: 360px; }
+  /* position: relative para que lo que solo lee el lector de pantalla (.sr-only) no alargue la página. */
+  .reto-left, .reto-work { height: 100%; overflow: auto; position: relative; }
+  .reto-work .reto-canvas { flex: 1 1 auto; }
+  .reto-work .reto-solution { flex: 1 1 auto; }
+  .reto-canvas-box { flex: 1 1 auto; min-height: 200px; position: relative; overflow: hidden; }
+  .reto-svg { position: absolute; inset: 0; width: 100%; height: 100%; max-height: none; min-width: 0; }
+}
+.reto-result h2 { margin: 0; font-size: 17px; }
+@media (min-width: 861px) and (min-height: 600px) { .reto-solution .cmp-net svg { max-height: calc(100vh - 470px); } }

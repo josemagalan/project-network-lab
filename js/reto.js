@@ -204,6 +204,62 @@
     return { net: prune({ events, arcs, dummies }), seq, result: null };
   }
 
+  // ---------- Lienzo (T022): dónde se dibuja cada suceso ----------
+  // Rejilla de GRID px; los sucesos sin posición (los de la tabla) se colocan por niveles: una actividad avanza una
+  // columna y una ficticia ninguna (como views/aoa-layout), en filas que no pisan a los sucesos ya colocados.
+  const CANVAS = { grid: 20, col: 140, row: 80, pad: 40, w: 640, h: 320, near: 36 };
+  const snap = (v) => Math.min(LIMIT.pos, Math.max(0, Math.round(v / CANVAS.grid) * CANVAS.grid));
+
+  function place(net) {
+    const out = new Map();
+    for (const e of net.events) if (e.x !== undefined && e.y !== undefined) out.set(e.id, { x: e.x, y: e.y, auto: false });
+    const auto = net.events.filter((e) => !out.has(e.id));
+    if (auto.length) {
+      // Nivel por el camino más largo (Kahn); los que quedan en un ciclo van detrás.
+      const edges = [...net.arcs.map((a) => [a.from, a.to, 1]), ...net.dummies.map((d) => [d.from, d.to, 0])].filter(([f, t]) => f !== null && t !== null);
+      const level = new Map(net.events.map((e) => [e.id, 0]));
+      const deg = new Map(net.events.map((e) => [e.id, 0]));
+      for (const [, t] of edges) deg.set(t, deg.get(t) + 1);
+      const queue = net.events.filter((e) => deg.get(e.id) === 0).map((e) => e.id);
+      const seen = new Set();
+      while (queue.length) {
+        const u = queue.shift(); seen.add(u);
+        for (const [f, t, w] of edges) if (f === u) { level.set(t, Math.max(level.get(t), level.get(u) + w)); deg.set(t, deg.get(t) - 1); if (deg.get(t) === 0) queue.push(t); }
+      }
+      let top = Math.max(0, ...level.values());
+      for (const e of net.events) if (!seen.has(e.id)) level.set(e.id, ++top);
+      const order = auto.slice().sort((a, b) => (a.n == null ? 1e9 : a.n) - (b.n == null ? 1e9 : b.n) || a.id - b.id);
+      const taken = [...out.values()];
+      const free = (x, y) => taken.every((p) => Math.hypot(p.x - x, p.y - y) >= CANVAS.near * 2);
+      for (const e of order) {
+        const x = CANVAS.pad + level.get(e.id) * CANVAS.col;
+        let y = CANVAS.pad;
+        while (!free(x, y)) y += CANVAS.row;
+        const p = { x, y, auto: true };
+        out.set(e.id, p); taken.push(p);
+      }
+    }
+    return out;
+  }
+
+  // Tamaño del lienzo para que quepan todos los sucesos (con margen).
+  function extent(places) {
+    const ps = [...places.values()];
+    return { w: Math.max(CANVAS.w, ...ps.map((p) => p.x + CANVAS.pad + 40)), h: Math.max(CANVAS.h, ...ps.map((p) => p.y + CANVAS.pad + 20)) };
+  }
+
+  // Un hueco libre para un suceso nuevo creado con el teclado: a la derecha del suceso de referencia (o debajo), o el
+  // primero libre de la rejilla.
+  function spot(places, near) {
+    const taken = [...places.values()];
+    const free = (x, y) => taken.every((p) => Math.hypot(p.x - x, p.y - y) >= CANVAS.near * 2);
+    const tries = [];
+    if (near) for (const [dx, dy] of [[1, 0], [1, 1], [0, 1], [1, -1], [2, 0], [0, -1]]) tries.push([near.x + dx * CANVAS.col, near.y + dy * CANVAS.row]);
+    for (let r = 0; r < 40; r++) for (let c = 0; c < 12; c++) tries.push([CANVAS.pad + c * CANVAS.col, CANVAS.pad + r * CANVAS.row]);
+    for (const [x, y] of tries) if (x >= 0 && y >= 0 && free(snap(x), snap(y))) return { x: snap(x), y: snap(y) };
+    return { x: CANVAS.pad, y: CANVAS.pad };
+  }
+
   // Los problemas del diagnóstico con los sucesos nombrados como los ve el alumno (número o letras), para narrate.
   // En los que son una lista de sucesos (no un origen y un destino), en orden: primero los números y luego las letras.
   const LISTS = ['start', 'end', 'cycle', 'unnumbered', 'looseEvent', 'sameNumber'];
@@ -216,7 +272,7 @@
     });
   }
 
-  const api = { start, apply, check, named, fromUrl, label, byLabel, shown, LIMIT };
+  const api = { start, apply, check, named, fromUrl, label, byLabel, shown, place, extent, spot, snap, CANVAS, LIMIT };
   root.PNL = root.PNL || {};
   root.PNL.reto = api;
   if (isNode) module.exports = api;

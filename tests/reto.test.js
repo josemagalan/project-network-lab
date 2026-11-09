@@ -322,3 +322,37 @@ test('T021 · nombres de los sucesos: su número o, sin número, letras; el diag
   assert.deepEqual(R.shown([{ code: 'cycle', ids: [], events: [b, a, c] }], s.net)[0].events, ['3', '12', 'a']);
   assert.deepEqual(R.shown([{ code: 'order', ids: [], events: [b, c] }], s.net)[0].events, ['12', '3']);
 });
+
+test('T022 · lienzo: los sucesos de la tabla se colocan por niveles sin pisar a los del lienzo; huecos para sucesos nuevos', () => {
+  const s = typed(A.build(p6), R.start(p6));
+  const pl = R.place(s.net);
+  const at = (n) => pl.get(s.net.events.find((e) => e.n === n).id);
+  assert.ok([...pl.values()].every((p) => p.auto));
+  // Una actividad avanza una columna; una ficticia, ninguna (F1 del 2 al 3: misma columna).
+  assert.equal(at(1).x, R.CANVAS.pad);
+  assert.equal(at(2).x, at(1).x + R.CANVAS.col);
+  assert.equal(at(3).x, at(2).x);
+  assert.ok(at(9).x > at(8).x);
+  // Nunca dos sucesos en el mismo sitio.
+  const key = (p) => `${p.x},${p.y}`;
+  assert.equal(new Set([...pl.values()].map(key)).size, pl.size);
+  // Un suceso del lienzo en el hueco del 1: el 1 se coloca debajo.
+  const t = R.apply(s, { type: 'addEvent', x: R.CANVAS.pad, y: R.CANVAS.pad });
+  const pl2 = R.place(t.net);
+  const one = pl2.get(t.net.events.find((e) => e.n === 1).id);
+  assert.equal(one.x, R.CANVAS.pad);
+  assert.ok(one.y > R.CANVAS.pad);
+  // Con un ciclo también coloca a todos.
+  const c = R.apply(t, { type: 'addDummy', from: t.net.events.find((e) => e.n === 9).id, to: t.net.events.find((e) => e.n === 1).id });
+  assert.equal(R.place(c.net).size, c.net.events.length);
+  // Huecos: a la derecha del de referencia si está libre; si no, otro libre; y en la rejilla.
+  const sp = R.spot(pl, at(9));
+  assert.deepEqual(sp, { x: R.snap(at(9).x + R.CANVAS.col), y: R.snap(at(9).y) });
+  const first = R.spot(new Map(), null);
+  assert.deepEqual(first, { x: R.CANVAS.pad, y: R.CANVAS.pad });
+  const busy = R.spot(new Map([[0, { x: R.CANVAS.pad, y: R.CANVAS.pad }]]), null);
+  assert.notDeepEqual(busy, first);
+  assert.equal(busy.x % R.CANVAS.grid + busy.y % R.CANVAS.grid, 0);
+  const ext = R.extent(pl);
+  assert.ok(ext.w >= at(9).x + R.CANVAS.pad && ext.h >= R.CANVAS.h);
+});

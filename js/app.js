@@ -554,6 +554,7 @@
       },
       onCheck: () => { reto.st = RT.check(reto.st, project, combinedMin(project)); render(); },
       onSolution: (m) => { retoSol = m; if (m) retoMethod = m; render(); },
+      onRepaint: () => render(), live: $('retoLive'),
     });
     $('stage').classList.add('wide');
     $('unitLine').textContent = t('view.unitLine', { name: model.name, n: project.activities.length, unit: model.unit || '—' });

@@ -5,9 +5,10 @@
  * nada (criterio 12). «Ver una solución» enseña la red de un método del comparador sin tocar la del alumno.
  * No calcula: el modelo es js/reto y los textos, narrate (retoResult, diagnosis). Todo texto entra con
  * textContent (dom.h), nunca HTML.
- *   render(container, ctx): ctx = { reto: { net, result }, project, lang, nota, numFmt, name, methods,
- *     solution: { method, net, dummies, events } | null, solutionMethod,
- *     onOp(op) → true si la red cambia, onCheck(), onSolution(method | null) }.
+ *   render(container, ctx): ctx = { reto: { net, seq, result }, project, lang, nota, numFmt, name, methods,
+ *     solution: { method, net, dummies, events } | null, solutionMethod, live (región que anuncia los avisos),
+ *     onOp(op) → true si la red cambia (y repinta), onCheck(), onSolution(method | null), onRepaint() }.
+ *   El lienzo (views/reto-canvas) va en la columna de la derecha, sobre «Comprobar» (T022).
  *   state(): el mensaje de la tabla y la casilla con el foco, para las pruebas de navegador.
  */
 (function (root) {
@@ -39,9 +40,14 @@
       h('h2', { id: 'pnl-reto-th' }, [t('reto.tableTitle')]),
       h('p', { class: 'small muted' }, [t('reto.tableHint')]),
     ]);
-    grid.appendChild(tableBox);
+    // A la izquierda, el resultado de «Comprobar» (si lo hay) sobre la tabla; a la derecha, el lienzo (T022).
+    const left = h('div', { class: 'reto-left' });
+    grid.appendChild(left);
+    const resBox = h('div', { class: 'reto-res' });
+    left.appendChild(resBox);
+    left.appendChild(tableBox);
     const lbl = (id) => (id === null ? '' : R.label(net, id) || '');
-    const say = (key, params) => { msg = { key, params }; showMsg(); };
+    const say = (key, params) => { msg = { key, params }; showMsg(); if (ctx.live) ctx.live.textContent = t(key, params); };
     // Texto de una casilla de extremo → operación del modelo (o null si no vale).
     const endOp = (target, side, text) => {
       const v = String(text).trim();
@@ -128,34 +134,43 @@
         if (!ctx.onOp({ type: 'autoNumber' })) say('reto.autoNumberCycle');
       } }, [t('reto.autoNumber')]),
     ]));
-    const msgEl = h('p', { class: 'reto-msg small', role: 'status' });
+    const msgEl = h('p', { class: 'reto-msg small' });
     tableBox.appendChild(msgEl);
     function showMsg() { msgEl.textContent = msg ? t(msg.key, msg.params) : ''; }
     showMsg();
 
-    // ---- Comprobar, resultado y solución ----
-    const work = h('section', { class: 'card reto-work', 'aria-label': t('reto.region') });
-    grid.appendChild(work);
-    work.appendChild(h('div', { class: 'row-wrap' }, [
-      h('button', { type: 'button', class: 'ghost primary', 'data-k': 'check', onclick: () => { focusResult = true; ctx.onCheck(); } }, [t('reto.check')]),
-      ctx.solution
-        ? h('button', { type: 'button', class: 'ghost', 'data-k': 'back', onclick: () => ctx.onSolution(null) }, [t('reto.back')])
-        : h('button', { type: 'button', class: 'ghost', 'data-k': 'solution', onclick: () => ctx.onSolution(ctx.solutionMethod) }, [t('reto.solution')]),
-    ]));
+    // ---- Resultado ----
     const res = reto.result;
-    if (!res) work.appendChild(h('p', { class: 'small muted' }, [t('reto.noHints')]));
+    if (!res) resBox.appendChild(h('p', { class: 'small muted' }, [t('reto.noHints')]));
     else {
       const o = G.narrate.retoResult(Object.assign({}, res, { problems: R.shown(res.problems, net) }), { lang });
       const head = h('h2', { tabindex: '-1', id: 'pnl-reto-res', 'data-k': 'result' }, [o.title]);
       const r = h('div', { class: `reto-result ${o.tone}`, role: 'region', 'aria-labelledby': 'pnl-reto-res' }, [head]);
       if (o.count) r.appendChild(h('p', { class: 'reto-count' }, [o.count]));
       if (o.lines.length) r.appendChild(h('ul', {}, o.lines.map((l) => h('li', { class: l.tone }, [l.text]))));
-      work.appendChild(r);
+      resBox.appendChild(r);
     }
+
+    // ---- Lienzo (o la solución, sin perder la red del alumno), comprobar ----
+    const work = h('section', { class: 'card reto-work', 'aria-labelledby': 'pnl-reto-ch' }, [
+      h('h2', { id: 'pnl-reto-ch', class: 'sr-only' }, [t(ctx.solution ? 'reto.solutionTitle' : 'reto.canvasTitle')])]);
+    grid.appendChild(work);
     if (ctx.solution) work.appendChild(solution(ctx, t));
+    else {
+      const canvas = h('div', { class: 'reto-canvas' });
+      work.appendChild(canvas);
+      G.retoCanvas.render(canvas, Object.assign({}, ctx, { removable: res && res.correct ? res.removable.map((r) => r.name) : [] }));
+    }
+    work.appendChild(h('div', { class: 'row-wrap reto-actions' }, [
+      ctx.solution
+        ? h('button', { type: 'button', class: 'ghost', 'data-k': 'back', onclick: () => ctx.onSolution(null) }, [t('reto.back')])
+        : h('button', { type: 'button', class: 'ghost', 'data-k': 'solution', onclick: () => ctx.onSolution(ctx.solutionMethod) }, [t('reto.solution')]),
+      h('button', { type: 'button', class: 'ghost primary', 'data-k': 'check', onclick: () => { focusResult = true; ctx.onCheck(); } }, [t('reto.check')]),
+    ]));
 
     // Tras «Comprobar», el foco va al título del resultado (también si se repinta antes, al llegar el mínimo).
-    const target = focusResult && res ? 'result' : keep;
+    const fromCanvas = G.retoCanvas.takeFocus();
+    const target = focusResult && res ? 'result' : fromCanvas || keep;
     if (res) focusResult = false;
     if (target) {
       const el = container.querySelector(`[data-k="${target}"]`);
