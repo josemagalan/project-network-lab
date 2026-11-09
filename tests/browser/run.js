@@ -1098,10 +1098,293 @@ check('F2a T022 · el taller ofrece los ejercicios 1, 2, 3 y 7; una tabla sin du
   await close(page);
 });
 
+// ---------- F2b, hito 1: comparador de métodos y dibujo progresivo (T023) ----------
+
+const ALL_MS = 'prog,rules,cs,kim,spinrad,cgl,min';
+// El comparador está listo cuando el mínimo ya no se está calculando.
+async function cmpLab(hash, opts) {
+  const page = await lab(`graph=aoa&view=cmp&${hash}`, opts);
+  await page.waitForFunction(() => { const m = document.querySelector('#cmpView .cmp-min'); return m && !/calculando|working it out/.test(m.textContent); }, null, { timeout: 30000 });
+  return page;
+}
+// Lo que dice cada tarjeta, por método.
+const cmpCards = (page) => page.locator('#cmpView .cmp-card').evaluateAll((els) => Object.fromEntries(els.map((e) => [e.dataset.method, {
+  count: e.querySelector('.cmp-count strong').textContent, unit: e.querySelector('.cmp-count .muted').textContent,
+  chips: [...e.querySelectorAll('.chips li')].map((x) => x.textContent), notes: [...e.querySelectorAll('.cmp-note')].map((x) => x.textContent),
+  arcs: e.querySelectorAll('.cmp-table tbody tr').length, sel: e.querySelectorAll('.cmp-net path.edge.sel').length,
+  rm: e.querySelectorAll('.cmp-net path.edge.rm').length,
+}])));
+const cmpCard = (page, m) => page.locator(`#cmpView .cmp-card[data-method="${m}"]`);
+// Pulsa la etiqueta de una flecha (actividad o ficticia) en la red de una tarjeta.
+const cmpPick = (page, m, x) => cmpCard(page, m).locator('.cmp-net text.elabel').filter({ hasText: new RegExp(`^${x}$`) }).click();
+// Textos de las etiquetas de flecha de un SVG (los elementos SVG no tienen innerText).
+const svgTexts = (page, sel) => page.locator(sel).evaluateAll((els) => els.map((e) => e.textContent));
+const noHScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+
+// Cifras de la spec F2b para el Ejercicio 6: ficticias, sucesos y, en Spinrad, las de su modelo.
+const EJ6_CMP = { prog: [3, 9], rules: [3, 9], cs: [6, 11], kim: [3, 9], spinrad: [3, 9], cgl: [3, 9], min: [3, 9] };
+
+for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+  check(`F2b AC5 y AC15 · comparador del Ejercicio 6 en ${lang.toUpperCase()} (${scheme === 'light' ? 'claro' : 'oscuro'}): cifras de cada método, lo que sobra, tabla de arcos y axe`, async () => {
+    const page = await cmpLab(`ex=ej6&ms=${ALL_MS}&lang=${lang}`, { scheme });
+    const es = lang === 'es';
+    assert.equal((await page.locator('#cmpView .cmp-min').innerText()).trim(), es ? 'Mínimo: 3 ficticias (exacto)' : 'Minimum: 3 dummies (exact)');
+    const cards = await cmpCards(page);
+    assert.deepEqual(Object.keys(cards), ['prog', 'rules', 'cs', 'kim', 'spinrad', 'cgl', 'min'], 'siete tarjetas en el orden de los métodos');
+    for (const [m, [d, e]] of Object.entries(EJ6_CMP)) {
+      const c = cards[m];
+      assert.equal(c.count, String(d), `${m}: ficticias`);
+      assert.match(c.unit, new RegExp(`\\b${e} ${es ? 'sucesos' : 'events'}$`), `${m}: sucesos`);
+      assert.equal(c.chips[0], es ? 'Correcta' : 'Correct', m);
+      // La tabla de arcos (alternativa en texto, AC15) tiene una fila por actividad y por ficticia.
+      assert.equal(c.arcs, 11 + d, `${m}: filas de la tabla de arcos`);
+    }
+    for (const m of ['prog', 'rules', 'kim', 'spinrad', 'cgl', 'min']) assert.equal(cards[m].chips[1], es ? 'En el mínimo' : 'At the minimum', m);
+    // Agrupar por precedentes: 6 frente a 3, con dos ficticias que sobran marcadas en su red (AC6).
+    assert.equal(cards.cs.chips[1], es ? '+3 sobre el mínimo' : '+3 over the minimum');
+    assert.ok(cards.cs.notes.includes(es ? 'F4 y F6 se pueden quitar' : 'F4 and F6 can be removed'), cards.cs.notes.join(' | '));
+    assert.equal(cards.cs.rm, 2, 'F4 y F6 en rojo');
+    assert.equal(Object.values(cards).reduce((s, c) => s + c.rm, 0), 2, 'nada más en rojo');
+    assert.ok(cards.spinrad.notes.includes(es ? 'En su modelo: 10 ficticias y 16 sucesos' : 'In its own model: 10 dummies and 16 events'), cards.spinrad.notes.join(' | '));
+    assert.ok(await noHScroll(page), 'sin desplazamiento horizontal de página');
+    await axe(page, `comparador del Ejercicio 6, siete métodos (${lang.toUpperCase()}, ${scheme})`);
+    // Las tablas de arcos abiertas también pasan axe.
+    await page.locator('#cmpView .cmp-table summary').evaluateAll((els) => els.forEach((s) => s.click()));
+    await axe(page, `comparador del Ejercicio 6 con las tablas de arcos abiertas (${lang.toUpperCase()}, ${scheme})`);
+    await shot(page, `f2b-cmp-ej6-${lang}-${scheme}`, true);
+    await close(page);
+  });
+}
+
+check('F2b AC4 y AC6 · Sysło (1981): Corneil-Gotlieb-Lee 9 y reglas 8; su tarjeta queda por encima de la mejor encontrada, con diferencia de estructura, y «Aprende más» da el contraejemplo', async () => {
+  const page = await cmpLab('ex=syslo1981&ms=rules,cgl,min&lang=es');
+  assert.match(await page.locator('#cmpView .cmp-min').innerText(), /^Mínimo: entre \d+ y 8 ficticias/);
+  const cards = await cmpCards(page);
+  assert.equal(cards.cgl.count, '9');
+  assert.equal(cards.rules.count, '8');
+  assert.deepEqual(cards.cgl.chips, ['Correcta', '+1 sobre la mejor encontrada']);
+  assert.deepEqual(cards.rules.chips, ['Correcta', 'Igual que la mejor encontrada']);
+  assert.ok(cards.cgl.notes.includes('Diferencia de estructura: ninguna ficticia sobra por sí sola'), cards.cgl.notes.join(' | '));
+  assert.equal(cards.cgl.rm, 0, 'ninguna ficticia en rojo');
+  await cmpCard(page, 'cgl').locator('button', { hasText: 'Aprende más' }).click();
+  assert.ok(await page.locator('#learnDialog').evaluate((d) => d.open));
+  assert.equal(await page.locator('#learnTitle').innerText(), 'Corneil, Gotlieb y Lee (1973)');
+  assert.match(await page.locator('#learnBody').innerText(), /Sysło dio una tabla de 14 actividades/);
+  await axe(page, 'Aprende más de Corneil, Gotlieb y Lee');
+  await page.locator('#btnLearnClose').click();
+  // Cada método tiene su «Aprende más» con su nombre (AC17).
+  await close(page);
+  const all = await cmpLab(`ex=ej6&ms=${ALL_MS}&lang=en`);
+  for (const m of ['prog', 'rules', 'cs', 'kim', 'spinrad', 'cgl', 'min']) {
+    await cmpCard(all, m).locator('button', { hasText: 'Learn more' }).click();
+    const title = await all.locator('#learnTitle').innerText();
+    assert.ok(title.startsWith(await cmpCard(all, m).locator('h2').innerText()), `${m}: ${title}`);
+    await all.locator('#btnLearnClose').click();
+  }
+  await close(all);
+});
+
+check('F2b AC6 y AC7 · selección: una actividad se resalta en todas las tarjetas; una ficticia, solo en la suya, con lo que representa y por qué sobra', async () => {
+  const page = await cmpLab('ex=ej6&ms=rules,cs,min&lang=es');
+  await cmpPick(page, 'rules', 'E');
+  let cards = await cmpCards(page);
+  for (const m of ['rules', 'cs', 'min']) assert.equal(cards[m].sel, 1, `${m}: E resaltada`);
+  assert.deepEqual(await page.evaluate(() => PNL.compareView.state().sel), { m: 'rules', x: 'E' });
+  assert.match(await page.locator('#cmpView .sel-info').innerText(), /\bE\b/);
+  await axe(page, 'comparador con una actividad seleccionada');
+  // Una ficticia que sobra: se resalta solo en su red y se explica.
+  await cmpPick(page, 'cs', 'F4');
+  cards = await cmpCards(page);
+  assert.deepEqual([cards.rules.sel, cards.cs.sel, cards.min.sel], [0, 1, 0], 'F4 solo en su tarjeta');
+  const info = await page.locator('#cmpView .sel-info').innerText();
+  assert.match(info, /F4 · Agrupar por precedentes/);
+  assert.match(info, /→/, `nombra las precedencias que representa: ${info}`);
+  assert.match(info, /quitar|sobra/i, `dice por qué sobra: ${info}`);
+  await axe(page, 'comparador con una ficticia que sobra seleccionada');
+  // Volver a pulsarla la deselecciona; «Quitar la selección» también.
+  await cmpPick(page, 'cs', 'F4');
+  assert.equal(await page.evaluate(() => PNL.compareView.state().sel), null);
+  await cmpPick(page, 'min', 'K');
+  await page.locator('#cmpView .sel-info button').last().click();
+  assert.equal(await page.locator('#cmpView .sel-info').count(), 0);
+  await close(page);
+});
+
+check('F2b AC14 y AC16 · par lado a lado: se elige con dos tarjetas, va a la URL, cabe en 1280×720 y se reproduce en otro navegador', async () => {
+  const page = await cmpLab('ex=ej6&lang=es');
+  assert.deepEqual(Object.keys(await cmpCards(page)), ['prog', 'rules', 'min'], 'métodos por defecto');
+  await cmpCard(page, 'prog').locator('button', { hasText: 'Ver lado a lado' }).click();
+  assert.match(await page.locator('#cmpView .cmp-hint').innerText(), /Dibujo progresivo/);
+  await cmpCard(page, 'min').locator('button', { hasText: 'Lado a lado con esta' }).click();
+  await page.waitForFunction(() => /pair=prog%2Cmin|pair=prog,min/.test(location.hash));
+  assert.deepEqual((await state(page)).pair, ['prog', 'min']);
+  assert.deepEqual(Object.keys(await cmpCards(page)), ['prog', 'min']);
+  const box = await page.evaluate(() => ({ y: window.scrollY, over: document.documentElement.scrollHeight - window.innerHeight,
+    nets: [...document.querySelectorAll('#cmpView .cmp-net svg')].map((s) => s.getBoundingClientRect().bottom) }));
+  assert.equal(box.nets.length, 2);
+  assert.ok(box.y === 0 && box.nets.every((b) => b <= 720), `las dos redes a la vista en 1280×720: ${JSON.stringify(box)}`);
+  await cmpPick(page, 'prog', 'H');
+  assert.deepEqual(Object.values(await cmpCards(page)).map((c) => c.sel), [1, 1], 'H resaltada en las dos');
+  await axe(page, 'par lado a lado del comparador');
+  await shot(page, 'f2b-cmp-pair-es');
+  // El enlace copiado abre el mismo par, en inglés también.
+  const hash = await page.evaluate(() => location.hash.slice(1));
+  await close(page);
+  const again = await cmpLab(hash.replace('lang=es', 'lang=en'));
+  assert.deepEqual(Object.keys(await cmpCards(again)), ['prog', 'min']);
+  assert.equal(await cmpCard(again, 'prog').locator('h2').innerText(), 'Progressive drawing');
+  await again.locator('#cmpView button', { hasText: 'Back to all methods' }).click();
+  assert.deepEqual(Object.keys(await cmpCards(again)), ['prog', 'rules', 'min']);
+  assert.equal((await state(again)).pair, null);
+  await close(again);
+  // Los métodos visibles también van en el enlace; el último no se puede quitar.
+  const two = await cmpLab('ex=ej6&ms=kim,cgl&lang=es');
+  assert.deepEqual(Object.keys(await cmpCards(two)), ['kim', 'cgl']);
+  await two.locator('#cmpView .cmp-methods button', { hasText: 'Kim (2008)' }).click();
+  await two.waitForFunction(() => /ms=cgl(&|$)/.test(location.hash));
+  assert.ok(await two.locator('#cmpView .cmp-methods button[aria-pressed="true"]').isDisabled(), 'queda uno y no se puede quitar');
+  await two.locator('#cmpView .cmp-methods button', { hasText: 'Agrupar por precedentes' }).click();
+  assert.deepEqual((await state(two)).ms, ['cs', 'cgl'], 'en el orden de los métodos');
+  await close(two);
+});
+
+const progTrace = (page) => page.evaluate(() => PNL.app.model().progNet.trace.map((s) => ({ kind: s.kind, act: s.act || null })));
+
+for (const lang of ['es', 'en']) {
+  check(`F2b AC8 · dibujo progresivo del Ejercicio 6 en ${lang.toUpperCase()}: «Ver paso a paso» abre el reproductor; cada paso dice qué se dibuja y por qué, a la vista en 1280×720`, async () => {
+    const page = await cmpLab(`ex=ej6&lang=${lang}`);
+    await cmpCard(page, 'prog').locator('button', { hasText: lang === 'es' ? 'Ver paso a paso' : 'Step by step' }).click();
+    await page.waitForFunction(() => PNL.app.state().m === 'prog' && PNL.app.state().view === 'net');
+    assert.equal((await state(page)).step, 0);
+    assert.match(await page.locator('#methodLine').innerText(), lang === 'es' ? /Método: dibujo progresivo/ : /Method: progressive drawing/);
+    const steps = await progTrace(page);
+    assert.equal(steps.map((s) => s.kind).join(' '), `progTable ${'progAct '.repeat(11)}progUnique progEnd`);
+    const texts = new Set();
+    for (let i = 0; i < steps.length; i++) {
+      const text = (await page.locator('#stepText').innerText()).trim();
+      assert.ok(text.length > 0 && !texts.has(text), `paso ${i}: sin texto o repetido`);
+      texts.add(text);
+      if (steps[i].kind === 'progAct') {
+        assert.match(text, new RegExp(`\\b${steps[i].act}\\b`), `paso ${i}: nombra la actividad`);
+        // Lo dibujado hasta aquí: las actividades de los pasos anteriores y la del paso, resaltada.
+        const drawn = await svgTexts(page, '#netView text.elabel:not(.dummy)');
+        assert.equal(drawn.length, steps.slice(0, i + 1).filter((s) => s.kind === 'progAct').length, `paso ${i}: actividades dibujadas`);
+        assert.ok(drawn.some((x) => x.startsWith(`${steps[i].act} `)), `paso ${i}: ${steps[i].act} dibujada`);
+      }
+      if (i > 0) {
+        const box = await page.evaluate(() => {
+          const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+          return { net: r('#netView svg').bottom, text: r('.narration').bottom, y: window.scrollY };
+        });
+        assert.ok(box.y === 0 && box.net <= 720 && box.text <= 720, `paso ${i}: red o explicación fuera de 1280×720 (${JSON.stringify(box)})`);
+      }
+      if (i < steps.length - 1) await page.keyboard.press('ArrowRight');
+    }
+    // Al final, los sucesos numerados y la tabla de arcos de la red del progresivo.
+    assert.ok(await page.locator('#btnTable').isVisible());
+    await page.locator('#btnLearn').click();
+    assert.equal(await page.locator('#learnTitle').innerText(), lang === 'es' ? 'Dibujo progresivo' : 'Progressive drawing');
+    await page.locator('#btnLearnClose').click();
+    await page.locator('#methodLine button').nth(1).click();
+    await page.waitForFunction(() => PNL.app.state().view === 'cmp' && PNL.app.state().m === 'rules');
+    await close(page);
+  });
+}
+
+check('F2b AC8 · progresivo con predicción: de qué suceso sale y qué precedentes llevan ficticia; nada se dibuja ni se dice hasta comprobar', async () => {
+  for (const scheme of ['light', 'dark']) {
+    // Paso 5: E sale de un suceso nuevo; A llega directa y B con ficticia.
+    const page = await lab('graph=aoa&m=prog&ex=ej6&step=5&lang=es', { scheme });
+    await page.locator('#chkPredict').check();
+    assert.equal((await step(page)).act, 'E');
+    assert.ok(await visible(page, '#predictBox'));
+    assert.equal(await page.locator('#predictBox input[type="radio"]').count(), 4, 'cuatro orígenes posibles');
+    assert.deepEqual(await page.locator('#predictBox input[type="checkbox"]').evaluateAll((els) => els.map((e) => e.value)), ['A', 'B']);
+    assert.ok(await page.locator('#btnNext').isDisabled(), '→ queda bloqueado');
+    const drawn = await svgTexts(page, '#netView text.elabel:not(.dummy)');
+    assert.ok(!drawn.some((x) => x.startsWith('E ')), 'E no está dibujada');
+    assert.equal(await page.locator('#netView .edge.rule, #netView .elabel.rule').count(), 0, 'nada resaltado');
+    assert.equal((await page.locator('#formula').innerText()).trim(), '', 'sin el porqué');
+    const asked = await page.locator('#stepText').innerText();
+    assert.match(asked, /¿De qué suceso sale\?/);
+    assert.doesNotMatch(asked, /nuevo|directa/i, 'la pregunta no da la respuesta');
+    await axe(page, `progresivo con predicción (${scheme})`);
+    await page.locator('#predictBox input[type="radio"][value="pred"]').check();
+    await page.locator('#predictBox input[type="checkbox"][value="B"]').check();
+    await page.locator('#predictBox button', { hasText: 'Comprobar' }).click();
+    assert.equal(await page.locator('#predictBox .prog-start .mark.wrong').count(), 1, 'el origen está mal');
+    assert.equal(await page.locator('#predictBox .rule-acts:not(.prog-start) .mark.ok').count(), 1, 'las ficticias están bien');
+    assert.ok(!(await page.locator('#btnNext').isDisabled()), 'tras comprobar se puede avanzar');
+    assert.ok((await svgTexts(page, '#netView text.elabel:not(.dummy)')).some((x) => x.startsWith('E ')), 'E ya está dibujada');
+    assert.ok((await page.locator('#netView .edge.rule').count()) >= 2, 'E y su ficticia resaltadas');
+    assert.notEqual((await page.locator('#formula').innerText()).trim(), '', 'y el porqué');
+    assert.notEqual(await page.locator('#stepText').innerText(), asked, 'el texto ya dice lo que se dibuja');
+    await axe(page, `progresivo comprobado (${scheme})`);
+    await close(page);
+  }
+  // Todo el recorrido con predicción: pregunta en cada actividad y nada se adelanta.
+  const page = await lab('graph=aoa&m=prog&ex=ej6&step=0&pred=1&lang=en', { width: 360, height: 740 });
+  const steps = await progTrace(page);
+  let asked = 0;
+  for (let i = 0; i < steps.length; i++) {
+    if (await page.locator('#predictBox').isVisible()) {
+      asked++;
+      assert.equal(steps[i].kind, 'progAct', `paso ${i}`);
+      assert.ok(await page.locator('#btnNext').isDisabled(), `paso ${i}: se puede avanzar sin responder`);
+      await page.locator('#predictBox button', { hasText: 'Show' }).click();
+    }
+    assert.ok(await noHScroll(page), `paso ${i}: desborda a 360 px`);
+    if (i < steps.length - 1) await page.locator('#btnNext').click();
+  }
+  assert.equal(asked, 11, 'una pregunta por actividad');
+  await axe(page, 'progresivo con predicción a 360 px (EN)');
+  await close(page);
+});
+
+check('F2b AC16 · a 360 px el comparador, el par y el progresivo no desbordan la página', async () => {
+  for (const hash of [`graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'graph=aoa&view=cmp&ex=ej6&pair=rules,cs&lang=en',
+    'graph=aoa&view=cmp&ex=syslo1981&lang=es', 'graph=aoa&m=prog&ex=ej6&step=13&lang=es']) {
+    const page = await lab(hash, { width: 360, height: 740 });
+    await page.waitForTimeout(200);
+    assert.ok(await noHScroll(page), hash);
+    await axe(page, `${hash} a 360 px`);
+    await shot(page, `f2b-360-${hash.replace(/[^a-z0-9]+/gi, '-')}`, true);
+    await close(page);
+  }
+});
+
+check('F2b AC18 · solo estructura: el comparador funciona igual con el Ejercicio 1, el caso tipo y las tablas de Kim y de Cohen y Sadeh', async () => {
+  const want = {
+    ej1: { min: 'Mínimo: 2 ficticias (exacto)', d: { prog: 2, rules: 2, cs: 2, kim: 2, spinrad: 2, cgl: 2, min: 2 } },
+    tipo: { min: 'Mínimo: 2 ficticias (exacto)', d: { prog: 2, rules: 3, cs: 3, kim: 3, spinrad: 2, cgl: 2, min: 2 } },
+    kim2008: { min: /^Mínimo: entre \d+ y 10 ficticias/, d: { kim: 10, rules: 10 } },
+    cs2007: { min: /^Mínimo: entre \d+ y 4 ficticias/, d: { cs: 5, prog: 4 } },
+  };
+  for (const [ex, w] of Object.entries(want)) {
+    const page = await cmpLab(`ex=${ex}&ms=${Object.keys(w.d).join(',')}&lang=es`);
+    assert.ok(await page.locator('#urlWarning').isHidden(), `${ex}: sin aviso`);
+    const min = (await page.locator('#cmpView .cmp-min').innerText()).trim();
+    if (typeof w.min === 'string') assert.equal(min, w.min, ex); else assert.match(min, w.min, ex);
+    const cards = await cmpCards(page);
+    for (const [m, d] of Object.entries(w.d)) {
+      assert.equal(cards[m].count, String(d), `${ex} · ${m}`);
+      assert.equal(cards[m].chips[0], 'Correcta', `${ex} · ${m}`);
+    }
+    // Sin duraciones, las flechas llevan solo la letra.
+    assert.ok((await svgTexts(page, '#cmpView .cmp-net text.elabel')).every((x) => !x.includes('=')), ex);
+    if (ex === 'tipo') {
+      assert.ok(cards.rules.notes.includes('F3 se puede quitar'), cards.rules.notes.join(' | '));
+      await axe(page, 'comparador del caso tipo');
+    }
+    await close(page);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
-  for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es']) {
+  for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
+    `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
