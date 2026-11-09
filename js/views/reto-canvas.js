@@ -101,15 +101,42 @@
     const pairCount = new Map(); const pairIdx = new Map();
     for (const e of edges) { const pk = [e.from, e.to].sort().join('-'); pairCount.set(pk, (pairCount.get(pk) || 0) + 1); }
     const rm = new Set(ctx.removable || []);
+    // Desplazamiento de la curva (0, recta) que no pasa a menos de R0 + 14 de ningún otro suceso ni se sale por arriba
+    // o por la izquierda del lienzo (su etiqueta tiene que verse); prueba a un lado y a otro, cada vez más lejos, y si
+    // ninguno queda libre se queda con el que más se aparta de los sucesos.
+    const clearOffset = (a, b, nx, ny, from, to) => {
+      const others = [...places.entries()].filter(([id]) => id !== from && id !== to).map(([, p]) => p);
+      const gap = (off) => {
+        const c = { x: (a.x + b.x) / 2 + nx * off * 2, y: (a.y + b.y) / 2 + ny * off * 2 };
+        let g = Infinity;
+        for (let i = 1; i < 24; i++) {
+          const u = i / 24; const v = 1 - u;
+          const x = v * v * a.x + 2 * u * v * c.x + u * u * b.x; const y = v * v * a.y + 2 * u * v * c.y + u * u * b.y;
+          if (y < 28 || x < 12) return -1;
+          for (const p of others) g = Math.min(g, Math.hypot(p.x - x, p.y - y));
+        }
+        return g;
+      };
+      let best = 0; let bestGap = -Infinity;
+      for (const off of [0, -34, 34, -68, 68, -102, 102, -136, 136, -170, 170]) {
+        const g = gap(off);
+        if (g >= R0 + 14) return off;
+        if (g > bestGap) { best = off; bestGap = g; }
+      }
+      return best;
+    };
     const eg = s('g'); svg.appendChild(eg);
     for (const e of edges) {
       const a = places.get(e.from); const b = places.get(e.to);
       const pk = [e.from, e.to].sort().join('-');
       const k = pairIdx.get(pk) || 0; pairIdx.set(pk, k + 1);
       const n = pairCount.get(pk);
-      const off = (k - (n - 1) / 2) * 34 * (e.from < e.to ? 1 : -1);
+      let off = (k - (n - 1) / 2) * 34 * (e.from < e.to ? 1 : -1);
       const dx = b.x - a.x; const dy = b.y - a.y; const L = Math.hypot(dx, dy) || 1;
       const nx = -dy / L; const ny = dx / L;
+      // Una flecha sola que pasaría por encima de otro suceso se curva lo justo para rodearlo (si no, se taparía
+      // con las flechas de ese suceso, como D y H en la red del Ejercicio 6 colocada por niveles).
+      if (n === 1 && e.from !== e.to) off = clearOffset(a, b, nx, ny, e.from, e.to);
       const c = { x: (a.x + b.x) / 2 + nx * off * 2, y: (a.y + b.y) / 2 + ny * off * 2 };
       const clip = (p, q, r) => { const ex = q.x - p.x; const ey = q.y - p.y; const l = Math.hypot(ex, ey) || 1; return { x: p.x + ex * r / l, y: p.y + ey * r / l }; };
       const loop = e.from === e.to;

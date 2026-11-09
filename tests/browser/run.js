@@ -1564,6 +1564,32 @@ check('F2b AC10 y AC12 · diagnóstico: cada error se nombra con sus actividades
   await close(page);
 });
 
+check('F2b T027 · en el lienzo ninguna flecha pasa por encima de otro suceso, también con los sucesos colocados por niveles', async () => {
+  // Hallazgo de la evidencia (T027): con la red mínima del Ejercicio 6 colocada sola, D (1 → 8) y H (5 → 8) iban en
+  // línea recta por la fila de arriba y quedaban tapadas, y F2 (2 → 4) cruzaba el suceso 3.
+  for (const hash of [`ex=ej6&lang=es&sn=${retoSn()}`, `ex=ej6&lang=en&sn=${retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '0-1'])}`]) {
+    const page = await retoLab(hash);
+    const hits = await page.evaluate(() => {
+      const svg = document.querySelector('#retoView .reto-svg');
+      const evs = [...svg.querySelectorAll('g.reto-ev')].map((g) => { const m = /translate\(([-\d.]+),([-\d.]+)\)/.exec(g.getAttribute('transform')); return { x: +m[1], y: +m[2] }; });
+      const out = [];
+      for (const g of svg.querySelectorAll('g.reto-edge')) {
+        const path = g.querySelector('path.edge'); const len = path.getTotalLength();
+        const a = path.getPointAtLength(0); const b = path.getPointAtLength(len);
+        const ends = [a, b].map((q) => evs.reduce((best, e) => (Math.hypot(e.x - q.x, e.y - q.y) < Math.hypot(best.x - q.x, best.y - q.y) ? e : best)));
+        for (let i = 1; i < 40; i++) {
+          const q = path.getPointAtLength(len * i / 40);
+          const near = evs.find((e) => !ends.includes(e) && Math.hypot(e.x - q.x, e.y - q.y) < 20);
+          if (near) { out.push(`${g.querySelector('text').textContent} por (${near.x}, ${near.y})`); break; }
+        }
+      }
+      return out;
+    });
+    assert.deepEqual(hits, [], hash);
+    await close(page);
+  }
+});
+
 check('F2b AC11 · red correcta: cuántas ficticias frente al mínimo y cuáles se pueden quitar, también en el lienzo', async () => {
   const page = await retoLab(`ex=ej6&lang=es&sn=${retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '0-1'])}`);
   const text = await retoCheck(page);
