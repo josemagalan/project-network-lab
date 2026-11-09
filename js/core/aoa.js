@@ -143,6 +143,11 @@
   // Monta una red a partir de sucesos con nombre (claves): numera con i < j, ordena y nombra las ficticias
   // y calcula qué precedencias directas representa cada una. Lo comparten las reglas y el mínimo.
   //   arcsK: [{act, from, to}]; dummiesK: [{from, to, rule, because?}]; pairs: precedencias directas [a, b].
+  // Las ficticias se llaman F1, F2…; si alguna actividad ya se llama así (F seguida de cifras, un id válido), f1, f2…,
+  // que no puede ser una actividad (los ids van en mayúsculas). Sin esto, la red marcaba y ocultaba por nombre la
+  // actividad F3 junto con la ficticia F3 (revisión F2b, F4).
+  function dummyPrefix(ids) { return ids.some((a) => /^F[0-9]+$/.test(a)) ? 'f' : 'F'; }
+
   function assemble(arcsK, dummiesK, pairs, kindOf, setOf) {
     const nodes = [...new Set(['INI', 'FIN', ...arcsK.flatMap((e) => [e.from, e.to]), ...dummiesK.flatMap((d) => [d.from, d.to])])];
     const { n } = number(nodes, arcsK, dummiesK);
@@ -173,7 +178,8 @@
       return { from: n.get(d.from), to: n.get(d.to), rule: d.rule, because, represents, implied };
     });
     dummiesN.sort((x, y) => (RULE_ORDER[x.rule] - RULE_ORDER[y.rule]) || byId(x.because[0] || '', y.because[0] || '') || (x.from - y.from) || (x.to - y.to));
-    const dummies = dummiesN.map((d, i) => Object.assign({ name: `F${i + 1}` }, d));
+    const pre = dummyPrefix(acts);
+    const dummies = dummiesN.map((d, i) => Object.assign({ name: `${pre}${i + 1}` }, d));
     const events = nodes.map((u) => ({ n: n.get(u), set: u === 'INI' || u === 'FIN' ? u : setOf(u), kind: kindOf(u) }))
       .sort((x, y) => x.n - y.n);
     const arcs = arcsK.map((e) => ({ act: e.act, from: n.get(e.from), to: n.get(e.to) }));
@@ -286,7 +292,7 @@
     },
   };
 
-  const api = { build, verify, times, methods, _assemble: assemble, _reduce: reduce };
+  const api = { build, verify, times, methods, dummyPrefix, _assemble: assemble, _reduce: reduce };
   root.PNL = root.PNL || {};
   root.PNL.aoa = api;
   if (isNode) module.exports = api;

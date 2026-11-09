@@ -180,3 +180,79 @@ test('aoa.verify (F2a) y diagnose coinciden en si una red de un método es corre
     assert.equal(ok, A.verify(mutated, p).ok);
   }
 });
+
+test('revisión F2b, F1: el diagnóstico no cuenta como errores las precedencias que se siguen de otro error', () => {
+  // Red de las reglas del Ejercicio 6 (F1 2→3, F2 2→4, F3 5→6). Sin F3 faltan E → I y F → I; A → I, A → J, E → J y
+  // F → J son consecuencia y no se cuentan. Una ficticia de más del final de C al inicio de E da C → E falsa, y
+  // C → H (por E → H, correcta) no se cuenta.
+  const p = loadEx('ej6');
+  const net = A.build(p);
+  const without = Object.assign({}, net, { dummies: net.dummies.filter((d) => d.name !== 'F3') });
+  assert.deepEqual(K.diagnose(without, p).problems, [{ code: 'missingPrecedence', ids: ['E', 'I'] }, { code: 'missingPrecedence', ids: ['F', 'I'] }]);
+  const arc = (x) => net.arcs.find((a) => a.act === x);
+  const extra = Object.assign({}, net, { dummies: [...net.dummies, { name: 'F4', from: arc('C').to, to: arc('E').from }] });
+  assert.deepEqual(K.diagnose(extra, p).problems.filter((x) => x.code === 'falsePrecedence'), [{ code: 'falsePrecedence', ids: ['C', 'E'] }]);
+});
+
+test('revisión F2b, F1: quitar una ficticia al azar da siempre al menos una precedencia directa de la tabla, y solo directas', () => {
+  const rand = rng(3101);
+  for (let k = 0; k < 300; k++) {
+    const p = fromSucc(randomSucc(rand, 3 + Math.floor(rand() * 10)));
+    const net = A.build(p);
+    for (const d of net.dummies) {
+      const probs = K.diagnose(Object.assign({}, net, { dummies: net.dummies.filter((x) => x !== d) }), p).problems;
+      const miss = probs.filter((x) => x.code === 'missingPrecedence');
+      assert.ok(miss.length > 0 || probs.length > 0, 'algún error');
+      for (const { ids: [a, b] } of miss) assert.ok(p.succs[a].includes(b), `${a} → ${b} es directa`);
+    }
+  }
+});
+
+test('revisión F2b, F10: dos ficticias alternativas sobran cada una, pero no las dos a la vez', () => {
+  const p = loadEx('ej6');
+  const net = A.build(p);
+  const f1 = net.dummies.find((d) => d.name === 'F1');
+  const dup = Object.assign({}, net, { dummies: [...net.dummies, Object.assign({}, f1, { name: 'F4' })] });
+  assert.deepEqual(K.removable(dup, p).map((r) => r.name), ['F1', 'F4']);
+  assert.equal(K.removableTogether(dup, p), false);
+  require('../js/core/aoamethods.js');
+  const cs = A.build(p, { method: 'cs' });
+  assert.equal(K.removable(cs, p).length, 2);
+  assert.equal(K.removableTogether(cs, p), true, 'Agrupar por precedentes: F4 y F6 se quitan las dos');
+});
+
+test('revisión F2b, ronda 2: el filtro de errores consecuentes, también en redes a medias y con una ficticia falsa en cadena', () => {
+  const p = loadEx('ej6');
+  const net = A.build(p);
+  const arc = (x) => net.arcs.find((a) => a.act === x);
+  // E sin destino: solo «actividad a medias»; ninguna precedencia que falte (A → H y A → I pasan por E).
+  const half = Object.assign({}, net, { arcs: net.arcs.map((a) => (a.act === 'E' ? Object.assign({}, a, { to: null }) : a)) });
+  assert.deepEqual(K.diagnose(half, p).problems.filter((x) => /Precedence/.test(x.code)), []);
+  // I sin destino: tampoco E → J, F → J ni G → J.
+  const halfI = Object.assign({}, net, { arcs: net.arcs.map((a) => (a.act === 'I' ? Object.assign({}, a, { to: null }) : a)) });
+  assert.deepEqual(K.diagnose(halfI, p).problems.filter((x) => /Precedence/.test(x.code)), []);
+  // Ficticia de más del final de E y F (5) al inicio de G (4): E → G y F → G falsas; A → G se sigue de A → E y no se cuenta.
+  const extra = Object.assign({}, net, { dummies: [...net.dummies, { name: 'F4', from: arc('E').to, to: arc('G').from }] });
+  assert.deepEqual(K.diagnose(extra, p).problems.filter((x) => x.code === 'falsePrecedence').map((x) => x.ids.join('→')), ['E→G', 'F→G']);
+});
+
+test('revisión F2b, ronda 2: «todas a la vez» también cuando hace falta buscar un orden (y con más de 4)', () => {
+  require('../js/core/aoamethods.js');
+  const cases = [
+    [{ A1: ['A3'], A2: ['A5', 'A7', 'A8'], A3: ['A7'], A4: ['A6'], A5: ['A8', 'A9'], A6: ['A7', 'A8'], A7: ['A9'], A8: [], A9: [] }, [[2, 7], [5, 8]], 3],
+    [{ A1: ['A3', 'A5', 'A6'], A2: ['A4', 'A5', 'A8'], A3: [], A4: ['A5', 'A7', 'A8'], A5: ['A8', 'A9', 'A10'], A6: ['A7', 'A8'], A7: [], A8: ['A11'], A9: ['A10'], A10: ['A11'], A11: [] }, [[4, 5], [2, 10], [6, 7]], 5],
+  ];
+  for (const [succ, extra, n] of cases) {
+    const p = fromSucc(succ);
+    const net = A.build(p, { method: 'kim' });
+    const g = Object.assign({}, net, { dummies: [...net.dummies, ...extra.map(([from, to], i) => ({ from, to, name: `X${i}` }))] });
+    const rs = K.removable(g, p);
+    assert.equal(rs.length, n);
+    assert.equal(K.removableTogether(g, p), true, `${n} ficticias: se pueden quitar todas`);
+  }
+  // Una fusión que convierte en bucle otra ficticia paralela no rompe la búsqueda.
+  const p = fromSucc({ A1: ['A3'], A2: ['A6', 'A7'], A3: ['A4', 'A7'], A4: ['A6'], A5: ['A6', 'A7'], A6: [], A7: [] });
+  const net = A.build(p);
+  const g = Object.assign({}, net, { dummies: [...net.dummies, { from: 5, to: 6, name: 'X0' }, { from: 4, to: 6, name: 'X1' }] });
+  assert.doesNotThrow(() => K.removableTogether(g, p));
+});

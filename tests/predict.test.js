@@ -157,3 +157,16 @@ test('T018: en el progresivo se corrige de qué suceso sale la actividad y qué 
   for (const x of tr) assert.equal(Pr.hasPrediction(x), x.kind === 'progAct', x.kind);
   assert.deepEqual(Pr.PROG_STARTS, ['initial', 'pred', 'existing', 'new']);
 });
+
+test('revisión F2b, F6: en el progresivo, las precedentes que terminan en un suceso ya dibujado no llevan ficticia', () => {
+  // Ejercicio 4, E y H salen de un suceso que ya existe y ninguna precedente lleva ficticia: «ninguna» es lo correcto.
+  const ex4 = E.get('ej4');
+  const p = P.parse(ex4.rows, ex4.mode).project;
+  const tr = A.build(p, { method: 'prog' }).trace;
+  for (const a of ['E', 'H']) {
+    const s = tr.find((x) => x.kind === 'progAct' && x.act === a);
+    assert.ok(s.prog.preds.every((x) => x.how === 'existing'), a);
+    assert.equal(Pr.check(s, new Map([[Pr.PROG_START, 'existing'], [Pr.PROG_DUMMIES, []]])).get(Pr.PROG_DUMMIES), 'ok', a);
+    assert.equal(Pr.check(s, new Map([[Pr.PROG_START, 'existing'], [Pr.PROG_DUMMIES, [s.prog.preds[0].act]]])).get(Pr.PROG_DUMMIES), 'wrong', a);
+  }
+});

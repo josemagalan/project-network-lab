@@ -18,8 +18,13 @@
   const isNode = typeof module !== 'undefined' && module.exports;
   const A = isNode ? require('./aoa.js') : root.PNL.aoa;
   const K = isNode ? require('./aoacheck.js') : root.PNL.aoacheck;
-  const CGL_BUDGET = 65536;   // subconjuntos examinados en el recubrimiento (puerta de coste T002)
-  const byId = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+  // Presupuesto del recubrimiento de Corneil-Gotlieb-Lee en unidades de trabajo (revisión F2b, F2): cada subconjunto
+  // examinado cuesta (actividades + ficticias)², lo que crece montar y validar su red; antes contaba subconjuntos y una
+  // tabla de 28 actividades congelaba la pestaña más de 30 s. Con 400 000 unidades, el peor caso medido es < 0,5 s.
+  const CGL_BUDGET = 400000;
+  // Orden natural, como las reglas (topo): A2 antes que A10. Con desempate exacto, porque localeCompare da 0 para A1 y
+  // A01 (ids distintos) y Spinrad partía sus grupos (revisión F2b, ronda 2).
+  const byId = (x, y) => x.localeCompare(y, 'en', { numeric: true }) || (x < y ? -1 : x > y ? 1 : 0);
 
   // Tabla sin redundancias: posteriores y precedentes directas, antecesoras (cierre) y orden topológico.
   function table(p) {
@@ -344,12 +349,13 @@
     const build = (ds) => finish('cgl', T, ev, arcs, ds);
     if (!cover) return Object.assign(build(raw), { approx: false });
     // Recubrimiento mínimo de las de tipo (3): el menor subconjunto que deja la red correcta, con presupuesto.
-    let examined = 0; let best = null;
-    for (let size = 0; size <= t3.length && !best && examined <= budget; size++) {
+    const cost = (ids.length + raw.length) ** 2;
+    let spent = 0; let best = null;
+    for (let size = 0; size <= t3.length && !best && spent <= budget; size++) {
       const pick = [];
       const rec = (start) => {
-        if (best || examined > budget) return;
-        if (pick.length === size) { examined++; const net = build([...fixed, ...pick]); if (K.valid(net, p)) best = net; return; }
+        if (best || spent > budget) return;
+        if (pick.length === size) { spent += cost; const net = build([...fixed, ...pick]); if (K.valid(net, p)) best = net; return; }
         for (let i = start; i < t3.length; i++) { pick.push(t3[i]); rec(i + 1); pick.pop(); }
       };
       rec(0);

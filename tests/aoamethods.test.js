@@ -218,7 +218,7 @@ test('Corneil-Gotlieb-Lee: con el presupuesto agotado, recubrimiento voraz marca
   const net = AM.cgl(p, { budget: 1 });
   assert.equal(net.approx, true);
   assert.deepEqual(logicErrors(net, p), []);
-  assert.equal(AM.CGL_BUDGET, 65536);
+  assert.equal(AM.CGL_BUDGET, 400000);
 });
 
 test('Spinrad: la red contraída no tiene ficticias que se puedan quitar y guarda la cifra de su modelo', () => {
@@ -228,3 +228,71 @@ test('Spinrad: la red contraída no tiene ficticias que se puedan quitar y guard
   assert.ok(net.model.dummies > net.dummies.length);
 });
 
+test('revisión F2b, F5: las lecturas de Kim, Corneil-Gotlieb-Lee y Spinrad, fijadas también fuera de las tablas de las fuentes', () => {
+  // Tablas en las que quitar la fusión de Kim, el teorema 1 de Corneil-Gotlieb-Lee, invertir la fase 1 de Spinrad o
+  // quitar su fase 2 cambia las cifras (los cuatro mutantes sobrevivían; ver la revisión de cierre de la F2b).
+  const cases = [
+    [{ A: ['D', 'E', 'G'], B: ['C', 'D', 'G'], C: ['H'], D: ['H'], E: ['F', 'I'], F: ['H', 'I'], G: [], H: [], I: [] },
+      { kim: [3, 8], cgl: [3, 8], spinrad: [3, 8, 8, 13] }],
+    [{ A1: [], A2: ['A7'], A3: ['A6', 'A8'], A4: ['A6', 'A7', 'A9'], A5: ['A7', 'A9', 'A10'], A6: ['A11'], A7: [], A8: ['A10', 'A11', 'A12'], A9: ['A12'], A10: ['A11'], A11: [], A12: [] },
+      { kim: [9, 12], cgl: [7, 11], spinrad: [8, 11, 13, 16] }],
+    [{ A1: ['A2', 'A6'], A2: ['A4', 'A6', 'A7'], A3: ['A7', 'A8'], A4: [], A5: ['A6', 'A7', 'A9', 'A11'], A6: ['A9'], A7: ['A9'], A8: ['A10', 'A11'], A9: [], A10: ['A11'], A11: [] },
+      { kim: [6, 11], cgl: [5, 11], spinrad: [5, 11, 11, 17] }],
+  ];
+  for (const [succ, want] of cases) {
+    const p = fromSucc(succ);
+    for (const [m, w] of Object.entries(want)) {
+      const net = A.build(p, { method: m });
+      const got = [net.dummies.length, net.events.length, ...(net.model ? [net.model.dummies, net.model.events] : [])];
+      assert.deepEqual(got, w, `${Object.keys(succ).length} actividades, ${m}`);
+    }
+  }
+});
+
+test('revisión F2b, F2: el presupuesto de Corneil-Gotlieb-Lee acota el trabajo (28 actividades, < 2 s, voraz marcado)', () => {
+  // Tabla aleatoria (semilla 6817 del generador del refutador): con el presupuesto en subconjuntos congelaba la
+  // pestaña unos 30 s. Ahora cada subconjunto cuesta (actividades + ficticias)².
+  const p = fromSucc({ A1: ['A2', 'A6', 'A8', 'A10'], A2: ['A4', 'A6', 'A9', 'A11', 'A13', 'A14', 'A16'], A3: ['A5', 'A7', 'A8', 'A10', 'A13', 'A17'], A4: ['A7', 'A9', 'A11', 'A12', 'A13', 'A16', 'A17', 'A22'], A5: ['A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A15', 'A17', 'A18', 'A20', 'A21', 'A22', 'A24'], A6: ['A9', 'A12', 'A14', 'A19', 'A22'], A7: ['A13', 'A14'], A8: ['A12', 'A14'], A9: ['A13', 'A14', 'A22', 'A25', 'A27'], A10: ['A12', 'A20', 'A22'], A11: ['A13', 'A18', 'A24', 'A26', 'A28'], A12: ['A13', 'A16', 'A19', 'A21', 'A25', 'A26', 'A27'], A13: ['A19', 'A25', 'A27'], A14: ['A16', 'A20', 'A21', 'A26', 'A27', 'A28'], A15: ['A17', 'A18', 'A20', 'A21', 'A25', 'A26', 'A27', 'A28'], A16: ['A25', 'A26', 'A28'], A17: ['A18', 'A19', 'A22', 'A23'], A18: ['A25'], A19: [], A20: ['A21', 'A22', 'A26'], A21: ['A24'], A22: [], A23: ['A25'], A24: [], A25: ['A26'], A26: [], A27: [], A28: [] });
+  const t0 = Date.now();
+  const net = A.build(p, { method: 'cgl' });
+  assert.ok(Date.now() - t0 < 2000, `${Date.now() - t0} ms`);
+  assert.equal(net.approx, true);
+  assert.deepEqual(logicErrors(net, p), []);
+});
+
+test('revisión F2b, F11: los métodos desempatan como las reglas, en orden natural (A2 antes que A10)', () => {
+  const p = fromSucc({ A1: ['A2', 'A10'], A2: ['A3'], A10: ['A3'], A3: [] });
+  for (const m of ['rules', 'prog', 'cs', 'kim', 'spinrad', 'cgl']) {
+    const net = A.build(p, { method: m });
+    const d = net.dummies[0];
+    const owner = net.arcs.find((a) => a.to === d.from);
+    assert.deepEqual(d.because, ['A2', 'A10'], m);
+    assert.equal(owner.act, 'A10', `${m}: la ficticia de unicidad va con A10`);
+  }
+});
+
+test('revisión F2b, F4: si una actividad se llama F1, F2…, las ficticias se llaman f1, f2… (sin chocar con ellas)', () => {
+  const p = fromSucc({ F1: ['F3', 'F4'], F2: ['F3', 'F5'], F3: [], F4: ['F5'], F5: [] });
+  for (const m of ['rules', 'prog', 'cs', 'kim', 'spinrad', 'cgl']) {
+    const net = A.build(p, { method: m });
+    assert.ok(net.dummies.length && net.dummies.every((d, i) => d.name === `f${i + 1}`), m);
+  }
+  assert.deepEqual(A.build(p, { method: 'prog' }).trace.filter((s) => s.prog).flatMap((s) => s.prog.dummies), ['f1', 'f2']);
+  assert.equal(A.build(loadEx('ej6')).dummies[0].name, 'F1', 'sin choque, F1, F2… como siempre');
+});
+
+test('revisión F2b, ronda 2: el orden natural desempata ids distintos que comparan igual (A1 y A01) y Spinrad no se rompe', () => {
+  const p = fromSucc({ B2: ['A010', 'A01'], C03: ['A010'], D: ['A010', 'A01'], A010: ['A10', 'A1'], A10: ['A01'], A01: [], A1: [] });
+  for (const m of ['prog', 'cs', 'kim', 'spinrad', 'cgl']) {
+    const net = A.build(p, { method: m });
+    assert.deepEqual(logicErrors(net, p), [], m);
+    assert.equal(net.dummies.length, 2, m);
+  }
+});
+
+test('revisión F2b, ronda 2: basta una actividad llamada F<n> para que las ficticias pasen a f1, f2…', () => {
+  const p = fromSucc({ A: ['F3', 'F4'], F2: ['F3', 'F5'], F3: [], F4: ['F5'], F5: [] });
+  assert.equal(A.dummyPrefix(['A', 'F2']), 'f');
+  assert.equal(A.dummyPrefix(['A', 'FA', 'F']), 'F');
+  for (const m of ['rules', 'prog', 'cs', 'kim', 'spinrad', 'cgl']) assert.ok(A.build(p, { method: m }).dummies.every((d) => /^f[0-9]+$/.test(d.name)), m);
+});

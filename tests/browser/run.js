@@ -1197,6 +1197,12 @@ check('F2b AC6 y AC7 · selección: una actividad se resalta en todas las tarjet
   await cmpPick(page, 'cs', 'F4');
   cards = await cmpCards(page);
   assert.deepEqual([cards.rules.sel, cards.cs.sel, cards.min.sel], [0, 1, 0], 'F4 solo en su tarjeta');
+  // F1 existe en las tres tarjetas, pero son ficticias distintas: solo se resalta la pulsada (revisión F2b, descartado F13).
+  await cmpPick(page, 'cs', 'F1');
+  cards = await cmpCards(page);
+  assert.deepEqual([cards.rules.sel, cards.cs.sel, cards.min.sel], [0, 1, 0], 'F1 solo en su tarjeta');
+  await cmpPick(page, 'cs', 'F4');
+  cards = await cmpCards(page);
   const info = await page.locator('#cmpView .sel-info').innerText();
   assert.match(info, /F4 · Agrupar por precedentes/);
   assert.match(info, /→/, `nombra las precedencias que representa: ${info}`);
@@ -1304,6 +1310,10 @@ check('F2b AC8 · progresivo con predicción: de qué suceso sale y qué precede
     assert.ok(await page.locator('#btnNext').isDisabled(), '→ queda bloqueado');
     const drawn = await svgTexts(page, '#netView text.elabel:not(.dummy)');
     assert.ok(!drawn.some((x) => x.startsWith('E ')), 'E no está dibujada');
+    // Revisión F2b, F6: tampoco la ficticia de B, que es la respuesta.
+    const own = (await step(page)).prog.dummies;
+    assert.deepEqual(own.length, 1);
+    assert.ok(!(await svgTexts(page, '#netView text.elabel.dummy')).includes(own[0]), `${own[0]} no está dibujada`);
     assert.equal(await page.locator('#netView .edge.rule, #netView .elabel.rule').count(), 0, 'nada resaltado');
     assert.equal((await page.locator('#formula').innerText()).trim(), '', 'sin el porqué');
     const asked = await page.locator('#stepText').innerText();
@@ -1317,6 +1327,7 @@ check('F2b AC8 · progresivo con predicción: de qué suceso sale y qué precede
     assert.equal(await page.locator('#predictBox .rule-acts:not(.prog-start) .mark.ok').count(), 1, 'las ficticias están bien');
     assert.ok(!(await page.locator('#btnNext').isDisabled()), 'tras comprobar se puede avanzar');
     assert.ok((await svgTexts(page, '#netView text.elabel:not(.dummy)')).some((x) => x.startsWith('E ')), 'E ya está dibujada');
+    assert.ok((await svgTexts(page, '#netView text.elabel.dummy')).includes(own[0]), `${own[0]} ya está dibujada`);
     assert.ok((await page.locator('#netView .edge.rule').count()) >= 2, 'E y su ficticia resaltadas');
     assert.notEqual((await page.locator('#formula').innerText()).trim(), '', 'y el porqué');
     assert.notEqual(await page.locator('#stepText').innerText(), asked, 'el texto ya dice lo que se dibuja');
@@ -1339,6 +1350,41 @@ check('F2b AC8 · progresivo con predicción: de qué suceso sale y qué precede
   }
   assert.equal(asked, 11, 'una pregunta por actividad');
   await axe(page, 'progresivo con predicción a 360 px (EN)');
+  await close(page);
+});
+
+check('F2b revisión F4 · actividades llamadas F1, F2…: las ficticias pasan a f1, f2… en el comparador y en el progresivo', async () => {
+  const succ = { F1: ['F3', 'F4'], F2: ['F3', 'F5'], F3: [], F4: ['F5'], F5: [] };   // el caso tipo, con otros nombres
+  const rows = Object.keys(succ).map((id) => ({ id, name: '', duration: '2', links: succ[id].join(', ') }));
+  const page = await lab('v=work&lang=es');
+  const go2 = async (extra) => {
+    const hash = await page.evaluate(([r, x]) => PNL.urlstate.encode(Object.assign(PNL.urlstate.defaults(),
+      { v: 'work', t: r, mode: 'succ', lang: 'es', graph: 'aoa' }, x)), [rows, extra]);
+    await page.evaluate((h) => { location.hash = h; }, hash);
+  };
+  await go2({ view: 'cmp', ms: ['prog', 'rules', 'min'] });
+  await page.waitForFunction(() => { const m = document.querySelector('#cmpView .cmp-min'); return m && !/calculando|working it out/.test(m.textContent); }, null, { timeout: 30000 });
+  const cards = await cmpCards(page);
+  assert.equal(cards.rules.rm, 1, 'solo la ficticia que sobra, no la actividad F3');
+  const dummies = await svgTexts(page, '#cmpView .cmp-card[data-method="rules"] text.elabel.dummy');
+  assert.deepEqual(dummies, ['f1', 'f2', 'f3']);
+  await cmpPick(page, 'rules', 'f3');
+  assert.match(await page.locator('#cmpView .sel-info').innerText(), /f3 se puede quitar|se puede quitar/);
+  // Progresivo con predicción: en ningún paso se ve antes de comprobar la ficticia que es la respuesta.
+  await go2({ m: 'prog', step: 0 });
+  await page.waitForFunction(() => PNL.app.state().m === 'prog');
+  await page.locator('#chkPredict').check();
+  const n = await page.evaluate(() => PNL.app.model().solution.trace.length);
+  let asked = 0;
+  for (let k = 0; k < n; k++) {
+    await go(page, k);
+    const st = await step(page);
+    if (st.kind !== 'progAct' || !st.prog.dummies.length) continue;
+    asked++;
+    const drawn = await svgTexts(page, '#netView text.elabel.dummy');
+    for (const d of st.prog.dummies) assert.ok(!drawn.includes(d), `paso ${k} (${st.act}): ${d} no está dibujada (${drawn})`);
+  }
+  assert.ok(asked >= 1);
   await close(page);
 });
 
@@ -1592,6 +1638,7 @@ check('F2b T027 · en el lienzo ninguna flecha pasa por encima de otro suceso, t
 
 check('F2b AC11 · red correcta: cuántas ficticias frente al mínimo y cuáles se pueden quitar, también en el lienzo', async () => {
   const page = await retoLab(`ex=ej6&lang=es&sn=${retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '0-1'])}`);
+  await noMarks(page, 'red correcta con una ficticia de más, antes de comprobar');   // revisión F2b, F7 (AC12)
   const text = await retoCheck(page);
   assert.match(text, /^Red correcta/, text);
   assert.match(text, /4 ficticias/, text);
@@ -1605,6 +1652,31 @@ check('F2b AC11 · red correcta: cuántas ficticias frente al mínimo y cuáles 
   assert.match(t2, /3 ficticias/, t2);
   assert.equal(await min.locator('#retoView .reto-svg .edge.rm').count(), 0);
   await close(min);
+});
+
+check('F2b revisión, ronda 2 · reto con actividades llamadas F1, F2…: la tabla, el lienzo y el diagnóstico dicen f1, f2…', async () => {
+  const succ = { F1: ['F3', 'F4'], F2: ['F3', 'F5'], F3: [], F4: ['F5'], F5: [] };
+  const rows = Object.keys(succ).map((id) => ({ id, name: '', duration: '2', links: succ[id].join(', ') }));
+  const page = await lab('v=work&lang=es');
+  // La red de las reglas con la primera ficticia repetida (correcta, con ficticias que sobran).
+  const hash = await page.evaluate((r) => {
+    const p = PNL.project.parse(r, 'succ').project;
+    const net = PNL.aoa.build(p);
+    const sn = { events: net.events.map((e) => ({ id: e.n, n: e.n })), arcs: net.arcs.map((a) => ({ act: a.act, from: a.from, to: a.to })),
+      dummies: [...net.dummies, net.dummies[0]].map((d) => ({ from: d.from, to: d.to })) };
+    return PNL.urlstate.encode(Object.assign(PNL.urlstate.defaults(), { v: 'work', t: r, mode: 'succ', lang: 'es', graph: 'aoa', view: 'reto', sn }));
+  }, rows);
+  await page.evaluate((h) => { location.hash = h; }, hash);
+  await page.waitForFunction(() => PNL.app.reto() && PNL.app.reto().net.dummies.length === 4);
+  const labels = await svgTexts(page, '#retoView .reto-svg text.elabel.dummy');
+  assert.deepEqual(labels.sort(), ['f1', 'f2', 'f3', 'f4']);
+  assert.deepEqual(await page.locator('#retoView table.reto-tbl tbody th').allInnerTexts(), ['F1', 'F2', 'F3', 'F4', 'F5', 'f1', 'f2', 'f3', 'f4'], 'actividades y ficticias de la tabla');
+  const text = await retoCheck(page);
+  assert.match(text, /^Red correcta/, text);
+  assert.match(text, /La ficticia f[0-9]+ sobra/, text);
+  assert.doesNotMatch(text, /La ficticia F[0-9]/, text);
+  assert.ok(await page.locator('#retoView .reto-svg .edge.rm').count() >= 1, 'el lienzo marca las que sobran');
+  await close(page);
 });
 
 check('F2b · rendirse y volver: «Ver una solución» enseña la red de un método sin borrar la del alumno y «Volver a mi red» la devuelve', async () => {

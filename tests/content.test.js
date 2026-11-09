@@ -813,3 +813,48 @@ test('T021 · AC11: resultado del reto en ES y EN: errores, correcta en el míni
   // Sin ficticias y correcta.
   assert.equal(N.retoResult({ correct: true, problems: [], dummies: 0, min: { value: 0, lower: 0, exact: true }, extra: 0, removable: [], structural: false }, { lang: 'es' }).count, 'Sin ficticias · en el mínimo (0, exacto)');
 });
+
+// ---------- Revisión de cierre de la F2b (ronda 1) ----------
+
+test('revisión F2b, F9: una ficticia de la red mínima que no representa ninguna precedencia se explica sin listas vacías', () => {
+  const MD = require('../js/core/mindummy.js');
+  const p = P.parse(['A:', 'B:E', 'C:E', 'D:', 'E:'].map((x) => { const [id, l] = x.split(':'); return { id, duration: '1', links: l }; }), 'succ').project;
+  const net = MD.solve(p).net;
+  const d = net.dummies[0];
+  assert.deepEqual([d.rule, d.represents, d.implied], ['min', [], []]);
+  for (const lang of ['es', 'en']) {
+    const s = N.selection(d.name, { lang, net, project: p, numbered: true });
+    assert.doesNotMatch(s.text, / \.|: …|flechas :|arrows :|piden \.|by \./, s.text);
+    assert.match(s.text, lang === 'es' ? /No representa ninguna precedencia/ : /represents no precedence/);
+  }
+});
+
+test('revisión F2b, F10: si las ficticias que sobran no se pueden quitar todas a la vez, el comparador y el reto lo dicen', () => {
+  const CM = require('../js/core/compare.js');
+  const R = require('../js/reto.js');
+  const A = require('../js/core/aoa.js');
+  const ex = E.get('kim2008');
+  const p = P.parse(ex.rows, ex.mode, { structureOnly: true }).project;
+  const card = CM.run(p, { methods: ['cs'] }).cards[0];
+  assert.equal(card.together, false);
+  assert.equal(N.cmpCard(card, null, { lang: 'es', project: p }).notes[0].text, 'F3, F5, F7 y F13 se pueden quitar, cada una por separado, no todas a la vez');
+  assert.equal(N.cmpCard(card, null, { lang: 'en', project: p }).notes[0].text, 'F3, F5, F7 and F13 can be removed, each one on its own, not all of them together');
+  const ex6 = E.get('ej6');
+  const p6 = P.parse(ex6.rows, ex6.mode).project;
+  const cs6 = CM.run(p6, { methods: ['cs'] }).cards[0];
+  assert.equal(cs6.together, true, 'Ej. 6: F4 y F6 se pueden quitar las dos');
+  assert.equal(N.cmpCard(cs6, null, { lang: 'es', project: p6 }).notes[0].text, 'F4 y F6 se pueden quitar');
+  // Reto: la red de las reglas del Ej. 6 con F1 repetida.
+  const net = A.build(p6);
+  let s = R.start(p6); const id = new Map();
+  for (const ev of net.events) { s = R.apply(s, { type: 'addEvent', x: ev.n * 10, y: 5 }); id.set(ev.n, s.net.events[s.net.events.length - 1].id); }
+  for (const ev of net.events) s = R.apply(s, { type: 'number', id: id.get(ev.n), n: ev.n });
+  for (const a of net.arcs) s = R.apply(s, { type: 'arc', act: a.act, from: id.get(a.from), to: id.get(a.to) });
+  for (const d of [...net.dummies, net.dummies[0]]) s = R.apply(s, { type: 'addDummy', from: id.get(d.from), to: id.get(d.to) });
+  const MD = require('../js/core/mindummy.js');
+  const r = R.check(s, p6, MD.solve(p6)).result;
+  assert.deepEqual([r.correct, r.removable.map((x) => x.name), r.together], [true, ['F1', 'F4'], false]);
+  const out = N.retoResult(r, { lang: 'es', project: p6 });
+  assert.equal(out.lines[out.lines.length - 1].text, 'Cada una sobra por separado, pero no todas a la vez: después de quitar una, comprueba otra vez.');
+  assert.ok(N.retoResult(r, { lang: 'en', project: p6 }).lines.some((l) => l.text === 'Each one can be removed on its own, but not all of them together: after removing one, check again.'));
+});

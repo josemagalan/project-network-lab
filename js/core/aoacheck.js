@@ -85,12 +85,21 @@
     if (ends.length !== 1) problems.push({ code: 'end', ids: [], events: ends });
     const R = reachability(keys, edges);
     if (!R) { problems.push({ code: 'cycle', ids: [], events: inCycles(keys, edges) }); return problems; }
-    for (const a of ids) for (const b of ids) {
-      if (a === b || !arcOf[a] || !arcOf[b] || !complete(arcOf[a]) || !complete(arcOf[b])) continue;
-      const linked = R.get(arcOf[a].to).has(arcOf[b].from);
-      const should = reach[a].has(b);
-      if (linked && !should) problems.push({ code: 'falsePrecedence', ids: [a, b] });
-      if (!linked && should) problems.push({ code: 'missingPrecedence', ids: [a, b] });
+    // Precedencias: solo las que no son consecuencia de otro error (revisión F2b, F1; REVIEW.md, «corrector injusto»).
+    // Falta: solo las directas de la tabla (si falta a → b por medio de c, falta también a → c o c → b, que son más
+    // cortas). Falsa: solo las que no se siguen de otra falsa y una correcta (C → E falsa y E → H dan C → H).
+    const placed = ids.filter((a) => arcOf[a] && complete(arcOf[a]));
+    const linked = (a, b) => R.get(arcOf[a].to).has(arcOf[b].from);
+    const should = (a, b) => reach[a].has(b);
+    for (const a of placed) for (const b of placed) {
+      if (a === b) continue;
+      const l = linked(a, b); const s = should(a, b);
+      if (l && !s && !placed.some((c) => c !== a && c !== b && linked(a, c) && linked(c, b) && (!should(a, c) || !should(c, b)))) {
+        problems.push({ code: 'falsePrecedence', ids: [a, b] });
+      }
+      if (!l && s && !ids.some((c) => c !== a && c !== b && should(a, c) && should(c, b))) {
+        problems.push({ code: 'missingPrecedence', ids: [a, b] });
+      }
     }
     return problems;
   }
@@ -113,23 +122,56 @@
 
   // Ficticias que se pueden quitar: borrándola o, si no, fundiendo su destino con su origen (sin mirar
   // la numeración). Solo tiene sentido en una red lógicamente correcta.
+  // La red sin la ficticia d: borrándola o fundiendo su destino con su origen.
+  function without(g, d, how) {
+    const rest = g.dummies.filter((x) => x !== d);
+    if (how === 'delete') return { events: g.events, arcs: g.arcs, dummies: rest };
+    const m = (k) => (k === d.to ? d.from : k);
+    return {
+      events: g.events.filter((e) => e.key !== d.to),
+      arcs: g.arcs.map((e) => ({ act: e.act, from: e.from === null ? null : m(e.from), to: e.to === null ? null : m(e.to) })),
+      dummies: rest.map((x) => ({ i: x.i, name: x.name, from: x.from === null ? null : m(x.from), to: x.to === null ? null : m(x.to) }))
+        .filter((x) => x.from !== x.to),
+    };
+  }
+
   function removableIn(g, p, first) {
     const out = [];
     for (const d of g.dummies) {
       if (first && out.length) break;
       if (d.from === null || d.to === null) continue;
-      const rest = g.dummies.filter((x) => x !== d);
-      if (!logic({ events: g.events, arcs: g.arcs, dummies: rest }, p).length) { out.push({ i: d.i, name: d.name, how: 'delete' }); continue; }
-      const m = (k) => (k === d.to ? d.from : k);
-      const merged = {
-        events: g.events.filter((e) => e.key !== d.to),
-        arcs: g.arcs.map((e) => ({ act: e.act, from: e.from === null ? null : m(e.from), to: e.to === null ? null : m(e.to) })),
-        dummies: rest.map((x) => ({ i: x.i, name: x.name, from: x.from === null ? null : m(x.from), to: x.to === null ? null : m(x.to) }))
-          .filter((x) => x.from !== x.to),
-      };
-      if (!logic(merged, p).length) out.push({ i: d.i, name: d.name, how: 'merge' });
+      if (!logic(without(g, d, 'delete'), p).length) { out.push({ i: d.i, name: d.name, how: 'delete' }); continue; }
+      if (!logic(without(g, d, 'merge'), p).length) out.push({ i: d.i, name: d.name, how: 'merge' });
     }
     return out;
+  }
+
+  // ¿Se pueden quitar todas las que sobran, una detrás de otra en algún orden? (revisión F2b, F10: con dos ficticias
+  // alternativas, cada una sobra por separado pero no las dos). Primero, todas en su orden y una sola comprobación;
+  // si no vale, búsqueda por órdenes con memoria, solo con 4 como mucho (con más, se da por bueno: no se dice nada que
+  // no esté demostrado y el coste queda acotado).
+  function allTogether(g, p, rs) {
+    let h = g;
+    for (const r of rs) { const d = h.dummies.find((x) => x.i === r.i); if (d) h = without(h, d, r.how); }
+    if (!logic(h, p).length) return true;
+    if (rs.length > 4) return true;
+    const seen = new Set();
+    const rec = (k, left) => {
+      if (!left.length) return true;
+      const key = left.map((r) => r.i).join('|');
+      if (seen.has(key)) return false;
+      seen.add(key);
+      for (const r of left) {
+        const d = k.dummies.find((x) => x.i === r.i);
+        if (!d) continue;   // una fusión anterior la convirtió en bucle y desapareció
+        for (const how of ['delete', 'merge']) {
+          const next = without(k, d, how);
+          if (!logic(next, p).length && rec(next, left.filter((x) => x !== r))) return true;
+        }
+      }
+      return false;
+    };
+    return rec(g, rs);
   }
 
   function diagnose(net, p) {
@@ -151,7 +193,16 @@
     return logic(g, p).length === 0 && numbering(g).length === 0;
   }
 
-  const api = { diagnose, removable, valid };
+  // ¿Se pueden quitar a la vez todas las que sobran? (el reto lo dice si no)
+  // known: la lista de K.removable si ya se tiene (el comparador), para no volver a calcularla.
+  function removableTogether(net, p, known) {
+    const g = normalize(net);
+    if (!known && logic(g, p).length) return true;
+    const rs = known || removableIn(g, p);
+    return rs.length < 2 || allTogether(g, p, rs);
+  }
+
+  const api = { diagnose, removable, removableTogether, valid };
   root.PNL = root.PNL || {};
   root.PNL.aoacheck = api;
   if (isNode) module.exports = api;

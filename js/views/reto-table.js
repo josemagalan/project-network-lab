@@ -85,7 +85,7 @@
 
     // Ficticias, con su nombre F1, F2… en su orden.
     tableBox.appendChild(h('h3', {}, [t('reto.dummies')]));
-    const named = R.named(net).dummies;
+    const named = R.named(net, ctx.project).dummies;
     if (!named.length) tableBox.appendChild(h('p', { class: 'small muted' }, [t('reto.dummiesNone')]));
     else {
       tableBox.appendChild(h('table', { class: 'data reto-tbl' }, [

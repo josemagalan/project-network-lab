@@ -95,7 +95,7 @@
     });
 
     // Flechas: actividades y ficticias completas; las que van entre los mismos sucesos se curvan para no taparse.
-    const named = R.named(net).dummies;
+    const named = R.named(net, ctx.project).dummies;
     const edges = [...net.arcs.map((a) => ({ k: `arc:${a.act}`, label: a.act, from: a.from, to: a.to, dummy: false })),
       ...named.map((d, i) => ({ k: `dm:${i}`, label: d.name, from: d.from, to: d.to, dummy: true, i }))].filter((e) => e.from !== null && e.to !== null);
     const pairCount = new Map(); const pairIdx = new Map();
@@ -184,7 +184,7 @@
         act = nextAct();
         run({ type: 'arc', act: a, from, to: id });
       } else {
-        say('reto.did.dummy', { x: `F${net.dummies.length + 1}`, from: lbl(from), to: lbl(id) });
+        say('reto.did.dummy', { x: `${G.aoa.dummyPrefix(ctx.project.activities.map((a) => a.id))}${net.dummies.length + 1}`, from: lbl(from), to: lbl(id) });
         run({ type: 'addDummy', from, to: id });
       }
     };

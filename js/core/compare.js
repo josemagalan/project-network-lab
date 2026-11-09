@@ -20,11 +20,17 @@
   const DEFAULT = ['prog', 'rules', 'min'];
 
   function card(method, net, p) {
-    const problems = K.diagnose(net, p).problems.filter((x) => x.code !== 'unnecessaryDummy');
+    const all = K.diagnose(net, p).problems;
+    const problems = all.filter((x) => x.code !== 'unnecessaryDummy');
     const c = { method, net, ok: problems.length === 0, problems, dummies: net.dummies.length, events: net.events.length,
-      removable: problems.length ? [] : K.removable(net, p).map((r) => r.name), structural: null, pending: false };
-    if (net.model) c.model = net.model;
-    if (net.approx !== undefined) c.approx = net.approx;
+      removable: [], structural: null, pending: false };
+    // Las que sobran salen ya del diagnóstico (no se vuelven a buscar; revisión F2b, ronda 2).
+    const rm = all.filter((x) => x.code === 'unnecessaryDummy').map((x) => ({ i: x.dummy, name: x.ids[0], how: x.how }));
+    c.removable = rm.map((r) => r.name);
+    c.together = rm.length < 2 || K.removableTogether(net, p, rm);
+    // La tarjeta del mínimo no hereda las notas del método que le da V (criterio 19; revisión F2b, F3).
+    if (net.model && method !== 'min') c.model = net.model;
+    if (net.approx !== undefined && method !== 'min') c.approx = net.approx;
     return c;
   }
 

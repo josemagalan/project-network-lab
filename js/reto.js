@@ -22,6 +22,7 @@
 
   const isNode = typeof module !== 'undefined' && module.exports;
   const K = isNode ? require('./core/aoacheck.js') : root.PNL.aoacheck;
+  const A = isNode ? require('./core/aoa.js') : root.PNL.aoa;
 
   // Los mismos límites que la URL (urlstate: ids y números de hasta tres cifras, 100 sucesos, posiciones de hasta cuatro).
   const LIMIT = { events: 100, dummies: 100, id: 999, n: 999, pos: 9999 };
@@ -173,13 +174,15 @@
     return { net: prune(r.net), seq: r.seq === undefined ? state.seq : r.seq, result: null };
   }
 
-  // La red con las ficticias nombradas F1, F2… en su orden (para el diagnóstico y la vista).
-  function named(net) {
-    return { events: net.events, arcs: net.arcs, dummies: net.dummies.map((d, i) => Object.assign({}, d, { name: `F${i + 1}` })) };
+  // La red con las ficticias nombradas F1, F2… en su orden (para el diagnóstico y la vista); f1, f2… si alguna
+  // actividad de la tabla ya se llama F1, F2… (aoa.dummyPrefix).
+  function named(net, p) {
+    const pre = p ? A.dummyPrefix(p.activities.map((a) => a.id)) : 'F';
+    return { events: net.events, arcs: net.arcs, dummies: net.dummies.map((d, i) => Object.assign({}, d, { name: `${pre}${i + 1}` })) };
   }
 
   function check(state, p, min) {
-    const { problems } = K.diagnose(named(state.net), p);
+    const { problems } = K.diagnose(named(state.net, p), p);
     const correct = problems.every((x) => x.code === 'unnecessaryDummy');
     const dummies = state.net.dummies.length;
     const removable = correct ? problems.filter((x) => x.code === 'unnecessaryDummy').map((x) => ({ name: x.ids[0], how: x.how })) : [];
@@ -188,7 +191,8 @@
     if (m && correct && dummies < m.value) m = { value: dummies, lower: m.lower, exact: dummies === m.lower };
     const extra = m && correct ? dummies - m.value : null;
     const structural = extra === null ? null : extra > 0 && removable.length === 0;
-    return { net: state.net, seq: state.seq, result: { correct, problems, dummies, min: m, extra, removable, structural } };
+    const together = removable.length < 2 || K.removableTogether(named(state.net, p), p);
+    return { net: state.net, seq: state.seq, result: { correct, problems, dummies, min: m, extra, removable, structural, together } };
   }
 
   // La red de la URL (urlstate.decode da sn), ajustada a la tabla: un arco por actividad en orden alfabético

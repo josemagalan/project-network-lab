@@ -356,3 +356,16 @@ test('T022 · lienzo: los sucesos de la tabla se colocan por niveles sin pisar a
   const ext = R.extent(pl);
   assert.ok(ext.w >= at(9).x + R.CANVAS.pad && ext.h >= R.CANVAS.h);
 });
+
+test('revisión F2b, ronda 2: en el reto, con actividades llamadas F1, F2…, las ficticias del alumno se llaman f1, f2…', () => {
+  const p = P.parse(['F1:F3, F4', 'F2:F3, F5', 'F3:', 'F4:F5', 'F5:'].map((x) => { const [id, l] = x.split(':'); return { id, duration: '1', links: l }; }), 'succ').project;
+  const net = A.build(p);
+  const first = net.dummies[0];
+  const dup = Object.assign({}, net, { dummies: [...net.dummies, first] });
+  const s = fromAoa(dup, R.start(p));
+  assert.deepEqual(R.named(s.net, p).dummies.map((d) => d.name), ['f1', 'f2', 'f3', 'f4']);
+  assert.deepEqual(R.named(s.net).dummies.map((d) => d.name), ['F1', 'F2', 'F3', 'F4'], 'sin tabla, como siempre');
+  const r = R.check(s, p, M.solve(p)).result;
+  assert.equal(r.correct, true);
+  assert.ok(r.removable.length >= 2 && r.removable.every((x) => /^f[0-9]+$/.test(x.name)), JSON.stringify(r.removable));
+});

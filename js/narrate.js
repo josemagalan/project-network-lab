@@ -199,6 +199,8 @@
     if (d.rule === 'equal') text = t('sel.dummyEqual', { name: x, rule, because });
     else if (d.rule === 'uniqueness') text = t('sel.dummyUnique', { name: x, because });
     else if (d.rule === 'dependency') text = t(precs.length === 0 ? 'sel.dummyDepNone' : precs.length === 1 ? 'sel.dummyDepOne' : 'sel.dummyDep', { name: x, precs: arrows });
+    // Una ficticia de la red mínima puede no representar ninguna precedencia directa (revisión F2b, F9).
+    else if (precs.length === 0) text = t(d.implied && d.implied.length ? 'sel.dummyNoneImplied' : 'sel.dummyNone', { name: x, rule });
     else text = t(precs.length === 1 ? 'sel.dummyOne' : 'sel.dummy', { name: x, rule, because, precs: arrows });
     // F2b (AC6): en el comparador, una ficticia que se puede quitar explica por qué sobra.
     const rm = (ctx.removable || []).find((r) => r.name === x);
@@ -335,7 +337,11 @@
       if (k <= 0) out.status.push({ text: t(min.exact ? 'cmp.atMin' : 'cmp.atBest'), tone: 'ok' });
       else out.status.push({ text: t(min.exact ? 'cmp.above' : 'cmp.aboveBest', { k }), tone: 'warn' });
     }
-    if (c.removable && c.removable.length) out.notes.push({ text: t(c.removable.length === 1 ? 'cmp.removableOne' : 'cmp.removableN', { names: I.list(lang, c.removable) }), tone: 'bad' });
+    // Si no se pueden quitar todas a la vez, se dice (revisión F2b, F10).
+    if (c.removable && c.removable.length) {
+      const text = t(c.removable.length === 1 ? 'cmp.removableOne' : 'cmp.removableN', { names: I.list(lang, c.removable) });
+      out.notes.push({ text: c.together === false ? `${text}, ${t('cmp.notTogether')}` : text, tone: 'bad' });
+    }
     if (c.structural) out.notes.push({ text: t('cmp.structural'), tone: 'warn' });
     if (c.model) out.notes.push({ text: t('cmp.model', { d: c.model.dummies, e: c.model.events }), tone: 'mute' });
     if (c.approx) out.notes.push({ text: t('cmp.approx'), tone: 'mute' });
@@ -364,6 +370,7 @@
     // Las ficticias que sobran, cada una con cómo se quita (borrándola o fundiendo sus sucesos).
     if (result.removable.length) for (const s of diagnosis(result.problems.filter((x) => x.code === 'unnecessaryDummy'), ctx)) lines.push({ text: s, tone: 'bad' });
     else if (d > 0) lines.push({ text: t('reto.noneRemovable'), tone: 'mute' });
+    if (result.together === false) lines.push({ text: t('reto.notTogether'), tone: 'warn' });
     if (result.structural) lines.push({ text: t('cmp.structural'), tone: 'warn' });
     return { title: t('reto.resultOk'), tone: 'ok', count, lines };
   }

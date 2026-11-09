@@ -88,3 +88,31 @@ test('si un método llega a la cota inferior, el mínimo queda demostrado', () =
   const cmp = C.combine(C.run(p, { methods: ['rules'] }), fake);
   assert.deepEqual([cmp.min.value, cmp.min.exact, cmp.min.source], [0, true, 'rules']);
 });
+
+test('revisión F2b, F3: la tarjeta del mínimo no hereda las notas del método que le da V', () => {
+  // Figura 6 de Corneil, Gotlieb y Lee: Spinrad (con su cifra «en su modelo») y Corneil-Gotlieb-Lee dan 8.
+  const p = fromSucc({ A: ['E', 'F', 'G'], B: ['F', 'G', 'H'], C: ['G', 'H', 'I'], D: ['G', 'I', 'J'], E: [], F: [], G: [], H: [], I: [], J: [] });
+  const cmp = C.combine(C.run(p, { methods: ['spinrad', 'cgl', 'min'] }), M.solve(p));
+  const card = cmp.cards.find((c) => c.method === 'min');
+  assert.equal(card.dummies, 8);
+  assert.equal(card.model, undefined);
+  assert.equal(card.approx, undefined);
+  assert.ok(cmp.cards.find((c) => c.method === 'spinrad').model, 'la de Spinrad conserva la suya');
+  // Con Corneil-Gotlieb-Lee como V (approx: false en su tarjeta), la del mínimo tampoco lo hereda (ronda 2).
+  const cgl = C.combine(C.run(p, { methods: ['cgl', 'min'] }), M.solve(p));
+  assert.equal(cgl.min.source, 'cgl');
+  assert.equal(cgl.cards.find((c) => c.method === 'cgl').approx, false);
+  assert.equal(cgl.cards.find((c) => c.method === 'min').approx, undefined);
+});
+
+test('revisión F2b, F8 · AC19: con varios métodos por debajo de V, V pasa a ser el mejor, no el primero', () => {
+  const p = fromSucc({ A1: ['A4', 'A6'], A2: ['A4', 'A5'], A3: ['A4', 'A6', 'A7', 'A8'], A4: ['A8'], A5: ['A7', 'A8', 'A9'], A6: ['A9', 'A10'],
+    A7: ['A9', 'A12'], A8: ['A10', 'A13'], A9: ['A11', 'A13'], A10: ['A14'], A11: ['A14', 'A15'], A12: ['A15'], A13: [], A14: [], A15: ['A16'], A16: [] });
+  const min = M.solve(p);
+  assert.equal(min.exact, false);
+  const cmp = C.combine(C.run(p, { methods: ['prog', 'rules', 'cs', 'kim', 'spinrad', 'cgl', 'min'] }), min);
+  const best = Math.min(...cmp.cards.filter((c) => c.method !== 'min' && c.ok).map((c) => c.dummies));
+  assert.ok(cmp.cards.filter((c) => c.method !== 'min' && c.dummies < min.value).length >= 2, 'más de un método mejora V');
+  assert.equal(cmp.min.value, best);
+  assert.ok(cmp.cards.every((c) => c.dummies >= cmp.min.value), 'ninguna tarjeta por debajo de la mejor encontrada');
+});
