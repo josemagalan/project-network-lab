@@ -1441,11 +1441,273 @@ check('F2b T024 · entradas al comparador: la barra de vistas de la red PERT y d
   }
 });
 
+// ---------- F2b, hito 2: reto de ficticias (T025) ----------
+
+// Red mínima del Ejercicio 6 en la forma de la URL (sn): sucesos «id.número», arcos «ACT:origen-destino» y ficticias.
+const RETO_EV = '0.1,1.2,2.3,3.4,4.5,5.6,6.7,7.8,8.9';
+const RETO_ARC = { A: '0-2', B: '0-1', C: '0-3', D: '0-7', E: '2-4', F: '1-4', G: '3-5', H: '4-7', I: '5-6', J: '6-7', K: '7-8' };
+const RETO_DUM = ['1-2', '1-3', '4-5'];
+const retoSn = (ev = RETO_EV, arc = RETO_ARC, dum = RETO_DUM) => `${ev}|${Object.entries(arc).map(([k, v]) => `${k}:${v}`).join(',')}|${dum.join(',')}`;
+const retoLab = (hash, opts) => lab(`graph=aoa&view=reto&${hash}`, opts);
+const retoNet = (page) => page.evaluate(() => PNL.app.reto().net);
+// «Comprobar» y esperar al resultado con el mínimo ya calculado.
+async function retoCheck(page) {
+  await page.locator('#retoView [data-k="check"]').click();
+  await page.waitForFunction(() => { const r = PNL.app.reto(); return r && r.result && (!r.result.correct || r.result.min); }, null, { timeout: 30000 });
+  return page.locator('#retoView .reto-result').innerText();
+}
+// Escribir en una casilla de la tabla de sucesos (la edición se aplica al salir de la casilla).
+async function retoCell(page, k, v) {
+  const before = JSON.stringify(await retoNet(page));
+  await page.locator(`#retoView [data-k="${k}"]`).fill(v);
+  await page.keyboard.press('Tab');
+  await page.waitForFunction((b) => JSON.stringify(PNL.app.reto().net) !== b, before);
+}
+const noMarks = async (page, tag) => {
+  assert.equal(await page.locator('#retoView .reto-result').count(), 0, `${tag}: sin resultado`);
+  assert.equal(await page.locator('#retoView .rm, #retoView [aria-invalid="true"]').count(), 0, `${tag}: nada marcado`);
+  assert.match(await page.locator('#retoView .reto-res').innerText(), /No se marca nada hasta que pidas comprobar|Nothing is marked until you ask to check/, tag);
+};
+
+check('F2b AC9, AC12, AC14 y AC15 · reto: la tabla y el lienzo se siguen al momento, nada se marca antes de comprobar y la red vuelve por el enlace', async () => {
+  const page = await retoLab('ex=ej6&lang=es');
+  assert.deepEqual((await retoNet(page)).events, [], 'el reto empieza sin sucesos');
+  assert.equal(await page.locator('#retoView .reto-svg .reto-ev').count(), 0);
+  await noMarks(page, 'al empezar');
+  await axe(page, 'reto vacío (ES, claro)');
+  // Tabla → lienzo: A del 1 al 3 crea los dos sucesos y la flecha.
+  await retoCell(page, 'a:A:from', '1');
+  await retoCell(page, 'a:A:to', '3');
+  assert.deepEqual(await page.locator('#retoView .reto-svg .reto-ev text').evaluateAll((els) => els.map((e) => e.textContent).sort()), ['1', '3']);
+  assert.equal(await page.locator('#retoView .reto-svg [data-k="arc:A"]').getAttribute('aria-label'), await page.locator('#retoView .reto-svg [data-k="arc:A"]').getAttribute('aria-label'));
+  assert.match(await page.locator('#retoView .reto-svg [data-k="arc:A"]').getAttribute('aria-label'), /\bA\b.*\b1\b.*\b3\b/);
+  // Lienzo → tabla: un suceso nuevo en un hueco, B del 1 a él y una ficticia del 3 a él.
+  await page.locator('#retoView [data-k="tool:event"]').click();
+  const svg = page.locator('#retoView .reto-svg');
+  const bb = await svg.boundingBox();
+  const vb = (await svg.getAttribute('viewBox')).split(' ').map(Number);
+  await page.mouse.click(bb.x + (500 / vb[2]) * bb.width, bb.y + (260 / vb[3]) * bb.height);
+  await page.waitForFunction(() => PNL.app.reto().net.events.length === 3);
+  const fresh = (await retoNet(page)).events.find((e) => e.n === null);
+  assert.ok(fresh && fresh.x !== undefined, 'el suceso del lienzo tiene posición y no tiene número');
+  assert.match(await page.locator('#retoView .reto-events').innerText(), /sin número \(c\)/);
+  await page.locator('#retoView [data-k="tool:activity"]').click();
+  await page.locator('#retoView select[data-k="act"]').selectOption('B');
+  const ev1 = (await retoNet(page)).events.find((e) => e.n === 1).id;
+  const ev3 = (await retoNet(page)).events.find((e) => e.n === 3).id;
+  await page.locator(`#retoView [data-k="ev:${ev1}"]`).click();
+  await page.locator(`#retoView [data-k="ev:${fresh.id}"]`).click();
+  assert.deepEqual([await page.locator('#retoView [data-k="a:B:from"]').inputValue(), await page.locator('#retoView [data-k="a:B:to"]').inputValue()], ['1', 'c']);
+  await page.locator('#retoView [data-k="tool:dummy"]').click();
+  await page.locator(`#retoView [data-k="ev:${ev3}"]`).click();
+  await page.locator(`#retoView [data-k="ev:${fresh.id}"]`).click();
+  assert.deepEqual([await page.locator('#retoView [data-k="d:0:from"]').inputValue(), await page.locator('#retoView [data-k="d:0:to"]').inputValue()], ['3', 'c']);
+  // La tabla es la alternativa en texto de la red (AC15): cada flecha dibujada tiene su fila con sus dos sucesos.
+  const drawn = await page.locator('#retoView .reto-svg .reto-edge').evaluateAll((els) => els.map((e) => e.dataset.k).sort());
+  assert.deepEqual(drawn, ['arc:A', 'arc:B', 'dm:0']);
+  // Numerar en la tabla: «c» pasa a ser el 2 y el lienzo lo dice.
+  await retoCell(page, `e:${fresh.id}`, '2');
+  assert.match(await page.locator(`#retoView [data-k="ev:${fresh.id}"]`).getAttribute('aria-label'), /^Suceso 2\b/);
+  await noMarks(page, 'tras editar');
+  await axe(page, 'reto a medias (ES, claro)');
+  // El enlace guarda la red y las posiciones del lienzo; en otro navegador (y en inglés) se ve igual.
+  const hash = await page.evaluate(() => location.hash.slice(1));
+  assert.match(hash, /(^|&)sn=/);
+  assert.match(hash, /(^|&)sp=/);
+  const net = await retoNet(page);
+  await close(page);
+  const again = await lab(hash.replace('lang=es', 'lang=en'));
+  assert.deepEqual(await retoNet(again), net);
+  assert.equal(await again.locator('#retoView .reto-svg .reto-edge').count(), 3);
+  await noMarks(again, 'al volver por el enlace');
+  await close(again);
+});
+
+// Un error de cada tipo que puede dar la red del alumno, a partir de la red mínima del Ejercicio 6.
+const RETO_ERRORS = [
+  ['incompleteArc', retoSn(RETO_EV, Object.assign({}, RETO_ARC, { A: '0-' })), /A la flecha de A le falta el suceso inicial o el final/],
+  ['incompleteArc (ficticia)', retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '4-']), /ficticia/],
+  ['parallel', retoSn(RETO_EV, Object.assign({}, RETO_ARC, { F: '2-4' })), /E y F van del mismo suceso al mismo suceso/],
+  ['looseEvent', `${retoSn(`${RETO_EV},9.`)}&sp=9:600.40`, /está suelto/],
+  ['start', retoSn(`${RETO_EV},9.10`, Object.assign({}, RETO_ARC, { B: '9-1' })), /un solo suceso inicial.*y tiene 2: 1 y 10/],
+  ['end', retoSn(`${RETO_EV},9.10`, Object.assign({}, RETO_ARC, { D: '0-9' })), /un solo suceso final.*y tiene 2: 9 y 10/],
+  ['cycle', retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '6-5']), /ciclo que pasa por los sucesos 6 y 7/],
+  ['falsePrecedence', retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '2-3']), /Precedencia falsa: la red hace esperar a G a que termine A/],
+  ['missingPrecedence', retoSn(RETO_EV, RETO_ARC, ['1-3', '4-5']), /Falta una precedencia: B tiene que ir antes de E/],
+  ['unnumbered', retoSn('0.1,1.,2.3,3.4,4.5,5.6,6.7,7.8,8.9'), /Falta por numerar el suceso/],
+  ['order', retoSn('0.1,1.2,2.3,3.4,4.5,5.7,6.6,7.8,8.9'), /La flecha de I no cumple i < j/],
+  ['order (ficticia)', retoSn('0.1,1.3,2.2,3.4,4.5,5.6,6.7,7.8,8.9'), /La ficticia del suceso 3 al 2 no cumple i < j/],
+  ['sameNumber', retoSn('0.1,1.2,2.2,3.4,4.5,5.6,6.7,7.8,8.9'), /Hay 2 sucesos con el número 2/],
+];
+
+check('F2b AC10 y AC12 · diagnóstico: cada error se nombra con sus actividades o sucesos, solo después de comprobar; la red mínima no da ninguno', async () => {
+  for (const [code, sn, want] of RETO_ERRORS) {
+    const page = await retoLab(`ex=ej6&lang=es&sn=${sn}`);
+    await noMarks(page, code);
+    const text = await retoCheck(page);
+    assert.match(text, /^Hay \d+ cosas? que corregir/, `${code}: ${text}`);
+    assert.match(text, want, `${code}: ${text}`);
+    if (code === 'falsePrecedence') {
+      await axe(page, 'reto con un error (ES, claro)');
+      // Editar la red borra el diagnóstico: hasta volver a comprobar no se marca nada.
+      await page.locator('#retoView [data-k="dx:3"]').click();
+      await page.waitForFunction(() => PNL.app.reto().net.dummies.length === 3);
+      await noMarks(page, 'tras editar');
+    }
+    await close(page);
+  }
+  const page = await retoLab(`ex=ej6&lang=en&sn=${retoSn()}`, { scheme: 'dark' });
+  const text = await retoCheck(page);
+  assert.match(text, /^Correct network/, text);
+  assert.doesNotMatch(text, /to fix/);
+  await axe(page, 'reto en el mínimo (EN, oscuro)');
+  await close(page);
+});
+
+check('F2b AC11 · red correcta: cuántas ficticias frente al mínimo y cuáles se pueden quitar, también en el lienzo', async () => {
+  const page = await retoLab(`ex=ej6&lang=es&sn=${retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '0-1'])}`);
+  const text = await retoCheck(page);
+  assert.match(text, /^Red correcta/, text);
+  assert.match(text, /4 ficticias/, text);
+  assert.match(text, /F4/, text);
+  assert.equal(await page.locator('#retoView .reto-svg .edge.rm').count(), 1, 'F4 en rojo en el lienzo');
+  assert.equal(await page.locator('#retoView .reto-svg .elabel.rm').evaluate((e) => e.textContent), 'F4');
+  await axe(page, 'reto correcto con una ficticia de más');
+  await close(page);
+  const min = await retoLab(`ex=ej6&lang=es&sn=${retoSn()}`);
+  const t2 = await retoCheck(min);
+  assert.match(t2, /3 ficticias/, t2);
+  assert.equal(await min.locator('#retoView .reto-svg .edge.rm').count(), 0);
+  await close(min);
+});
+
+check('F2b · rendirse y volver: «Ver una solución» enseña la red de un método sin borrar la del alumno y «Volver a mi red» la devuelve', async () => {
+  const sn = retoSn(RETO_EV, Object.assign({}, RETO_ARC, { A: '0-' }));
+  const page = await retoLab(`ex=ej6&lang=es&sn=${sn}`);
+  const mine = await retoNet(page);
+  await page.locator('#retoView [data-k="solution"]').click();
+  assert.ok(await page.locator('#retoView .reto-solution').isVisible());
+  assert.equal(await page.locator('#retoView .reto-canvas').count(), 0, 'la solución ocupa el sitio del lienzo');
+  assert.match(await page.locator('#retoView .reto-solution .reto-count').innerText(), /^3 ficticias · 9 sucesos$/);
+  await page.locator('#retoView select[data-k="method"]').selectOption('cs');
+  await page.waitForFunction(() => PNL.app.reto().solution === 'cs');
+  assert.match(await page.locator('#retoView .reto-solution .reto-count').innerText(), /^6 ficticias · 11 sucesos$/);
+  assert.deepEqual(await retoNet(page), mine, 'la red del alumno sigue igual');
+  await axe(page, 'reto con una solución a la vista');
+  await page.locator('#retoView [data-k="back"]').click();
+  assert.ok(await page.locator('#retoView .reto-canvas').isVisible());
+  assert.deepEqual(await retoNet(page), mine);
+  // La próxima vez se ofrece el último método elegido.
+  await page.locator('#retoView [data-k="solution"]').click();
+  assert.equal(await page.locator('#retoView select[data-k="method"]').inputValue(), 'cs');
+  await close(page);
+});
+
+// Red mínima del Ejercicio 6 por sucesos (posición en la lista = número): arcos y ficticias entre ellos.
+const EJ6_ARCS = Object.entries(RETO_ARC).map(([a, v]) => [a, ...v.split('-').map(Number)]);
+const EJ6_DUMS = RETO_DUM.map((v) => v.split('-').map(Number));
+
+check('F2b AC13 · lienzo solo con el teclado: la red del Ejercicio 6, correcta y en el mínimo', async () => {
+  const page = await retoLab('ex=ej6&lang=es');
+  await page.locator('#retoView [data-k="svg"]').focus();
+  for (let i = 0; i < 9; i++) await page.keyboard.press('n');
+  await page.waitForFunction(() => PNL.app.reto().net.events.length === 9);
+  const ids = (await retoNet(page)).events.map((e) => e.id);
+  const at = async (i, key) => { await page.locator(`#retoView [data-k="ev:${ids[i]}"]`).focus(); await page.keyboard.press(key); };
+  // La actividad que se dibuja avanza sola a la siguiente sin dibujar: A, B, C… en orden.
+  for (const [, from, to] of EJ6_ARCS) { await at(from, 'a'); await at(to, 'a'); }
+  for (const [from, to] of EJ6_DUMS) { await at(from, 'd'); await at(to, 'd'); }
+  // Las flechas mueven el suceso enfocado.
+  const before = (await retoNet(page)).events.find((e) => e.id === ids[8]);
+  await at(8, 'ArrowRight');
+  assert.equal((await retoNet(page)).events.find((e) => e.id === ids[8]).x, before.x + 20);
+  await page.locator('#retoView [data-k="autoNumber"]').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.app.reto().net.events.every((e) => e.n !== null));
+  await page.locator('#retoView [data-k="check"]').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => { const r = PNL.app.reto().result; return r && r.min; }, null, { timeout: 30000 });
+  const r = await page.evaluate(() => PNL.app.reto().result);
+  assert.ok(r.correct, JSON.stringify(r.problems));
+  assert.equal(r.extra, 0);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.k), 'result', 'el foco va al resultado');
+  await axe(page, 'reto hecho con el teclado');
+  await close(page);
+});
+
+check('F2b AC13 · lienzo solo con pulsaciones, sin arrastrar: la red del Ejercicio 6, correcta y en el mínimo', async () => {
+  const page = await retoLab('ex=ej6&lang=en');
+  await page.locator('#retoView [data-k="tool:event"]').click();
+  const svg = page.locator('#retoView .reto-svg');
+  const spots = [[60, 160], [180, 100], [180, 40], [180, 220], [300, 100], [300, 220], [420, 220], [540, 160], [620, 160]];
+  for (const [x, y] of spots) {
+    const bb = await svg.boundingBox();
+    const vb = (await svg.getAttribute('viewBox')).split(' ').map(Number);
+    const n = (await retoNet(page)).events.length;
+    await page.mouse.click(bb.x + (x / vb[2]) * bb.width, bb.y + (y / vb[3]) * bb.height);
+    await page.waitForFunction((k) => PNL.app.reto().net.events.length === k + 1, n);
+  }
+  const ids = (await retoNet(page)).events.map((e) => e.id);
+  const tap = (i) => page.locator(`#retoView [data-k="ev:${ids[i]}"]`).click();
+  await page.locator('#retoView [data-k="tool:activity"]').click();
+  for (const [, from, to] of EJ6_ARCS) { await tap(from); await tap(to); }
+  await page.locator('#retoView [data-k="tool:dummy"]').click();
+  for (const [from, to] of EJ6_DUMS) { await tap(from); await tap(to); }
+  await page.locator('#retoView [data-k="autoNumber"]').click();
+  const text = await retoCheck(page);
+  assert.match(text, /^Correct network/, text);
+  const r = await page.evaluate(() => PNL.app.reto().result);
+  assert.equal(r.extra, 0);
+  await shot(page, 'f2b-reto-pulsaciones-en');
+  await close(page);
+});
+
+check('F2b AC16 y AC15 · reto a 1280×720 sin desplazar la página y a 360 px sin desplazamiento horizontal; axe en claro y oscuro', async () => {
+  for (const [hash, scheme] of [[`ex=ej6&lang=es&sn=${retoSn()}`, 'light'], [`ex=ej6&lang=en&sn=${retoSn()}`, 'dark']]) {
+    const page = await retoLab(hash, { scheme });
+    await retoCheck(page);
+    const box = await page.evaluate(() => ({ y: window.scrollY, grid: document.querySelector('#retoView .reto-grid').getBoundingClientRect().bottom, w: document.documentElement.scrollWidth }));
+    assert.ok(box.y === 0 && box.grid <= 720 && box.w <= 1280, `1280×720: ${JSON.stringify(box)}`);
+    await axe(page, `reto comprobado a 1280×720 (${scheme})`);
+    await shot(page, `f2b-reto-${scheme}`);
+    await close(page);
+  }
+  for (const lang of ['es', 'en']) {
+    const page = await retoLab(`ex=ej6&lang=${lang}&sn=${retoSn(RETO_EV, RETO_ARC, [...RETO_DUM, '2-3'])}`, { width: 360, height: 740 });
+    await retoCheck(page);
+    assert.ok(await noHScroll(page), `360 px (${lang})`);
+    await page.locator('#retoView [data-k="solution"]').click();
+    assert.ok(await noHScroll(page), `360 px con la solución (${lang})`);
+    await axe(page, `reto a 360 px con la solución (${lang.toUpperCase()})`);
+    await shot(page, `f2b-reto-360-${lang}`, true);
+    await close(page);
+  }
+});
+
+check('F2b AC18 · reto con el Ejercicio 1 (solo estructura): se escribe en la tabla y se comprueba igual', async () => {
+  const page = await retoLab('ex=ej1&lang=es');
+  assert.ok(await page.locator('#urlWarning').isHidden());
+  // Red mínima del Ejercicio 1 escrita en la tabla de sucesos.
+  const ej1 = { A: [1, 2], B: [1, 3], C: [1, 4], D: [3, 5], E: [2, 7], G: [2, 6], H: [5, 6], I: [4, 7], J: [6, 7] };
+  for (const [a, [from, to]] of Object.entries(ej1)) { await retoCell(page, `a:${a}:from`, String(from)); await retoCell(page, `a:${a}:to`, String(to)); }
+  for (const [i, [from, to]] of [[2, 3], [4, 5]].entries()) {
+    await page.locator('#retoView [data-k="addDummy"]').click();
+    await retoCell(page, `d:${i}:from`, String(from));
+    await retoCell(page, `d:${i}:to`, String(to));
+  }
+  const text = await retoCheck(page);
+  assert.match(text, /^Red correcta/, text);
+  assert.match(text, /2 ficticias/, text);
+  assert.equal((await page.evaluate(() => PNL.app.reto().result)).extra, 0);
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
-    `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es']) {
+    `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
+    `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`]) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });

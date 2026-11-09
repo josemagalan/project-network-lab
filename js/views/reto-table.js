@@ -36,7 +36,8 @@
     container.appendChild(grid);
 
     // ---- Tabla de sucesos ----
-    const tableBox = h('section', { class: 'card reto-table', 'aria-labelledby': 'pnl-reto-th' }, [
+    // Sin nombre propio: la región con desplazamiento de dentro ya se llama «Tabla de sucesos» (axe, landmark-unique).
+    const tableBox = h('section', { class: 'card reto-table' }, [
       h('h2', { id: 'pnl-reto-th' }, [t('reto.tableTitle')]),
       h('p', { class: 'small muted' }, [t('reto.tableHint')]),
     ]);
@@ -152,8 +153,9 @@
     }
 
     // ---- Lienzo (o la solución, sin perder la red del alumno), comprobar ----
-    const work = h('section', { class: 'card reto-work', 'aria-labelledby': 'pnl-reto-ch' }, [
-      h('h2', { id: 'pnl-reto-ch', class: 'sr-only' }, [t(ctx.solution ? 'reto.solutionTitle' : 'reto.canvasTitle')])]);
+    // Con la solución a la vista, la sección toma el nombre de su título visible (un solo punto de referencia).
+    const work = h('section', { class: 'card reto-work', 'aria-labelledby': ctx.solution ? 'pnl-reto-sol' : 'pnl-reto-ch' },
+      ctx.solution ? [] : [h('h2', { id: 'pnl-reto-ch', class: 'sr-only' }, [t('reto.canvasTitle')])]);
     grid.appendChild(work);
     if (ctx.solution) work.appendChild(solution(ctx, t));
     else {
@@ -181,7 +183,7 @@
   function solution(ctx, t) {
     const { h } = G.dom;
     const s = ctx.solution;
-    const sec = h('div', { class: 'reto-solution', role: 'region', 'aria-labelledby': 'pnl-reto-sol' }, [h('h2', { id: 'pnl-reto-sol' }, [t('reto.solutionTitle')])]);
+    const sec = h('div', { class: 'reto-solution' }, [h('h2', { id: 'pnl-reto-sol' }, [t('reto.solutionTitle')])]);
     const sel = h('select', { id: 'pnl-reto-method', 'data-k': 'method', onchange: (e) => ctx.onSolution(e.target.value) },
       ctx.methods.map((m) => h('option', { value: m, selected: m === s.method }, [t(`cmp.names.${m}`)])));
     sec.appendChild(h('p', { class: 'row-wrap' }, [h('label', { for: 'pnl-reto-method' }, [t('reto.solutionMethod')]), sel]));
