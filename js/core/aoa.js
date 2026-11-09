@@ -26,7 +26,7 @@
   const EPS = 1e-9;
   const rnd = (x) => { const v = Math.round(x * 1e9) / 1e9; return v === 0 ? 0 : v; };   // como core/cpm
   const { byId } = T;
-  const RULE_ORDER = { equal: 0, contained: 1, shared: 2, min: 3 };
+  const RULE_ORDER = { equal: 0, contained: 1, shared: 2, min: 3, dependency: 4, uniqueness: 5 };   // F2b: métodos del comparador
 
   const keyOf = (ids) => [...ids].sort(byId).join(',');
 
