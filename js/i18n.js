@@ -32,7 +32,7 @@
       },
       view: {
         graphLabel: 'Tipo de red', graphAon: 'Red ROY', graphAoa: 'Red PERT',
-        side: 'Lado a lado', sideHint: 'Pulsa una actividad o una ficticia para verla en las dos redes.',
+        side: 'Lado a lado', cmp: 'Comparar métodos', sideHint: 'Pulsa una actividad o una ficticia para verla en las dos redes.',
         formula: 'Fórmula', dummiesN: '{n} ficticias', dummiesOne: '1 ficticia', dummiesNone: 'sin ficticias',
         pertHint: 'Cada círculo es un suceso con su número; a su lado, el tiempo temprano y el tardío. Las flechas discontinuas son ficticias.',
         succHint: 'Las reglas de los conjuntos se aplican sobre esta tabla; la última columna dice qué papel tiene cada actividad en la regla del paso.',
@@ -74,7 +74,7 @@
         removableMerge: 'Además, {name} se puede quitar fundiendo sus dos sucesos en uno: la red sigue representando exactamente las mismas precedencias.',
       },
       count: {
-        region: 'Contador de ficticias', label: 'Ficticias', rules: 'reglas', min: 'mínimo',
+        region: 'Contador de ficticias', label: 'Ficticias', rules: 'reglas', min: 'mínimo', compare: 'Comparar con otros métodos',
         between: 'entre {l} y {v}', pending: 'calculando…', unknown: '?',
         hidden: 'Se muestran al colocar la red, para no adelantar la respuesta.',
         noteNone: 'Esta tabla no necesita ficticias.', noteSame: 'Las reglas ya dan el mínimo.',
@@ -251,7 +251,7 @@
         colId: 'Actividad', colName: 'Nombre', colDuration: 'Duración', colPred: 'Predecesoras', colSucc: 'Posteriores', computed: '(calculada)',
         errors: '{n} errores que corregir antes de calcular', errorsOne: '1 error que corregir antes de calcular', warnings: '{n} avisos', warningsOne: '1 aviso',
         ready: 'Tabla correcta: {n} actividades, duración {d}.', readyNoDuration: 'Tabla correcta: {n} actividades.',
-        readyStructure: 'Tabla correcta: {n} actividades, sin duraciones. Se puede construir su red PERT; para calcular tiempos, escribe todas las duraciones.', stepByStep: 'Paso a paso', results: 'Resultados',
+        readyStructure: 'Tabla correcta: {n} actividades, sin duraciones. Se puede construir su red PERT; para calcular tiempos, escribe todas las duraciones.', stepByStep: 'Paso a paso', results: 'Resultados', compare: 'Comparar métodos',
         urlNote: 'El enlace de la barra de direcciones guarda siempre tu tabla: puedes recargar o compartirlo.',
         empty: 'Escribe tu primera actividad o carga un ejemplo.',
       },
@@ -348,7 +348,7 @@
       },
       view: {
         graphLabel: 'Network type', graphAon: 'AON (ROY)', graphAoa: 'AOA (PERT)',
-        side: 'Side by side', sideHint: 'Click an activity or a dummy to see it in both networks.',
+        side: 'Side by side', cmp: 'Compare methods', sideHint: 'Click an activity or a dummy to see it in both networks.',
         formula: 'Formula', dummiesN: '{n} dummies', dummiesOne: '1 dummy', dummiesNone: 'no dummies',
         pertHint: 'Each circle is an event with its number; next to it, its early and late times. Dashed arrows are dummies.',
         succHint: 'The set rules are applied to this table; the last column says what role each activity plays in this step’s rule.',
@@ -390,7 +390,7 @@
         removableMerge: 'Also, {name} can be removed by merging its two events into one: the network keeps exactly the same precedences.',
       },
       count: {
-        region: 'Dummy counter', label: 'Dummies', rules: 'rules', min: 'minimum',
+        region: 'Dummy counter', label: 'Dummies', rules: 'rules', min: 'minimum', compare: 'Compare with other methods',
         between: 'between {l} and {v}', pending: 'working it out…', unknown: '?',
         hidden: 'Shown once the network is placed, so as not to give the answer away.',
         noteNone: 'This table needs no dummies.', noteSame: 'The rules already give the minimum.',
@@ -566,7 +566,7 @@
         colId: 'Activity', colName: 'Name', colDuration: 'Duration', colPred: 'Predecessors', colSucc: 'Successors', computed: '(computed)',
         errors: '{n} errors to fix before calculating', errorsOne: '1 error to fix before calculating', warnings: '{n} warnings', warningsOne: '1 warning',
         ready: 'The table is correct: {n} activities, duration {d}.', readyNoDuration: 'The table is correct: {n} activities.',
-        readyStructure: 'The table is correct: {n} activities, no durations. Its activity-on-arrow network can be built; to compute times, enter every duration.', stepByStep: 'Step by step', results: 'Results',
+        readyStructure: 'The table is correct: {n} activities, no durations. Its activity-on-arrow network can be built; to compute times, enter every duration.', stepByStep: 'Step by step', results: 'Results', compare: 'Compare methods',
         urlNote: 'The link in the address bar always holds your table: reload or share it.',
         empty: 'Write your first activity or load an example.',
       },

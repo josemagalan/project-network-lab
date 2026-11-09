@@ -6,9 +6,9 @@ const E = require('../js/core/examples.js');
 const P = require('../js/core/project.js');
 const U = require('../js/core/urlstate.js');
 
-test('hay diez ejemplos visibles; todos, también los ocultos de la F2b, se abren por la URL', () => {
-  assert.equal(E.list().length, 10);
-  assert.deepEqual(E.list().map((e) => e.id), U.EXAMPLES.slice(0, 10));
+test('T024: los catorce ejemplos están a la vista, también los cuatro de la F2b, y se abren por la URL', () => {
+  assert.equal(E.list().length, 14);
+  assert.deepEqual(E.list().map((e) => e.id), U.EXAMPLES);
   assert.deepEqual(E.list({ all: true }).map((e) => e.id), U.EXAMPLES);
 });
 
@@ -52,7 +52,7 @@ test('T022: con M2 activo, los cuatro ejercicios nuevos salen en la lista y ning
   for (const id of ['ej1', 'ej2', 'ej3', 'ej7']) assert.ok(shown.includes(id), id);
   assert.ok(E.list().every((e) => !e.hidden));
   // ej1–ej3 solo tienen estructura (solo en la red PERT); ej7 tiene duraciones.
-  assert.deepEqual(E.list().filter((e) => e.structureOnly).map((e) => e.id), ['ej1', 'ej2', 'ej3']);
+  assert.deepEqual(E.list().filter((e) => e.structureOnly).map((e) => e.id), ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo']);
 });
 
 test('F2a: los ejercicios 1, 2 y 3 son solo de estructura y se cargan con structureOnly', () => {
@@ -94,14 +94,14 @@ test('F2a: el Ejercicio 7 se carga con sus duraciones y dura 27 días', () => {
 const F2B = ['kim2008', 'cs2007', 'syslo1981', 'tipo'];
 const METHODS = ['min', 'prog', 'rules', 'cs', 'kim', 'spinrad', 'cgl'];
 
-test('F2b: las cuatro tablas nuevas existen, ocultas (P9) y solo de estructura, con título y fuente en ES y EN', () => {
+test('F2b: las cuatro tablas nuevas existen, a la vista desde T024 y solo de estructura, con título y fuente en ES y EN', () => {
   for (const id of F2B) {
     const ex = E.get(id);
     assert.ok(ex, id);
-    assert.equal(ex.hidden, true, `${id} oculto hasta T024`);
+    assert.ok(!ex.hidden, `${id} a la vista (T024)`);
     assert.equal(ex.structureOnly, true, id);
     for (const k of ['title', 'source', 'unit']) assert.ok(ex[k].es && ex[k].en, `${id}.${k}`);
-    assert.ok(!E.list().some((e) => e.id === id), `${id} no sale en la lista`);
+    assert.ok(E.list().some((e) => e.id === id), `${id} sale en la lista`);
     assert.ok(U.STRUCTURE_ONLY.includes(id), `${id} solo en la red PERT`);
     const { project, report } = P.parse(ex.rows, ex.mode, { structureOnly: true });
     assert.ok(project, id);

@@ -525,7 +525,8 @@ check('F2a AC13 · la red PERT de cada ejemplo cabe en 1280×720 sin desplazar l
         return { net: r('#netView svg').bottom, text: r('.narration').bottom, over: nv.scrollWidth - nv.clientWidth, page: document.documentElement.scrollWidth, n: PNL.app.model().project.activities.length };
       });
       assert.ok(box.page <= 1280, `${ex}: desplazamiento horizontal de página`);
-      if (box.n <= 14) assert.ok(box.net <= 720 && box.text <= 720 && box.over <= 1, `${ex} ${kind}: ${JSON.stringify(box)}`);
+      // Sysło (14 actividades) no cabe: sus flechas largas al suceso final ocupan siete filas (decisión del autor, T024).
+      if (box.n <= 14 && ex !== 'syslo1981') assert.ok(box.net <= 720 && box.text <= 720 && box.over <= 1, `${ex} ${kind}: ${JSON.stringify(box)}`);
     }
     await close(page);
   }
@@ -1377,6 +1378,66 @@ check('F2b AC18 · solo estructura: el comparador funciona igual con el Ejercici
       await axe(page, 'comparador del caso tipo');
     }
     await close(page);
+  }
+});
+
+check('F2b T024 · entradas al comparador: la barra de vistas de la red PERT y del progresivo, la tarjeta del contador, el taller y la portada', async () => {
+  // Barra de vistas: solo en la red PERT; «Red» vuelve.
+  const roy = await lab('ex=ej6&step=5&lang=es');
+  assert.ok(await roy.locator('#btnCmp').isHidden(), 'no en la red ROY');
+  await close(roy);
+  const page = await lab('graph=aoa&ex=ej6&step=5&lang=es');
+  assert.equal(await page.locator('#btnCmp').innerText(), 'Comparar métodos');
+  assert.equal(await page.locator('#btnCmp').getAttribute('aria-pressed'), 'false');
+  await page.locator('#btnCmp').click();
+  await page.waitForFunction(() => PNL.app.state().view === 'cmp');
+  assert.equal(await page.locator('#btnCmp').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(Object.keys(await cmpCards(page)), ['prog', 'rules', 'min']);
+  await page.locator('#btnNet').click();
+  await page.waitForFunction(() => PNL.app.state().view === 'net');
+  assert.equal((await state(page)).step, 5, 'vuelve al mismo paso');
+  await close(page);
+  // Desde el progresivo, el comparador deja el método en las reglas.
+  const prog = await lab('graph=aoa&m=prog&ex=ej6&step=3&lang=en');
+  assert.equal(await prog.locator('#btnCmp').innerText(), 'Compare methods');
+  await prog.locator('#btnCmp').click();
+  await prog.waitForFunction(() => PNL.app.state().view === 'cmp' && PNL.app.state().m === 'rules');
+  await close(prog);
+  // Contador por encima del mínimo, con la red mínima al lado: «Comparar con otros métodos» la cierra.
+  const tipo = await lab('graph=aoa&ex=tipo&step=0&min=1&lang=es');
+  await minReady(tipo);
+  await tipo.locator('#dummyCounter button', { hasText: 'Comparar con otros métodos' }).click();
+  await tipo.waitForFunction(() => PNL.app.state().view === 'cmp' && !PNL.app.state().min);
+  await close(tipo);
+  // Taller: los cuatro ejemplos nuevos en el selector y «Comparar métodos» en el resumen, también desde la red ROY.
+  const work = await lab('v=work&lang=es');
+  const options = await work.locator('#workshop .work-tools select option').evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
+  for (const id of ['kim2008', 'cs2007', 'syslo1981', 'tipo']) assert.ok(options.includes(id), id);
+  assert.equal((await state(work)).graph, 'aon');
+  await work.locator('#workshop .work-side button', { hasText: 'Comparar métodos' }).click();
+  await work.waitForFunction(() => PNL.app.state().view === 'cmp' && PNL.app.state().graph === 'aoa');
+  assert.equal((await state(work)).v, 'work', 'sigue en el taller');
+  assert.ok(await work.locator('#cmpView').isVisible());
+  await work.locator('#workshop .work-tools select').selectOption('syslo1981');
+  await work.waitForFunction(() => /14 actividades/.test(document.getElementById('unitLine').textContent));
+  assert.equal((await cmpCards(work)).rules.count, '8', 'las reglas de la tabla de Sysło');
+  await axe(work, 'taller con el comparador de la tabla de Sysło');
+  await close(work);
+  // Portada: el segundo enlace de M2, en el idioma elegido, y sin JavaScript en español.
+  const noJs = await open('index.html', { js: false });
+  assert.match(await noJs.locator('a[data-lab="cmp"]').getAttribute('href'), /^cpm\.html#v=route&ex=ej6&step=0&graph=aoa&view=cmp&lang=es$/);
+  await close(noJs);
+  const portal = await open('index.html?lang=en');
+  assert.match(await portal.locator('a[data-lab="cmp"]').innerText(), /Compare methods/);
+  await portal.locator('a[data-lab="cmp"]').click();
+  await portal.waitForFunction(() => window.PNL && PNL.app && PNL.app.state() && PNL.app.state().view === 'cmp');
+  assert.equal((await state(portal)).lang, 'en');
+  await close(portal);
+  for (const scheme of ['light', 'dark']) {
+    const home = await open('index.html?lang=es', { scheme });
+    await axe(home, `portada con el enlace al comparador (${scheme})`);
+    await shot(home, `f2b-portada-m2-${scheme}`);
+    await close(home);
   }
 });
 

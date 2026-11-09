@@ -82,6 +82,24 @@ test('Ejercicio 6: como en la diapositiva del autor, las tres ficticias son vert
   assert.equal(lay.bends.D.length, lay.pos[8].col - lay.pos[1].col - 1, 'D pasa por un carril en cada columna intermedia');
 });
 
+test('T024: si una columna pasara de 6 sucesos (tabla de Sysło), las ficticias también avanzan; los diez ejemplos no cambian', () => {
+  const perCol = (lay) => Object.values(lay.pos).reduce((m, p) => Object.assign(m, { [p.col]: (m[p.col] || 0) + 1 }), {});
+  const sys = netOf('syslo1981');
+  const lay = L.layout(sys);
+  checkColumns(sys, lay, 'syslo1981');
+  for (const d of sys.dummies) assert.ok(lay.pos[d.to].col > lay.pos[d.from].col, `ficticia ${d.name} avanza`);
+  assert.ok(Math.max(...Object.values(perCol(lay))) <= 6, JSON.stringify(perCol(lay)));
+  // En los diez ejemplos, las columnas siguen siendo las de siempre: actividades +1 y ficticias +0.
+  for (const id of ALL) {
+    const net = netOf(id); const l = L.layout(net);
+    const col = { 1: 0 };
+    for (let n = 2; n <= net.events.length; n++) {
+      col[n] = Math.max(0, ...net.arcs.filter((e) => e.to === n).map((e) => col[e.from] + 1), ...net.dummies.filter((d) => d.to === n).map((d) => col[d.from]));
+    }
+    for (let n = 1; n <= net.events.length; n++) assert.equal(l.pos[n].col, col[n], `${id}: suceso ${n}`);
+  }
+});
+
 test('los barridos no aumentan los cruces respecto al orden inicial', () => {
   for (const id of ALL) {
     const net = netOf(id);

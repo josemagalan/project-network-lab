@@ -27,8 +27,8 @@
       m1Desc: 'Construye la red nivel a nivel a partir de la tabla, con la matriz de encadenamiento al lado y la caja de nodo que uses en clase.',
       m1Topics: 'Actividad en nodo · Niveles · Matriz · 3 formatos de caja', m1Open: 'Abrir red ROY',
       m2Question: '¿Y si las actividades van en las flechas?', m2Title: 'Red PERT y ficticias',
-      m2Desc: 'Dibuja la misma tabla con actividades en arco y descubre cuándo hacen falta ficticias, con las reglas de los conjuntos: iguales, contenidos y compartidos.',
-      m2Topics: 'Actividad en arco · Sucesos · Ficticias · ROY ⇄ PERT', m2Open: 'Abrir red PERT',
+      m2Desc: 'Dibuja la misma tabla con actividades en arco y descubre cuándo hacen falta ficticias, con las reglas de los conjuntos: iguales, contenidos y compartidos. Después, compara siete métodos de dibujarla.',
+      m2Topics: 'Actividad en arco · Sucesos · Ficticias · ROY ⇄ PERT', m2Open: 'Abrir red PERT', m2Compare: 'Comparar métodos',
       m3Question: '¿Cuánto dura el proyecto?', m3Title: 'Cálculo de tiempos',
       m3Desc: 'Pasadas hacia delante y hacia atrás, actividad a actividad, con la fórmula y sus números en cada paso. Predice el valor antes de verlo.',
       m3Topics: 'ES · EF · LS · LF · Modo predicción · ¿Y si…?', m3Open: 'Abrir cálculo de tiempos',
@@ -103,8 +103,8 @@
       m1Desc: 'Build the network level by level from the table, with the precedence matrix alongside and the node box you use in class.',
       m1Topics: 'Activity on node · Levels · Matrix · 3 node boxes', m1Open: 'Open activity on node',
       m2Question: 'What if activities sit on the arrows?', m2Title: 'Activity-on-arrow network and dummies',
-      m2Desc: 'Draw the same table with activities on arrows and find out when dummy activities are needed, using the set rules: equal, contained and shared.',
-      m2Topics: 'Activity on arrow · Events · Dummies · AON ⇄ AOA', m2Open: 'Open activity on arrow',
+      m2Desc: 'Draw the same table with activities on arrows and find out when dummy activities are needed, using the set rules: equal, contained and shared. Then compare seven ways of drawing it.',
+      m2Topics: 'Activity on arrow · Events · Dummies · AON ⇄ AOA', m2Open: 'Open activity on arrow', m2Compare: 'Compare methods',
       m3Question: 'How long does the project take?', m3Title: 'Computing times',
       m3Desc: 'Forward and backward passes, one activity at a time, with the formula and its numbers at every step. Predict each value before you see it.',
       m3Topics: 'ES · EF · LS · LF · Prediction mode · What if…?', m3Open: 'Open computing times',
@@ -172,9 +172,10 @@
 
   // Puntos de entrada en el laboratorio. Los pasos son los de la traza del Ejercicio 6:
   // 0 = tabla, 1 = construcción de la red, 2 = primera actividad hacia delante, 26 = primera holgura.
-  // M2 abre el paso 0 de la traza de la red PERT (tabla de posteriores), con graph=aoa (F2a, AC14).
+  // M2 abre el paso 0 de la traza de la red PERT (tabla de posteriores), con graph=aoa (F2a, AC14); su segundo
+  // enlace, el comparador de métodos (F2b, T024).
   const TARGETS = {
-    route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', m3: 'v=route&ex=ej6&step=2',
+    route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', m3: 'v=route&ex=ej6&step=2',
     m4: 'v=route&ex=ej6&step=26', work: 'v=work',
   };
 

@@ -182,9 +182,11 @@
     if (!tr) return;
 
     const isPert = pert();
-    // F2b: el comparador sustituye a la red y al panel del paso (sin botón propio hasta T024).
+    // F2b: el comparador sustituye a la red y al panel del paso; su botón está junto a «Red» y «Lado a lado» (T024).
     const cmpOn = isPert && state.view === 'cmp';
     const retoOn = isPert && state.view === 'reto';
+    $('btnCmp').hidden = !isPert;
+    $('btnCmp').setAttribute('aria-pressed', String(cmpOn));
     $('cmpView').hidden = !cmpOn;
     $('retoView').hidden = !retoOn;
     $('side').hidden = cmpOn || retoOn;
@@ -430,9 +432,18 @@
       box.appendChild(h('p', {}, [c.text]));
       box.appendChild(h('div', { class: 'row-wrap' }, [
         h('button', { type: 'button', class: 'ghost', id: 'btnMin', 'aria-pressed': String(!!state.min), onclick: toggleMin }, [c.show]),
+        h('button', { type: 'button', class: 'ghost', onclick: openCompare }, [t('count.compare')]),
         learn]));
     } else if (res && !res.exact) box.appendChild(h('div', { class: 'row-wrap' }, [learn]));
     return c;
+  }
+
+  // Abre el comparador (T024): deja la red mínima al lado y el dibujo progresivo.
+  function openCompare() {
+    stopPlay();
+    if (state.min) dispatch({ type: 'set', key: 'min', value: 0 });
+    if (state.m !== 'rules') dispatch({ type: 'set', key: 'm', value: 'rules' });
+    dispatch({ type: 'set', key: 'view', value: 'cmp' });
   }
 
   function toggleMin() {
@@ -807,6 +818,7 @@
     $('btnNet').addEventListener('click', () => { if (state.min) dispatch({ type: 'set', key: 'min', value: 0 }); dispatch({ type: 'set', key: 'view', value: 'net' }); });
     $('btnMatrix').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'matrix' }));
     $('btnSide').addEventListener('click', () => { if (state.min) dispatch({ type: 'set', key: 'min', value: 0 }); dispatch({ type: 'set', key: 'view', value: 'side' }); });
+    $('btnCmp').addEventListener('click', openCompare);
     $('btnAon').addEventListener('click', () => switchGraph('aon'));
     $('btnAoa').addEventListener('click', () => switchGraph('aoa'));
     $('selLang').addEventListener('change', (e) => dispatch({ type: 'set', key: 'lang', value: e.target.value }));
@@ -863,6 +875,13 @@
       },
       toggleComputed: (v) => { showComputed = v; render(); },
       goStage: (where) => {
+        // «Comparar métodos» (T024): el comparador se abre sobre la red PERT de la tabla.
+        if (where === 'cmp') {
+          if (!pert()) dispatch({ type: 'graph', value: 'aoa', step: 0 });
+          openCompare();
+          $('stage').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
         const n = where === 'critical' ? trace().findIndex((s) => s.kind === 'critical') : 0;
         dispatch({ type: 'go', n });
         $('stage').scrollIntoView({ behavior: 'smooth', block: 'start' });

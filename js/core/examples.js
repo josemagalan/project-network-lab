@@ -233,11 +233,10 @@
           spinrad: { dummies: 4, events: 10, model: { dummies: 12, events: 18 } }, cgl: { dummies: 4, events: 10 } },
       },
     },
-    // ---------- F2b: tablas de las fuentes de los métodos del comparador (ocultas hasta T024, P9) ----------
+    // ---------- F2b: tablas de las fuentes de los métodos del comparador (a la vista desde T024) ----------
     {
       id: 'kim2008',
       structureOnly: true,
-      hidden: true,
       title: { es: 'Kim (2008), tabla 1', en: 'Kim (2008), Table 1' },
       source: { es: 'K. Kim (2008), «Identifying logical dummy activities in an activity-on-arrow network», Canadian Journal of Civil Engineering 35(7): 739–744, tabla 1 y figura 4',
                 en: 'K. Kim (2008), "Identifying logical dummy activities in an activity-on-arrow network", Canadian Journal of Civil Engineering 35(7): 739–744, Table 1 and Fig. 4' },
@@ -254,7 +253,6 @@
     {
       id: 'cs2007',
       structureOnly: true,
-      hidden: true,
       title: { es: 'Cohen y Sadeh (2007), tabla 1', en: 'Cohen and Sadeh (2007), Table 1' },
       source: { es: 'Y. Cohen y A. Sadeh (2007), «A new approach for constructing and generating AOA networks», Journal of Engineering, Computing and Architecture 1(1): 1–13, tablas 1 y 4 (encofrado de hormigón)',
                 en: 'Y. Cohen and A. Sadeh (2007), "A new approach for constructing and generating AOA networks", Journal of Engineering, Computing and Architecture 1(1): 1–13, Tables 1 and 4 (concrete casting)' },
@@ -271,7 +269,6 @@
     {
       id: 'syslo1981',
       structureOnly: true,
-      hidden: true,
       title: { es: 'Sysło (1981), figura 2.3', en: 'Sysło (1981), Figure 2.3' },
       source: { es: 'M. M. Sysło (1981), «Optimal constructions of event-node networks», RAIRO – Operations Research 15(3): 241–260, figura 2.3; la actividad b′ del artículo es aquí B2',
                 en: 'M. M. Sysło (1981), "Optimal constructions of event-node networks", RAIRO – Operations Research 15(3): 241–260, Figure 2.3; activity b′ in the paper is B2 here' },
@@ -287,7 +284,6 @@
     {
       id: 'tipo',
       structureOnly: true,
-      hidden: true,
       title: { es: 'Caso tipo: una precedencia implícita', en: 'Typical case: an implied precedence' },
       source: { es: 'Spec F2a, criterio 16: A < C, D, E; B < C, E; D < E (A → E es redundante y no se escribe)',
                 en: 'F2a spec, criterion 16: A < C, D, E; B < C, E; D < E (A → E is redundant and is left out)' },

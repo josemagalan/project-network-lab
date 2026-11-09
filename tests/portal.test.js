@@ -97,5 +97,13 @@ test('AC14: M2 abre la construcción de la red PERT del Ejercicio 6 (paso 0) en 
     assert.equal(trace[state.step].kind, 'succTable');
   }
   assert.ok(html.includes('data-lab="m2"'));
+  // T024: el segundo enlace de M2 abre el comparador de métodos con los métodos por defecto.
+  for (const lang of ['es', 'en']) {
+    const { state, warning } = U.decode('#' + labHref('cmp', lang).split('#')[1]);
+    assert.equal(warning, undefined);
+    assert.deepEqual([state.v, state.ex, state.graph, state.view, state.lang, state.pair], ['route', 'ej6', 'aoa', 'cmp', lang, null]);
+    assert.ok(messages[lang].m2Compare, lang);
+  }
+  assert.ok(html.includes('data-lab="cmp"><span data-i18n="m2Compare">'));
   for (const lang of ['es', 'en']) assert.ok(messages[lang].m2Open, lang);
 });

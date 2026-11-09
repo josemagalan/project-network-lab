@@ -6,20 +6,32 @@
  * Dentro de cada columna, los sucesos unidos por ficticias verticales van juntos y en el orden que evita que
  * una ficticia pase por encima de otro suceso; después, barridos por baricentro para reducir cruces. Si una
  * ficticia vertical no puede ir recta (un suceso con tres o más), se marca en `curved` y se dibuja curvada.
+ * Si así una columna pasara de MAX_COL sucesos (la tabla de Sysło, F2b T024), en esa red las ficticias también
+ * avanzan una columna: la red se alarga a lo ancho y deja de montar unas ficticias sobre otras.
  * La numeración de los sucesos es la de core/aoa (i < j); la colocación no la cambia.
  */
 (function (root) {
   'use strict';
 
   const MAX_PERM = 6;
+  const MAX_COL = 6;
 
-  function columns(net) {
+  function columns(net, dummyStep) {
     const N = net.events.length;
     const col = { 1: 0 };
     const edges = [...net.arcs.map((e) => ({ label: e.act, from: e.from, to: e.to, w: 1 })),
-      ...net.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, w: 0 }))];
+      ...net.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, w: dummyStep }))];
     for (let n = 2; n <= N; n++) col[n] = Math.max(0, ...edges.filter((e) => e.to === n).map((e) => col[e.from] + e.w));
     return { col, edges, cols: col[N] + 1 };
+  }
+
+  // Ficticias verticales salvo que dejen una columna con más de MAX_COL sucesos (la red se haría demasiado alta,
+  // como en la tabla de Sysło): entonces cada ficticia también avanza una columna.
+  function levels(net) {
+    const flat = columns(net, 0);
+    const per = {};
+    for (const c of Object.values(flat.col)) per[c] = (per[c] || 0) + 1;
+    return Math.max(...Object.values(per)) > MAX_COL ? columns(net, 1) : flat;
   }
 
   function* permutations(xs) {
@@ -28,7 +40,7 @@
   }
 
   function expand(net) {
-    const { col, edges, cols } = columns(net);
+    const { col, edges, cols } = levels(net);
     const N = net.events.length;
     const vertical = edges.filter((e) => e.w === 0 && col[e.from] === col[e.to]);
     const preds = new Map(); const succs = new Map(); const colOf = new Map();
