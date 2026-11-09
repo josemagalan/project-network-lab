@@ -39,6 +39,17 @@
     return R;
   }
 
+  // Sucesos que están en algún ciclo (desde los que se puede volver a ellos mismos), en el orden de la red.
+  function inCycles(keys, edges) {
+    const out = new Map(keys.map((k) => [k, []]));
+    for (const e of edges) out.get(e.from).push(e.to);
+    return keys.filter((k) => {
+      const seen = new Set(); const stack = [...out.get(k)];
+      while (stack.length) { const u = stack.pop(); if (u === k) return true; if (seen.has(u)) continue; seen.add(u); stack.push(...out.get(u)); }
+      return false;
+    });
+  }
+
   // Problemas de lógica (sin numeración ni ficticias sobrantes), en un orden fijo.
   function logic(g, p) {
     const { ids, reach } = A._reduce(p);
@@ -67,10 +78,13 @@
     const loose = keys.filter((k) => indeg.get(k) === 0 && outdeg.get(k) === 0);
     for (const k of loose) problems.push({ code: 'looseEvent', ids: [], events: [k] });
     const live = keys.filter((k) => !loose.includes(k));
-    if (live.filter((k) => indeg.get(k) === 0).length !== 1) problems.push({ code: 'start', ids: [] });
-    if (live.filter((k) => outdeg.get(k) === 0).length !== 1) problems.push({ code: 'end', ids: [] });
+    // Con lo implicado: los sucesos iniciales (o finales) que hay, y los sucesos de los ciclos.
+    const starts = live.filter((k) => indeg.get(k) === 0);
+    const ends = live.filter((k) => outdeg.get(k) === 0);
+    if (starts.length !== 1) problems.push({ code: 'start', ids: [], events: starts });
+    if (ends.length !== 1) problems.push({ code: 'end', ids: [], events: ends });
     const R = reachability(keys, edges);
-    if (!R) { problems.push({ code: 'cycle', ids: [] }); return problems; }
+    if (!R) { problems.push({ code: 'cycle', ids: [], events: inCycles(keys, edges) }); return problems; }
     for (const a of ids) for (const b of ids) {
       if (a === b || !arcOf[a] || !arcOf[b] || !complete(arcOf[a]) || !complete(arcOf[b])) continue;
       const linked = R.get(arcOf[a].to).has(arcOf[b].from);

@@ -83,6 +83,21 @@ test('un error de cada tipo, con las actividades o sucesos implicados', () => {
   assert.ok(r.problems.find((x) => x.code === 'missingPrecedence').ids.length === 2, 'nombra las dos actividades');
 });
 
+test('dos sucesos iniciales o finales y un ciclo nombran los sucesos implicados', () => {
+  const p = loadEx('ej6');
+  const at = (mutate, code) => { const n = ej6(); mutate(n); return K.diagnose(n, p).problems.find((x) => x.code === code); };
+  const s = at((n) => { n.events.push({ id: 'x', n: 98 }); n.arcs.find((e) => e.act === 'D').from = 'x'; }, 'start');
+  assert.deepEqual(s.events.slice().sort(), [ej6().events[0].id, 'x'].sort());
+  const e = at((n) => { n.events.push({ id: 'y', n: 97 }); n.arcs.find((x) => x.act === 'H').to = 'y'; }, 'end');
+  assert.ok(e.events.includes('y') && e.events.length === 2, JSON.stringify(e));
+  // Un ciclo en el medio (de H a E): solo sus sucesos, no los que van detrás.
+  const c = at((n) => { const h = n.arcs.find((x) => x.act === 'H'); n.dummies.push({ from: h.to, to: n.arcs.find((x) => x.act === 'E').from }); }, 'cycle');
+  const n6 = ej6(); const of = (a) => n6.arcs.find((x) => x.act === a);
+  for (const k of [of('E').from, of('E').to, of('H').to]) assert.ok(c.events.includes(k), JSON.stringify(c));
+  assert.ok(!c.events.includes(of('K').to), 'el final no está en el ciclo');
+  assert.ok(!c.events.includes(of('A').from), 'el inicial tampoco');
+});
+
 test('ficticia innecesaria: solo cuando la red es correcta en todo lo demás', () => {
   const p = fromSucc({ A: ['B'], B: [] });
   const net = { events: [0, 1, 2, 3].map((id) => ({ id, n: id + 1 })), arcs: [{ act: 'A', from: 0, to: 1 }, { act: 'B', from: 2, to: 3 }], dummies: [{ from: 1, to: 2 }] };
