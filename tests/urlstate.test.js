@@ -169,3 +169,58 @@ test('Revisión F2: un ejemplo solo de estructura no tiene vista lado a lado (no
   const ok = U.decode('#v=route&graph=aoa&ex=ej7&view=side');
   assert.deepEqual([ok.state.view, ok.warning], ['side', undefined]);
 });
+
+// ---------- F2b (T013): comparador, dibujo progresivo y reto ----------
+
+test('F2b: valores por defecto de los parámetros nuevos, que no se escriben en la URL', () => {
+  const d = U.defaults();
+  assert.deepEqual([d.m, d.ms, d.pair, d.sn], ['rules', ['prog', 'rules', 'min'], null, null]);
+  const hash = U.encode(Object.assign(U.defaults(), { graph: 'aoa' }));
+  for (const k of ['m', 'ms', 'pair', 'sn', 'sp']) assert.ok(!new RegExp(`(^|[#&])${k}=`).test(hash), `${k} en ${hash}`);
+});
+
+test('F2b: ida y vuelta del comparador (métodos visibles y par) y del progresivo', () => {
+  const s = Object.assign(U.defaults(), { graph: 'aoa', view: 'cmp', ex: 'syslo1981', ms: ['cgl', 'rules', 'min'], pair: ['cgl', 'rules'] });
+  assert.deepEqual(U.decode(U.encode(s)), { state: s });
+  const p = Object.assign(U.defaults(), { graph: 'aoa', m: 'prog', step: 5, pred: 1 });
+  assert.deepEqual(U.decode(U.encode(p)), { state: p });
+});
+
+test('F2b: ida y vuelta del reto con la red del alumno (sucesos sin número, arcos a medias y posiciones)', () => {
+  const sn = { events: [{ id: 0, n: 1, x: 10, y: 20 }, { id: 1, n: null, x: 40, y: 20 }, { id: 2, n: 3, x: 70, y: 5 }],
+    arcs: [{ act: 'A', from: 0, to: 1 }, { act: 'B', from: 0, to: null }], dummies: [{ from: 1, to: 2 }] };
+  const s = Object.assign(U.defaults(), { graph: 'aoa', view: 'reto', ex: 'ej6', sn });
+  assert.deepEqual(U.decode(U.encode(s)), { state: s });
+});
+
+test('F2b: una red del alumno de 30 actividades con posiciones cabe en el límite de la URL', () => {
+  const events = Array.from({ length: 60 }, (_, i) => ({ id: i, n: i + 1, x: 999, y: 999 }));
+  const arcs = Array.from({ length: 30 }, (_, i) => ({ act: `A${i}`, from: i, to: i + 30 }));
+  const dummies = Array.from({ length: 30 }, (_, i) => ({ from: i + 30, to: (i + 1) % 30 }));
+  const hash = U.encode(Object.assign(U.defaults(), { graph: 'aoa', view: 'reto', sn: { events, arcs, dummies } }));
+  assert.ok(hash.length < U.LIMITS.hash, `${hash.length}`);
+});
+
+test('F2b: listas blancas y combinaciones imposibles vuelven a lo de siempre con aviso', () => {
+  const bad = [
+    ['#v=route&graph=aon&view=cmp', (s) => s.view === 'net'],
+    ['#v=route&graph=aon&view=reto', (s) => s.view === 'net'],
+    ['#v=route&graph=aoa&m=nope', (s) => s.m === 'rules'],
+    ['#v=route&graph=aoa&view=cmp&ms=rules,nope', (s) => s.ms.join() === 'prog,rules,min'],
+    ['#v=route&graph=aoa&view=cmp&pair=rules,rules', (s) => s.pair === null],
+    ['#v=route&graph=aoa&view=reto&sn=' + encodeURIComponent('0.1|A0-9|'), (s) => s.sn === null],
+    ['#v=route&graph=aoa&view=reto&sn=' + encodeURIComponent('0.1,1.|a0-1|'), (s) => s.sn === null],
+  ];
+  for (const [hash, ok] of bad) {
+    const { state, warning } = U.decode(hash);
+    assert.equal(warning, 'malformed', hash);
+    assert.ok(ok(state), hash);
+  }
+});
+
+test('F2b: los enlaces de la F1 y la F2a decodifican igual (con los valores por defecto nuevos)', () => {
+  const { state, warning } = U.decode('#v=route&graph=aoa&ex=ej7&step=12&view=side&min=1&lang=es');
+  assert.equal(warning, undefined);
+  assert.deepEqual([state.m, state.ms, state.pair, state.sn], ['rules', ['prog', 'rules', 'min'], null, null]);
+});
+
