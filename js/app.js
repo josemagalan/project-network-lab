@@ -182,11 +182,14 @@
     if (!tr) return;
 
     const isPert = pert();
-    // F2b: el comparador sustituye a la red y al panel del paso; su botón está junto a «Red» y «Lado a lado» (T024).
+    // F2b: el comparador y el reto sustituyen a la red y al panel del paso; sus botones están junto a «Red» y
+    // «Lado a lado» (T024 y T026).
     const cmpOn = isPert && state.view === 'cmp';
     const retoOn = isPert && state.view === 'reto';
     $('btnCmp').hidden = !isPert;
     $('btnCmp').setAttribute('aria-pressed', String(cmpOn));
+    $('btnReto').hidden = !isPert;
+    $('btnReto').setAttribute('aria-pressed', String(retoOn));
     $('cmpView').hidden = !cmpOn;
     $('retoView').hidden = !retoOn;
     $('side').hidden = cmpOn || retoOn;
@@ -438,13 +441,14 @@
     return c;
   }
 
-  // Abre el comparador (T024): deja la red mínima al lado y el dibujo progresivo.
-  function openCompare() {
+  // Abre el comparador (T024) o el reto (T026): deja la red mínima al lado y el dibujo progresivo.
+  function openView(view) {
     stopPlay();
     if (state.min) dispatch({ type: 'set', key: 'min', value: 0 });
     if (state.m !== 'rules') dispatch({ type: 'set', key: 'm', value: 'rules' });
-    dispatch({ type: 'set', key: 'view', value: 'cmp' });
+    dispatch({ type: 'set', key: 'view', value: view });
   }
+  const openCompare = () => openView('cmp');
 
   function toggleMin() {
     stopPlay();
@@ -819,6 +823,7 @@
     $('btnMatrix').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'matrix' }));
     $('btnSide').addEventListener('click', () => { if (state.min) dispatch({ type: 'set', key: 'min', value: 0 }); dispatch({ type: 'set', key: 'view', value: 'side' }); });
     $('btnCmp').addEventListener('click', openCompare);
+    $('btnReto').addEventListener('click', () => openView('reto'));
     $('btnAon').addEventListener('click', () => switchGraph('aon'));
     $('btnAoa').addEventListener('click', () => switchGraph('aoa'));
     $('selLang').addEventListener('change', (e) => dispatch({ type: 'set', key: 'lang', value: e.target.value }));
@@ -875,10 +880,10 @@
       },
       toggleComputed: (v) => { showComputed = v; render(); },
       goStage: (where) => {
-        // «Comparar métodos» (T024): el comparador se abre sobre la red PERT de la tabla.
-        if (where === 'cmp') {
+        // «Comparar métodos» (T024) y «Reto de ficticias» (T026) se abren sobre la red PERT de la tabla.
+        if (where === 'cmp' || where === 'reto') {
           if (!pert()) dispatch({ type: 'graph', value: 'aoa', step: 0 });
-          openCompare();
+          openView(where);
           $('stage').scrollIntoView({ behavior: 'smooth', block: 'start' });
           return;
         }

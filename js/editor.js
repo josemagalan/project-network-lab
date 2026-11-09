@@ -142,6 +142,7 @@
             h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage(0) }, [t('work.stepByStep')]),
             msg.structureOnly ? null : h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage('critical') }, [t('work.results')]),
             h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage('cmp') }, [t('work.compare')]),
+            h('button', { type: 'button', class: 'ghost', onclick: () => hooks.goStage('reto') }, [t('work.reto')]),
           ]),
         ]));
       } else if (msg.empty) {

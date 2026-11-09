@@ -105,5 +105,13 @@ test('AC14: M2 abre la construcción de la red PERT del Ejercicio 6 (paso 0) en 
     assert.ok(messages[lang].m2Compare, lang);
   }
   assert.ok(html.includes('data-lab="cmp"><span data-i18n="m2Compare">'));
+  // T026: el tercero, el reto de ficticias del Ejercicio 6, que empieza sin sucesos.
+  for (const lang of ['es', 'en']) {
+    const { state, warning } = U.decode('#' + labHref('reto', lang).split('#')[1]);
+    assert.equal(warning, undefined);
+    assert.deepEqual([state.v, state.ex, state.graph, state.view, state.lang, state.sn], ['route', 'ej6', 'aoa', 'reto', lang, null]);
+    assert.ok(messages[lang].m2Reto, lang);
+  }
+  assert.ok(html.includes('data-lab="reto"><span data-i18n="m2Reto">'));
   for (const lang of ['es', 'en']) assert.ok(messages[lang].m2Open, lang);
 });

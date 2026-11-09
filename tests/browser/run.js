@@ -1702,6 +1702,64 @@ check('F2b AC18 · reto con el Ejercicio 1 (solo estructura): se escribe en la t
   await close(page);
 });
 
+check('F2b T026 · entradas al reto: la barra de vistas de la red PERT, del progresivo y del comparador, el taller y la portada', async () => {
+  const page = await lab('graph=aoa&ex=ej6&step=5&min=1&lang=es');
+  assert.equal(await page.locator('#btnReto').innerText(), 'Reto de ficticias');
+  assert.equal(await page.locator('#btnReto').getAttribute('aria-pressed'), 'false');
+  await page.locator('#btnReto').click();
+  await page.waitForFunction(() => PNL.app.state().view === 'reto' && !PNL.app.state().min);
+  assert.equal(await page.locator('#btnReto').getAttribute('aria-pressed'), 'true');
+  assert.ok(await page.locator('#retoView .reto-canvas').isVisible());
+  // Del reto al comparador y vuelta: la barra es la misma; la red del alumno se conserva.
+  await retoCell(page, 'a:A:from', '1');
+  const mine = await retoNet(page);
+  await page.locator('#btnCmp').click();
+  await page.waitForFunction(() => PNL.app.state().view === 'cmp');
+  assert.ok(await page.locator('#btnReto').isVisible(), 'el comparador también lleva al reto');
+  await page.locator('#btnReto').click();
+  await page.waitForFunction(() => PNL.app.state().view === 'reto');
+  assert.deepEqual(await retoNet(page), mine);
+  await page.locator('#btnNet').click();
+  await page.waitForFunction(() => PNL.app.state().view === 'net');
+  await close(page);
+  const roy = await lab('ex=ej6&lang=es');
+  assert.ok(await roy.locator('#btnReto').isHidden(), 'no en la red ROY');
+  await close(roy);
+  const prog = await lab('graph=aoa&m=prog&ex=ej6&step=3&lang=en');
+  assert.equal(await prog.locator('#btnReto').innerText(), 'Dummy challenge');
+  await prog.locator('#btnReto').click();
+  await prog.waitForFunction(() => PNL.app.state().view === 'reto' && PNL.app.state().m === 'rules');
+  await close(prog);
+  // Taller: «Reto de ficticias» en el resumen, también desde la red ROY y con una tabla solo de estructura.
+  const work = await lab('v=work&lang=es');
+  await work.locator('#workshop .work-side button', { hasText: 'Reto de ficticias' }).click();
+  await work.waitForFunction(() => PNL.app.state().view === 'reto' && PNL.app.state().graph === 'aoa');
+  assert.equal((await state(work)).v, 'work');
+  await work.locator('#workshop .work-tools select').selectOption('tipo');
+  await work.waitForFunction(() => PNL.app.reto() && PNL.app.reto().net.arcs.length === 5);
+  assert.deepEqual((await retoNet(work)).events, [], 'otra tabla empieza el reto de cero');
+  await axe(work, 'taller con el reto del caso tipo');
+  await close(work);
+  // Portada: el tercer enlace de M2.
+  const noJs = await open('index.html', { js: false });
+  assert.match(await noJs.locator('a[data-lab="reto"]').getAttribute('href'), /^cpm\.html#v=route&ex=ej6&step=0&graph=aoa&view=reto&lang=es$/);
+  await close(noJs);
+  const portal = await open('index.html?lang=en');
+  assert.match(await portal.locator('a[data-lab="reto"]').innerText(), /Dummy challenge/);
+  await portal.locator('a[data-lab="reto"]').click();
+  await portal.waitForFunction(() => window.PNL && PNL.app && PNL.app.state() && PNL.app.state().view === 'reto');
+  assert.equal((await state(portal)).lang, 'en');
+  await close(portal);
+  for (const [scheme, width] of [['light', 1280], ['dark', 360]]) {
+    const home = await open('index.html?lang=es', { scheme, width, height: 800 });
+    assert.ok(await noHScroll(home), `portada a ${width} px`);
+    await axe(home, `portada con los tres enlaces de M2 (${scheme}, ${width} px)`);
+    await home.locator('a[data-lab="m2"]').scrollIntoViewIfNeeded();
+    await shot(home, `f2b-portada-m2-reto-${scheme}-${width}`);
+    await close(home);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

@@ -334,6 +334,9 @@ button.small-btn { font-size: 13px; padding: 3px 8px; min-height: 28px; }
 /* Lienzo del reto (F2b, T022; tablero 21) */
 .reto-canvas { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .reto-tools { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: space-between; }
+/* Con el comparador y el reto, la barra de vistas tiene cuatro botones: en pantallas estrechas pasan a otra fila. */
+#viewGroup { flex-wrap: wrap; }
+#viewGroup button { white-space: nowrap; }
 .reto-tools .seg { flex-wrap: wrap; }
 .reto-tools .seg button { font-size: 13px; padding: 5px 10px; }
 .reto-act { margin: 0; display: flex; gap: 6px; align-items: center; font-size: 13px; }
