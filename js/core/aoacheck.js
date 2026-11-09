@@ -6,7 +6,7 @@
  * La red es correcta si: cada actividad de la tabla tiene un arco y solo uno, completo; no hay dos con el
  * mismo par de sucesos; no hay ciclos ni sucesos sueltos; hay un único suceso inicial y uno final; y a
  * precede a b (cierre transitivo) exactamente cuando hay camino del destino de a al origen de b.
- * La numeración (i < j en cada arco) se juzga aparte. Sin DOM ni azar.
+ * La numeración (números distintos e i < j en cada arco) se juzga aparte. Sin DOM ni azar.
  */
 (function (root) {
   'use strict';
@@ -95,12 +95,17 @@
     return problems;
   }
 
-  // Numeración: todos los sucesos con número y cada arco de uno menor a uno mayor.
+  // Numeración: todos los sucesos con número, cada uno distinto (en PERT una actividad es su par i-j), y cada arco
+  // de uno menor a uno mayor.
   function numbering(g) {
     const problems = [];
     const nOf = new Map(g.events.map((e) => [e.key, e.n]));
     const missing = g.events.filter((e) => e.n === null).map((e) => e.key);
-    if (missing.length) { problems.push({ code: 'unnumbered', ids: [], events: missing }); return problems; }
+    if (missing.length) problems.push({ code: 'unnumbered', ids: [], events: missing });
+    const byN = new Map();
+    for (const e of g.events) if (e.n !== null) byN.set(e.n, [...(byN.get(e.n) || []), e.key]);
+    for (const [n, keys] of [...byN].sort((a, b) => a[0] - b[0])) if (keys.length > 1) problems.push({ code: 'sameNumber', ids: [], events: keys, n });
+    if (problems.length) return problems;
     for (const e of g.arcs) if (e.from !== null && e.to !== null && !(nOf.get(e.from) < nOf.get(e.to))) problems.push({ code: 'order', ids: [e.act] });
     for (const d of g.dummies) if (d.from !== null && d.to !== null && !(nOf.get(d.from) < nOf.get(d.to))) problems.push({ code: 'order', ids: label(d), events: [d.from, d.to] });
     return problems;

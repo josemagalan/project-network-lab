@@ -7,19 +7,19 @@ const E = require('../js/core/examples.js');
 const A = require('../js/core/aoa.js');
 const M = require('../js/core/mindummy.js');
 const U = require('../js/core/urlstate.js');
+require('../js/core/aoamethods.js');
 const R = require('../js/reto.js');
 
 const load = (id) => { const ex = E.get(id); return P.parse(ex.rows, ex.mode, { structureOnly: !!ex.structureOnly }).project; };
 const p6 = load('ej6');
 const min6 = M.solve(p6);
 
-// Copia en la red del alumno una red PERT del núcleo (sucesos con su número; ids distintos de los números).
+// Copia en la red del alumno una red PERT del núcleo, como en el lienzo (sucesos con posición y su número; ids
+// distintos de los números).
 function fromAoa(net, st) {
   let s = st;
   const id = new Map();
   for (const ev of net.events) {
-    if (ev.kind === 'start') { id.set(ev.n, s.net.events[0].id); continue; }
-    if (ev.kind === 'end') { id.set(ev.n, s.net.events[1].id); continue; }
     s = R.apply(s, { type: 'addEvent', x: ev.n * 10, y: 5 });
     id.set(ev.n, s.net.events[s.net.events.length - 1].id);
   }
@@ -29,10 +29,9 @@ function fromAoa(net, st) {
   return s;
 }
 
-test('T020 · el reto empieza con el suceso inicial y el final y una fila por actividad, sin sucesos', () => {
+test('T020 · el reto empieza sin sucesos y con una fila por actividad (decisión del autor, T021)', () => {
   const s = R.start(p6);
-  assert.equal(s.net.events.length, 2);
-  assert.deepEqual(s.net.events.map((e) => e.n), [null, null]);
+  assert.deepEqual(s.net.events, []);
   assert.deepEqual(s.net.arcs.map((a) => a.act), p6.activities.map((a) => a.id).sort());
   assert.ok(s.net.arcs.every((a) => a.from === null && a.to === null));
   assert.deepEqual(s.net.dummies, []);
@@ -41,6 +40,7 @@ test('T020 · el reto empieza con el suceso inicial y el final y una fila por ac
 
 test('T020 · crear, mover y borrar sucesos; borrar uno deja sin ese extremo a sus arcos y ficticias', () => {
   let s = R.start(p6);
+  s = R.apply(R.apply(s, { type: 'addEvent', x: 0, y: 0 }), { type: 'addEvent', x: 90, y: 0 });
   s = R.apply(s, { type: 'addEvent', x: 12, y: 7 });
   const id = s.net.events[2].id;
   assert.ok(!s.net.events.slice(0, 2).some((e) => e.id === id), 'id nuevo');
@@ -59,7 +59,7 @@ test('T020 · crear, mover y borrar sucesos; borrar uno deja sin ese extremo a s
 });
 
 test('T020 · trazar, reasignar y borrar arcos y ficticias; las operaciones no cambian el estado de partida', () => {
-  const s0 = R.apply(R.start(p6), { type: 'addEvent', x: 20, y: 0 });
+  const s0 = [0, 90, 20].reduce((s, x) => R.apply(s, { type: 'addEvent', x, y: 0 }), R.start(p6));
   const [i, f, x] = s0.net.events.map((e) => e.id);
   const frozen = JSON.stringify(s0);
   let s = R.apply(s0, { type: 'arc', act: 'A', from: i, to: x });
@@ -87,11 +87,11 @@ test('T020 · trazar, reasignar y borrar arcos y ficticias; las operaciones no c
 });
 
 test('T020 · numerar a mano y con la herramienta (orden topológico; con un ciclo no numera)', () => {
-  let s = R.start(load('tipo'));
-  s = R.apply(s, { type: 'number', id: s.net.events[1].id, n: 7 });
-  assert.equal(s.net.events[1].n, 7);
-  s = R.apply(s, { type: 'number', id: s.net.events[1].id, n: null });
-  assert.equal(s.net.events[1].n, null);
+  let s = R.apply(R.start(load('tipo')), { type: 'addEvent', x: 0, y: 0 });
+  s = R.apply(s, { type: 'number', id: s.net.events[0].id, n: 7 });
+  assert.equal(s.net.events[0].n, 7);
+  s = R.apply(s, { type: 'number', id: s.net.events[0].id, n: null });
+  assert.equal(s.net.events[0].n, null);
   const net = A.build(load('tipo'));
   s = fromAoa(net, R.start(load('tipo')));
   s = R.apply(Object.assign({}, s, { net: Object.assign({}, s.net, { events: s.net.events.map((e) => Object.assign({}, e, { n: null })) }) }), { type: 'autoNumber' });
@@ -99,7 +99,7 @@ test('T020 · numerar a mano y con la herramienta (orden topológico; con un cic
   assert.deepEqual([...num.values()].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6]);
   for (const a of [...s.net.arcs, ...s.net.dummies]) assert.ok(num.get(a.from) < num.get(a.to));
   // Con un ciclo, la numeración no cambia.
-  let c = R.apply(R.start(load('tipo')), { type: 'addEvent', x: 1, y: 1 });
+  let c = [0, 90, 1].reduce((t, x0) => R.apply(t, { type: 'addEvent', x: x0, y: 1 }), R.start(load('tipo')));
   const [i, , x] = c.net.events.map((e) => e.id);
   c = R.apply(c, { type: 'addDummy', from: i, to: x });
   c = R.apply(c, { type: 'addDummy', from: x, to: i });
@@ -168,7 +168,8 @@ test('T020 · AC10: cada tipo de error de la spec se diagnostica con lo implicad
     ['end', (s) => { const t = R.apply(s, { type: 'addEvent', x: 1, y: 1 }); return R.apply(t, { type: 'arc', act: 'E', to: t.net.events[t.net.events.length - 1].id }); }],
     ['looseEvent', (s) => R.apply(s, { type: 'addEvent', x: 1, y: 1 })],
     ['cycle', (s) => R.apply(s, { type: 'addDummy', from: arcOf('K').to, to: arcOf('A').from })],
-    ['order', (s) => R.apply(s, { type: 'number', id: ev(9), n: 1 })],
+    ['order', (s) => R.apply(s, { type: 'number', id: ev(8), n: 10 })],
+    ['sameNumber', (s) => R.apply(s, { type: 'number', id: ev(4), n: 3 })],
     ['unnumbered', (s) => R.apply(s, { type: 'number', id: ev(5), n: null })],
   ];
   for (const [code, mutate] of cases) {
@@ -200,7 +201,7 @@ test('T020 · una red correcta con menos ficticias que el mínimo conocido (no e
 
 test('T020 · límites: posiciones dentro de la rejilla, números de 1 a 999, reasignar a sí misma no cambia nada', () => {
   let s = R.apply(R.start(p6), { type: 'addEvent', x: -4, y: 12345.6 });
-  assert.deepEqual([s.net.events[2].x, s.net.events[2].y], [0, R.LIMIT.pos]);
+  assert.deepEqual([s.net.events[0].x, s.net.events[0].y], [0, R.LIMIT.pos]);
   for (const op of [{ type: 'addEvent', x: 'a', y: 1 }, { type: 'number', id: 0, n: 0 }, { type: 'number', id: 0, n: 1000 }, { type: 'number', id: 0, n: 2.5 },
     { type: 'reassign', act: 'A', to: 'A' }, { type: 'arc', act: 'A' }, { type: 'dummy', i: 0, from: 0 }, { type: 'addDummy', from: 999, to: null }, null]) {
     assert.equal(R.apply(s, op), s, JSON.stringify(op));
@@ -234,5 +235,90 @@ test('T020 · AC14: la red del alumno con posiciones va y vuelve por la URL, tam
   const fixed = R.fromUrl(p6, odd).net;
   assert.deepEqual(fixed.arcs.map((a) => a.act), p6.activities.map((a) => a.id).sort());
   assert.deepEqual(fixed.arcs.find((a) => a.act === 'B'), { act: 'B', from: null, to: null });
-  assert.equal(R.fromUrl(p6, null).net.events.length, 2, 'sin red en la URL, la de partida');
+  assert.deepEqual(R.fromUrl(p6, null), R.start(p6), 'sin red en la URL, la de partida');
+});
+
+// Escribe en la tabla de sucesos (solo números) la red PERT de un método: lo que hace el alumno sin el lienzo.
+function typed(net, st) {
+  let s = st;
+  for (const a of net.arcs) for (const side of ['from', 'to']) s = R.apply(s, { type: 'endNumber', act: a.act, side, n: a[side] });
+  net.dummies.forEach((d, i) => {
+    s = R.apply(s, { type: 'addDummy' });
+    for (const side of ['from', 'to']) s = R.apply(s, { type: 'endNumber', i, side, n: d[side] });
+  });
+  return s;
+}
+
+test('T021 · AC10–AC11: el Ejercicio 6, escrito solo con números en la tabla de sucesos, es correcto y está en el mínimo', () => {
+  const s = typed(A.build(p6), R.start(p6));
+  assert.equal(s.net.events.length, 9);
+  assert.ok(s.net.events.every((e) => e.x === undefined), 'sin posición: la vista los coloca');
+  assert.deepEqual(s.net.events.map((e) => e.n).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  const r = R.check(s, p6, min6).result;
+  assert.deepEqual([r.correct, r.dummies, r.extra], [true, 3, 0]);
+  // Las otras redes de los métodos también.
+  for (const m of ['prog', 'cs', 'kim']) {
+    const p = load('tipo');
+    assert.equal(R.check(typed(A.build(p, { method: m }), R.start(p)), p, M.solve(p)).result.correct, true, m);
+  }
+});
+
+test('T021 · tabla de sucesos: un número nuevo crea el suceso y, si se queda sin flechas, desaparece; uno del lienzo no', () => {
+  let s = R.apply(R.start(p6), { type: 'endNumber', act: 'A', side: 'from', n: 1 });
+  s = R.apply(s, { type: 'endNumber', act: 'A', side: 'to', n: 3 });
+  assert.deepEqual(s.net.events.map((e) => e.n), [1, 3]);
+  s = R.apply(s, { type: 'endNumber', act: 'B', side: 'from', n: 1 });
+  assert.equal(s.net.events.length, 2, 'el 1 ya existe');
+  assert.equal(s.net.arcs.find((a) => a.act === 'B').from, s.net.arcs.find((a) => a.act === 'A').from);
+  // Corregir el 3 por un 2: el 3 se queda sin flechas y desaparece.
+  s = R.apply(s, { type: 'endNumber', act: 'A', side: 'to', n: 2 });
+  assert.deepEqual(s.net.events.map((e) => e.n), [1, 2]);
+  s = R.apply(s, { type: 'endNumber', act: 'A', side: 'to', n: null });
+  assert.deepEqual(s.net.events.map((e) => e.n), [1]);
+  // Una ficticia escrita a medias también sostiene su suceso; al borrarla, desaparece.
+  s = R.apply(R.apply(s, { type: 'addDummy' }), { type: 'endNumber', i: 0, side: 'to', n: 5 });
+  assert.deepEqual(s.net.dummies, [{ from: null, to: s.net.events[1].id }]);
+  s = R.apply(s, { type: 'removeDummy', i: 0 });
+  assert.deepEqual(s.net.events.map((e) => e.n), [1]);
+  // Un suceso del lienzo (con posición) se queda aunque no tenga flechas.
+  s = R.apply(s, { type: 'addEvent', x: 4, y: 4 });
+  s = R.apply(s, { type: 'clearArc', act: 'A' });
+  s = R.apply(s, { type: 'clearArc', act: 'B' });
+  assert.deepEqual(s.net.events.map((e) => [e.n, e.x]), [[null, 4]]);
+  // Lo que no vale no cambia nada.
+  for (const op of [{ type: 'endNumber', act: 'Z', side: 'to', n: 1 }, { type: 'endNumber', act: 'A', side: 'mid', n: 1 },
+    { type: 'endNumber', act: 'A', side: 'to', n: 0 }, { type: 'endNumber', i: 3, side: 'to', n: 1 }, { type: 'endNumber', act: 'A', side: 'to', n: '2' }]) {
+    assert.equal(R.apply(s, op), s, JSON.stringify(op));
+  }
+});
+
+test('T021 · con números repetidos, la tabla enlaza el primero y el diagnóstico lo dice', () => {
+  let s = typed(A.build(p6), R.start(p6));
+  const e4 = s.net.events.find((e) => e.n === 4).id;
+  s = R.apply(s, { type: 'number', id: e4, n: 3 });
+  const r = R.check(s, p6, min6).result;
+  assert.equal(r.correct, false);
+  const same = r.problems.find((x) => x.code === 'sameNumber');
+  assert.equal(same.n, 3);
+  assert.deepEqual(R.shown(r.problems, s.net).find((x) => x.code === 'sameNumber').events, ['3', '3']);
+  const first = s.net.events.find((e) => e.n === 3).id;
+  assert.equal(R.apply(s, { type: 'endNumber', act: 'K', side: 'from', n: 3 }).net.arcs.find((a) => a.act === 'K').from, first);
+});
+
+test('T021 · nombres de los sucesos: su número o, sin número, letras; el diagnóstico los usa', () => {
+  let s = R.apply(R.apply(R.start(p6), { type: 'addEvent', x: 0, y: 0 }), { type: 'addEvent', x: 5, y: 0 });
+  const [a, b] = s.net.events.map((e) => e.id);
+  s = R.apply(s, { type: 'number', id: b, n: 12 });
+  assert.deepEqual([R.label(s.net, a), R.label(s.net, b), R.label(s.net, 99)], ['a', '12', null]);
+  assert.deepEqual([R.byLabel(s.net, ' A '), R.byLabel(s.net, '12'), R.byLabel(s.net, '13'), R.byLabel(s.net, 'b'), R.byLabel(s.net, '')], [a, b, null, null, null]);
+  const r = R.check(s, p6, min6).result;
+  const loose = R.shown(r.problems, s.net).filter((x) => x.code === 'looseEvent').map((x) => x.events[0]);
+  assert.deepEqual(loose, ['a', '12']);
+  assert.deepEqual(R.shown([{ code: 'incompleteArc', ids: ['F1'], events: [null] }], s.net)[0].events, ['?']);
+  // Las listas de sucesos salen en orden (números y luego letras); el origen y el destino de una ficticia, no.
+  s = R.apply(s, { type: 'addEvent', x: 9, y: 9 });
+  const c = s.net.events[2].id;
+  s = R.apply(s, { type: 'number', id: c, n: 3 });
+  assert.deepEqual(R.shown([{ code: 'cycle', ids: [], events: [b, a, c] }], s.net)[0].events, ['3', '12', 'a']);
+  assert.deepEqual(R.shown([{ code: 'order', ids: [], events: [b, c] }], s.net)[0].events, ['12', '3']);
 });

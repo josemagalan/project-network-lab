@@ -1,6 +1,6 @@
 /*
  * store — transiciones puras del estado de la página. El estado tiene la forma de core/urlstate
- * (v, ex, t, step, view, lang, nota, box, mode, pred, wi, graph, min y, en la F2b, m, ms y pair); app lo escribe en
+ * (v, ex, t, step, view, lang, nota, box, mode, pred, wi, graph, min y, en la F2b, m, ms, pair y sn); app lo escribe en
  * la URL tras cada cambio.
  * reduce(state, action, total) nunca muta el estado recibido y solo acepta valores de la lista blanca.
  */
@@ -11,10 +11,10 @@
   const U = isNode ? require('./core/urlstate.js') : root.PNL.urlstate;
 
   const SETTABLE = {
-    view: ['net', 'matrix', 'side', 'cmp'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'], box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: [0, 1], min: [0, 1],
+    view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'], box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: [0, 1], min: [0, 1],
   };
   // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
-  const VIEW_OK = { aon: ['net', 'matrix'], aoa: ['net', 'side', 'cmp'] };   // el comparador también es de la PERT (F2b)
+  const VIEW_OK = { aon: ['net', 'matrix'], aoa: ['net', 'side', 'cmp', 'reto'] };   // el comparador y el reto también son de la PERT (F2b)
   const structureOnly = (s) => !s.t && U.STRUCTURE_ONLY.includes(s.ex);
   const clamp = (n, total) => Math.max(0, Math.min(Number.isInteger(n) ? n : 0, Math.max(0, total - 1)));
 
@@ -42,6 +42,13 @@
         else if (Array.isArray(p) && p.length === 2 && p[0] !== p[1] && p.every((m) => U.METHODS.includes(m))) s.pair = p.slice();
         break;
       }
+      // F2b: la red del alumno del reto (la ajusta js/reto a la tabla); null es la de partida.
+      case 'sn': {
+        const v = action.value;
+        if (v === null) s.sn = null;
+        else if (v && ['events', 'arcs', 'dummies'].every((k) => Array.isArray(v[k]))) s.sn = v;
+        break;
+      }
       case 'graph':
         // Cambiar de red cambia de traza: app calcula el paso equivalente (equivalentStep) y lo pasa aquí.
         if (!VIEW_OK[action.value] || (action.value === 'aon' && structureOnly(s))) break;
@@ -57,7 +64,7 @@
         break;
       case 'example':
         if (U.EXAMPLES.includes(action.id)) {
-          s.ex = action.id; s.t = null; s.step = 0; s.wi = null;
+          s.ex = action.id; s.t = null; s.step = 0; s.wi = null; s.sn = null;
           if (structureOnly(s) && s.graph !== 'aoa') { s.graph = 'aoa'; if (s.view === 'matrix') s.view = 'net'; }
         }
         break;

@@ -5,7 +5,11 @@
  * Estado: { net: StudentNet, seq, result }.
  *   StudentNet = { events: [{ id, n, x?, y? }], arcs: [{ act, from, to }], dummies: [{ from, to }] }, la misma
  *   forma que urlstate guarda en sn y sp. Los extremos son ids de suceso o null (a medias). Hay un arco por
- *   actividad de la tabla, en orden alfabético. Un suceso sin posición lo coloca la vista.
+ *   actividad de la tabla, en orden alfabético. El reto empieza sin sucesos (decisión del autor, T021).
+ *   En la tabla de sucesos el alumno escribe números (endNumber): un número que no existe crea el suceso, sin
+ *   posición (la vista lo coloca). Un suceso sin posición existe mientras tenga alguna flecha: si se queda sin
+ *   ninguna, desaparece. Los que se crean en el lienzo (addEvent) tienen posición y siguen hasta que se borran.
+ *   Un suceso sin número se nombra con letras (a, b…, según su id): label.
  *   seq: el siguiente id de suceso (los ids no se reutilizan dentro de una sesión del reto).
  *   result: el último diagnóstico, o null. Solo check lo da; cualquier edición válida lo borra (criterio 12).
  * apply(state, op) no cambia el estado de partida. Una operación desconocida o con datos que no existen
@@ -23,14 +27,35 @@
   const LIMIT = { events: 100, dummies: 100, id: 999, n: 999, pos: 9999 };
 
   const acts = (p) => p.activities.map((a) => a.id).sort();
-  const START = [0, 1];
 
   function start(p) {
-    return {
-      net: { events: START.map((id) => ({ id, n: null })), arcs: acts(p).map((act) => ({ act, from: null, to: null })), dummies: [] },
-      seq: START.length,
-      result: null,
-    };
+    return { net: { events: [], arcs: acts(p).map((act) => ({ act, from: null, to: null })), dummies: [] }, seq: 0, result: null };
+  }
+
+  // Nombre de un suceso para el alumno: su número o, sin número, letras según su id (0 → a, 25 → z, 26 → aa).
+  function letters(id) {
+    let s = ''; let k = id + 1;
+    while (k > 0) { const r = (k - 1) % 26; s = String.fromCharCode(97 + r) + s; k = Math.floor((k - 1) / 26); }
+    return s;
+  }
+  function label(net, id) {
+    const e = net.events.find((x) => x.id === id);
+    return !e ? null : e.n !== null && e.n !== undefined ? String(e.n) : letters(e.id);
+  }
+  // El suceso que nombra un texto de la tabla: un número (el primero con ese número) o las letras de uno sin número.
+  function byLabel(net, text) {
+    const v = String(text == null ? '' : text).trim().toLowerCase();
+    if (/^\d+$/.test(v)) { const e = net.events.find((x) => x.n === Number(v)); return e ? e.id : null; }
+    const e = net.events.find((x) => (x.n === null || x.n === undefined) && letters(x.id) === v);
+    return e ? e.id : null;
+  }
+
+  // Quita los sucesos sin posición que se han quedado sin ninguna flecha.
+  function prune(net) {
+    const used = new Set();
+    for (const e of [...net.arcs, ...net.dummies]) { if (e.from !== null) used.add(e.from); if (e.to !== null) used.add(e.to); }
+    const keep = net.events.filter((e) => used.has(e.id) || (e.x !== undefined && e.y !== undefined));
+    return keep.length === net.events.length ? net : Object.assign({}, net, { events: keep });
   }
 
   const pos = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(LIMIT.pos, Math.max(0, Math.round(v))) : null);
@@ -107,6 +132,27 @@
       case 'removeDummy':
         if (!net.dummies[op.i]) return null;
         return { net: with_({ dummies: net.dummies.filter((d, i) => i !== op.i) }) };
+      case 'endNumber': {
+        // Tabla de sucesos: el extremo (side) de una actividad (act) o de una ficticia (i) pasa a ser el suceso con
+        // el número n (el primero, si hay varios), que se crea si no existe; n null lo deja vacío.
+        const target = op.act !== undefined ? arc(op.act) : net.dummies[op.i];
+        if (!target || !['from', 'to'].includes(op.side)) return null;
+        if (!(op.n === null || (Number.isInteger(op.n) && op.n >= 1 && op.n <= LIMIT.n))) return null;
+        let events = net.events; let next = seq; let id = null;
+        if (op.n !== null) {
+          const e = events.find((x) => x.n === op.n);
+          if (e) id = e.id;
+          else {
+            if (events.length >= LIMIT.events || seq > LIMIT.id) return null;
+            id = seq; next = seq + 1; events = [...events, { id, n: op.n }];
+          }
+        }
+        const put = (x) => Object.assign({}, x, { [op.side]: id });
+        const out = op.act !== undefined
+          ? { events, arcs: net.arcs.map((a) => (a === target ? put(a) : a)), dummies: net.dummies }
+          : { events, arcs: net.arcs, dummies: net.dummies.map((d) => (d === target ? put(d) : d)) };
+        return { net: out, seq: next };
+      }
       case 'number':
         if (!ev(op.id) || !(op.n === null || (Number.isInteger(op.n) && op.n >= 1 && op.n <= LIMIT.n))) return null;
         return { net: with_({ events: net.events.map((e) => (e.id === op.id ? Object.assign({}, e, { n: op.n }) : e)) }) };
@@ -124,7 +170,7 @@
   function apply(state, op) {
     const r = edit(state.net, state.seq, op);
     if (!r) return state;
-    return { net: r.net, seq: r.seq === undefined ? state.seq : r.seq, result: null };
+    return { net: prune(r.net), seq: r.seq === undefined ? state.seq : r.seq, result: null };
   }
 
   // La red con las ficticias nombradas F1, F2… en su orden (para el diagnóstico y la vista).
@@ -154,11 +200,23 @@
     const ok = (v) => (v !== null && v !== undefined && ids.has(v) ? v : null);
     const arcs = acts(p).map((act) => { const a = sn.arcs.find((x) => x.act === act); return { act, from: a ? ok(a.from) : null, to: a ? ok(a.to) : null }; });
     const dummies = sn.dummies.map((d) => ({ from: ok(d.from), to: ok(d.to) }));
-    const seq = events.reduce((m, e) => Math.max(m, e.id + 1), START.length);
-    return { net: { events, arcs, dummies }, seq, result: null };
+    const seq = events.reduce((m, e) => Math.max(m, e.id + 1), 0);
+    return { net: prune({ events, arcs, dummies }), seq, result: null };
   }
 
-  const api = { start, apply, check, named, fromUrl, LIMIT };
+  // Los problemas del diagnóstico con los sucesos nombrados como los ve el alumno (número o letras), para narrate.
+  // En los que son una lista de sucesos (no un origen y un destino), en orden: primero los números y luego las letras.
+  const LISTS = ['start', 'end', 'cycle', 'unnumbered', 'looseEvent', 'sameNumber'];
+  const byShown = (a, b) => (/^\d+$/.test(a) ? (/^\d+$/.test(b) ? a - b : -1) : (/^\d+$/.test(b) ? 1 : a.length - b.length || (a < b ? -1 : a > b ? 1 : 0)));
+  function shown(problems, net) {
+    return problems.map((x) => {
+      if (!x.events) return x;
+      const events = x.events.map((id) => (id === null ? '?' : label(net, id) || '?'));
+      return Object.assign({}, x, { events: LISTS.includes(x.code) ? events.sort(byShown) : events });
+    });
+  }
+
+  const api = { start, apply, check, named, fromUrl, label, byLabel, shown, LIMIT };
   root.PNL = root.PNL || {};
   root.PNL.reto = api;
   if (isNode) module.exports = api;

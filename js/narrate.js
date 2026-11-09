@@ -296,13 +296,17 @@
     return (problems || []).map((x) => {
       const ids = x.ids || [];
       const ev = x.events || [];
-      const p = { a: ids[0], b: ids[1], events: I.list(lang, ev), from: ev[0], to: ev[1] };
+      const p = { a: ids[0], b: ids[1], events: I.list(lang, ev), from: ev[0], to: ev[1], n: x.n, k: ev.length };
       switch (x.code) {
         // Las ficticias llevan siempre events (aunque vacío); las actividades, no.
         case 'incompleteArc': return !x.events ? t('diag.incompleteArc', p) : t(ids.length ? 'diag.incompleteDummyNamed' : 'diag.incompleteDummy', p);
         case 'unnumbered': return t(ev.length === 1 ? 'diag.unnumberedOne' : 'diag.unnumbered', p);
         case 'order': return !x.events ? t('diag.order', p) : t('diag.orderDummy', p);
         case 'unnecessaryDummy': return t(x.how === 'merge' ? 'diag.unnecessaryDummyMerge' : 'diag.unnecessaryDummy', p);
+        // Con los sucesos implicados (F2b, T021): los iniciales o finales que sobran y los del ciclo.
+        case 'start': return t(ev.length > 1 ? 'diag.startN' : 'diag.start', p);
+        case 'end': return t(ev.length > 1 ? 'diag.endN' : 'diag.end', p);
+        case 'cycle': return t(ev.length ? 'diag.cycleAt' : 'diag.cycle', p);
         default: return t(`diag.${x.code}`, p);
       }
     });
@@ -336,6 +340,32 @@
     if (c.model) out.notes.push({ text: t('cmp.model', { d: c.model.dummies, e: c.model.events }), tone: 'mute' });
     if (c.approx) out.notes.push({ text: t('cmp.approx'), tone: 'mute' });
     return out;
+  }
+
+  // Resultado de «Comprobar» en el reto (F2b, T021). result: de reto.check, con los problemas ya nombrados como los
+  // ve el alumno (reto.shown). Devuelve { title, tone, count, lines: [{ text, tone }] }.
+  function retoResult(result, ctx) {
+    const { lang } = ctx;
+    const t = (k, p) => I.t(lang, k, p);
+    if (!result.correct) {
+      const problems = result.problems.filter((x) => x.code !== 'unnecessaryDummy');
+      return { title: t(problems.length === 1 ? 'reto.resultOne' : 'reto.resultN', { n: problems.length }), tone: 'bad', count: null,
+        lines: diagnosis(problems, ctx).map((text) => ({ text, tone: 'bad' })) };
+    }
+    const d = result.dummies;
+    let count = d === 0 ? t('reto.countNone') : d === 1 ? t('reto.countOne') : t('reto.countN', { d });
+    const m = result.min;
+    if (!m) count += ` · ${t('reto.minPending')}`;
+    else {
+      const k = result.extra; const v = m.value;
+      count += ` · ${t(m.exact ? (k > 0 ? 'reto.above' : 'reto.atMin') : (k > 0 ? 'reto.aboveBest' : 'reto.atBest'), { k, v })}`;
+    }
+    const lines = [];
+    // Las ficticias que sobran, cada una con cómo se quita (borrándola o fundiendo sus sucesos).
+    if (result.removable.length) for (const s of diagnosis(result.problems.filter((x) => x.code === 'unnecessaryDummy'), ctx)) lines.push({ text: s, tone: 'bad' });
+    else if (d > 0) lines.push({ text: t('reto.noneRemovable'), tone: 'mute' });
+    if (result.structural) lines.push({ text: t('cmp.structural'), tone: 'warn' });
+    return { title: t('reto.resultOk'), tone: 'ok', count, lines };
   }
 
   // Resumen del mínimo: exacto, intervalo (y qué método da la mejor red) o calculando.
@@ -405,7 +435,7 @@
     return out;
   }
 
-  const api = { narrate, relabel, nodeName, fmt, selection, dummyCount, diagnosis, cmpCard, cmpMin, SHOWN_PATHS };
+  const api = { narrate, relabel, nodeName, fmt, selection, dummyCount, diagnosis, cmpCard, cmpMin, retoResult, SHOWN_PATHS };
   root.PNL = root.PNL || {};
   root.PNL.narrate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

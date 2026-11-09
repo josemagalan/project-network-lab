@@ -151,3 +151,18 @@ test('F2b (T017): el comparador es una vista de la red PERT, con métodos visibl
   assert.equal(S.reduce(s, { type: 'set', key: 'm', value: 'kim' }, 32).m, 'rules');
   assert.equal(S.reduce(s, { type: 'set', key: 'ms', value: ['kim'] }, 32).ms, s.ms, 'ms solo cambia con «methods»');
 });
+
+test('F2b (T021): el reto es una vista de la red PERT; la red del alumno se cambia con «sn» y otro ejemplo la borra', () => {
+  let s = Object.assign(U.defaults(), { graph: 'aoa' });
+  s = S.reduce(s, { type: 'set', key: 'view', value: 'reto' }, 32);
+  assert.equal(s.view, 'reto');
+  assert.equal(S.reduce(Object.assign({}, s, { graph: 'aon', view: 'net' }), { type: 'set', key: 'view', value: 'reto' }, 32).view, 'net', 'no en la red ROY');
+  assert.equal(S.reduce(s, { type: 'graph', value: 'aon', step: 0 }, 32).view, 'net', 'al pasar a ROY se deja el reto');
+  const sn = { events: [{ id: 0, n: 1 }], arcs: [{ act: 'A', from: 0, to: null }], dummies: [] };
+  s = S.reduce(s, { type: 'sn', value: sn }, 32);
+  assert.deepEqual(s.sn, sn);
+  for (const bad of [{ events: [] }, 'x', 3, undefined]) assert.deepEqual(S.reduce(s, { type: 'sn', value: bad }, 32).sn, sn, String(bad));
+  assert.equal(S.reduce(s, { type: 'sn', value: null }, 32).sn, null);
+  assert.equal(S.reduce(s, { type: 'example', id: 'ej1' }, 32).sn, null, 'la red era de otra tabla');
+  assert.deepEqual(S.reduce(s, { type: 'example', id: 'nope' }, 32).sn, sn);
+});

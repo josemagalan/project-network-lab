@@ -559,10 +559,11 @@ const PROBLEMS = [
   { code: 'falsePrecedence', ids: ['B', 'H'] }, { code: 'missingPrecedence', ids: ['A', 'F'] },
   { code: 'unnumbered', ids: [], events: [3, 5] }, { code: 'order', ids: ['J'] }, { code: 'order', ids: [], events: [6, 2] },
   { code: 'unnecessaryDummy', ids: ['F2'], how: 'delete' }, { code: 'unnecessaryDummy', ids: ['F3'], how: 'merge' },
+  { code: 'sameNumber', ids: [], events: [3, 3], n: 3 },
 ];
 
 test('T016 · AC10: el diagnóstico tiene un mensaje para cada código de aoacheck en ES y EN, con lo implicado', () => {
-  assert.equal(new Set(PROBLEMS.map((x) => x.code)).size, 14, 'los catorce códigos de aoacheck.diagnose');
+  assert.equal(new Set(PROBLEMS.map((x) => x.code)).size, 15, 'los quince códigos de aoacheck.diagnose');
   for (const lang of ['es', 'en']) {
     const out = N.diagnosis(PROBLEMS, { lang });
     assert.equal(out.length, PROBLEMS.length);
@@ -757,4 +758,58 @@ test('T018: las ficticias de unicidad y el final del dibujo progresivo', () => {
   assert.match(end.text, /9 sucesos/);
   const t0 = N.narrate(e6.net.trace[0], e6);
   assert.match(t0.text, /A, B, C, D, E, F, G, H, I, J y K/, 'el orden en que se dibujan');
+});
+
+test('T021 · AC10: con los sucesos implicados, el diagnóstico nombra los iniciales, los finales y los del ciclo', () => {
+  for (const lang of ['es', 'en']) {
+    const out = N.diagnosis([{ code: 'start', ids: [], events: ['1', 'a'] }, { code: 'end', ids: [], events: ['9', '12'] },
+      { code: 'cycle', ids: [], events: ['4', '5', '6'] }, { code: 'start', ids: [], events: [] }, { code: 'sameNumber', ids: [], events: ['3', '3'], n: 3 }], { lang });
+    assert.match(out[0], /\b1\b.*\ba\b/, out[0]);
+    assert.match(out[0], /\b2\b/, `${lang}: cuántos`);
+    assert.match(out[1], /\b9\b.*\b12\b/, out[1]);
+    assert.match(out[2], /\b4\b.*\b5\b.*\b6\b/, out[2]);
+    assert.equal(out[3], N.diagnosis([{ code: 'start', ids: [] }], { lang })[0], 'sin sucesos, el texto de siempre');
+    assert.match(out[4], /\b2\b.*\b3\b/, out[4]);
+    for (const s of out) assert.doesNotMatch(s, KEYS, s);
+  }
+});
+
+test('T021 · AC11: resultado del reto en ES y EN: errores, correcta en el mínimo, por encima, con ficticias que sobran y sin mínimo', () => {
+  const R = require('../js/reto.js');
+  const loadEx = (id) => { const ex = E.get(id); return P.parse(ex.rows, ex.mode, { structureOnly: !!ex.structureOnly }).project; };
+  const A = require('../js/core/aoa.js');
+  const M = require('../js/core/mindummy.js');
+  const p = loadEx('ej6');
+  const min = M.solve(p);
+  let s = R.start(p);
+  const net = A.build(p);
+  for (const a of net.arcs) for (const side of ['from', 'to']) s = R.apply(s, { type: 'endNumber', act: a.act, side, n: a[side] });
+  net.dummies.forEach((d, i) => { s = R.apply(s, { type: 'addDummy' }); for (const side of ['from', 'to']) s = R.apply(s, { type: 'endNumber', i, side, n: d[side] }); });
+  const res = (st, m) => { const r = R.check(st, p, m).result; return Object.assign({}, r, { problems: R.shown(r.problems, st.net) }); };
+  const ok = res(s, min);
+  const es = N.retoResult(ok, { lang: 'es' });
+  assert.deepEqual([es.title, es.tone, es.count], ['Red correcta', 'ok', '3 ficticias · en el mínimo (3, exacto)']);
+  assert.deepEqual(es.lines.map((l) => l.text), ['Ninguna ficticia sobra.']);
+  const en = N.retoResult(ok, { lang: 'en' });
+  assert.deepEqual([en.title, en.count], ['Correct network', '3 dummies · at the minimum (3, exact)']);
+  assert.equal(N.retoResult(res(s, null), { lang: 'es' }).count, '3 ficticias · mínimo: calculando…');
+  assert.equal(N.retoResult(res(s, { value: 3, lower: 2, exact: false }), { lang: 'es' }).count, '3 ficticias · igual que la mejor encontrada (3)');
+  // Una ficticia de más: K termina en un suceso nuevo (10) unido al final, que pasa a ser el 11.
+  let x = R.apply(s, { type: 'number', id: s.net.events.find((e) => e.n === 9).id, n: 11 });
+  x = R.apply(x, { type: 'endNumber', act: 'K', side: 'to', n: 10 });
+  x = R.apply(x, { type: 'addDummy' });
+  x = R.apply(R.apply(x, { type: 'endNumber', i: 3, side: 'from', n: 10 }), { type: 'endNumber', i: 3, side: 'to', n: 11 });
+  const more = N.retoResult(res(x, min), { lang: 'es' });
+  assert.equal(more.count, '4 ficticias · +1 sobre el mínimo (3, exacto)');
+  assert.ok(more.lines.some((l) => /F4/.test(l.text) && /fundiendo/.test(l.text)), JSON.stringify(more.lines));
+  assert.equal(N.retoResult(res(x, { value: 3, lower: 2, exact: false }), { lang: 'en' }).count, '4 dummies · +1 over the best found (3)');
+  // Con errores: cuántos (sin contar las ficticias que sobran) y cada uno con sus sucesos.
+  const bad = N.retoResult(res(R.apply(R.apply(x, { type: 'endNumber', act: 'D', side: 'to', n: null }), { type: 'removeDummy', i: 0 }), min), { lang: 'es' });
+  assert.ok(bad.lines.length >= 2);
+  assert.equal(bad.tone, 'bad');
+  assert.equal(bad.title, `Hay ${bad.lines.length} cosas que corregir`);
+  const one = N.retoResult(res(R.apply(s, { type: 'removeDummy', i: 0 }), min), { lang: 'en' });
+  assert.deepEqual([one.title, one.count], ['1 thing to fix', null]);
+  // Sin ficticias y correcta.
+  assert.equal(N.retoResult({ correct: true, problems: [], dummies: 0, min: { value: 0, lower: 0, exact: true }, extra: 0, removable: [], structural: false }, { lang: 'es' }).count, 'Sin ficticias · en el mínimo (0, exacto)');
 });

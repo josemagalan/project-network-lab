@@ -70,6 +70,7 @@ test('un error de cada tipo, con las actividades o sucesos implicados', () => {
     ['cycle', (n) => { const k = n.arcs.find((e) => e.act === 'K'); n.dummies.push({ from: k.to, to: 's1' }); }],
     ['order', (n) => { n.events.forEach((e) => { e.n = 100 - e.n; }); }],
     ['unnumbered', (n) => { n.events[2].n = null; }],
+    ['sameNumber', (n) => { n.events[3].n = n.events[2].n; }],
     ['missingPrecedence', (n) => { n.dummies.pop(); }],
     ['falsePrecedence', (n) => { const c = n.arcs.find((e) => e.act === 'C'); n.dummies.push({ from: c.to, to: n.arcs.find((e) => e.act === 'E').from }); }],
   ];
@@ -81,6 +82,20 @@ test('un error de cada tipo, con las actividades o sucesos implicados', () => {
   }
   const r = K.diagnose((() => { const n = ej6(); n.dummies.pop(); return n; })(), p);
   assert.ok(r.problems.find((x) => x.code === 'missingPrecedence').ids.length === 2, 'nombra las dos actividades');
+});
+
+test('dos sucesos con el mismo número son un error aunque cumplan i < j, con los sucesos y el número', () => {
+  const p = fromSucc({ A: ['C'], B: ['C'], C: [] });
+  // A y B en paralelo desde el inicio hasta sucesos propios (unidos al de C por ficticias): 2 y 3 no se tocan.
+  const net = { events: [0, 1, 2, 3, 4].map((id) => ({ id, n: id + 1 })),
+    arcs: [{ act: 'A', from: 0, to: 1 }, { act: 'B', from: 0, to: 2 }, { act: 'C', from: 3, to: 4 }], dummies: [{ from: 1, to: 3 }, { from: 2, to: 3 }] };
+  assert.equal(K.diagnose(net, p).problems.some((x) => x.code === 'sameNumber'), false);
+  net.events[2].n = 2;
+  assert.deepEqual(K.diagnose(net, p).problems, [{ code: 'sameNumber', ids: [], events: [1, 2], n: 2 }]);
+  assert.equal(K.valid(net, p), false);
+  // Junto a sucesos sin número, salen los dos errores.
+  net.events[4].n = null;
+  assert.deepEqual(K.diagnose(net, p).problems.map((x) => x.code), ['unnumbered', 'sameNumber']);
 });
 
 test('dos sucesos iniciales o finales y un ciclo nombran los sucesos implicados', () => {

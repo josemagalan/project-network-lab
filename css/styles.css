@@ -299,3 +299,32 @@ table.arcs button.link { background: none; border: 0; padding: 2px 0; color: var
 .predict input[type="radio"] { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
 .predict .prog-start label { font-family: var(--font); }
 .predict .prog-start { flex-direction: column; }
+/* Reto de ficticias con la tabla de sucesos (F2b, T021; tableros 21, 22 y 24) */
+.reto { display: flex; flex-direction: column; gap: 12px; }
+.reto-title { margin: 0; font-weight: 600; }
+.reto-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .reto-grid { grid-template-columns: minmax(0, 1fr); } }
+.reto-table, .reto-work { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.reto-table h2, .reto-work h2 { margin: 0; font-size: 16px; }
+.reto-table h3 { margin: 6px 0 0; font-size: 14px; }
+.reto-table p { margin: 0; }
+.reto-tbl { width: auto; }
+.reto-tbl th, .reto-tbl td { padding: 2px 6px; }
+.reto-cell { width: 4.2em; min-height: 28px; padding: 2px 6px; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; text-align: center;
+  border: 1px solid var(--edge); border-radius: 6px; background: var(--card); color: var(--ink); }
+.reto-cell[aria-invalid="true"] { border: 2px solid var(--critical); }
+.reto-events { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.reto-events li { display: flex; align-items: center; gap: 4px; }
+button.small-btn { font-size: 13px; padding: 3px 8px; min-height: 28px; }
+.reto-msg { min-height: 1.2em; color: var(--critical-text); }
+.reto-result { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.reto-result.ok { border-color: var(--ok); background: var(--ok-soft); }
+.reto-result.ok h2 { color: var(--ok); }
+.reto-result.bad { border-color: var(--critical); }
+.reto-result ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; line-height: 1.45; }
+.reto-result li.bad { color: var(--ink); } .reto-result li.mute { color: var(--muted); } .reto-result li.warn { color: var(--ink); }
+.reto-result h2:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reto-count { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.reto-solution { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.reto-solution p { margin: 0; }
+.reto-solution select { font: inherit; padding: 4px 8px; color: var(--ink); }

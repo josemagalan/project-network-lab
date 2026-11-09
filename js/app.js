@@ -9,13 +9,15 @@
  * tiempos: primero las tarjetas de los métodos visibles y, cuando termina la búsqueda del mínimo, las cifras.
  * F2b: con m=prog, el reproductor recorre la traza del dibujo progresivo (core/aoamethods) en lugar de la de las
  * reglas: solo lo dibujado hasta el paso, sin contador ni lado a lado, y con su predicción (T019).
+ * F2b: con view=reto, el reto de ficticias (js/reto y views/reto-table) ocupa el panel principal; la red del alumno
+ * vive en sn (URL) y el último diagnóstico, solo en la página (T021).
  */
 (function () {
   'use strict';
 
   const G = window.PNL;
   const { i18n: I, urlstate: U, store: S, project: P, cpm: C, matrix: MX, examples: EX, narrate: NR,
-    layout: L, predict: PR, learn: LR, aoa: A, aoaLayout: AL, mindummy: MD, compare: CM, dom } = G;
+    layout: L, predict: PR, learn: LR, aoa: A, aoaLayout: AL, mindummy: MD, compare: CM, reto: RT, dom } = G;
   const { h, clear } = dom;
   const $ = (id) => document.getElementById(id);
 
@@ -32,6 +34,9 @@
   let selected = null;     // actividad o ficticia seleccionada (sin URL; se borra al cambiar de tabla)
   let minCache = { key: null, res: null, lay: null };   // mínimo de ficticias de la estructura actual
   let cmpCache = { key: null, cards: new Map() };        // tarjetas del comparador de la estructura actual
+  let reto = null;          // { key, st }: la red del alumno (st de js/reto) de la estructura actual
+  let retoSol = null;       // método cuya red se enseña con «Ver una solución» (null: ninguna)
+  let retoMethod = 'rules'; // el último elegido
 
   const lang = () => state.lang || 'es';
   const t = (k, p) => I.t(lang(), k, p);
@@ -179,11 +184,14 @@
     const isPert = pert();
     // F2b: el comparador sustituye a la red y al panel del paso (sin botón propio hasta T024).
     const cmpOn = isPert && state.view === 'cmp';
+    const retoOn = isPert && state.view === 'reto';
     $('cmpView').hidden = !cmpOn;
-    $('side').hidden = cmpOn;
-    for (const id of ['netView', 'selInfo', 'altTable', 'resultsView', 'ganttView']) if (cmpOn) $(id).hidden = true;
-    $('boxHint').parentNode.hidden = cmpOn;
+    $('retoView').hidden = !retoOn;
+    $('side').hidden = cmpOn || retoOn;
+    for (const id of ['netView', 'selInfo', 'altTable', 'resultsView', 'ganttView', 'matrixView']) if (cmpOn || retoOn) $(id).hidden = true;
+    $('boxHint').parentNode.hidden = cmpOn || retoOn;
     if (cmpOn) { $('methodLine').hidden = true; renderCompare(); return; }
+    if (retoOn) { $('methodLine').hidden = true; renderReto(); return; }
     $('netView').hidden = false;
     const k = Math.min(state.step, tr.length - 1);
     const step = tr[k];
@@ -492,6 +500,73 @@
     $('btnAon').disabled = !model.solution;
   }
 
+  // ---------- Reto de ficticias (F2b, T021) ----------
+
+  const structKey = (project) => JSON.stringify(project.activities.map((a) => [a.id, project.succs[a.id]]));
+  const isStart = (net) => !net.events.length && !net.dummies.length && net.arcs.every((a) => a.from === null && a.to === null);
+
+  // El mínimo con el que se compara la red del alumno: el combinado del comparador (criterio 19), o null mientras se calcula.
+  function combinedMin(project) {
+    const res = minResult();
+    if (!res) return null;
+    return CM.combine({ project, cards: cmpCards(project, res.exact ? [] : CM.METHODS), min: null }, res).min;
+  }
+
+  // La red del alumno sale de la URL (sn) ajustada a la tabla; si el ajuste la cambia, la URL se corrige.
+  function retoState(project) {
+    const key = structKey(project);
+    const want = JSON.stringify(state.sn || RT.start(project).net);
+    if (!reto || reto.key !== key || JSON.stringify(reto.st.net) !== want) {
+      if (reto && reto.key !== key) retoSol = null;
+      reto = { key, st: RT.fromUrl(project, state.sn) };
+      const sn = isStart(reto.st.net) ? null : reto.st.net;
+      if (JSON.stringify(sn) !== JSON.stringify(state.sn)) { state = Object.assign({}, state, { sn }); writeHash(false); }
+    }
+    return reto.st;
+  }
+
+  function retoSolution(project, m) {
+    if (m === 'min') {
+      const min = combinedMin(project);
+      return min ? { method: m, net: min.net, dummies: min.net.dummies.length, events: min.net.events.length } : { method: m, net: null };
+    }
+    const c = cmpCards(project, [m])[0];
+    return { method: m, net: c.net, dummies: c.dummies, events: c.events };
+  }
+
+  function renderReto() {
+    const project = model.project;
+    let st = retoState(project);
+    // Si se comprobó mientras se calculaba el mínimo, al tenerlo se completa la comparación.
+    if (st.result && !st.result.min) {
+      const min = combinedMin(project);
+      if (min) { st = RT.check(st, project, min); reto.st = st; }
+    }
+    G.retoTable.render($('retoView'), {
+      reto: st, project, lang: lang(), nota: state.nota, numFmt, name: model.name, methods: CM.METHODS,
+      solution: retoSol ? retoSolution(project, retoSol) : null, solutionMethod: retoMethod,
+      onOp: (op) => {
+        const next = RT.apply(reto.st, op);
+        if (next === reto.st) return false;
+        reto.st = next;
+        dispatch({ type: 'sn', value: isStart(next.net) ? null : next.net });
+        return true;
+      },
+      onCheck: () => { reto.st = RT.check(reto.st, project, combinedMin(project)); render(); },
+      onSolution: (m) => { retoSol = m; if (m) retoMethod = m; render(); },
+    });
+    $('stage').classList.add('wide');
+    $('unitLine').textContent = t('view.unitLine', { name: model.name, n: project.activities.length, unit: model.unit || '—' });
+    $('btnNet').setAttribute('aria-pressed', 'false');
+    $('btnSide').setAttribute('aria-pressed', 'false');
+    $('btnSide').hidden = false;
+    $('btnSide').disabled = !model.solution;
+    $('btnMatrix').hidden = true;
+    $('btnAon').setAttribute('aria-pressed', 'false');
+    $('btnAoa').setAttribute('aria-pressed', 'true');
+    $('btnAon').disabled = !model.solution;
+  }
+
   // «Aprende más» de un método (AC17): qué hace, qué garantiza, cómo lo aplica el laboratorio y sus referencias.
   function openMethodLearn(m) {
     const L = LR.methods[m];
@@ -745,7 +820,7 @@
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
-      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || $('stage').hidden || !$('cmpView').hidden) return;
+      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || $('stage').hidden || !$('cmpView').hidden || !$('retoView').hidden) return;
       if (tag === 'button' && (e.key === ' ' || e.key === 'Enter')) return;
       if (e.key === 'ArrowRight' && !$('btnNext').disabled) { e.preventDefault(); dispatch({ type: 'next' }); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); dispatch({ type: 'prev' }); }
@@ -798,6 +873,7 @@
     render({ fullEditor: true });
   }
 
-  G.app = { state: () => Object.assign({ sel: selected }, state), step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model };
+  G.app = { state: () => Object.assign({ sel: selected }, state), step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model,
+    reto: () => (reto ? { net: reto.st.net, result: reto.st.result, solution: retoSol } : null) };
   init();
 })();
