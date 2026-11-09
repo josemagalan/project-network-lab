@@ -130,3 +130,24 @@ test('F2a: paso equivalente al cambiar de red (plan §4)', () => {
   assert.equal(S.equivalentStep(pert, 7, roy), 7);
   assert.equal(S.equivalentStep(pert, 10, roy), 7);
 });
+
+test('F2b (T017): el comparador es una vista de la red PERT, con métodos visibles y par en la lista blanca', () => {
+  let s = Object.assign(U.defaults(), { graph: 'aoa' });
+  s = S.reduce(s, { type: 'set', key: 'view', value: 'cmp' }, 32);
+  assert.equal(s.view, 'cmp');
+  assert.equal(S.reduce(Object.assign({}, s, { graph: 'aon', view: 'net' }), { type: 'set', key: 'view', value: 'cmp' }, 32).view, 'net', 'no en la red ROY');
+  assert.equal(S.reduce(s, { type: 'graph', value: 'aon', step: 0 }, 32).view, 'net', 'al pasar a ROY se deja el comparador');
+  // Métodos: en el orden del comparador, al menos uno, solo de la lista.
+  assert.deepEqual(S.reduce(s, { type: 'methods', value: ['min', 'cgl', 'prog'] }, 32).ms, ['prog', 'cgl', 'min']);
+  assert.deepEqual(S.reduce(s, { type: 'methods', value: [] }, 32).ms, s.ms);
+  assert.deepEqual(S.reduce(s, { type: 'methods', value: ['prog', 'xyz'] }, 32).ms, s.ms);
+  assert.deepEqual(S.reduce(s, { type: 'methods', value: ['prog', 'prog'] }, 32).ms, s.ms);
+  // Par: dos métodos distintos, o null para volver a todos.
+  const p = S.reduce(s, { type: 'pair', value: ['rules', 'prog'] }, 32);
+  assert.deepEqual(p.pair, ['rules', 'prog']);
+  assert.equal(S.reduce(p, { type: 'pair', value: null }, 32).pair, null);
+  for (const bad of [['rules', 'rules'], ['rules'], ['rules', 'xyz'], 'rules']) assert.deepEqual(S.reduce(p, { type: 'pair', value: bad }, 32).pair, ['rules', 'prog']);
+  assert.equal(S.reduce(s, { type: 'set', key: 'm', value: 'prog' }, 32).m, 'prog');
+  assert.equal(S.reduce(s, { type: 'set', key: 'm', value: 'kim' }, 32).m, 'rules');
+  assert.equal(S.reduce(s, { type: 'set', key: 'ms', value: ['kim'] }, 32).ms, s.ms, 'ms solo cambia con «methods»');
+});

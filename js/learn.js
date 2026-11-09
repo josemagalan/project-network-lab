@@ -247,13 +247,141 @@
     'Sniedovich, M. (2005). Towards an AoA-free courseware for the critical path method. INFORMS Transactions on Education, 5(2), 47–63.',
   ];
 
+  // F2b (T016–T017): «Aprende más» de cada método del comparador (AC4 y AC17): qué hace, qué garantiza, cómo lo aplica
+  // el laboratorio si ha elegido una lectura o añadido un paso, referencias y, si la hay, la tabla de la fuente.
+  const methods = {
+    prog: {
+      title: { es: 'Dibujo progresivo', en: 'Progressive drawing' },
+      what: {
+        es: ['Es la forma de dibujar la red que se enseña en muchos cursos de secundaria y de primeros años de universidad (por ejemplo, en Edexcel o en el bachillerato de Nueva Gales del Sur): se dibujan las actividades una a una, en un orden en que cada una llega después de sus precedentes. Hay dos motivos para poner una ficticia: que una actividad dependa solo de una parte de las que llegan a un suceso (ficticia de dependencia) y que dos actividades vayan del mismo suceso al mismo suceso (ficticia de unicidad).'],
+        en: ['This is how the network is drawn in many school and first-year university courses (for example, Edexcel or the New South Wales Higher School Certificate): activities are drawn one at a time, in an order in which each one comes after its predecessors. There are two reasons for a dummy: an activity depends on only some of the activities arriving at an event (a dependency dummy), or two activities would go from the same event to the same event (a uniqueness dummy).'],
+      },
+      guarantee: {
+        es: 'Una red correcta. No garantiza la mínima, pero en tablas pequeñas al azar llega al mínimo en el 93,5 % de los casos, más a menudo que las reglas de los conjuntos.',
+        en: 'A correct network. It does not guarantee the minimum one, but on small random tables it reaches the minimum in 93.5% of cases, more often than the set rules.',
+      },
+      reading: {
+        es: 'Las fuentes de aula solo enuncian las dos causas de ficticia; no dan un algoritmo. El laboratorio lo formaliza así: las actividades van en orden topológico (alfabético en caso de empate). Una actividad sin precedentes sale del suceso inicial; con una sola, del final de esa precedente; con varias, del suceso al que llegan exactamente sus precedentes, si ya existe, o de uno nuevo. La flecha de cada precedente termina directamente en ese suceso nuevo si su final sigue libre y todas sus posteriores dependen también de las demás precedentes; si no, se une con una ficticia de dependencia. Al final, las actividades sin posteriores van al suceso final y las paralelas llevan una ficticia de unicidad.',
+        en: 'Classroom sources only state the two reasons for a dummy; they give no algorithm. The lab formalises it as follows: activities are taken in topological order (alphabetical on ties). An activity with no predecessors leaves the start event; with one, the end of that predecessor; with several, the event where exactly its predecessors arrive, if it already exists, or a new one. The arrow of each predecessor ends directly at that new event if its end is still free and all its successors also depend on the other predecessors; otherwise a dependency dummy joins them. Finally, activities with no successors go to the end event and parallel activities get a uniqueness dummy.',
+      },
+      refs: [
+        'Pearson Edexcel. International A Level Mathematics: Decision Mathematics 1, Student Book. Pearson.',
+        'NSW Mathematics Standard 2, Year 12: Critical path analysis, dummy activities. classmathematics.com.au.',
+      ],
+      open: null,
+    },
+    rules: {
+      title: { es: 'Reglas de los conjuntos', en: 'Set rules' },
+      what: {
+        es: ['Las enunció José Manuel Galán para sus clases de la Universidad de Burgos. Se parte de la tabla de posteriores de cada actividad y se aplican tres reglas, en este orden: conjuntos iguales (ficticia de identidad), conjuntos contenidos (ficticia del conjunto mayor al menor) y conjuntos compartidos (un suceso propio para la parte común). Es el método que se sigue paso a paso en la red PERT del laboratorio.'],
+        en: ['They were stated by José Manuel Galán for his classes at the University of Burgos. Starting from the table of successors of each activity, three rules are applied in this order: equal sets (identity dummy), contained sets (a dummy from the larger set to the smaller one) and shared sets (an event of its own for the common part). This is the method followed step by step in the lab’s activity-on-arrow network.'],
+      },
+      guarantee: {
+        es: 'Una red correcta, siempre. No siempre la mínima: en tablas pequeñas al azar llegan al mínimo en el 85,5 % de los casos, porque trabajan sin las precedencias implícitas.',
+        en: 'A correct network, always. Not always the minimum one: on small random tables they reach the minimum in 85.5% of cases, because they work without implicit precedences.',
+      },
+      reading: { es: null, en: null },
+      refs: ['Galán, J. M. Redes de proyectos (Tema 6a), apuntes de clase. Universidad de Burgos.'],
+      open: 'tipo',
+    },
+    cs: {
+      title: { es: 'Agrupar por precedentes (Cohen y Sadeh, 2007)', en: 'Grouping by predecessors (Cohen & Sadeh, 2007)' },
+      what: {
+        es: ['Cohen y Sadeh parten de la tabla de predecesoras inmediatas: ponen un suceso por cada conjunto distinto de predecesoras, y de él salen las actividades que tienen ese conjunto. Una actividad que aparece en un solo conjunto termina en su suceso; si aparece en varios, termina en el de ella sola, si existe, o en uno propio, y lleva una ficticia a cada uno de los demás. Al final se añaden las ficticias de unicidad.',
+          'Es fácil de aplicar a mano, y su coste crece con el cuadrado del número de actividades.'],
+        en: ['Cohen and Sadeh start from the table of immediate predecessors: they create one event for each distinct set of predecessors, and the activities with that set leave from it. An activity that appears in a single set ends at its event; if it appears in several, it ends at the one containing only itself, if there is one, or at an event of its own, with a dummy to each of the others. Finally, uniqueness dummies are added.',
+          'It is easy to apply by hand, and its cost grows with the square of the number of activities.'],
+      },
+      guarantee: {
+        es: 'Una red correcta. No busca el mínimo de ficticias: en los ejercicios 2 y 6 pone 5 y 6 donde bastan 2 y 3.',
+        en: 'A correct network. It does not look for the minimum number of dummies: in exercises 2 and 6 it uses 5 and 6 where 2 and 3 are enough.',
+      },
+      reading: {
+        es: 'Se aplican sus pasos 1 a 7 tal como los da el artículo. Una nota: agrupar por precedentes es lo simétrico de las reglas de los conjuntos, que agrupan por posteriores. Si se agrupa por precedentes con el retículo de los conjuntos, como hacen las reglas, sale el mismo número de ficticias que con las reglas de los conjuntos en todas las tablas en que se ha probado (1487); por eso esa variante no tiene tarjeta propia.',
+        en: 'Its steps 1 to 7 are applied as the paper gives them. A note: grouping by predecessors mirrors the set rules, which group by successors. Grouping by predecessors with the lattice of sets, as the rules do, gives the same number of dummies as the set rules on every table tried (1487); that is why this variant has no card of its own.',
+      },
+      refs: ['Cohen, Y., & Sadeh, A. (2007). A new approach for constructing and generating AOA networks. Journal of Engineering, Computing and Architecture, 1(1), 1–13.'],
+      open: 'cs2007',
+    },
+    kim: {
+      title: { es: 'Kim (2008)', en: 'Kim (2008)' },
+      what: {
+        es: ['Kim propone encontrar las ficticias «lógicas» con los conjuntos de sucesores: para cada actividad mira sus predecesoras y decide cuáles pueden terminar directamente en su suceso de inicio y cuáles necesitan una ficticia. Después funde las ficticias en grupos (de varias a una, de una a varias y de varias a varias) para no repetirlas. Lo presenta pensando en la enseñanza.'],
+        en: ['Kim finds the “logical” dummies using sets of successors: for each activity he looks at its predecessors and decides which can end directly at its start event and which need a dummy. He then merges the dummies into groups (many to one, one to many and many to many) so as not to repeat them. He presents it with teaching in mind.'],
+      },
+      guarantee: {
+        es: 'Una red correcta con la lectura que usa el laboratorio. No garantiza la mínima: en tablas pequeñas al azar llega al mínimo en el 83,9 % de los casos. En la tabla del artículo da sus 8 ficticias lógicas.',
+        en: 'A correct network with the reading the lab uses. It does not guarantee the minimum one: on small random tables it reaches the minimum in 83.9% of cases. On the paper’s table it gives its 8 logical dummies.',
+      },
+      reading: {
+        es: 'El laboratorio lee la condición así: una predecesora no necesita ficticia si sus sucesores están contenidos en los de cada una de las demás predecesoras. Es la lectura que reproduce el ejemplo del artículo; con «en los de alguna», la red sale incorrecta en algunas tablas. Kim deja fuera a propósito las ficticias de unicidad y admite varios sucesos iniciales y finales; aquí se funden en uno y se añaden las ficticias de unicidad, como en las demás redes.',
+        en: 'The lab reads the condition as follows: a predecessor needs no dummy if its successors are contained in those of each of the other predecessors. This is the reading that reproduces the paper’s example; with “in those of some”, the network is wrong for some tables. Kim deliberately leaves out uniqueness dummies and allows several start and end events; here they are merged into one and uniqueness dummies are added, as in the other networks.',
+      },
+      refs: ['Kim, K. (2008). Identifying logical dummy activities in an activity-on-arrow network. Canadian Journal of Civil Engineering, 35(7), 739–744.'],
+      open: 'kim2008',
+    },
+    spinrad: {
+      title: { es: 'Spinrad (1986)', en: 'Spinrad (1986)' },
+      what: {
+        es: ['Spinrad estudia el problema de la ficticia mínima en un modelo propio: cada actividad tiene su suceso de inicio y su suceso de fin, y solo se funden los finales de las actividades con las mismas posteriores y los inicios de las que tienen las mismas precedentes. Sobre ese modelo da una heurística muy sencilla, en tres fases, que añade ficticias «legales» y «útiles» hasta que se cumplen todas las precedencias.',
+          'En su modelo cuenta más ficticias que en una red PERT de clase, porque no funde sucesos que aquí sí se fundirían. Por eso la tarjeta da dos cifras.'],
+        en: ['Spinrad studies the minimum dummy problem in a model of his own: each activity has its own start and end events, and only the ends of activities with the same successors and the starts of activities with the same predecessors are merged. On that model he gives a very simple three-phase heuristic that adds “legal” and “useful” dummies until every precedence holds.',
+          'In its own model it counts more dummies than a classroom activity-on-arrow network, because it does not merge events that would be merged here. That is why the card gives two figures.'],
+      },
+      guarantee: {
+        es: 'Una red correcta. En su modelo, la heurística da el óptimo en los órdenes serie-paralelo, de intervalo y bidimensionales, como demuestra el artículo. Contraída, llega al mínimo clásico en el 95,8 % de las tablas pequeñas al azar.',
+        en: 'A correct network. In its own model, the heuristic is optimal for series-parallel, interval and two-dimensional orders, as the paper proves. Contracted, it reaches the classical minimum on 95.8% of small random tables.',
+      },
+      reading: {
+        es: 'La tarjeta muestra la red contraída: el laboratorio quita o funde, una a una y en un orden fijo, las ficticias que se pueden quitar sin cambiar las precedencias. Este paso no es del artículo. Debajo queda la cifra en su modelo. Las actividades paralelas llevan una ficticia de unicidad, como en las reglas.',
+        en: 'The card shows the contracted network: the lab removes or merges, one at a time and in a fixed order, the dummies that can be removed without changing the precedences. This step is not in the paper. The figure in its own model is shown below. Parallel activities get a uniqueness dummy, as in the rules.',
+      },
+      refs: ['Spinrad, J. P. (1986). The minimum dummy task problem. Networks, 16(3), 331–348.'],
+      open: null,
+    },
+    cgl: {
+      title: { es: 'Corneil, Gotlieb y Lee (1973)', en: 'Corneil, Gotlieb & Lee (1973)' },
+      what: {
+        es: ['Primero reparten los sucesos para que haya los menos posibles: dos actividades comparten el inicio si tienen las mismas precedentes, el final si tienen las mismas posteriores, y el final de una es el inicio de otra cuando todo lo que sigue a sus precedentes coincide con lo que sigue a la primera. Después ponen las ficticias que faltan y quitan las sobrantes resolviendo un problema de recubrimiento.'],
+        en: ['First they assign events so that there are as few as possible: two activities share their start if they have the same predecessors, their end if they have the same successors, and the end of one is the start of another when everything that follows its predecessors is exactly what follows the first. Then they add the missing dummies and remove the redundant ones by solving a covering problem.'],
+      },
+      guarantee: {
+        es: 'Una red correcta. Los autores dijeron que también era mínima; en 1981 Sysło dio una tabla de 14 actividades en la que su red tiene 9 ficticias y otra red, 8. Ábrela en el comparador.',
+        en: 'A correct network. The authors claimed it was also minimal; in 1981 Sysło gave a 14-activity table on which their network has 9 dummies and another network has 8. Open it in the comparator.',
+      },
+      reading: {
+        es: 'Tal como lo describe el artículo. El artículo deja fuera las actividades paralelas; aquí llevan una ficticia de unicidad, como en las reglas de los conjuntos. Si el recubrimiento es demasiado grande, se resuelve de forma aproximada y la tarjeta lo dice.',
+        en: 'As described in the paper. The paper leaves out parallel activities; here they get a uniqueness dummy, as in the set rules. If the covering problem is too large, it is solved approximately and the card says so.',
+      },
+      refs: [
+        'Corneil, D. G., Gotlieb, C. C., & Lee, Y. M. (1973). Minimal event-node network of project precedence relations. Communications of the ACM, 16(5), 296–298.',
+        'Sysło, M. M. (1981). Optimal constructions of event-node networks. RAIRO – Operations Research, 15(3), 241–260.',
+      ],
+      open: 'syslo1981',
+    },
+    min: {
+      title: { es: 'Mínimo exacto', en: 'Exact minimum' },
+      what: {
+        es: ['Busca, entre todas las redes correctas, la que tiene menos ficticias. Es la referencia con la que se comparan los demás métodos. Encontrarla es un problema NP-completo (Krishnamoorthy y Deo, 1979), así que la búsqueda trabaja entre dos cotas, la inferior (los sucesos que no se pueden fundir) y la mejor red encontrada, con un presupuesto fijo de trabajo.'],
+        en: ['Among all correct networks, it looks for the one with the fewest dummies. It is the reference the other methods are compared with. Finding it is an NP-complete problem (Krishnamoorthy and Deo, 1979), so the search works between two bounds, the lower one (the events that cannot be merged) and the best network found, with a fixed work budget.'],
+      },
+      guarantee: {
+        es: 'El mínimo, si la búsqueda termina dentro del presupuesto o llega a la cota inferior. Si no, un intervalo, «entre L y V»; y si otro método encuentra una red correcta con menos ficticias que la búsqueda, V pasa a ser la de ese método.',
+        en: 'The minimum, if the search finishes within its budget or reaches the lower bound. Otherwise, an interval, “between L and V”; and if another method finds a correct network with fewer dummies than the search, V becomes that method’s.',
+      },
+      reading: { es: null, en: null },
+      refs: ['Krishnamoorthy, M. S., & Deo, N. (1979). Complexity of the minimum-dummy-activities problem in a PERT network. Networks, 9, 189–194.'],
+      open: null,
+    },
+  };
+
   function topicFor(step, view, graph) {
     if (graph === 'aoa' && step) return step.kind === 'floats' ? 'pertFloats' : step.kind;
     if (view === 'matrix' && step && (step.kind === 'forward' || step.kind === 'backward')) return 'matrix';
     return step ? (step.kind === 'table' ? 'table' : step.kind) : 'table';
   }
 
-  const api = { pseudo, pseudoPert, pseudoLines, topics, schemes, schemeCredit, history, refs, topicFor };
+  const api = { pseudo, pseudoPert, pseudoLines, topics, schemes, schemeCredit, methods, history, refs, topicFor };
   root.PNL = root.PNL || {};
   root.PNL.learn = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -74,3 +74,25 @@ test('F2a: cada tipo de paso PERT tiene título y narración en los dos idiomas'
     assert.ok(I.dict[lang].view.graphAon && I.dict[lang].view.graphAoa, `${lang}.view.graph*`);
   }
 });
+
+test('F2b (T016): nombres y tipos de cada método, estados de tarjeta, diagnóstico y reglas nuevas en los dos idiomas', () => {
+  const METHODS = require('../js/core/compare.js').METHODS;
+  const CODES = ['unknownAct', 'duplicateArc', 'missingArc', 'incompleteArc', 'parallel', 'looseEvent', 'start', 'end', 'cycle',
+    'falsePrecedence', 'missingPrecedence', 'unnumbered', 'order', 'unnecessaryDummy'];
+  for (const lang of I.languages) {
+    const d = I.dict[lang];
+    for (const m of METHODS) {
+      assert.ok(d.cmp.names[m], `${lang}.cmp.names.${m}`);
+      assert.ok(d.cmp.kinds[m], `${lang}.cmp.kinds.${m}`);
+    }
+    for (const k of ['correct', 'incorrect', 'atMin', 'atBest', 'above', 'aboveBest', 'pending', 'structural', 'removableOne', 'removableN',
+      'model', 'approx', 'stepByStep', 'pair', 'minExact', 'minExactOne', 'minNone', 'minRange', 'minRangeFrom', 'minPending']) {
+      assert.ok(d.cmp[k], `${lang}.cmp.${k}`);
+    }
+    for (const c of CODES) assert.ok(d.diag[c], `${lang}.diag.${c}`);
+    for (const r of ['dependency', 'uniqueness']) assert.ok(d.pert.rule[r], `${lang}.pert.rule.${r}`);
+    for (const k of ['removableDelete', 'removableMerge', 'dummyUnique']) assert.ok(d.sel[k], `${lang}.sel.${k}`);
+  }
+  assert.equal(I.dict.es.cmp.names.cgl, 'Corneil, Gotlieb y Lee (1973)');
+  assert.equal(I.dict.en.cmp.names.rules, 'Set rules');
+});

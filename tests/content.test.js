@@ -446,3 +446,236 @@ test('Revisión F8: la explicación del contador concuerda en número (una prece
     assert.match(c.explain, re);
   }
 });
+
+// ---------- F2b · T016: textos del comparador, del diagnóstico y de «Aprende más» de cada método (AC4, AC6, AC7, AC17, AC19) ----------
+
+const Cmp = require('../js/core/compare.js');
+const K = require('../js/core/aoacheck.js');
+const KEYS = /\b(cmp|diag|sel|pert|view|count|learn)\.[a-zA-Z]|\{\w+\}|undefined|NaN|null/;
+const loadP = (id) => { const ex = E.get(id); return P.parse(ex.rows, ex.mode, { structureOnly: !!ex.structureOnly }).project; };
+const cmpOf = (id, methods) => { const p = loadP(id); return Cmp.combine(Cmp.run(p, { methods: methods || Cmp.METHODS }), M.solve(p)); };
+const cardOf = (cmp, m) => cmp.cards.find((c) => c.method === m);
+const texts = (o) => [o.name, o.kind, o.count, o.unit, ...o.status.map((s) => s.text), ...o.notes.map((s) => s.text), o.links.learn, o.links.step].filter(Boolean);
+
+test('T016: cada tarjeta del comparador de las catorce tablas tiene nombre, tipo, cifras y estado en ES y EN, sin claves sin traducir', () => {
+  for (const ex of E.list({ all: true })) {
+    const cmp = cmpOf(ex.id);
+    for (const lang of ['es', 'en']) {
+      assert.ok(N.cmpMin(cmp.min, { lang }), `${ex.id} ${lang}: resumen del mínimo`);
+      assert.doesNotMatch(N.cmpMin(cmp.min, { lang }), KEYS, `${ex.id} ${lang}`);
+      for (const c of cmp.cards) {
+        const o = N.cmpCard(c, cmp.min, { lang });
+        assert.ok(o.name && o.kind && o.count && o.unit && o.status.length && o.links.learn, `${ex.id} ${lang} ${c.method}`);
+        for (const s of texts(o)) assert.doesNotMatch(s, KEYS, `${ex.id} ${lang} ${c.method}: ${s}`);
+        for (const s of [...o.status, ...o.notes]) assert.ok(['ok', 'warn', 'bad', 'mute'].includes(s.tone), `${ex.id} ${c.method}: tono ${s.tone}`);
+      }
+    }
+  }
+});
+
+test('T016: caso tipo en español, como en el boceto aprobado (tablero 16)', () => {
+  const cmp = cmpOf('tipo');
+  const rules = N.cmpCard(cardOf(cmp, 'rules'), cmp.min, { lang: 'es' });
+  assert.equal(rules.name, 'Reglas de los conjuntos');
+  assert.equal(rules.kind, 'De aula');
+  assert.equal(rules.count, '3');
+  assert.equal(rules.unit, 'ficticias · 6 sucesos');
+  assert.deepEqual(rules.status.map((s) => s.text), ['Correcta', '+1 sobre el mínimo']);
+  assert.deepEqual(rules.status.map((s) => s.tone), ['ok', 'warn']);
+  assert.ok(rules.notes.some((s) => s.text === 'F3 se puede quitar' && s.tone === 'bad'), JSON.stringify(rules.notes));
+  assert.equal(rules.links.learn, 'Aprende más');
+  assert.equal(rules.links.step, null, 'el paso a paso es solo del dibujo progresivo');
+  const prog = N.cmpCard(cardOf(cmp, 'prog'), cmp.min, { lang: 'es' });
+  assert.equal(prog.name, 'Dibujo progresivo');
+  assert.deepEqual(prog.status.map((s) => s.text), ['Correcta', 'En el mínimo']);
+  assert.equal(prog.links.step, 'Ver paso a paso');
+  const sp = N.cmpCard(cardOf(cmp, 'spinrad'), cmp.min, { lang: 'es' });
+  assert.ok(sp.notes.some((s) => s.text === 'En su modelo: 5 ficticias y 8 sucesos'), JSON.stringify(sp.notes));
+  assert.equal(N.cmpMin(cmp.min, { lang: 'es' }), 'Mínimo: 2 ficticias (exacto)');
+  assert.equal(N.cmpCard(cardOf(cmp, 'min'), cmp.min, { lang: 'es' }).name, 'Mínimo exacto');
+});
+
+test('T016 · AC4: Sysło en inglés, con el mínimo como intervalo (tablero 17)', () => {
+  const cmp = cmpOf('syslo1981');
+  assert.equal(cmp.min.exact, false);
+  assert.equal(N.cmpMin(cmp.min, { lang: 'en' }), 'Minimum: between 4 and 8 dummies');
+  const cgl = N.cmpCard(cardOf(cmp, 'cgl'), cmp.min, { lang: 'en' });
+  assert.equal(cgl.name, 'Corneil, Gotlieb & Lee (1973)');
+  assert.equal(cgl.kind, 'Historical counterexample');
+  assert.equal(cgl.count, '9');
+  assert.deepEqual(cgl.status.map((s) => s.text), ['Correct', '+1 over the best found']);
+  assert.ok(cgl.notes.some((s) => s.text === 'Structural difference: no single dummy can be removed'), JSON.stringify(cgl.notes));
+  // Con el mínimo como intervalo, empatar con V no es «en el mínimo».
+  const rules = N.cmpCard(cardOf(cmp, 'rules'), cmp.min, { lang: 'en' });
+  assert.deepEqual(rules.status.map((s) => s.text), ['Correct', 'Same as the best found']);
+  assert.ok(!texts(rules).some((s) => /at the minimum/i.test(s)));
+  assert.equal(N.cmpCard(cardOf(cmp, 'rules'), cmp.min, { lang: 'es' }).status[1].text, 'Igual que la mejor encontrada');
+});
+
+test('T016 · AC19: si la mejor red la da un método, el resumen del mínimo lo nombra', () => {
+  const min = { value: 8, lower: 4, exact: false, source: 'cgl', net: null };
+  assert.equal(N.cmpMin(min, { lang: 'es' }), 'Mínimo: entre 4 y 8 ficticias · la mejor red la da Corneil, Gotlieb y Lee (1973)');
+  assert.equal(N.cmpMin(min, { lang: 'en' }), 'Minimum: between 4 and 8 dummies · best network from Corneil, Gotlieb & Lee (1973)');
+  assert.equal(N.cmpMin({ value: 1, lower: 1, exact: true, source: 'search' }, { lang: 'es' }), 'Mínimo: 1 ficticia (exacto)');
+  assert.equal(N.cmpMin({ value: 0, lower: 0, exact: true, source: 'search' }, { lang: 'en' }), 'Minimum: no dummies (exact)');
+});
+
+test('T016: mientras se calcula el mínimo, las tarjetas no comparan y la del mínimo dice que está calculando', () => {
+  const p = loadP('tipo');
+  const run = Cmp.run(p, { methods: ['prog', 'rules', 'min'] });
+  for (const lang of ['es', 'en']) {
+    const m = N.cmpCard(cardOf(run, 'min'), null, { lang });
+    assert.equal(m.count, '…');
+    assert.deepEqual(m.status.map((s) => s.text), [lang === 'es' ? 'calculando…' : 'working it out…']);
+    const r = N.cmpCard(cardOf(run, 'rules'), null, { lang });
+    assert.deepEqual(r.status.map((s) => s.text), [lang === 'es' ? 'Correcta' : 'Correct']);
+    assert.equal(N.cmpMin(null, { lang }), lang === 'es' ? 'Mínimo: calculando…' : 'Minimum: working it out…');
+  }
+});
+
+test('T016: una tarjeta incorrecta lo dice con su diagnóstico; una aproximada y una de 1 ficticia, también', () => {
+  const cmp = cmpOf('tipo');
+  const bad = Object.assign({}, cardOf(cmp, 'kim'), { ok: false, removable: [], structural: null,
+    problems: [{ code: 'missingPrecedence', ids: ['A', 'C'] }, { code: 'falsePrecedence', ids: ['B', 'D'] }] });
+  const es = N.cmpCard(bad, cmp.min, { lang: 'es' });
+  assert.deepEqual(es.status.map((s) => [s.text, s.tone]), [['Incorrecta', 'bad']], 'sin distancia al mínimo si es incorrecta');
+  assert.ok(es.notes.some((s) => /\bA\b.*\bC\b/.test(s.text)) && es.notes.some((s) => /\bB\b/.test(s.text) && /\bD\b/.test(s.text) && /falsa/.test(s.text)), JSON.stringify(es.notes));
+  assert.equal(N.cmpCard(bad, cmp.min, { lang: 'en' }).status[0].text, 'Incorrect');
+  const approx = Object.assign({}, cardOf(cmp, 'cgl'), { approx: true });
+  assert.ok(N.cmpCard(approx, cmp.min, { lang: 'es' }).notes.some((s) => /aproximad/i.test(s.text)));
+  assert.ok(N.cmpCard(approx, cmp.min, { lang: 'en' }).notes.some((s) => /approximat/i.test(s.text)));
+  const one = Object.assign({}, cardOf(cmp, 'prog'), { dummies: 1, events: 4 });
+  assert.equal(N.cmpCard(one, cmp.min, { lang: 'es' }).unit, 'ficticia · 4 sucesos');
+  assert.equal(N.cmpCard(one, cmp.min, { lang: 'en' }).unit, 'dummy · 4 events');
+  const two = Object.assign({}, cardOf(cmp, 'rules'), { removable: ['F1', 'F3'] });
+  assert.ok(N.cmpCard(two, cmp.min, { lang: 'es' }).notes.some((s) => s.text === 'F1 y F3 se pueden quitar'));
+  assert.ok(N.cmpCard(two, cmp.min, { lang: 'en' }).notes.some((s) => s.text === 'F1 and F3 can be removed'));
+});
+
+const PROBLEMS = [
+  { code: 'unknownAct', ids: ['Z'] }, { code: 'duplicateArc', ids: ['C'] }, { code: 'missingArc', ids: ['D'] },
+  { code: 'incompleteArc', ids: ['E'] }, { code: 'incompleteArc', ids: [], events: [4] }, { code: 'parallel', ids: ['G', 'I'] },
+  { code: 'looseEvent', ids: [], events: [7] }, { code: 'start', ids: [] }, { code: 'end', ids: [] }, { code: 'cycle', ids: [] },
+  { code: 'falsePrecedence', ids: ['B', 'H'] }, { code: 'missingPrecedence', ids: ['A', 'F'] },
+  { code: 'unnumbered', ids: [], events: [3, 5] }, { code: 'order', ids: ['J'] }, { code: 'order', ids: [], events: [6, 2] },
+  { code: 'unnecessaryDummy', ids: ['F2'], how: 'delete' }, { code: 'unnecessaryDummy', ids: ['F3'], how: 'merge' },
+];
+
+test('T016 · AC10: el diagnóstico tiene un mensaje para cada código de aoacheck en ES y EN, con lo implicado', () => {
+  assert.equal(new Set(PROBLEMS.map((x) => x.code)).size, 14, 'los catorce códigos de aoacheck.diagnose');
+  for (const lang of ['es', 'en']) {
+    const out = N.diagnosis(PROBLEMS, { lang });
+    assert.equal(out.length, PROBLEMS.length);
+    PROBLEMS.forEach((x, i) => {
+      assert.doesNotMatch(out[i], KEYS, `${lang} ${x.code}: ${out[i]}`);
+      for (const id of [...x.ids, ...(x.events || []).map(String)]) assert.match(out[i], new RegExp(`\\b${id}\\b`), `${lang} ${x.code}: ${out[i]}`);
+    });
+    assert.notEqual(out[15], out[16], 'borrar y fundir se explican distinto');
+  }
+  const es = N.diagnosis(PROBLEMS, { lang: 'es' });
+  assert.match(es[11], /falta/i);
+  assert.match(es[10], /falsa/i);
+  assert.match(es[5], /unicidad/);
+  assert.match(N.diagnosis(PROBLEMS, { lang: 'en' })[2], /\bD\b/);
+  assert.deepEqual(N.diagnosis([], { lang: 'es' }), []);
+});
+
+test('T016: el diagnóstico de redes mutadas del Ejercicio 6 se lee entero en ES y EN', () => {
+  const p = loadP('ej6');
+  const net = A.build(p);
+  const muts = [
+    Object.assign({}, net, { dummies: net.dummies.slice(1) }),
+    Object.assign({}, net, { arcs: net.arcs.map((a) => (a.act === 'E' ? Object.assign({}, a, { to: a.from }) : a)) }),
+    Object.assign({}, net, { arcs: net.arcs.filter((a) => a.act !== 'K') }),
+  ];
+  for (const g of muts) {
+    const d = K.diagnose(g, p);
+    assert.ok(!d.ok);
+    for (const lang of ['es', 'en']) for (const s of N.diagnosis(d.problems, { lang })) assert.doesNotMatch(s, KEYS, `${lang}: ${s}`);
+  }
+});
+
+test('T016 · AC6: al seleccionar una ficticia que se puede quitar se explica por qué sobra', () => {
+  const p = loadP('tipo');
+  const net = A.build(p);
+  const base = { lang: 'es', project: p, net, numbered: true };
+  const plain = N.selection('F3', base);
+  const del = N.selection('F3', Object.assign({}, base, { removable: [{ name: 'F3', how: 'delete' }] }));
+  assert.ok(del.text.startsWith(plain.text), 'añade la explicación a la de la F2a');
+  assert.match(del.text, /se puede quitar/);
+  assert.match(del.text, /mismas precedencias/);
+  assert.equal(del.removable, 'delete');
+  const merge = N.selection('F3', Object.assign({}, base, { removable: [{ name: 'F3', how: 'merge' }] }));
+  assert.match(merge.text, /fundi/);
+  assert.equal(plain.removable, null);
+  const en = N.selection('F3', Object.assign({}, base, { lang: 'en', removable: [{ name: 'F3', how: 'delete' }] }));
+  assert.match(en.text, /can be removed/);
+  assert.match(en.text, /same precedences/);
+});
+
+test('T016 · AC7: las ficticias de dependencia y de unicidad de los métodos se nombran bien al seleccionarlas', () => {
+  for (const id of ['tipo', 'ej7', 'syslo1981']) {
+    const p = loadP(id);
+    for (const m of Cmp.METHODS.filter((x) => x !== 'min' && x !== 'rules')) {
+      const net = A.build(p, { method: m });
+      for (const d of net.dummies) {
+        for (const lang of ['es', 'en']) {
+          const s = N.selection(d.name, { lang, project: p, net, numbered: true });
+          assert.doesNotMatch(s.text, KEYS, `${id} ${m} ${lang} ${d.name}: ${s.text}`);
+          if (d.rule === 'uniqueness') {
+            assert.match(s.text, lang === 'es' ? /unicidad/ : /uniqueness/);
+            assert.match(s.text, lang === 'es' ? /ninguna precedencia/ : /no precedence/);
+            assert.deepEqual(s.precs, []);
+          } else {
+            assert.match(s.text, lang === 'es' ? /dependencia/ : /dependency/);
+            assert.deepEqual(s.precs, d.represents);
+          }
+        }
+      }
+    }
+  }
+});
+
+test('T016 · AC17: cada método tiene su «Aprende más» con autoría, referencia, garantía y, si la hay, la lectura elegida', () => {
+  for (const m of Cmp.METHODS) {
+    const t = Lrn.methods[m];
+    assert.ok(t, m);
+    for (const lang of ['es', 'en']) {
+      assert.ok(t.title[lang] && t.guarantee[lang] && t.what[lang].length, `${m} ${lang}`);
+      assert.equal(t.what.es.length, t.what.en.length, `${m}: mismo número de párrafos`);
+    }
+    assert.equal(!!t.reading.es, !!t.reading.en, `${m}: lectura en los dos idiomas o en ninguno`);
+    assert.ok(t.refs.length >= 1, `${m}: referencia`);
+  }
+  const all = (m, lang) => [...Lrn.methods[m].what[lang], Lrn.methods[m].guarantee[lang], Lrn.methods[m].reading[lang] || ''].join(' ');
+  // Autoría y referencia.
+  for (const [m, who] of [['cs', /Cohen/], ['kim', /Kim/], ['spinrad', /Spinrad/], ['cgl', /Corneil/], ['min', /Krishnamoorthy/]]) {
+    assert.ok(Lrn.methods[m].refs.some((r) => who.test(r)), `${m}: referencia`);
+  }
+  for (const lang of ['es', 'en']) assert.match(all('rules', lang), /José Manuel Galán/);
+  // Lecturas elegidas por la herramienta (spec, Behaviour).
+  for (const m of ['prog', 'cs', 'kim', 'spinrad', 'cgl']) assert.ok(Lrn.methods[m].reading.es, `${m}: lectura elegida`);
+  assert.match(Lrn.methods.prog.reading.es, /formaliza/);
+  assert.match(Lrn.methods.kim.reading.es, /cada una/);
+  assert.match(Lrn.methods.kim.reading.es, /unicidad/);
+  assert.match(Lrn.methods.kim.reading.en, /each/);
+  assert.match(Lrn.methods.spinrad.reading.es, /contra/);
+  assert.match(all('spinrad', 'es'), /su modelo/);
+  assert.match(all('cs', 'es'), /no busca/i);
+  assert.match(all('cs', 'es'), /reglas de los conjuntos/);
+  assert.match(all('cgl', 'es'), /unicidad/);
+});
+
+test('T016 · AC4: «Aprende más» de Corneil, Gotlieb y Lee explica el contraejemplo de Sysło y abre su tabla', () => {
+  const t = Lrn.methods.cgl;
+  for (const lang of ['es', 'en']) {
+    const s = [...t.what[lang], t.guarantee[lang]].join(' ');
+    assert.match(s, /Sysło/);
+    assert.match(s, /1981/);
+    assert.match(s, /\b9\b/);
+    assert.match(s, /\b8\b/);
+  }
+  assert.ok(t.refs.some((r) => /Sysło/.test(r) && /1981/.test(r)));
+  assert.equal(t.open, 'syslo1981');
+  for (const m of Cmp.METHODS) assert.ok(Lrn.methods[m].open === null || E.get(Lrn.methods[m].open), m);
+});

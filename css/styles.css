@@ -250,3 +250,44 @@ table.arcs button.link { background: none; border: 0; padding: 2px 0; color: var
 .side-by-side > section.min-net { border: 2px solid var(--accent); }
 .count-explain { margin: 8px 2px 0; }
 .counter button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* ---------- Comparador de métodos (F2b, T017; tableros 16–18 y 23) ---------- */
+.net .edge.rm { stroke: var(--critical); stroke-width: 2.2; }
+.net .elabel.rm { fill: var(--critical-text); font-weight: 700; }
+.net .mk-x { fill: var(--critical); }
+.cmp { display: flex; flex-direction: column; gap: 12px; }
+.cmp-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.cmp-methods { flex-wrap: wrap; align-items: center; }
+.cmp-methods .eyebrow { color: var(--muted); margin-right: 4px; }
+.cmp-methods button { font-size: 13px; padding: 5px 10px; }
+.cmp-methods button:disabled { cursor: not-allowed; }
+.cmp-min { margin: 0; font-weight: 600; }
+.cmp-hint { margin: 0; padding: 6px 12px; border-radius: 8px; background: var(--accent-soft); font-size: 14px; }
+.cmp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.cmp-grid.pair { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.cmp-card { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cmp-card.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.cmp-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cmp-card-head h2, .cmp-card-head h3 { margin: 0; font-size: 16px; }
+.cmp-kind { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; text-align: right; }
+.cmp-count { margin: 0; display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.cmp-count strong { font-size: 28px; line-height: 1.1; }
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--select-soft); color: var(--ink); border: 1px solid var(--select); }
+.chip.bad { background: var(--critical-soft); color: var(--critical-text); }
+.chip.mute { background: var(--soft); color: var(--muted); }
+.cmp-net { flex: 1; display: flex; align-items: center; justify-content: safe center; min-height: 120px; }
+/* Las redes altas (muchas filas) no estiran la tarjeta: se encogen dentro de una altura máxima. */
+.cmp-net svg { margin: 0 auto; max-height: 300px; }
+.cmp-grid.pair .cmp-net svg { max-height: max(240px, calc(100vh - 440px)); }
+@media (max-width: 720px) {
+  /* En el móvil la red conserva un tamaño legible y se desplaza dentro de su tarjeta. */
+  .cmp-net svg { min-width: 520px; max-height: none; }
+}
+.cmp-note { margin: 0; font-size: 13px; }
+.cmp-note.bad { color: var(--critical-text); } .cmp-note.warn { color: var(--ink); } .cmp-note.mute { color: var(--muted); }
+.cmp-card .row-wrap button { font-size: 13px; padding: 5px 10px; }
+.cmp-card .row-wrap button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cmp-table summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.cmp-table table.data { font-size: 13px; }

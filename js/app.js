@@ -5,13 +5,15 @@
  * Para las pruebas de navegador expone PNL.app.state(), PNL.app.step() y PNL.app.go(n).
  * F2a: con graph=aoa se reproduce la traza de la red PERT (core/aoa) en lugar de la de ROY (plan f2a §2 y §4),
  * con el contador de ficticias (reglas frente al mínimo de core/mindummy) y, con min=1, la red mínima al lado.
+ * F2b: con view=cmp, el comparador de métodos (core/compare y compare-view) ocupa el panel principal, en dos
+ * tiempos: primero las tarjetas de los métodos visibles y, cuando termina la búsqueda del mínimo, las cifras.
  */
 (function () {
   'use strict';
 
   const G = window.PNL;
   const { i18n: I, urlstate: U, store: S, project: P, cpm: C, matrix: MX, examples: EX, narrate: NR,
-    layout: L, predict: PR, learn: LR, aoa: A, aoaLayout: AL, mindummy: MD, dom } = G;
+    layout: L, predict: PR, learn: LR, aoa: A, aoaLayout: AL, mindummy: MD, compare: CM, dom } = G;
   const { h, clear } = dom;
   const $ = (id) => document.getElementById(id);
 
@@ -27,6 +29,7 @@
   let editor;
   let selected = null;     // actividad o ficticia seleccionada (sin URL; se borra al cambiar de tabla)
   let minCache = { key: null, res: null, lay: null };   // mínimo de ficticias de la estructura actual
+  let cmpCache = { key: null, cards: new Map() };        // tarjetas del comparador de la estructura actual
 
   const lang = () => state.lang || 'es';
   const t = (k, p) => I.t(lang(), k, p);
@@ -167,6 +170,14 @@
     if (!tr) return;
 
     const isPert = pert();
+    // F2b: el comparador sustituye a la red y al panel del paso (sin botón propio hasta T024).
+    const cmpOn = isPert && state.view === 'cmp';
+    $('cmpView').hidden = !cmpOn;
+    $('side').hidden = cmpOn;
+    for (const id of ['netView', 'selInfo', 'altTable', 'resultsView', 'ganttView']) if (cmpOn) $(id).hidden = true;
+    $('boxHint').parentNode.hidden = cmpOn;
+    if (cmpOn) { renderCompare(); return; }
+    $('netView').hidden = false;
     const k = Math.min(state.step, tr.length - 1);
     const step = tr[k];
     const hide = predicting(step);
@@ -397,6 +408,64 @@
       numFmt, name: `${model.name} · ${c.netTitle}`, criticalOn: false, numbered: true, emph: c.emph, idPrefix: 'pnl-pm' });
   }
 
+  // ---------- Comparador de métodos (F2b, T017) ----------
+
+  // Tarjetas de los métodos pedidos, guardadas por estructura: cambiar de idioma o de métodos visibles no recalcula.
+  function cmpCards(project, methods) {
+    const key = JSON.stringify(project.activities.map((a) => [a.id, project.succs[a.id]]));
+    if (cmpCache.key !== key) cmpCache = { key, cards: new Map() };
+    const missing = methods.filter((m) => m !== 'min' && !cmpCache.cards.has(m));
+    if (missing.length) for (const c of CM.run(project, { methods: missing }).cards) cmpCache.cards.set(c.method, c);
+    return methods.map((m) => (m === 'min' ? CM.run(project, { methods: ['min'] }).cards[0] : cmpCache.cards.get(m)));
+  }
+
+  function renderCompare() {
+    const project = model.project;
+    const want = CM.METHODS.filter((m) => state.ms.includes(m) || (state.pair && state.pair.includes(m)));
+    const res = minResult();
+    // Con el mínimo como intervalo, V se corrige con todos los métodos (criterio 19), no solo con los visibles.
+    const methods = res && !res.exact ? CM.METHODS : want;
+    let cmp = { project, cards: cmpCards(project, methods), min: null };
+    if (res) cmp = CM.combine(cmp, res);
+    $('boxHint').textContent = '';
+    G.compareView.render($('cmpView'), {
+      cmp, project, lang: lang(), nota: state.nota, numFmt, name: model.name, ms: state.ms, pair: state.pair,
+      onMethods: (ms) => dispatch({ type: 'methods', value: ms }),
+      onPair: (pair) => dispatch({ type: 'pair', value: pair }),
+      onLearn: (m) => openMethodLearn(m),
+      onLearnTopic: (topic) => openLearn(topic),
+    });
+    $('stage').classList.add('wide');
+    $('unitLine').textContent = t('view.unitLine', { name: model.name, n: project.activities.length, unit: model.unit || '—' });
+    $('btnNet').setAttribute('aria-pressed', 'false');
+    $('btnSide').setAttribute('aria-pressed', 'false');
+    $('btnSide').hidden = false;
+    $('btnSide').disabled = !model.solution;
+    $('btnMatrix').hidden = true;
+    $('btnAon').setAttribute('aria-pressed', 'false');
+    $('btnAoa').setAttribute('aria-pressed', 'true');
+    $('btnAon').disabled = !model.solution;
+  }
+
+  // «Aprende más» de un método (AC17): qué hace, qué garantiza, cómo lo aplica el laboratorio y sus referencias.
+  function openMethodLearn(m) {
+    const L = LR.methods[m];
+    const body = clear($('learnBody'));
+    $('learnTitle').textContent = L.title[lang()];
+    L.what[lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
+    body.appendChild(h('h3', {}, [t('cmp.learnGuarantee')]));
+    body.appendChild(h('p', {}, [L.guarantee[lang()]]));
+    if (L.reading[lang()]) { body.appendChild(h('h3', {}, [t('cmp.learnReading')])); body.appendChild(h('p', {}, [L.reading[lang()]])); }
+    body.appendChild(h('h3', {}, [t('learn.refs')]));
+    body.appendChild(h('ul', {}, L.refs.map((r) => h('li', {}, [r]))));
+    if (L.open && L.open !== state.ex) {
+      const href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: L.open, step: 0, wi: null, graph: 'aoa', view: 'cmp', ms: CM.METHODS.slice(), pair: null, min: 0 }));
+      body.appendChild(h('p', {}, [h('a', { href, onclick: () => $('learnDialog').close() }, [t('cmp.learnOpen')])]));
+    }
+    const dlg = $('learnDialog');
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+
   function renderSelInfo(info) {
     const box = clear($('selInfo'));
     box.hidden = !info;
@@ -598,7 +667,7 @@
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
-      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || $('stage').hidden) return;
+      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || $('stage').hidden || !$('cmpView').hidden) return;
       if (tag === 'button' && (e.key === ' ' || e.key === 'Enter')) return;
       if (e.key === 'ArrowRight' && !$('btnNext').disabled) { e.preventDefault(); dispatch({ type: 'next' }); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); dispatch({ type: 'prev' }); }

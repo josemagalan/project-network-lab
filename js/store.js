@@ -1,6 +1,7 @@
 /*
  * store — transiciones puras del estado de la página. El estado tiene la forma de core/urlstate
- * (v, ex, t, step, view, lang, nota, box, mode, pred, wi, graph, min); app lo escribe en la URL tras cada cambio.
+ * (v, ex, t, step, view, lang, nota, box, mode, pred, wi, graph, min y, en la F2b, m, ms y pair); app lo escribe en
+ * la URL tras cada cambio.
  * reduce(state, action, total) nunca muta el estado recibido y solo acepta valores de la lista blanca.
  */
 (function (root) {
@@ -10,10 +11,10 @@
   const U = isNode ? require('./core/urlstate.js') : root.PNL.urlstate;
 
   const SETTABLE = {
-    view: ['net', 'matrix', 'side'], lang: ['es', 'en'], nota: ['en', 'es'], box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: [0, 1], min: [0, 1],
+    view: ['net', 'matrix', 'side', 'cmp'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'], box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: [0, 1], min: [0, 1],
   };
   // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
-  const VIEW_OK = { aon: ['net', 'matrix'], aoa: ['net', 'side'] };
+  const VIEW_OK = { aon: ['net', 'matrix'], aoa: ['net', 'side', 'cmp'] };   // el comparador también es de la PERT (F2b)
   const structureOnly = (s) => !s.t && U.STRUCTURE_ONLY.includes(s.ex);
   const clamp = (n, total) => Math.max(0, Math.min(Number.isInteger(n) ? n : 0, Math.max(0, total - 1)));
 
@@ -28,6 +29,19 @@
         if (Object.prototype.hasOwnProperty.call(SETTABLE, action.key) && SETTABLE[action.key].includes(action.value)
           && (action.key !== 'view' || VIEW_OK[s.graph || 'aon'].includes(action.value))) s[action.key] = action.value;
         break;
+      // F2b: métodos visibles del comparador (al menos uno, sin repetir) y par lado a lado (dos distintos o null).
+      case 'methods': {
+        const v = Array.isArray(action.value) ? action.value : [];
+        const ms = U.METHODS.filter((m) => v.includes(m));
+        if (ms.length && ms.length === v.length) s.ms = ms;
+        break;
+      }
+      case 'pair': {
+        const p = action.value;
+        if (p === null) s.pair = null;
+        else if (Array.isArray(p) && p.length === 2 && p[0] !== p[1] && p.every((m) => U.METHODS.includes(m))) s.pair = p.slice();
+        break;
+      }
       case 'graph':
         // Cambiar de red cambia de traza: app calcula el paso equivalente (equivalentStep) y lo pasa aquí.
         if (!VIEW_OK[action.value] || (action.value === 'aon' && structureOnly(s))) break;

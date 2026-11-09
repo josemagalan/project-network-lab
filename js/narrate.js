@@ -193,10 +193,77 @@
     const because = I.list(lang, d.because);
     const precs = d.represents.map((p) => p.slice());
     const learn = { equal: 'ruleEqual', contained: 'ruleContained', shared: 'ruleShared' }[d.rule] || null;
+    const arrows = I.list(lang, precs.map(([a, b]) => `${a} → ${b}`));
     let text;
     if (d.rule === 'equal') text = t('sel.dummyEqual', { name: x, rule, because });
-    else text = t(precs.length === 1 ? 'sel.dummyOne' : 'sel.dummy', { name: x, rule, because, precs: I.list(lang, precs.map(([a, b]) => `${a} → ${b}`)) });
-    return { title: x, text, precs, learn };
+    else if (d.rule === 'uniqueness') text = t('sel.dummyUnique', { name: x, because });
+    else if (d.rule === 'dependency') text = t(precs.length === 0 ? 'sel.dummyDepNone' : precs.length === 1 ? 'sel.dummyDepOne' : 'sel.dummyDep', { name: x, precs: arrows });
+    else text = t(precs.length === 1 ? 'sel.dummyOne' : 'sel.dummy', { name: x, rule, because, precs: arrows });
+    // F2b (AC6): en el comparador, una ficticia que se puede quitar explica por qué sobra.
+    const rm = (ctx.removable || []).find((r) => r.name === x);
+    if (rm) text += ' ' + t(rm.how === 'merge' ? 'sel.removableMerge' : 'sel.removableDelete', { name: x });
+    return { title: x, text, precs, learn, removable: rm ? rm.how : null };
+  }
+
+  // ---------- F2b: comparador de métodos (T016–T017) ----------
+
+  // Mensaje de cada problema de core/aoacheck.diagnose, con las actividades o sucesos implicados.
+  function diagnosis(problems, ctx) {
+    const { lang } = ctx;
+    const t = (k, p) => I.t(lang, k, p);
+    return (problems || []).map((x) => {
+      const ids = x.ids || [];
+      const ev = x.events || [];
+      const p = { a: ids[0], b: ids[1], events: I.list(lang, ev), from: ev[0], to: ev[1] };
+      switch (x.code) {
+        // Las ficticias llevan siempre events (aunque vacío); las actividades, no.
+        case 'incompleteArc': return !x.events ? t('diag.incompleteArc', p) : t(ids.length ? 'diag.incompleteDummyNamed' : 'diag.incompleteDummy', p);
+        case 'unnumbered': return t(ev.length === 1 ? 'diag.unnumberedOne' : 'diag.unnumbered', p);
+        case 'order': return !x.events ? t('diag.order', p) : t('diag.orderDummy', p);
+        case 'unnecessaryDummy': return t(x.how === 'merge' ? 'diag.unnecessaryDummyMerge' : 'diag.unnecessaryDummy', p);
+        default: return t(`diag.${x.code}`, p);
+      }
+    });
+  }
+
+  // Textos de una tarjeta del comparador. card: de core/compare; min: el mínimo combinado (null mientras se calcula).
+  function cmpCard(c, min, ctx) {
+    const { lang } = ctx;
+    const t = (k, p) => I.t(lang, k, p);
+    const out = { name: t(`cmp.names.${c.method}`), kind: t(`cmp.kinds.${c.method}`), count: '…', unit: t('cmp.unitPending'),
+      status: [], notes: [], links: { learn: t('learn.button'), step: c.method === 'prog' ? t('cmp.stepByStep') : null } };
+    if (c.pending || c.dummies == null) {
+      out.status.push({ text: t('cmp.pending'), tone: 'mute' });
+      return out;
+    }
+    out.count = String(c.dummies);
+    out.unit = t(c.dummies === 1 ? 'cmp.unitOne' : 'cmp.unitN', { e: c.events });
+    if (!c.ok) {
+      out.status.push({ text: t('cmp.incorrect'), tone: 'bad' });
+      for (const s of diagnosis(c.problems, ctx)) out.notes.push({ text: s, tone: 'bad' });
+      return out;
+    }
+    out.status.push({ text: t('cmp.correct'), tone: 'ok' });
+    if (min && min.value != null) {
+      const k = c.dummies - min.value;
+      if (k <= 0) out.status.push({ text: t(min.exact ? 'cmp.atMin' : 'cmp.atBest'), tone: 'ok' });
+      else out.status.push({ text: t(min.exact ? 'cmp.above' : 'cmp.aboveBest', { k }), tone: 'warn' });
+    }
+    if (c.removable && c.removable.length) out.notes.push({ text: t(c.removable.length === 1 ? 'cmp.removableOne' : 'cmp.removableN', { names: I.list(lang, c.removable) }), tone: 'bad' });
+    if (c.structural) out.notes.push({ text: t('cmp.structural'), tone: 'warn' });
+    if (c.model) out.notes.push({ text: t('cmp.model', { d: c.model.dummies, e: c.model.events }), tone: 'mute' });
+    if (c.approx) out.notes.push({ text: t('cmp.approx'), tone: 'mute' });
+    return out;
+  }
+
+  // Resumen del mínimo: exacto, intervalo (y qué método da la mejor red) o calculando.
+  function cmpMin(min, ctx) {
+    const { lang } = ctx;
+    const t = (k, p) => I.t(lang, k, p);
+    if (!min || min.value == null) return t('cmp.minPending');
+    if (min.exact) return min.value === 0 ? t('cmp.minNone') : min.value === 1 ? t('cmp.minExactOne') : t('cmp.minExact', { v: min.value });
+    const p = { l: min.lower, v: min.value };
+    return min.source && min.source !== 'search' ? t('cmp.minRangeFrom', Object.assign(p, { src: t(`cmp.names.${min.source}`) })) : t('cmp.minRange', p);
   }
 
   // Camino más corto de a a b por las precedencias directas (para nombrar una precedencia implícita).
@@ -256,7 +323,7 @@
     return out;
   }
 
-  const api = { narrate, relabel, nodeName, fmt, selection, dummyCount, SHOWN_PATHS };
+  const api = { narrate, relabel, nodeName, fmt, selection, dummyCount, diagnosis, cmpCard, cmpMin, SHOWN_PATHS };
   root.PNL = root.PNL || {};
   root.PNL.narrate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

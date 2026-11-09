@@ -6,6 +6,8 @@
  *     criticalOn, numFmt, name, selected, onSelect, hide, numbered, durations, emph, idPrefix }
  *     emph: ficticias que se destacan (las que aprovechan una precedencia implícita en la red mínima, T021);
  *     idPrefix: prefijo de los marcadores, para dibujar dos redes PERT en la misma página sin repetir id.
+ *     F2b (comparador): removable, ficticias que se pueden quitar (en rojo); fit, la red se encoge con su
+ *     tarjeta en vez de mantener 560 px de ancho mínimo.
  *   succTable(el, ctx): la tabla de posteriores de los pasos de construcción, con el papel de cada actividad.
  *   arcTable(el, ctx): la alternativa en texto (un arco por fila), con botones para seleccionar.
  */
@@ -37,6 +39,7 @@
       }
     }
     if (ctx.emph) for (const label of ctx.emph) set(label, 'rule');
+    if (ctx.removable) for (const label of ctx.removable) set(label, 'rm');
     if (selected) set(selected, 'sel');
     return cls;
   }
@@ -58,15 +61,15 @@
     const sel = d3.select(container);
     sel.selectAll('*').remove();
     const svg = sel.append('svg').attr('class', 'net pert').attr('width', '100%')
-      .attr('style', `max-width:${width}px;min-width:${Math.min(width, 560)}px`).attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('style', ctx.fit ? `max-width:${width}px` : `max-width:${width}px;min-width:${Math.min(width, 560)}px`).attr('viewBox', `0 0 ${width} ${height}`)
       .attr('role', 'img').attr('aria-label', G.i18n.t(ctx.lang, 'pert.netLabel', { name: ctx.name, e: net.events.length, n: net.arcs.length, f: net.dummies.length }));
     const defs = svg.append('defs');
     const pre = ctx.idPrefix || 'pnl-pk';
-    for (const [id, c] of [[pre, 'mk'], [`${pre}-a`, 'mk-a'], [`${pre}-c`, 'mk-c'], [`${pre}-s`, 'mk-s'], [`${pre}-r`, 'mk-r']]) {
+    for (const [id, c] of [[pre, 'mk'], [`${pre}-a`, 'mk-a'], [`${pre}-c`, 'mk-c'], [`${pre}-s`, 'mk-s'], [`${pre}-r`, 'mk-r'], [`${pre}-x`, 'mk-x']]) {
       defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
         .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto').append('path').attr('d', 'M0 0L10 5L0 10z').attr('class', c);
     }
-    const marker = (c) => ({ chosen: `${pre}-a`, compared: `${pre}-a`, crit: `${pre}-c`, sel: `${pre}-s`, rule: `${pre}-r` }[c] || pre);
+    const marker = (c) => ({ chosen: `${pre}-a`, compared: `${pre}-a`, crit: `${pre}-c`, sel: `${pre}-s`, rule: `${pre}-r`, rm: `${pre}-x` }[c] || pre);
 
     const eg = svg.append('g');
     const lg = svg.append('g');
