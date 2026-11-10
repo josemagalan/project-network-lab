@@ -185,3 +185,230 @@ test('T019 · AC10: cada paso con predicción de la ruta se puede responder con 
   assert.equal(o.cands, null);
   assert.equal(o.label('B'), 'B · Instalación eléctrica');
 });
+
+// ── T021: el enunciado propio del docente (AC13, AC14) ─────────────────────────────────────────────────────
+// Preparar es lo mismo que practicar, pero lo subrayado y escrito es la referencia: el texto en state.own, la tabla
+// del docente en t y sus subrayados en mk. M0.ownDef lo convierte en el OwnDef que viaja en el enlace.
+
+const FERIA = 'Para la feria de ciencias hay que reservar el aula, preparar los carteles y montar los experimentos. '
+  + 'Los carteles se preparan después de reservar el aula. Montar los experimentos requiere el aula reservada y los carteles hechos. '
+  + 'Al final, alguien tiene que recoger el aula, que dura 2 horas.';
+const words = (text) => S.tokenize(text).words;
+// Rango de palabras de una frase dentro del texto (la primera aparición).
+function at(text, phrase) {
+  const w = words(text);
+  const ph = words(phrase).map((x) => x.t);
+  const i = w.findIndex((_, k) => ph.every((p, j) => w[k + j] && w[k + j].t === p));
+  assert.ok(i >= 0, `«${phrase}» no está en el texto`);
+  return { from: i, to: i + ph.length - 1 };
+}
+const mark = (text, phrase, extra) => Object.assign(at(text, phrase), extra);
+const FERIA_MARKS = [
+  mark(FERIA, 'reservar el aula', { kind: 'activity', act: 'A' }),
+  mark(FERIA, 'preparar los carteles', { kind: 'activity', act: 'B' }),
+  mark(FERIA, 'montar los experimentos', { kind: 'activity', act: 'C' }),
+  mark(FERIA, 'Los carteles se preparan después de reservar el aula', { kind: 'precedence', gives: [['A', 'B']] }),
+  mark(FERIA, 'Montar los experimentos requiere el aula reservada y los carteles hechos', { kind: 'precedence', gives: [['A', 'C'], ['B', 'C']] }),
+  mark(FERIA, 'Al final', { kind: 'precedence', decl: { end: 'end', act: 'D' } }),
+  mark(FERIA, 'alguien tiene que recoger el aula', { kind: 'activity', act: 'D' }),
+  mark(FERIA, '2 horas', { kind: 'duration', act: 'D', value: 2 }),
+  mark(FERIA, 'Para la feria de ciencias', { kind: 'none' }),
+];
+const FERIA_ROWS = [row('A', 1, '', 'Reservar el aula'), row('B', 3, 'A', 'Carteles'), row('C', 4, 'B', 'Experimentos'), row('D', 2, 'C', 'Recoger')];
+// El estado de «preparar»: texto del docente, su tabla y sus subrayados.
+const prep = (extra) => Object.assign(U.defaults(), { v: 'm0', st: 'own', ex: null, mm: 'prepare', lang: 'es', mode: 'pred',
+  own: { lang: 'es', text: FERIA, frags: [], ref: null }, t: FERIA_ROWS.map((r) => Object.assign({}, r)), mk: FERIA_MARKS.map((m) => Object.assign({}, m)) }, extra || {});
+const notKey = (s) => typeof s === 'string' && s.length > 0 && !/^m0\.[\w.]+$/.test(s);
+
+test('T021 · AC13: del estado de «preparar» a un OwnDef: los subrayados del docente son los fragmentos y su tabla, la referencia', () => {
+  const def = M0.ownDef(prep());
+  assert.equal(def.lang, 'es');
+  assert.equal(def.text, FERIA);
+  assert.deepEqual(def.ref, { mode: 'pred', rows: FERIA_ROWS.map((r) => ({ id: r.id, duration: r.duration, links: r.links, name: r.name })) });
+  assert.deepEqual(def.frags.map((f) => f.kind), ['none', 'activity', 'activity', 'activity', 'precedence', 'precedence', 'end', 'activity', 'duration'],
+    'en el orden del texto; «lo último» pasa a ser un fragmento «end»');
+  const end = def.frags.find((f) => f.kind === 'end');
+  assert.equal(end.act, 'D');
+  assert.equal(end.gives, undefined);
+  assert.deepEqual(def.frags.find((f) => f.kind === 'duration'), Object.assign(at(FERIA, '2 horas'), { kind: 'duration', act: 'D', value: 2 }));
+  // Es un enunciado que se construye, se valida y tiene ruta guiada.
+  assert.deepEqual(S.validate(def, { strict: false }).filter((i) => !i.warn), []);
+  const st = S.build(def);
+  assert.equal(st.id, 'own');
+  assert.deepEqual(st.ref.activities.map((a) => a.id), ['A', 'B', 'C', 'D']);
+  assert.equal(st.structureOnly, false);
+  assert.ok(S.route(st).some((s) => s.kind === 'm0Clean'));
+  // Una tabla en la otra forma viaja tal cual, con su forma.
+  assert.equal(M0.ownDef(prep({ mode: 'succ', t: [row('A', '', 'B'), row('B', '')] })).ref.mode, 'succ');
+  // Sin tabla, el texto acompaña a una tabla libre: no hay referencia.
+  assert.equal(M0.ownDef(prep({ t: null })).ref, null);
+  assert.equal(M0.ownDef(prep({ t: [row('', '')] })).ref, null, 'las filas vacías no cuentan');
+  // Y vuelve a «preparar» sin perder nada (con la tabla del docente y sus subrayados).
+  const back = M0.toPrepare(Object.assign(U.defaults(), { v: 'm0', st: 'own', ex: null, own: def, lang: 'en', t: [row('X', 1)], mk: null }));
+  assert.equal(back.mm, 'prepare');
+  assert.deepEqual(back.own, { lang: 'es', text: FERIA, frags: [], ref: null });
+  assert.deepEqual(M0.ownDef(back), def);
+});
+
+test('T021 · AC13: el enlace del alumno abre el ejercicio sin la solución a la vista; el de la solución, ya resuelto', () => {
+  const sh = M0.share(prep(), 'es');
+  assert.equal(sh.blocked, null);
+  assert.equal(typeof sh.student, 'string');
+  assert.equal(typeof sh.solution, 'string');
+  assert.ok(sh.student.length <= U.LIMITS.hash && sh.solution.length <= U.LIMITS.hash);
+  // El alumno: practicar con el texto, tabla vacía, sin subrayados, en el idioma del texto.
+  const stu = U.decode(sh.student);
+  assert.equal(stu.warning, undefined);
+  const s = stu.state;
+  assert.equal(s.v, 'm0'); assert.equal(s.st, 'own'); assert.equal(s.mm, 'practice'); assert.equal(s.sol, 0); assert.equal(s.lang, 'es');
+  assert.equal(s.t, null); assert.equal(s.mk, null);
+  assert.deepEqual(s.own, M0.ownDef(prep()));
+  assert.deepEqual(M0.openSolution(s), s, 'sin sol=1 no se pone nada');
+  const m = M0.model(s, 'es');
+  assert.deepEqual(m.rows, []); assert.deepEqual(m.marks, []);
+  assert.ok(m.st.ref, 'puede comprobar');
+  // ... y la corrige: con la tabla del docente, correcta; con una precedencia de menos, no.
+  const good = M0.diagnosis('es', M0.model(Object.assign({}, s, { t: FERIA_ROWS }), 'es'));
+  assert.equal(good.ok, true);
+  const bad = M0.diagnosis('es', M0.model(Object.assign({}, s, { t: [row('A', 1), row('B', 3, 'A'), row('C', 4), row('D', 2, 'C')] }), 'es'));
+  assert.equal(bad.ok, false);
+  assert.deepEqual(bad.items.map((i) => i.code), ['missingPrecedence']);
+  // La ruta guiada recorre los fragmentos del docente.
+  assert.equal(S.route(m.st).filter((x) => x.kind === 'm0Frag').length, FERIA_MARKS.length);
+  // Con la solución: sol=1 y, al abrirlo, la tabla y los subrayados del docente ya están puestos.
+  const sol = U.decode(sh.solution).state;
+  assert.equal(sol.sol, 1); assert.equal(sol.t, null);
+  const open = M0.openSolution(sol);
+  assert.equal(open.sol, 0, 'se pone una vez: después es la tabla de quien lo abre');
+  assert.deepEqual(open.t, FERIA_ROWS.map((r) => ({ id: r.id, name: r.name, duration: r.duration, links: r.links })));
+  assert.deepEqual(M0.ownDef(Object.assign({}, open, { own: { lang: 'es', text: FERIA, frags: [], ref: null } })), M0.ownDef(prep()),
+    'los subrayados puestos son los del docente');
+  assert.equal(M0.diagnosis('es', M0.model(open, 'es')).ok, true);
+  // El enlace sale en el idioma del texto aunque la interfaz esté en el otro.
+  const en = U.decode(M0.share(prep({ lang: 'en' }), 'en').student).state;
+  assert.equal(en.lang, 'es');
+});
+
+test('T021 · AC13: sin tabla del docente hay enlace para el alumno (tabla libre), pero no con la solución', () => {
+  const sh = M0.share(prep({ t: null }), 'es');
+  assert.equal(sh.blocked, null);
+  assert.equal(typeof sh.student, 'string');
+  assert.equal(sh.solution, null);
+  const s = U.decode(sh.student).state;
+  assert.equal(s.own.ref, null);
+  assert.equal(M0.model(s, 'es').st.ref, null, 'sin corrección ni ruta guiada');
+  assert.ok(sh.warnings.some((w) => w.code === 'noRef' && notKey(w.text)));
+});
+
+test('T021 · AC14: con un ciclo en la tabla del docente no hay enlace hasta romperlo', () => {
+  for (const lang of ['es', 'en']) {
+    const cyc = M0.share(prep({ t: [row('A', 1, 'D'), row('B', 3, 'A'), row('C', 4, 'B'), row('D', 2, 'C')] }), lang);
+    assert.equal(cyc.blocked, 'cycle');
+    assert.equal(cyc.student, null);
+    assert.equal(cyc.solution, null);
+    const why = cyc.issues.find((i) => i.code === 'cycle');
+    assert.ok(why && notKey(why.text));
+    assert.match(why.text, /A → B → C → D → A/);
+  }
+  // Otros errores de la tabla del docente (una predecesora que no existe) tampoco se comparten.
+  assert.equal(M0.share(prep({ t: [row('A', 1), row('B', 3, 'Z')] }), 'es').blocked, 'invalid');
+  // Al romper el ciclo, vuelve el enlace.
+  assert.equal(M0.share(prep(), 'es').blocked, null);
+});
+
+test('T021 · AC14: con redundancias en la tabla del docente se avisa con su camino y se comparte igual', () => {
+  const t = [row('A', 1, '', 'Reservar el aula'), row('B', 3, 'A', 'Carteles'), row('C', 4, 'A, B', 'Experimentos'), row('D', 2, 'C', 'Recoger')];
+  for (const lang of ['es', 'en']) {
+    const sh = M0.share(prep({ t }), lang);
+    assert.equal(sh.blocked, null);
+    assert.equal(typeof sh.student, 'string');
+    const red = sh.warnings.find((w) => w.code === 'redundant');
+    assert.ok(red && notKey(red.text));
+    assert.deepEqual(red.ids, ['A', 'C']);
+    assert.match(red.text, /A → B → C/);
+  }
+  // La precedencia de la tabla que no sale de ninguna frase vale para corregir, pero no está en la ruta: aviso.
+  const noFrag = M0.share(prep({ mk: FERIA_MARKS.filter((m) => !(m.gives && m.gives.length === 2)) }), 'es');
+  assert.equal(noFrag.blocked, null);
+  const un = noFrag.warnings.find((w) => w.code === 'unjustified');
+  assert.ok(un && notKey(un.text));
+  assert.deepEqual(un.ids, ['B', 'C']);
+});
+
+test('T021: un subrayado del docente que no casa con su tabla impide compartir y dice cuál', () => {
+  const extra = FERIA_MARKS.concat([mark(FERIA, 'que dura', { kind: 'activity', act: 'E' })]);
+  const sh = M0.share(prep({ mk: extra }), 'es');
+  assert.equal(sh.blocked, 'mismatch');
+  assert.equal(sh.student, null);
+  const u = sh.issues.find((i) => i.code === 'unknownAct');
+  assert.ok(u && notKey(u.text));
+  assert.match(u.text, /que dura/);
+  // Una frase que da una precedencia que la tabla no tiene (ni por un camino).
+  const wrong = FERIA_MARKS.map((m) => (m.gives && m.gives.length === 1 ? Object.assign({}, m, { gives: [['B', 'A']] }) : m));
+  const w = M0.share(prep({ mk: wrong }), 'es');
+  assert.equal(w.blocked, 'mismatch');
+  assert.ok(w.issues.some((i) => i.code === 'fragNotInRef' && /B → A/.test(i.text)));
+});
+
+test('T021: el texto malicioso se guarda y se comparte como texto, sin tocar', () => {
+  const evil = 'A) <img src=x onerror="alert(1)"> pintar. B) <script>alert(\'x\')</script> javascript:alert(1) después de A.\u0007‮ fin';
+  const acc = M0.acceptText(prep({ own: { lang: 'es', text: '', frags: [], ref: null }, t: null, mk: null }), evil, 'es');
+  assert.equal(acc.error, null);
+  assert.equal(acc.own.text, evil);
+  const st = S.build(acc.own);
+  const k = st.words.findIndex((w) => w.t === 'script');
+  assert.ok(k > 0);
+  assert.equal(M0.fragText(st, 0, k), 'A) <img src=x onerror="alert(1)"> pintar. B) <script', 'el fragmento es el texto literal');
+  const s = prep({ own: acc.own, t: [row('A', 1), row('B', 1, 'A')], mk: [{ from: 0, to: 0, kind: 'activity', act: 'A' }] });
+  const sh = M0.share(s, 'es');
+  assert.equal(sh.blocked, null);
+  assert.equal(U.decode(sh.student).state.own.text, evil);
+  assert.doesNotMatch(decodeURIComponent(sh.student), /<script|javascript:/, 'el enlace no lleva el texto en claro');
+});
+
+test('T021: un texto demasiado largo se avisa y no se acepta; un enlace que no cabe tampoco se da', () => {
+  const max = U.LIMITS.ownText;
+  assert.equal(max, 3000);
+  const empty = prep({ own: { lang: 'es', text: '', frags: [], ref: null }, t: null, mk: null });
+  for (const lang of ['es', 'en']) {
+    const long = M0.acceptText(empty, 'palabra '.repeat(400), lang);
+    assert.equal(long.error.code, 'tooLong');
+    assert.equal(long.own, null);
+    assert.ok(notKey(long.error.text));
+    assert.match(long.error.text, /3200/);
+    assert.match(long.error.text, /3000|3\.000|3,000/);
+  }
+  assert.equal(M0.acceptText(empty, 'x'.repeat(max), 'es').error, null, 'justo en el límite, sí');
+  assert.equal(M0.acceptText(empty, ' \n\t ', 'es').error.code, 'empty', 'sin ninguna palabra, no');
+  // Un texto que no se comprime (3000 caracteres al azar de muchos alfabetos) no cabe en la URL: sin enlace.
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const noise = Array.from({ length: max }, () => String.fromCodePoint(0x4e00 + Math.floor(rnd() * 20000))).join('');
+  const sh = M0.share(prep({ own: { lang: 'es', text: noise, frags: [], ref: null }, t: [row('A', 1)], mk: null }), 'es');
+  assert.equal(sh.blocked, 'tooLong');
+  assert.equal(sh.student, null);
+  assert.ok(sh.issues.some((i) => i.code === 'tooLong' && notKey(i.text)));
+  // Sin texto, nada que compartir.
+  assert.equal(M0.share(empty, 'es').blocked, 'empty');
+});
+
+test('T021: al editar el texto, los subrayados que no cambian se conservan (desplazados) y los demás se quitan y se cuentan', () => {
+  const s = prep();
+  const edited = FERIA.replace('montar los experimentos', 'montar los tres experimentos');
+  const acc = M0.acceptText(s, edited, 'es');
+  assert.equal(acc.error, null);
+  assert.equal(acc.own.text, edited);
+  assert.deepEqual(acc.own.frags, []);
+  assert.equal(acc.dropped, 1, 'solo el subrayado de la frase cambiada');
+  const st = S.build({ lang: 'es', text: edited, frags: [], ref: null });
+  const texts = acc.marks.map((mk) => M0.fragText(st, mk.from, mk.to));
+  assert.ok(texts.includes('Los carteles se preparan después de reservar el aula'));
+  assert.ok(texts.includes('Montar los experimentos requiere el aula reservada y los carteles hechos'), 'los de después, desplazados');
+  assert.ok(texts.includes('2 horas'));
+  assert.ok(!texts.includes('montar los tres experimentos'));
+  // El idioma del texto lo elige el docente; sin cambios en el texto, todo se queda.
+  const same = M0.acceptText(s, FERIA, 'en');
+  assert.equal(same.own.lang, 'en');
+  assert.equal(same.dropped, 0);
+  assert.deepEqual(same.marks, s.mk);
+});

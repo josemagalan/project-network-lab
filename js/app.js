@@ -909,7 +909,8 @@
     const { state: s, warning } = U.decode(location.hash);
     const q = new URLSearchParams(location.search).get('lang');
     if (!s.lang) s.lang = q === 'en' || q === 'es' ? q : ((navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'es');
-    state = s;
+    // F2c, T022: el enlace con la solución de un enunciado propio se abre con la tabla y los subrayados del docente.
+    state = G.m0.openSolution(s);
     compute();
     fitGraph();
     state = S.reduce(state, { type: 'go', n: state.step }, total());

@@ -342,3 +342,17 @@ test('F2c: encodeSafe nunca pasa de 8000 (incluido el caso apuntado de la F2b)',
   assert.equal(r.reason, 'tooLong');
   assert.ok(r.length > U.LIMITS.hash);
 });
+
+test('T021: «preparar» un enunciado propio se abre sin paquete, con el texto vacío en el idioma de la página', () => {
+  for (const lang of ['es', 'en']) {
+    const out = U.decode(`#v=m0&st=own&mm=prepare&lang=${lang}`);
+    assert.equal(out.warning, undefined);
+    assert.equal(out.state.st, 'own');
+    assert.equal(out.state.mm, 'prepare');
+    assert.deepEqual(out.state.own, { lang, text: '', frags: [], ref: null });
+  }
+  assert.equal(U.decode('#v=m0&st=own&mm=prepare').state.own.lang, 'es');
+  // Practicar sin paquete sigue siendo un enlace roto.
+  assert.equal(U.decode('#v=m0&st=own&mm=route').warning, 'malformed');
+  assert.equal(U.LIMITS.ownText, 3000);
+});

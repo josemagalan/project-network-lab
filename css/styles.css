@@ -474,3 +474,16 @@ table.m0-rtable tr.new th { box-shadow: inset 4px 0 0 var(--ok); }
   .m0-text, .m0-right { max-height: 100%; overflow: auto; position: relative; }
 }
 @media (max-width: 960px) { .m0-grid { grid-template-columns: minmax(0, 1fr); } .m0-textbody { max-height: 55vh; overflow: auto; } }
+/* Preparar un enunciado propio (T022, tablero 34). */
+.m0-share { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.m0-share p { margin: 0; font-size: 14px; }
+.m0-share button.ghost:disabled { opacity: .55; cursor: not-allowed; }
+.m0-prep { display: flex; flex-direction: column; gap: 6px; }
+.m0-prep p { margin: 0; }
+.m0-prep textarea { width: 100%; min-height: 220px; padding: 8px 10px; font-size: 15px; line-height: 1.6; resize: vertical; }
+.m0-prep .m0-draft { font-weight: 600; font-size: 14px; }
+.m0-prep select { height: 32px; padding: 0 6px; }
+.m0-over { color: var(--critical-text) !important; font-weight: 600; }
+.m0-link { display: flex; flex-direction: column; gap: 2px; }
+.m0-link input { width: 100%; height: 32px; padding: 0 6px; font-family: var(--mono); font-size: 12px; }
+#m0EditText { align-self: flex-start; }

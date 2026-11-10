@@ -61,8 +61,14 @@
       // F2c: M0 con un enunciado de la herramienta, o con uno propio si llega su definición; tabla y subrayados vacíos.
       case 'm0': {
         const own = action.st === 'own' && action.own && typeof action.own.text === 'string';
-        s.v = 'm0'; s.ex = null; s.step = 0; s.t = null; s.mk = null; s.wi = null;
-        if (own) { s.st = 'own'; s.own = action.own; } else {
+        s.v = 'm0'; s.ex = null; s.step = 0; s.t = null; s.mk = null; s.wi = null; s.sol = 0;
+        // Con un enunciado propio pueden llegar su tabla, sus subrayados y su forma (preparar; abrir con la solución).
+        if (own) {
+          s.st = 'own'; s.own = action.own;
+          if (Array.isArray(action.rows) && action.rows.length) s.t = action.rows.map((r) => Object.assign({}, r));
+          if (Array.isArray(action.marks) && action.marks.length) s.mk = U.cleanMarks(action.marks);
+          if (SETTABLE.mode.includes(action.mode)) s.mode = action.mode;
+        } else {
           s.own = null;
           if (U.STATEMENTS.includes(action.st)) s.st = action.st; else if (!U.STATEMENTS.includes(s.st)) s.st = U.DEFAULT_ST;
         }

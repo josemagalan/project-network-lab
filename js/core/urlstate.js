@@ -34,7 +34,7 @@
   const METHODS = ['prog', 'rules', 'cs', 'kim', 'spinrad', 'cgl', 'min'];
   const DEFAULT_MS = ['prog', 'rules', 'min'];
   const SN = { events: 100, id: /^\d{1,3}$/, n: /^\d{0,3}$/, pos: /^\d{1,4}$/ };
-  const LIMITS = { hash: 8000, rows: 40, id: 8, duration: 12, links: 200, name: 80, step: 999 };
+  const LIMITS = { hash: 8000, rows: 40, id: 8, duration: 12, links: 200, name: 80, step: 999, ownText: OWN.text };
   const ID_RE = /^[A-Za-z0-9]{1,4}$/;
   const ID_UPPER = /^[A-Z0-9]{1,4}$/;
 
@@ -308,7 +308,10 @@
       const st = q.get('st');
       if (st === 'own') {
         const o = q.has('own') ? unpackOwn(q.get('own')) : null;
-        if (o) { state.st = 'own'; state.own = o.own; state.t = o.t; state.mode = o.mode; state.mk = o.mk; } else { state.st = DEFAULT_ST; malformed = true; }
+        if (o) { state.st = 'own'; state.own = o.own; state.t = o.t; state.mode = o.mode; state.mk = o.mk; }
+        // Preparar un enunciado propio empieza sin paquete: el texto vacío, en el idioma de la página (T021).
+        else if (!q.has('own') && state.mm === 'prepare') { state.st = 'own'; state.own = { lang: state.lang || 'es', text: '', frags: [], ref: null }; }
+        else { state.st = DEFAULT_ST; malformed = true; }
       } else if (st === null) state.st = DEFAULT_ST;
       else if (STATEMENTS.includes(st)) state.st = st;
       else { state.st = DEFAULT_ST; malformed = true; }

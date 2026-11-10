@@ -216,3 +216,22 @@ test('F2c (T015) · AC15: «open» abre una tabla en la ruta (ROY o PERT) o en e
   const bad = S.reduce(base, { type: 'open', v: 'nada', graph: 'aon', rows, mode: 'pred' }, 1);
   assert.equal(bad.v, 'm0', 'un destino desconocido no cambia nada');
 });
+
+test('T021: un enunciado propio puede llegar con su tabla, sus subrayados y su forma (preparar y abrir con la solución)', () => {
+  const own = { lang: 'es', text: 'Pintar y luego barrer.', frags: [], ref: null };
+  const rows = [{ id: 'A', name: 'Pintar', duration: '', links: '' }, { id: 'B', name: 'Barrer', duration: '', links: '' }];
+  const marks = [{ from: 0, to: 0, kind: 'activity', act: 'A' }, { from: 3, to: 3, kind: 'activity', act: 'B' }];
+  const s = S.reduce(Object.assign(s0(), { step: 5 }), { type: 'm0', st: 'own', own, rows, marks, mode: 'succ', mm: 'prepare' });
+  assert.deepEqual([s.v, s.st, s.mm, s.mode, s.step, s.sol], ['m0', 'own', 'prepare', 'succ', 0, 0]);
+  assert.deepEqual(s.own, own);
+  assert.deepEqual(s.t, rows);
+  assert.notEqual(s.t, rows, 'copia, no la misma lista');
+  assert.deepEqual(s.mk, marks);
+  // Lo que no valida no entra: subrayados rotos o forma desconocida.
+  const bad = S.reduce(s0(), { type: 'm0', st: 'own', own, rows, marks: [{ from: 3, to: 1, kind: 'activity' }], mode: 'x' });
+  assert.equal(bad.mk, null);
+  assert.equal(bad.mode, 'pred');
+  // Con un enunciado de la herramienta, la tabla y los subrayados siguen empezando vacíos.
+  const tool = S.reduce(s0(), { type: 'm0', st: 'ej2', rows, marks });
+  assert.equal(tool.t, null); assert.equal(tool.mk, null);
+});
