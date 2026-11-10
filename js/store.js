@@ -12,6 +12,7 @@
 
   const SETTABLE = {
     view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'], box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: [0, 1], min: [0, 1],
+    tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: [0, 1],   // F2c: M0
   };
   // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
   const VIEW_OK = { aon: ['net', 'matrix'], aoa: ['net', 'side', 'cmp', 'reto'] };   // el comparador y el reto también son de la PERT (F2b)
@@ -57,6 +58,23 @@
         s.step = Number.isInteger(action.step) && action.step >= 0 ? action.step : 0;
         break;
       case 'route': s.v = 'route'; s.step = 0; break;
+      // F2c: M0 con un enunciado de la herramienta, o con uno propio si llega su definición; tabla y subrayados vacíos.
+      case 'm0': {
+        const own = action.st === 'own' && action.own && typeof action.own.text === 'string';
+        s.v = 'm0'; s.ex = null; s.step = 0; s.t = null; s.mk = null; s.wi = null;
+        if (own) { s.st = 'own'; s.own = action.own; } else {
+          s.own = null;
+          if (U.STATEMENTS.includes(action.st)) s.st = action.st; else if (!U.STATEMENTS.includes(s.st)) s.st = U.DEFAULT_ST;
+        }
+        s.mm = SETTABLE.mm.includes(action.mm) ? action.mm : 'practice';
+        break;
+      }
+      case 'marks': {
+        if (action.value === null || (Array.isArray(action.value) && !action.value.length)) { s.mk = null; break; }
+        const mk = U.cleanMarks(action.value);
+        if (mk) s.mk = mk;
+        break;
+      }
       case 'work':
         s.v = 'work'; s.ex = null; s.step = 0; s.wi = null;
         s.t = (action.rows || []).map((r) => Object.assign({}, r));

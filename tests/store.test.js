@@ -166,3 +166,41 @@ test('F2b (T021): el reto es una vista de la red PERT; la red del alumno se camb
   assert.equal(S.reduce(s, { type: 'example', id: 'ej1' }, 32).sn, null, 'la red era de otra tabla');
   assert.deepEqual(S.reduce(s, { type: 'example', id: 'nope' }, 32).sn, sn);
 });
+
+// ── F2c (T007): M0 ─────────────────────────────────────────────────────────────────────────────────────────
+test('F2c: entrar en M0 con un enunciado deja la tabla y los subrayados vacíos y la práctica en el paso 0', () => {
+  let s = Object.assign(s0(), { step: 9, t: [{ id: 'A', name: '', duration: '1', links: '' }], ex: null });
+  s = S.reduce(s, { type: 'm0', st: 'ej2' });
+  assert.equal(s.v, 'm0'); assert.equal(s.st, 'ej2'); assert.equal(s.step, 0);
+  assert.equal(s.t, null); assert.equal(s.mk, null); assert.equal(s.mm, 'practice'); assert.equal(s.own, null);
+  assert.equal(S.reduce(s, { type: 'm0', st: 'nada' }).st, 'ej2');
+  assert.equal(S.reduce(s0(), { type: 'm0' }).st, 'ej5');
+});
+
+test('F2c: enunciado propio en M0', () => {
+  const own = { lang: 'en', text: 'A then B.', frags: [], ref: null };
+  const s = S.reduce(s0(), { type: 'm0', st: 'own', own, mm: 'prepare' });
+  assert.equal(s.st, 'own'); assert.deepEqual(s.own, own); assert.equal(s.mm, 'prepare');
+  assert.equal(S.reduce(s0(), { type: 'm0', st: 'own' }).st, 'ej5');   // sin enunciado no hay «own»
+});
+
+test('F2c: vista, modo y solución de M0 con lista blanca', () => {
+  let s = S.reduce(s0(), { type: 'm0', st: 'ej5' });
+  s = S.reduce(s, { type: 'set', key: 'tv', value: 'matrix' });
+  s = S.reduce(s, { type: 'set', key: 'mm', value: 'route' });
+  s = S.reduce(s, { type: 'set', key: 'sol', value: 1 });
+  assert.deepEqual([s.tv, s.mm, s.sol], ['matrix', 'route', 1]);
+  s = S.reduce(s, { type: 'set', key: 'tv', value: 'grid' });
+  assert.equal(s.tv, 'matrix');
+});
+
+test('F2c: subrayados del alumno válidos, o nada', () => {
+  const marks = [{ from: 0, to: 2, kind: 'activity', act: 'A' }, { from: 3, to: 3, kind: 'precedence', gives: [['A', 'B']] }];
+  let s = S.reduce(s0(), { type: 'marks', value: marks });
+  assert.deepEqual(s.mk, marks);
+  assert.notEqual(s.mk, marks);
+  s = S.reduce(s, { type: 'marks', value: [{ from: 3, to: 1, kind: 'activity' }] });
+  assert.deepEqual(s.mk, marks);
+  assert.equal(S.reduce(s, { type: 'marks', value: null }).mk, null);
+  assert.equal(S.reduce(s, { type: 'marks', value: [] }).mk, null);
+});

@@ -224,3 +224,121 @@ test('F2b: los enlaces de la F1 y la F2a decodifican igual (con los valores por 
   assert.deepEqual([state.m, state.ms, state.pair, state.sn], ['rules', ['prog', 'rules', 'min'], null, null]);
 });
 
+
+// ── F2c (T007): M0, del enunciado a la tabla ────────────────────────────────────────────────────────────────
+const MARKS = [
+  { from: 0, to: 2, kind: 'activity', act: 'A' },
+  { from: 4, to: 5, kind: 'duration', act: 'A', value: 2.5 },
+  { from: 7, to: 15, kind: 'precedence', gives: [['A', 'B'], ['A', 'C']] },
+  { from: 16, to: 20, kind: 'none' },
+  { from: 21, to: 24, kind: 'precedence', gives: [['B', 'D'], ['C', 'D']], decl: { end: 'end', act: 'D' } },
+];
+const M0ROWS = [{ id: 'A', name: 'Pintar', duration: '2,5', links: '' }, { id: 'B', name: '', duration: '3', links: 'A' }];
+const OWN = { lang: 'es', text: 'A) Pintar «las paredes». B) Suelo, después de A. <script>alert(1)</script> javascript:x \u0007',
+  frags: [{ from: 0, to: 1, kind: 'activity', act: 'A' }, { from: 4, to: 6, kind: 'precedence', gives: [['A', 'B']] },
+    { from: 2, to: 3, kind: 'end', act: 'B', gives: [['A', 'B']] }, { from: 7, to: 8, kind: 'duration', act: 'A', value: 3 }],
+  ref: { mode: 'succ', rows: [{ id: 'A', duration: '3', links: 'B', name: 'Pintar' }, { id: 'B', duration: '', links: '', name: 'Suelo' }] } };
+
+test('F2c: los valores por defecto de M0 no cambian el estado por defecto', () => {
+  const d = U.defaults();
+  assert.equal(d.st, null); assert.equal(d.own, null); assert.equal(d.mk, null);
+  assert.equal(d.tv, 'list'); assert.equal(d.mm, 'practice'); assert.equal(d.sol, 0);
+  assert.ok(U.STATEMENTS.includes('ej5'));
+});
+
+test('F2c: ida y vuelta de M0 con un enunciado de la herramienta, la tabla del alumno y sus subrayados', () => {
+  const s = Object.assign(U.defaults(), { v: 'm0', st: 'ej5', ex: null, t: M0ROWS, mode: 'pred', mk: MARKS, tv: 'matrix', mm: 'route', step: 4, pred: 1, lang: 'en' });
+  const h = U.encode(s);
+  assert.doesNotMatch(h, /[&#]ex=/);
+  const out = U.decode(h);
+  assert.equal(out.warning, undefined);
+  assert.deepEqual(out.state, s);
+});
+
+test('F2c: los parámetros de M0 solo se escriben si no valen lo de siempre', () => {
+  const h = U.encode(Object.assign(U.defaults(), { v: 'm0', st: 'ej1', ex: null }));
+  assert.match(h, /st=ej1/);
+  for (const k of ['tv', 'mm', 'sol', 'mk', 'own']) assert.doesNotMatch(h, new RegExp(`[&#]${k}=`));
+  assert.doesNotMatch(U.encode(U.defaults()), /[&#](st|tv|mm|sol|mk|own)=/);
+  const out = U.decode(h);
+  assert.equal(out.state.st, 'ej1');
+  assert.equal(out.state.t, null);
+  // M0 sin enunciado abre Electrona
+  assert.equal(U.decode('#v=m0').state.st, 'ej5');
+});
+
+test('F2c: enunciado propio — el enunciado, la tabla y los subrayados viajan en un solo paquete', () => {
+  const s = Object.assign(U.defaults(), { v: 'm0', st: 'own', ex: null, own: OWN, t: M0ROWS, mode: 'succ', mk: MARKS.slice(0, 2), sol: 1 });
+  const h = U.encode(s);
+  assert.match(h, /[&#]own=[A-Za-z0-9_-]+/);
+  assert.doesNotMatch(h, /[&#](t|mk)=/);
+  const out = U.decode(h);
+  assert.equal(out.warning, undefined);
+  assert.deepEqual(out.state, s);
+  assert.equal(out.state.own.text, OWN.text);   // el texto malicioso vuelve como texto, sin tocar
+});
+
+test('F2c: enunciado propio sin tabla del docente ni del alumno', () => {
+  const s = Object.assign(U.defaults(), { v: 'm0', st: 'own', ex: null, own: Object.assign({}, OWN, { ref: null }), mm: 'prepare' });
+  assert.deepEqual(U.decode(U.encode(s)).state, s);
+});
+
+test('F2c: lista blanca — enunciado desconocido, subrayados mal formados y paquetes rotos o fuera de límites', () => {
+  const bad = (h) => { const o = U.decode(h); assert.equal(o.warning, 'malformed', h); return o.state; };
+  assert.equal(bad('#v=m0&st=ej99').st, 'ej5');
+  assert.equal(bad('#v=m0&st=ej5&mk=1-2:x').mk, null);
+  assert.equal(bad('#v=m0&st=ej5&mk=5-2:a:A').mk, null);
+  assert.equal(bad('#v=m0&st=ej5&mk=1-2:a:a%3Cb').mk, null);
+  assert.equal(bad('#v=m0&st=ej5&mk=1-2:p::A%3CB%2BC:q').mk, null);
+  assert.equal(bad(`#v=m0&st=ej5&mk=${Array(201).fill('1-2:n').join(',')}`).mk, null);
+  assert.equal(bad('#v=m0&st=own&own=!!!').own, null);
+  assert.equal(bad('#v=m0&st=own&own=AAAA').own, null);
+  assert.equal(bad('#v=m0&st=own').st, 'ej5');
+  const long = Object.assign({}, OWN, { text: 'x'.repeat(3001) });
+  assert.equal(bad(U.encode(Object.assign(U.defaults(), { v: 'm0', st: 'own', ex: null, own: long }))).own, null);
+  assert.equal(bad('#v=m0&tv=grid').tv, 'list');
+  assert.equal(bad('#v=m0&mm=exam').mm, 'practice');
+  assert.equal(bad('#v=m0&sol=2').sol, 0);
+});
+
+// Caso peor de la puerta T002: 3000 caracteres, 60 fragmentos, referencia y tabla del alumno de 30 filas, 60 subrayados.
+function worst() {
+  let r = 7; const rnd = () => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r / 4294967296; };
+  const vocab = ('el la los las de del que y en a se por con para una un su al lo como más pero sus le ya o fue este ha sí porque esta son '
+    + 'entre cuando muy sin sobre también me hasta hay donde quien desde todo nos durante todos uno les ni contra otros ese eso ante '
+    + 'actividad actividades proyecto empieza termina antes después precede sigue paralelo último primero fabricar ensamblar transportar '
+    + 'componente materiales maquinaria pintar suelo paredes cuadros limpiar montar revisar entregar comprar instalar probar diseñar '
+    + 'preparar contratar personal obra solar cimientos estructura cerramiento accesos carpintería pagar excavar nave almacén congreso '
+    + 'sala ponentes programa inscripciones catering mudanza laboratorio cajas equipos inventario lanzamiento producto campaña precio').split(' ');
+  let text = '';
+  while (text.length < 3000) text += vocab[Math.floor(rnd() * vocab.length)] + (rnd() < 0.1 ? '. ' : ' ');
+  text = text.slice(0, 3000);
+  const ids = [...Array(30)].map((_, i) => (i < 26 ? String.fromCharCode(65 + i) : `A${i - 25}`));
+  const frags = [...Array(60)].map((_, i) => (i % 3 ? { from: i * 7, to: i * 7 + 4, kind: 'precedence', gives: [[ids[i % 29], ids[(i % 29) + 1]], [ids[(i + 3) % 29], ids[((i + 3) % 29) + 1]]] }
+    : { from: i * 7, to: i * 7 + 4, kind: 'activity', act: ids[i % 30] }));
+  const rows = ids.map((id, i) => ({ id, duration: String(1 + (i % 9)), links: [ids[(i + 1) % 30], ids[(i + 2) % 30]].join(', '), name: `Actividad número ${i + 1} del proyecto` }));
+  return Object.assign(U.defaults(), { v: 'm0', st: 'own', ex: null, lang: 'es', mode: 'pred',
+    own: { lang: 'es', text, frags, ref: { mode: 'pred', rows } }, t: rows, mk: frags.map((f) => Object.assign({}, f, { kind: f.kind })) });
+}
+
+test('F2c: el caso peor de la puerta T002 cabe en 6500 caracteres y vuelve igual', () => {
+  const s = worst();
+  const h = U.encode(s);
+  assert.ok(h.length <= 6500, `${h.length}`);
+  assert.deepEqual(U.decode(h).state, s);
+});
+
+test('F2c: encodeSafe nunca pasa de 8000 (incluido el caso apuntado de la F2b)', () => {
+  const ok = Object.assign(U.defaults(), { step: 3 });
+  assert.deepEqual(U.encodeSafe(ok), { hash: U.encode(ok), length: U.encode(ok).length });
+  // F2b: 30 actividades con nombres de 80 caracteres y una red del alumno grande.
+  const rows = [...Array(30)].map((_, i) => ({ id: `A${i}`, name: 'ñ'.repeat(80), duration: '1', links: i ? `A${i - 1}` : '' }));
+  const events = [...Array(100)].map((_, i) => ({ id: i, n: i, x: 1000 + i, y: 2000 + i }));
+  const sn = { events, arcs: rows.map((r, i) => ({ act: r.id, from: i, to: i + 1 })), dummies: [...Array(60)].map((_, i) => ({ from: i, to: i + 2 })) };
+  const big = Object.assign(U.defaults(), { v: 'work', ex: null, t: rows, graph: 'aoa', view: 'reto', sn });
+  assert.ok(U.encode(big).length > U.LIMITS.hash);
+  const r = U.encodeSafe(big);
+  assert.equal(r.hash, null);
+  assert.equal(r.reason, 'tooLong');
+  assert.ok(r.length > U.LIMITS.hash);
+});
