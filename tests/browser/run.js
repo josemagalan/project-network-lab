@@ -977,7 +977,7 @@ check('AC14 · con el teclado se alcanza todo, el foco se ve y cada red tiene su
     if (f.id) reached.add(f.id);
     assert.ok(f.style !== 'none' && f.w >= 2, `foco invisible en #${f.id}`);
   }
-  for (const id of ['brandLink', 'navRoute', 'navWork', 'selLang', 'selNota', 'selBox', 'btnNet', 'btnMatrix', 'btnTable', 'chkPredict', 'btnWhatIf', 'btnLearn', 'btnNext', 'btnPlay']) {
+  for (const id of ['brandLink', 'navM0', 'navRoute', 'navWork', 'selLang', 'selNota', 'selBox', 'btnNet', 'btnMatrix', 'btnTable', 'chkPredict', 'btnWhatIf', 'btnLearn', 'btnNext', 'btnPlay']) {
     assert.ok(reached.has(id), `#${id} no se alcanza con Tab`);
   }
   await page.locator('#btnTable').focus();
@@ -2408,6 +2408,98 @@ check('F2c AC18 · axe sin violaciones en M0 (practicar, subrayar, panel, matriz
         await axe(page, `M0 · ${name} (${lang}, ${scheme})`);
         await close(page);
       }
+    }
+  }
+});
+
+// ---------- F2c, T020: publicación del hito 1 (pestaña, portada, taller y enunciados nuevos) ----------
+
+check('F2c T020 · P10: la pestaña «Del enunciado a la tabla» va la primera de la barra y abre practicar; las otras dos siguen igual', async () => {
+  for (const [lang, label] of [['es', 'Del enunciado a la tabla'], ['en', 'From statement to table']]) {
+    const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
+    const tabs = await page.locator('header nav a').allInnerTexts();
+    assert.deepEqual(tabs.map((x) => x.trim())[0], label);
+    assert.equal(tabs.length, 3);
+    assert.equal(await page.locator('#navM0').getAttribute('aria-current'), 'false');
+    await page.locator('#navM0').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0.state().st);
+    const s = await state(page);
+    assert.deepEqual([s.st, s.mm, s.t, s.lang], ['ej5', 'practice', null, lang]);
+    assert.equal(await page.locator('#navM0').getAttribute('aria-current'), 'page');
+    assert.equal(await page.locator('#navRoute').getAttribute('aria-current'), 'false');
+    assert.match(await page.locator('#navM0').getAttribute('href'), /^#v=m0/);
+    // «Atrás» vuelve a la ruta donde estaba.
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().v === 'route' && PNL.app.state().step === 3);
+    // Desde M0, la ruta guiada y el taller.
+    await page.goForward();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0');
+    await page.locator('#navRoute').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'route');
+    await page.locator('#navM0').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0');
+    await page.locator('#navWork').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'work');
+    await close(page);
+  }
+});
+
+check('F2c T020 · AC20: la tarjeta M0 de la portada está disponible y abre practicar en el idioma elegido', async () => {
+  const noJs = await open('index.html', { js: false });
+  assert.equal(await noJs.locator('a[data-lab="m0"]').getAttribute('href'), 'cpm.html#v=m0&st=ej5&lang=es');
+  await close(noJs);
+  const portal = await open('index.html?lang=en');
+  const card = portal.locator('article.module-card').filter({ has: portal.locator('.card-num', { hasText: 'M0' }) });
+  assert.match(await card.innerText(), /Practise with a statement[\s\S]*Available/);
+  await card.locator('a[data-lab="m0"]').click();
+  await portal.waitForFunction(() => window.PNL && PNL.m0 && PNL.m0.state && PNL.m0.state() && PNL.m0.state().st === 'ej5');
+  assert.equal((await state(portal)).lang, 'en');
+  await close(portal);
+  for (const [scheme, width] of [['light', 1280], ['dark', 360]]) {
+    const home = await open('index.html?lang=es', { scheme, width, height: 800 });
+    assert.ok(await noHScroll(home), `portada a ${width} px`);
+    await axe(home, `portada con M0 disponible (${scheme}, ${width} px)`);
+    await home.locator('a[data-lab="m0"]').scrollIntoViewIfNeeded();
+    await shot(home, `f2c-portada-m0-${scheme}-${width}`);
+    await close(home);
+  }
+});
+
+check('F2c T020 · el taller lleva a practicar desde un enunciado y «Atrás» devuelve su tabla', async () => {
+  for (const [lang, label] of [['es', 'Practicar desde un enunciado (M0)'], ['en', 'Practise from a statement (M0)']]) {
+    const page = await workshop([R('A', 2), R('B', 3, 'A')], { lang });
+    const btn = page.locator('#workshop .work-tools button', { hasText: label });
+    assert.equal(await btn.count(), 1);
+    await btn.click();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0.state().st);
+    assert.deepEqual((await m0st(page)).rows, [], 'practicar empieza con su propia tabla vacía');
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().v === 'work');
+    assert.deepEqual((await state(page)).t.map((r) => r.id), ['A', 'B']);
+    if (lang === 'es') await shot(page, 'f2c-taller-entrada-m0');
+    await close(page);
+  }
+});
+
+check('F2c T020 · AC11: los once enunciados están en el selector, y los nuevos se practican y corrigen como los de los apuntes', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await m0Lab({ lang });
+    const opts = await page.locator('#m0St option').allInnerTexts();
+    assert.equal(opts.length, 11);
+    assert.ok(opts.includes(lang === 'es' ? 'Reforma de la cocina' : 'Kitchen refit'), opts.join(' | '));
+    await page.selectOption('#m0St', 'lanzamiento');
+    await page.waitForFunction(() => PNL.m0.state().st === 'lanzamiento');
+    const ref = await page.evaluate(() => PNL.statements.get('lanzamiento').ref.rows.map((r) => ({ id: r.id, name: '', duration: String(r.duration == null ? '' : r.duration), links: r.links })));
+    await page.evaluate((h) => { location.hash = h; }, U0.encode(Object.assign(U0.defaults(), { v: 'm0', st: 'lanzamiento', lang, t: ref })));
+    await page.waitForFunction((n) => PNL.m0.state().rows.length === n, ref.length);
+    assert.equal((await m0Check(page)).ok, true);
+    await close(page);
+  }
+  for (const [width, lang] of [[360, 'es'], [360, 'en'], [1280, 'es']]) {
+    for (const url of [`cpm.html#v=m0&st=ej5&lang=${lang}`, `cpm.html#v=route&ex=ej6&step=0&lang=${lang}`, `cpm.html#v=work&lang=${lang}`]) {
+      const page = await open(url, { width, height: 740 });
+      assert.ok(await noHScroll(page), `${url} a ${width} px: la barra con tres pestañas no desborda`);
+      await close(page);
     }
   }
 });

@@ -124,6 +124,16 @@
 
   function resetPred() { pred = { step: state.step, answers: new Map(), result: null, done: false }; }
 
+  // Entrada a M0 desde la barra o el taller (T020): practicar con el enunciado de antes, o Electrona, y la tabla vacía.
+  const m0Entry = () => (state.v === 'm0' ? Object.assign({}, state, { mm: 'practice', step: 0 }) : S.reduce(state, { type: 'm0', st: state.st, mm: 'practice' }, 1));
+  function toM0() {
+    stopPlay();
+    // Ya en M0: de la ruta paso a paso vuelve a practicar sin perder la tabla.
+    if (state.v === 'm0') { if (state.mm !== 'practice') { dispatch({ type: 'set', key: 'mm', value: 'practice' }); dispatch({ type: 'first' }); } return; }
+    dispatch({ type: 'm0', st: state.st, mm: 'practice' });
+    window.scrollTo(0, 0);
+  }
+
   function dispatch(action, opts) {
     const before = state;
     state = S.reduce(state, action, total());
@@ -173,8 +183,10 @@
     $('selLang').value = lang();
     $('selNota').value = state.nota;
     $('selBox').value = state.box;
+    $('navM0').setAttribute('aria-current', state.v === 'm0' ? 'page' : 'false');
     $('navRoute').setAttribute('aria-current', state.v === 'route' ? 'page' : 'false');
     $('navWork').setAttribute('aria-current', state.v === 'work' ? 'page' : 'false');
+    $('navM0').href = U.encode(m0Entry());
     $('navRoute').href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: state.ex || 'ej6', step: 0, wi: null }));
     $('navWork').href = U.encode(Object.assign({}, state, { v: 'work', step: 0 }));
     $('brandLink').href = `index.html?lang=${lang()}`;
@@ -867,6 +879,8 @@
     $('btnWhatIf').addEventListener('click', () => { whatIfOpen = !whatIfOpen; render(); });
     $('btnLearn').addEventListener('click', () => (prog() ? openMethodLearn('prog') : openLearn()));
     $('btnLearnClose').addEventListener('click', () => $('learnDialog').close());
+    // F2c, T020 (P10): la pestaña de M0 abre practicar con el enunciado de antes (o Electrona) y su tabla vacía.
+    $('navM0').addEventListener('click', (e) => { e.preventDefault(); toM0(); });
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
     document.addEventListener('keydown', (e) => {
@@ -928,6 +942,7 @@
         dispatch({ type: 'work', rows, mode });
       },
       toggleComputed: (v) => { showComputed = v; render(); },
+      toM0,
       goStage: (where) => {
         // «Comparar métodos» (T024) y «Reto de ficticias» (T026) se abren sobre la red PERT de la tabla.
         if (where === 'cmp' || where === 'reto') {

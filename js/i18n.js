@@ -25,7 +25,7 @@
         structureOnlyWarning: 'Este ejemplo solo tiene precedencias, sin duraciones: se abre en la red PERT, donde se recorre su construcción.',
         footer: 'Código con licencia MIT · contenido docente CC BY 4.0 · Universidad de Burgos',
       },
-      nav: { label: 'Secciones', route: 'Ruta guiada', work: 'Taller', home: 'Portada del laboratorio' },
+      nav: { label: 'Secciones', m0: 'Del enunciado a la tabla', route: 'Ruta guiada', work: 'Taller', home: 'Portada del laboratorio' },
       ctl: {
         lang: 'Idioma', nota: 'Notación', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Caja', box4: '4 campos', box7: '7 campos', boxc: 'Compacta',
@@ -247,6 +247,7 @@
         redundant: 'Fila {row} · {a} → {b} sobra: {a} ya precede a {b} por otro camino. No cambia los resultados.',
       },
       work: {
+        toM0: 'Practicar desde un enunciado (M0)',
         example: 'Cargar un ejemplo', choose: '— Elige un ejemplo —', paste: 'Pegar desde una hoja de cálculo',
         pasteHint: 'Pega aquí las filas (actividad, nombre, duración, precedencias) y pulsa Añadir.',
         pasteApply: 'Añadir', clear: 'Vaciar', add: '+ Añadir actividad', remove: 'Quitar la fila', modeLegend: 'Escribe las precedencias como',
@@ -344,7 +345,7 @@
         structureOnlyWarning: 'This example only has precedences, no durations: it opens in the activity-on-arrow network, where you can follow its construction.',
         footer: 'Code under the MIT licence · teaching content CC BY 4.0 · University of Burgos',
       },
-      nav: { label: 'Sections', route: 'Guided tour', work: 'Workshop', home: 'Lab home page' },
+      nav: { label: 'Sections', m0: 'From statement to table', route: 'Guided tour', work: 'Workshop', home: 'Lab home page' },
       ctl: {
         lang: 'Language', nota: 'Notation', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Node box', box4: '4 fields', box7: '7 fields', boxc: 'Compact',
@@ -565,6 +566,7 @@
         redundant: 'Row {row} · {a} → {b} is redundant: {a} already precedes {b} through another path. It does not change the results.',
       },
       work: {
+        toM0: 'Practise from a statement (M0)',
         example: 'Load an example', choose: '— Choose an example —', paste: 'Paste from a spreadsheet',
         pasteHint: 'Paste the rows here (activity, name, duration, precedences) and press Add.',
         pasteApply: 'Add', clear: 'Clear', add: '+ Add activity', remove: 'Remove row', modeLegend: 'Write the precedences as',

@@ -107,6 +107,7 @@ h1 .accent { color: var(--accent); }
 .module-card .topics, .topics { font-size: 12px; color: var(--accent); }
 .card-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line-2); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .card-foot.plain { border-top: 0; padding-top: 4px; }
+.card-foot > .ok:last-child { margin-left: auto; }  /* si el botón ocupa la línea, «Disponible» baja a la derecha (M0, T020) */
 .ok { font-size: 12px; font-weight: 700; color: var(--ok); background: var(--ok-soft); padding: 4px 10px; border-radius: 999px; }
 .soon { display: inline-flex; align-items: center; min-height: 36px; padding: 6px 12px; border-radius: 6px; border: 1px dashed var(--soon-line); color: var(--muted); font-size: 13px; font-weight: 600; }
 

@@ -133,3 +133,10 @@ test('F2c (T017): textos de la ruta paso a paso de M0 en los dos idiomas', () =>
     for (const k of ['text', 'hidden', 'activity', 'activityGives', 'duration', 'gives', 'redundantOne', 'redundantSome', 'none', 'clean', 'cleanSame', 'learnTitle']) assert.ok(d.m0Narr[k], `${lang}.m0Narr.${k}`);
   }
 });
+
+test('F2c T020: la pestaña de M0 y la entrada desde el taller, en los dos idiomas', () => {
+  assert.equal(I.t('es', 'nav.m0'), 'Del enunciado a la tabla');
+  assert.equal(I.t('en', 'nav.m0'), 'From statement to table');
+  assert.equal(I.t('es', 'work.toM0'), 'Practicar desde un enunciado (M0)');
+  assert.equal(I.t('en', 'work.toM0'), 'Practise from a statement (M0)');
+});

@@ -113,6 +113,8 @@
           h('label', { class: 'small' }, [t('work.example'), ' ', exSelect]),
           h('button', { type: 'button', class: 'ghost', onclick: () => { pasteBox.hidden = !pasteBox.hidden; if (!pasteBox.hidden) pasteArea.focus(); } }, [t('work.paste')]),
           h('button', { type: 'button', class: 'ghost', onclick: () => hooks.dispatch({ type: 'table', rows: [] }, {}) }, [t('work.clear')]),
+          // F2c, T020: entrada a M0 (practicar desde un enunciado), con su propia tabla; «Atrás» vuelve al taller.
+          hooks.toM0 ? h('button', { type: 'button', class: 'ghost', onclick: () => hooks.toM0() }, [t('work.toM0')]) : null,
         ]),
         pasteBox,
         h('fieldset', { class: 'mode' }, [h('legend', {}, [t('work.modeLegend')]), radio('pred', t('work.modePred')), radio('succ', t('work.modeSucc')),

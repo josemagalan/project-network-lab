@@ -19,10 +19,10 @@
       nodeStart: 'Inicio', nodeEnd: 'Fin', heroCaption: 'Camino crítico B → E → I → J → K · 13 días',
       modulesTitle: 'Ocho módulos. Una misma red.', modulesNote: 'Abiertos · Interactivos · ES / EN',
       groupKnown: 'Del enunciado al camino crítico · duraciones conocidas', groupUncertain: 'Cuando las duraciones son inciertas',
-      available: 'Disponible', soonPhase2: 'Fase 2 · en preparación', soonPhase3: 'Fase 3 · en preparación', soonPhase4: 'Fase 4 · en preparación', soonManual: 'En preparación',
+      available: 'Disponible', soonPhase3: 'Fase 3 · en preparación', soonPhase4: 'Fase 4 · en preparación', soonManual: 'En preparación',
       m0Question: '¿Qué hay que hacer y en qué orden?', m0Title: 'Del enunciado a la tabla',
       m0Desc: 'Convierte un enunciado en actividades, duraciones y precedencias. Aprende a detectar las precedencias redundantes antes de dibujar.',
-      m0Topics: 'Actividades · Precedencias · Redundancias',
+      m0Topics: 'Actividades · Precedencias · Redundancias', m0Open: 'Practicar con un enunciado',
       m1Question: '¿Cómo se dibuja el proyecto?', m1Title: 'Red ROY',
       m1Desc: 'Construye la red nivel a nivel a partir de la tabla, con la matriz de encadenamiento al lado y la caja de nodo que uses en clase.',
       m1Topics: 'Actividad en nodo · Niveles · Matriz · 3 formatos de caja', m1Open: 'Abrir red ROY',
@@ -95,10 +95,10 @@
       nodeStart: 'Start', nodeEnd: 'End', heroCaption: 'Critical path B → E → I → J → K · 13 days',
       modulesTitle: 'Eight modules. One network.', modulesNote: 'Open · Interactive · ES / EN',
       groupKnown: 'From the problem statement to the critical path · known durations', groupUncertain: 'When durations are uncertain',
-      available: 'Available', soonPhase2: 'Phase 2 · in preparation', soonPhase3: 'Phase 3 · in preparation', soonPhase4: 'Phase 4 · in preparation', soonManual: 'In preparation',
+      available: 'Available', soonPhase3: 'Phase 3 · in preparation', soonPhase4: 'Phase 4 · in preparation', soonManual: 'In preparation',
       m0Question: 'What has to be done, and in what order?', m0Title: 'From statement to table',
       m0Desc: 'Turn a problem statement into activities, durations and precedences. Learn to spot redundant precedences before drawing.',
-      m0Topics: 'Activities · Precedences · Redundancies',
+      m0Topics: 'Activities · Precedences · Redundancies', m0Open: 'Practise with a statement',
       m1Question: 'How is the project drawn?', m1Title: 'Activity-on-node network',
       m1Desc: 'Build the network level by level from the table, with the precedence matrix alongside and the node box you use in class.',
       m1Topics: 'Activity on node · Levels · Matrix · 3 node boxes', m1Open: 'Open activity on node',
@@ -175,7 +175,7 @@
   // M2 abre el paso 0 de la traza de la red PERT (tabla de posteriores), con graph=aoa (F2a, AC14); sus otros
   // dos enlaces, el comparador de métodos (F2b, T024) y el reto de ficticias (T026).
   const TARGETS = {
-    route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
+    m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
     m4: 'v=route&ex=ej6&step=26', work: 'v=work',
   };
 

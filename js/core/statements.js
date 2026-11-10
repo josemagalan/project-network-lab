@@ -6,7 +6,7 @@
  * precedencias, ninguna, inicio o final). ref es la tabla de referencia: la del ejemplo de la F1/F2a cuando
  * el enunciado es un ejercicio ya resuelto (example), o la validada por el autor (Electrona, 2026-11-10).
  * Los siete primeros son la hoja de ejercicios del Tema 6 del autor (el texto español es el de la hoja); los
- * cuatro siguientes, escritos para la herramienta, cubren los tipos de frase de la spec (ocultos hasta T020).
+ * cuatro siguientes, escritos para la herramienta, cubren los tipos de frase de la spec (visibles desde T020).
  * La herramienta no deduce nada del texto: las precedencias de cada fragmento están escritas aquí.
  */
 (function (root) {
@@ -204,7 +204,7 @@
 
   // ── 1. Reforma de la cocina: prosa sin letras ───────────────────────────────────────────────────────────────
   const cocina = {
-    id: 'cocina', structureOnly: false, unit: DAYS, source: SRC_LAB, hidden: true,
+    id: 'cocina', structureOnly: false, unit: DAYS, source: SRC_LAB,
     title: { es: 'Reforma de la cocina', en: 'Kitchen refit' },
     text: {
       es: ['Ana va a reformar la cocina de su piso. Para empezar hay que ', ['aA', 'desmontar la cocina vieja'], ', lo que lleva ', ['dA', '2 días'], '. ',
@@ -255,7 +255,7 @@
 
   // ── 2. Congreso: lista con letras, frases en los dos sentidos, inicio, final y una trampa de lectura ───────
   const congreso = {
-    id: 'congreso', structureOnly: true, unit: null, source: SRC_LAB, hidden: true,
+    id: 'congreso', structureOnly: true, unit: null, source: SRC_LAB,
     title: { es: 'Organizar un congreso', en: 'Organising a conference' },
     text: {
       es: ['Un departamento organiza un congreso. Estas son las tareas:\n',
@@ -299,7 +299,7 @@
 
   // ── 3. Mudanza de un laboratorio: letras entre paréntesis, «empieza cuando acaban», redundancia y distractor ─
   const mudanza = {
-    id: 'mudanza', structureOnly: false, unit: DAYS, source: SRC_LAB, hidden: true,
+    id: 'mudanza', structureOnly: false, unit: DAYS, source: SRC_LAB,
     title: { es: 'Mudanza de un laboratorio', en: 'Moving a laboratory' },
     text: {
       es: ['Un grupo de investigación cambia de edificio. Primero hay que ', ['aA', 'hacer el inventario de los equipos'], ' (A, ', ['dA', '3 días'], '). ',
@@ -349,7 +349,7 @@
 
   // ── 4. Lanzamiento de un producto: «lo primero», «debe estar terminado antes de», «sin saber», «lo último» ──
   const lanzamiento = {
-    id: 'lanzamiento', structureOnly: false, unit: { es: 'semanas', en: 'weeks' }, source: SRC_LAB, hidden: true,
+    id: 'lanzamiento', structureOnly: false, unit: { es: 'semanas', en: 'weeks' }, source: SRC_LAB,
     title: { es: 'Lanzamiento de un producto', en: 'Product launch' },
     text: {
       es: ['Una empresa prepara el lanzamiento de un producto. Las tareas y su duración, en semanas, son:\n',

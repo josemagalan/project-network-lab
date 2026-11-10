@@ -96,18 +96,17 @@ test('los enunciados de los apuntes reconstruyen exactamente su texto y sus frag
   }
 });
 
-// ── T013: enunciados nuevos (aprobados por el autor el 2026-11-10; ocultos hasta T020) ─────────────────────────
+// ── T013: enunciados nuevos (aprobados por el autor el 2026-11-10; visibles desde T020, publicación del hito 1) ──
 const NUEVOS = ['cocina', 'congreso', 'mudanza', 'lanzamiento'];
 const edgesOf = (p) => p.activities.flatMap((a) => p.preds[a.id].map((x) => [x, a.id]));
 
-test('los enunciados nuevos están, ocultos, y la revisión estricta no les encuentra problemas', () => {
-  const all = ST.list({ all: true }).map((s) => s.id);
+test('T020 · los enunciados nuevos están, visibles después de los de los apuntes, y la revisión estricta no les encuentra problemas', () => {
   for (const id of NUEVOS) {
-    assert.ok(all.includes(id), id);
-    assert.equal(ST.get(id).hidden, true);
+    assert.ok(!ST.get(id).hidden, id);
     assert.deepEqual(S.validate(ST.get(id), { strict: true }), [], id);
   }
-  assert.deepEqual(ST.list().map((s) => s.id).filter((id) => NUEVOS.includes(id)), []);
+  assert.deepEqual(ST.list().map((s) => s.id), ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', ...NUEVOS]);
+  assert.deepEqual(ST.list(), ST.list({ all: true }));
 });
 
 test('entre todos cubren los tipos de frase de la spec (AC11)', () => {
