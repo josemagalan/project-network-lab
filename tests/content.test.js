@@ -1071,3 +1071,13 @@ test('T017: «Aprende más» de M0: precedencias inmediatas, transitivas y redun
   }
   assert.equal(LR0.topics.m0.es.length, LR0.topics.m0.en.length);
 });
+
+const I18N = require('../js/i18n.js');
+test('T024: «Aprende más» de M0 explica el enunciado propio con los nombres de sus botones y dice que no es un modo examen', () => {
+  const want = { es: [/modo examen/, /sin servidor/], en: [/exam mode/, /no server/] };
+  for (const lang of ['es', 'en']) {
+    const last = LR0.topics.m0[lang][LR0.topics.m0[lang].length - 1];
+    for (const key of ['m0.prepare', 'm0.prep.copyStudent', 'm0.prep.copySolution']) assert.ok(last.includes(I18N.t(lang, key)), `${lang}: ${key}`);
+    for (const re of want[lang]) assert.match(last, re, `${lang}: ${re}`);
+  }
+});

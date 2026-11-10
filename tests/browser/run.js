@@ -2752,10 +2752,31 @@ check('F2c AC16 y AC18 · preparar a 1280×720 (texto y tabla a la vez) y a 360 
   }
 });
 
-check('F2c T022 · «Preparar un enunciado» aún no está en la barra con los enunciados de la herramienta (llega con T024)', async () => {
-  const page = await m0Lab({});
-  assert.ok(await page.locator('#m0Prepare').isHidden());
-  await close(page);
+check('F2c T024 · «Preparar un enunciado» está en la barra de M0: abre el cuadro vacío en el idioma de la página, «Atrás» vuelve y «Aprende más» dice que no es un modo examen', async () => {
+  for (const lang of ['es', 'en']) {
+    const es = lang === 'es';
+    const page = await m0Lab({ lang, st: 'cocina', t: COCINA });
+    const btn = page.locator('#m0Prepare');
+    assert.ok(await btn.isVisible());
+    assert.equal(await btn.innerText(), es ? 'Preparar un enunciado' : 'Prepare a statement');
+    await btn.click();
+    await page.waitForFunction(() => PNL.app.state().mm === 'prepare');
+    const s = await state(page);
+    assert.deepEqual([s.st, s.own, s.t, s.mk], ['own', { lang, text: '', frags: [], ref: null }, null, null]);
+    assert.ok(await page.locator('#m0Draft').isVisible());
+    await page.locator('#m0Learn').click();
+    await page.locator('#learnDialog').waitFor();
+    assert.match(await page.locator('#learnDialog').innerText(), es ? /no es un modo examen/ : /not an exam mode/);
+    await page.locator('#btnLearnClose').click();
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().st === 'cocina');
+    assert.equal((await m0st(page)).rows.length, COCINA.length, '«Atrás» devuelve el enunciado y su tabla');
+    for (const width of [1280, 360]) {
+      await page.setViewportSize({ width, height: 720 });
+      assert.ok(await noHScroll(page), `la barra con tres modos no desborda a ${width} px`);
+    }
+    await close(page);
+  }
 });
 
 // ---------- Principio 27: presupuesto de 1 MB ----------

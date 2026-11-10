@@ -375,20 +375,22 @@
     },
   };
 
-  // F2c (T018): «Aprende más» de M0, del enunciado a la tabla.
+  // F2c (T018, T024): «Aprende más» de M0, del enunciado a la tabla, con el enunciado propio.
   topics.m0 = {
     es: ['Una precedencia inmediata dice que una actividad tiene que terminar antes de que empiece otra: «A precede a B» es A → B. De ellas salen otras, transitivas: si A → B y B → C, A también va antes que C, aunque ninguna frase lo diga.',
       'Una precedencia es redundante cuando otras de la tabla ya la implican: con A → B y B → C, escribir también A → C no cambia el proyecto. La tabla depurada es la que queda al quitar todas las redundantes (su reducción transitiva): implica lo mismo y no tiene nada de sobra.',
       'Por qué se depura: cada precedencia redundante es un arco de más en la red ROY y, en la red PERT, puede obligar a dibujar ficticias que no hacen falta. Los tiempos no cambian, pero el dibujo se complica y es más fácil equivocarse.',
       'Cómo se lee el enunciado: «A precede a B», «B sigue a A», «B no puede empezar hasta que acabe A» y «antes de B hay que hacer A» dicen lo mismo, A → B. Cuidado con el sentido: leído al revés sale B → A y, a veces, un ciclo. Algunas precedencias no las escribe ninguna frase: se deducen de lo que hace cada actividad, como en Electrona.',
       '«D puede ir en paralelo con E» no da ninguna precedencia, y que dos actividades compartan un recurso tampoco: es una limitación de recursos, no de orden. «A es lo primero» o «F es lo último» se cumplen en cuanto A no tiene predecesoras o F no tiene posteriores; poner A delante de todas, o todas delante de F, solo añade redundancias.',
-      'El laboratorio no interpreta el texto: compara tu tabla con la del enunciado por lo que implican las dos (su cierre transitivo). Una tabla con redundancias que, por lo demás, coincide es correcta, con un aviso por cada redundancia.'],
+      'El laboratorio no interpreta el texto: compara tu tabla con la del enunciado por lo que implican las dos (su cierre transitivo). Una tabla con redundancias que, por lo demás, coincide es correcta, con un aviso por cada redundancia.',
+      'Enunciado propio: en «Preparar un enunciado», el docente pega su texto, lo subraya y escribe la tabla, que pasa a ser la solución. «Copiar enlace para el alumno» abre el ejercicio con la tabla vacía, con corrección y ruta paso a paso; «Copiar enlace con la solución» lo abre ya resuelto, para proyectarlo. Todo viaja en el enlace, sin servidor: quien sepa leer la URL puede sacar la solución, así que no es un modo examen.'],
     en: ['An immediate precedence says that an activity must finish before another one starts: “A precedes B” is A → B. Others follow from them, transitive ones: if A → B and B → C, A also comes before C, even if no phrase says so.',
       'A precedence is redundant when others in the table already imply it: with A → B and B → C, also writing A → C does not change the project. The cleaned table is what remains after removing all the redundant ones (its transitive reduction): it implies the same and has nothing to spare.',
       'Why clean it: each redundant precedence is an extra arc in the AON (ROY) network and, in the AOA (PERT) network, it may force you to draw dummies that are not needed. The times do not change, but the drawing gets cluttered and mistakes are easier.',
       'How to read the statement: “A precedes B”, “B follows A”, “B cannot start until A finishes” and “before B, A has to be done” all say the same, A → B. Watch the direction: read backwards it gives B → A and, sometimes, a cycle. Some precedences are not written in any phrase: they follow from what each activity does, as in Electrona.',
       '“D can run in parallel with E” gives no precedence, and neither does two activities sharing a resource: that is a resource limit, not an order. “A comes first” or “F is the last task” hold as soon as A has no predecessors or F has no successors; putting A before all the others, or all of them before F, only adds redundancies.',
-      'The lab does not interpret the text: it compares your table with the statement’s by what both imply (their transitive closure). A table with redundancies that otherwise matches is correct, with a warning for each redundancy.'],
+      'The lab does not interpret the text: it compares your table with the statement’s by what both imply (their transitive closure). A table with redundancies that otherwise matches is correct, with a warning for each redundancy.',
+      'Your own statement: in “Prepare a statement”, the teacher pastes their text, underlines it and writes the table, which becomes the solution. “Copy link for students” opens the exercise with an empty table, with marking and the step-by-step route; “Copy link with the solution” opens it already solved, for projecting. Everything travels in the link, with no server: anyone who can read the URL can extract the solution, so it is not an exam mode.'],
   };
 
   function topicFor(step, view, graph) {

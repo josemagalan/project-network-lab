@@ -352,8 +352,6 @@
   // ---------- Vista ----------
 
   const KINDS = ['activity', 'duration', 'precedence', 'none'];
-  // «Preparar un enunciado» solo se ve en la barra con un enunciado propio hasta la publicación del hito 2 (T024).
-  const PREPARE_ENTRY = false;
   const hasWords = (text) => S.tokenize(text || '').words.length > 0;
 
   function create(container, hooks) {
@@ -383,7 +381,7 @@
     const btnCheck = h('button', { type: 'button', class: 'ghost primary', id: 'm0Check', onclick: check });
     const lblSt = h('span', {});
     const segTv = h('div', { class: 'seg', role: 'group' }, [btnList, btnMatrix]);
-    // Modos (T018, T022): practicar, ruta paso a paso y preparar un enunciado propio. De «preparar» a los otros dos
+    // Modos (T018, T022, T024): practicar, ruta paso a paso y preparar un enunciado propio. De «preparar» a los otros dos
     // se practica el enunciado tal como lo vería el alumno; de un enunciado propio a «preparar», con la tabla y los
     // subrayados del docente. Los dos saltos dejan una entrada en el historial.
     const setMode = (mm) => {
@@ -911,7 +909,6 @@
       btnPractice.textContent = t('m0.practice'); btnRoute.textContent = t('m0.route'); btnPrepare.textContent = t('m0.prepare');
       btnPractice.setAttribute('aria-pressed', String(mm === 'practice')); btnRoute.setAttribute('aria-pressed', String(route));
       btnPrepare.setAttribute('aria-pressed', String(prep));
-      btnPrepare.hidden = !(PREPARE_ENTRY || m.st.id === 'own');
       shareCard.hidden = !prep;
       prepBox.hidden = true; btnEditText.hidden = true; textBody.hidden = false;
       segMode.setAttribute('aria-label', t('m0.modes'));

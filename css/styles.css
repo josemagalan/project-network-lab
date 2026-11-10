@@ -370,10 +370,12 @@ button.small-btn { font-size: 13px; padding: 3px 8px; min-height: 28px; }
 /* ---------- F2c · M0, del enunciado a la tabla (tableros 27–36) ---------- */
 .m0 { display: flex; flex-direction: column; gap: 12px; }
 .m0 h2 { margin: 0; font-size: 15px; }
-.m0-bar { padding: 8px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.m0-bar { padding: 8px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .m0-bar label { display: flex; align-items: center; gap: 6px; }
-.m0-bar select { padding: 4px; max-width: min(320px, 100%); }
+.m0-bar select { padding: 4px; width: 220px; max-width: 100%; }
 .m0-bar .seg button, .m0-bar button.ghost { min-height: 36px; }
+/* Con los tres modos (T024), la barra cabe en una línea a 1280 px. */
+.m0-bar .seg button { padding: 6px 12px; }
 .m0-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
 .m0-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .m0-text, .m0-table, .m0-val, .m0-diag { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
