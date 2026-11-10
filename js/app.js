@@ -13,6 +13,7 @@
  * vive en sn (URL) y el último diagnóstico, solo en la página (T021).
  * F2c: con v=m0, M0 (js/m0) ocupa la página: texto, tabla, matriz, validación y corrección (T016). Todavía sin pestaña
  * en la barra (P9): solo se llega escribiendo la URL. La URL se escribe con encodeSafe: si no cabe, se avisa.
+ * F2c: con v=m0&mm=route, el reproductor recorre la ruta paso a paso (statement.route), con su predicción (T018).
  */
 (function () {
   'use strict';
@@ -106,7 +107,8 @@
   }
   // La traza que se reproduce: la de la red PERT con graph=aoa y la de ROY en otro caso.
   function trace() {
-    if (!model || model.m0) return null;
+    if (!model) return null;
+    if (model.m0) return state.mm === 'route' ? model.route : null;
     if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -127,7 +129,7 @@
     state = S.reduce(state, action, total());
     const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
-    const traceChanged = before.graph !== state.graph || before.m !== state.m;
+    const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
     if (before.step !== state.step || dataChanged || traceChanged) resetPred();
     if (!(opts && opts.noHash)) writeHash(before.v !== state.v || !!(opts && opts.push));
@@ -776,6 +778,17 @@
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   }
 
+  // «Aprende más» de M0 (F2c, T018): precedencias inmediatas, transitivas y redundantes, depurar y leer el texto.
+  function openM0Learn() {
+    const body = clear($('learnBody'));
+    $('learnTitle').textContent = t('m0Narr.learnTitle');
+    LR.topics.m0[lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
+    body.appendChild(h('h3', {}, [t('learn.refs')]));
+    body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
+    const dlg = $('learnDialog');
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+
   // Esquema de ejemplo de una regla de los conjuntos: tabla horizontal y dibujo, como en los apuntes del autor.
   function renderScheme(body, sc, key) {
     const hl = new Set(sc.table.hl);
@@ -858,7 +871,8 @@
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
-      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || $('stage').hidden || !$('cmpView').hidden || !$('retoView').hidden) return;
+      const m0Route = state.v === 'm0' && state.mm === 'route';
+      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route) || !$('cmpView').hidden || !$('retoView').hidden) return;
       // El texto en modo «Subrayar» y la matriz de M0 usan las flechas para moverse (F2c, plan §0).
       if (e.target.closest && e.target.closest('[data-own-keys]')) return;
       if (tag === 'button' && (e.key === ' ' || e.key === 'Enter')) return;
@@ -896,6 +910,13 @@
       state: () => state, lang, dispatch,
       // La tabla depurada se abre en M1, M2 o el taller con una entrada nueva en el historial: «Atrás» vuelve a M0.
       open: (where, rows, mode) => { stopPlay(); const s = G.m0.openState(state, where, rows, mode); dispatch({ type: 'open', v: s.v, graph: s.graph, rows, mode }); window.scrollTo(0, 0); },
+      // Ruta paso a paso (T018): el reproductor y la predicción son los de la página.
+      pred: () => pred, predicting,
+      predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
+      predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
+      togglePlay, playing: () => !!timer, stop: stopPlay,
+      announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
+      learn: openM0Learn,
     });
     G.m0.state = () => m0.debug();
     editor = G.editor.create($('workshop'), {

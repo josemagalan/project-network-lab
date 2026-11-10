@@ -8,6 +8,9 @@
   const isNode = typeof module !== 'undefined' && module.exports;
   const I = isNode ? require('./i18n.js') : root.PNL.i18n;
   const T = isNode ? require('./core/topo.js') : root.PNL.topo;
+  // M0 (F2c): la tabla de la ruta paso a paso se valida con project y se explica con precheck. Se buscan al usarlos.
+  const Pj = () => (isNode ? require('./core/project.js') : root.PNL.project);
+  const Pc = () => (isNode ? require('./core/precheck.js') : root.PNL.precheck);
   const { START, END } = T;
 
   const SHOWN_PATHS = 6;   // caminos críticos que se escriben en el paso y en la lista de resultados
@@ -97,6 +100,7 @@
       }
       case 'gantt': out.title = t('steps.gantt'); out.text = t('narr.gantt'); break;
       case 'progTable': case 'progAct': case 'progUnique': case 'progEnd': return narrateProg(step, ctx, out);
+      case 'm0Text': case 'm0Frag': case 'm0Clean': return narrateM0(step, ctx, out);
       default: return narratePert(step, ctx, out);
     }
     return out;
@@ -273,6 +277,105 @@
     return out;
   }
 
+  // ---------- F2c: ruta paso a paso de M0 (T017–T018, AC10) ----------
+
+  const fragWords = (st, f) => {
+    const ws = st.words.slice(Math.max(0, f.from), f.to + 1);
+    return ws.map((w, k) => w.t + (k < ws.length - 1 ? w.sep : '')).join('').replace(/\s+/g, ' ').trim();
+  };
+
+  // La tabla de la ruta hasta el paso k (sin lo que da el paso si hide): filas con el nombre de la referencia, lo que
+  // añade el paso (added, edges) y, en el último paso, la tabla depurada.
+  function m0Table(st, tr, k, hide) {
+    const order = [];
+    const t = {};
+    const refName = (id) => { const a = st.ref && st.ref.activities.find((x) => x.id === id); return a ? (a.name || '') : ''; };
+    const add = (id) => { if (!t[id]) { t[id] = { id, name: refName(id), duration: '', preds: [] }; order.push(id); } };
+    const upto = hide ? k - 1 : k;
+    for (let i = 0; i <= upto && i < tr.length; i++) {
+      const s = tr[i];
+      if (s.kind === 'm0Frag') {
+        for (const a of s.adds.acts) add(a);
+        for (const [a, v] of s.adds.durations) { add(a); t[a].duration = String(v); }
+        for (const [p, a] of s.adds.edges) { add(p); add(a); if (!t[a].preds.includes(p)) t[a].preds.push(p); }
+      } else if (s.kind === 'm0Clean') {
+        for (const id of Object.keys(s.table)) { add(id); t[id].preds = s.table[id].slice(); }
+      }
+    }
+    const cur = !hide && tr[k] && tr[k].kind === 'm0Frag' ? tr[k] : null;
+    return { rows: order.map((id) => ({ id, name: t[id].name, duration: t[id].duration, links: t[id].preds.join(', ') })),
+      added: cur ? cur.adds.acts.slice() : [], edges: cur ? cur.adds.edges.map((e) => e.slice()) : [] };
+  }
+
+  // Camino de p a a en la tabla de la ruta (filas con predecesoras), o null. BFS con vecinos en orden natural.
+  function m0Path(rows, p, a) {
+    const succs = {};
+    for (const r of rows) for (const x of r.links ? r.links.split(', ') : []) (succs[x] = succs[x] || []).push(r.id);
+    const prev = new Map([[p, null]]);
+    const queue = [p];
+    while (queue.length) {
+      const x = queue.shift();
+      if (x === a) break;
+      for (const y of (succs[x] || []).slice().sort((u, v) => u.localeCompare(v, 'en', { numeric: true }))) if (!prev.has(y)) { prev.set(y, x); queue.push(y); }
+    }
+    if (!prev.has(a) || p === a) return null;
+    const path = [];
+    for (let x = a; x !== null; x = prev.get(x)) path.unshift(x);
+    return path;
+  }
+
+  function narrateM0(step, ctx, out) {
+    const { lang, st } = ctx;
+    const t = (k, p) => I.t(lang, k, p);
+    const arrow = (e) => `${e[0]} → ${e[1]}`;
+    const list = (es) => I.list(lang, es.map(arrow));
+    const tr = ctx.trace || [];
+    if (step.kind === 'm0Text') {
+      out.title = t('m0Steps.text');
+      out.text = t('m0Narr.text', { n: tr.filter((s) => s.kind === 'm0Frag').length });
+      return out;
+    }
+    if (step.kind === 'm0Clean') {
+      out.title = t('m0Steps.clean');
+      out.text = step.removes.length ? t('m0Narr.clean', { list: list(step.removes) }) : t('m0Narr.cleanSame');
+      return out;
+    }
+    const f = st.frags.find((x) => x.id === step.frag);
+    const frag = fragWords(st, f);
+    const kind = f.kind;
+    out.title = t(`m0Steps.${kind}`, { act: f.act || '' });
+    if (ctx.hide) { out.text = t('m0Narr.hidden', { frag }); return out; }
+    const gives = f.gives || [];
+    const parts = [];
+    if (kind === 'activity') parts.push(t(gives.length ? 'm0Narr.activityGives' : 'm0Narr.activity', { frag, act: f.act, list: list(gives) }));
+    else if (kind === 'duration') {
+      const v = fmt(lang, f.value);
+      parts.push(t('m0Narr.duration', { frag, act: f.act, value: st.unit ? `${v} ${st.unit}` : v }));
+    } else if (kind === 'none') parts.push(t('m0Narr.none', { frag }));
+    else parts.push(t('m0Narr.gives', { frag, list: list(gives) }));
+    if (gives.length) {
+      // Lo que la tabla ya implicaba antes del paso, y de lo nuevo, lo que la tabla depurada no necesita.
+      const k = tr.indexOf(step);
+      const before = m0Table(st, tr, k, true).rows;
+      const old = gives.filter((e) => m0Path(before, e[0], e[1]));
+      if (old.length === gives.length) {
+        if (gives.length > 1) parts.push(t('m0Narr.redundantAll'));
+        else {
+          const path = m0Path(before, gives[0][0], gives[0][1]);
+          parts.push(path.length === 2 ? t('m0Narr.already', { edge: arrow(gives[0]) }) : t('m0Narr.redundantOne', { edge: arrow(gives[0]), path: path.join(' → ') }));
+        }
+      } else {
+        const parsed = Pj().parse(m0Table(st, tr, k, false).rows, 'pred', { structureOnly: true });
+        const red = parsed.project ? Pc().reduce(parsed.project).preds : null;
+        const need = red ? gives.filter((e) => !old.includes(e) && red[e[1]].includes(e[0])) : [];
+        if (need.length && need.length < gives.length) parts.push(t(need.length === 1 ? 'm0Narr.redundantSomeOne' : 'm0Narr.redundantSome', { need: list(need) }));
+      }
+    }
+    if (f.why && f.why[lang]) parts.push(f.why[lang]);
+    out.text = parts.join(' ');
+    return out;
+  }
+
   // Precedentes (transitivas) de cada actividad.
   function ancestors(project) {
     const preds = new Map(project.activities.map((a) => [a.id, []]));
@@ -442,7 +545,7 @@
     return out;
   }
 
-  const api = { narrate, relabel, nodeName, fmt, selection, dummyCount, diagnosis, cmpCard, cmpMin, retoResult, SHOWN_PATHS };
+  const api = { narrate, m0Table, relabel, nodeName, fmt, selection, dummyCount, diagnosis, cmpCard, cmpMin, retoResult, SHOWN_PATHS };
   root.PNL = root.PNL || {};
   root.PNL.narrate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

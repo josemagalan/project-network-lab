@@ -170,3 +170,46 @@ test('revisión F2b, F6: en el progresivo, las precedentes que terminan en un su
     assert.equal(Pr.check(s, new Map([[Pr.PROG_START, 'existing'], [Pr.PROG_DUMMIES, [s.prog.preds[0].act]]])).get(Pr.PROG_DUMMIES), 'wrong', a);
   }
 });
+
+// ---------- F2c (T017): predicción de la ruta paso a paso de M0 ----------
+const S0 = require('../js/core/statement.js');
+const ST0 = require('../js/core/statements.js');
+const routeOf = (id) => S0.route(S0.build(ST0.get(id), 'es'));
+const stepOf = (id, frag) => routeOf(id).find((s) => s.frag === frag);
+const giv = (...xs) => new Map([[Pr.M0_GIVES, new Set(xs)]]);
+
+test('T017 · AC10: hay predicción en los fragmentos que dan precedencias (o ninguna, o redundantes), y no en los demás', () => {
+  const tr = routeOf('ej5');
+  assert.equal(Pr.hasPrediction(tr[0]), false, 'm0Text');
+  assert.equal(Pr.hasPrediction(tr.find((s) => s.frag === 'aA')), false, 'actividad sin precedencias');
+  assert.equal(Pr.hasPrediction(tr.find((s) => s.frag === 'dA')), false, 'duración');
+  assert.equal(Pr.hasPrediction(tr.find((s) => s.frag === 'aD')), true, 'descripción que da precedencias (Electrona)');
+  assert.equal(Pr.hasPrediction(tr[tr.length - 1]), false, 'm0Clean');
+  assert.equal(Pr.hasPrediction(stepOf('cocina', 'n1')), true, '«en paralelo»: se predice «ninguna»');
+});
+
+test('T017 · AC10: las precedencias de un fragmento se corrigen como conjunto exacto, sin «ninguna» ni «redundante»', () => {
+  const st = stepOf('ej5', 'aD');
+  assert.equal(Pr.check(st, giv('A>D', 'B>D')).get(Pr.M0_GIVES), 'ok');
+  assert.equal(Pr.check(st, giv('B>D', 'A>D')).get(Pr.M0_GIVES), 'ok', 'el orden no importa');
+  assert.equal(Pr.check(st, giv('A>D')).get(Pr.M0_GIVES), 'wrong');
+  assert.equal(Pr.check(st, giv('A>D', 'B>D', 'C>D')).get(Pr.M0_GIVES), 'wrong');
+  assert.equal(Pr.check(st, giv('A>D', 'B>D', 'none')).get(Pr.M0_GIVES), 'wrong');
+  assert.equal(Pr.check(st, giv()).get(Pr.M0_GIVES), 'empty');
+  assert.equal(Pr.check(st, new Map()).get(Pr.M0_GIVES), 'empty');
+  assert.deepEqual(Pr.m0Diff(st, giv('A>D', 'C>D')), { missing: ['B>D'], extra: ['C>D'], none: false, redundant: false });
+});
+
+test('T017 · AC10: «ninguna» y «redundante con las que ya hay»', () => {
+  const none = stepOf('cocina', 'n1');
+  assert.equal(Pr.check(none, giv('none')).get(Pr.M0_GIVES), 'ok');
+  assert.equal(Pr.check(none, giv('B>C')).get(Pr.M0_GIVES), 'wrong');
+  assert.deepEqual(Pr.m0Diff(none, giv('B>C')), { missing: [], extra: ['B>C'], none: true, redundant: false });
+  const red = stepOf('cocina', 'r1');
+  assert.equal(Pr.check(red, giv('redundant')).get(Pr.M0_GIVES), 'ok');
+  assert.equal(Pr.check(red, giv('redundant', 'D>G')).get(Pr.M0_GIVES), 'ok', 'con su precedencia también vale');
+  assert.equal(Pr.check(red, giv('D>G')).get(Pr.M0_GIVES), 'wrong', 'hay que decir que es redundante');
+  assert.equal(Pr.check(red, giv('redundant', 'G>D')).get(Pr.M0_GIVES), 'wrong');
+  assert.equal(Pr.check(stepOf('ej5', 'aD'), giv('redundant')).get(Pr.M0_GIVES), 'wrong');
+  assert.deepEqual(Pr.summary(Pr.check(red, giv('redundant'))), { ok: 1, wrong: 0, empty: 0 });
+});

@@ -1002,3 +1002,72 @@ test('T015: cada subrayado se describe en la lista de subrayados y en su etiquet
     assert.notEqual(M0.markLabel('es', st, marks[3]).badge, M0.markLabel('en', st, marks[3]).badge);
   }
 });
+
+// ---------- F2c (T017): narración de la ruta paso a paso y «Aprende más» de M0 ----------
+const NR0 = require('../js/narrate.js');
+const LR0 = require('../js/learn.js');
+const routeCtx = (id, lang, hide) => { const st = S2.build(ST2.get(id), lang); return { st, tr: S2.route(st), lang, hide: !!hide }; };
+const narr0 = (c, step) => NR0.narrate(step, { lang: c.lang, st: c.st, trace: c.tr, hide: c.hide });
+
+test('T017 · AC10: cada paso de la ruta de cada enunciado tiene título y texto en ES y EN, también mientras se predice', () => {
+  for (const def of ST2.list({ all: true })) {
+    for (const lang of ['es', 'en']) {
+      for (const hide of [false, true]) {
+        const c = routeCtx(def.id, lang, hide);
+        for (const step of c.tr) {
+          const n = narr0(c, step);
+          assert.ok(n.title && n.text, `${def.id}/${lang}/${step.kind}/${step.frag}`);
+          for (const s of [n.title, n.text, ...n.lines]) noKeys(s);
+        }
+      }
+    }
+  }
+});
+
+test('T017 · AC10: en Electrona, el paso de D da A → D y B → D con su deducción; mientras se predice, no', () => {
+  for (const lang of ['es', 'en']) {
+    const c = routeCtx('ej5', lang);
+    const step = c.tr.find((s) => s.frag === 'aD');
+    const n = narr0(c, step);
+    assert.match(n.text, /A → D/);
+    assert.match(n.text, /B → D/);
+    assert.ok(n.text.includes(ST2.get('ej5').frags.aD.why[lang]), 'explica la deducción');
+    const h = narr0(routeCtx('ej5', lang, true), step);
+    assert.doesNotMatch(h.text, /A → D|B → D/);
+    assert.ok(!h.text.includes(ST2.get('ej5').frags.aD.why[lang]));
+    assert.ok(h.text.includes(lang === 'es' ? 'Fabricar el componente Y' : 'Make component Y'), 'pregunta por el fragmento');
+    const dur = narr0(c, c.tr.find((s) => s.frag === 'dD'));
+    assert.match(dur.text, /\bD\b/);
+    assert.match(dur.text, /\b7\b/);
+  }
+});
+
+test('T017 · AC10: «en paralelo» no da precedencia, una redundante dice su camino y «lo último» dice cuáles sobran', () => {
+  for (const lang of ['es', 'en']) {
+    const c = routeCtx('cocina', lang);
+    const by = (f) => narr0(c, c.tr.find((s) => s.frag === f));
+    assert.ok(by('n1').text.includes(ST2.get('cocina').frags.n1.why[lang]));
+    const r1 = by('r1').text;
+    assert.match(r1, /D → G/);
+    assert.match(r1, /D → F → G/, 'el camino que la implica');
+    const e1 = by('e1').text;
+    assert.match(e1, /G → H/);
+    assert.match(e1, /A → H/);
+    assert.match(e1, lang === 'es' ? /solo hace falta G → H/ : /only G → H is needed/, 'las demás las implica G → H');
+    const clean = narr0(c, c.tr[c.tr.length - 1]);
+    assert.match(clean.text, /D → G/, 'la tabla depurada quita las redundantes');
+    assert.match(narr0(c, c.tr[0]).text, /\d/, 'el primer paso dice cuántos fragmentos hay');
+  }
+});
+
+test('T017: «Aprende más» de M0: precedencias inmediatas, transitivas y redundantes, por qué se depuran y cómo leer el texto', () => {
+  const step = routeCtx('ej5', 'es').tr[3];
+  assert.equal(LR0.topicFor(step, 'net', 'aon'), 'm0');
+  const want = { es: [/inmediata/, /transitiva/, /redundante/, /ROY/, /PERT/, /paralelo/, /lo último/], en: [/immediate/, /transitive/, /redundant/, /AON/, /AOA/, /parallel/, /the last/] };
+  for (const lang of ['es', 'en']) {
+    const text = LR0.topics.m0[lang].join(' ');
+    assert.ok(LR0.topics.m0[lang].length >= 4);
+    for (const re of want[lang]) assert.match(text, re, `${lang}: ${re}`);
+  }
+  assert.equal(LR0.topics.m0.es.length, LR0.topics.m0.en.length);
+});

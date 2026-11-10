@@ -805,6 +805,60 @@
     },
   };
 
+  // ---------- F2c · M0, ruta paso a paso y «Aprende más» (T018) ----------
+  Object.assign(dict.es.m0, {
+    modes: 'Modo', practice: 'Practicar', route: 'Ruta paso a paso', learn: 'Aprende más',
+    rt: {
+      question: '¿Qué precedencias da «{frag}»?', none: 'Ninguna', redundant: 'Redundante con las que ya hay',
+      add: 'Añadir', from: 'Antes', to: 'Después',
+      tableTitle: 'Tabla hasta este paso', cleanTitle: 'Tabla final, sin redundancias',
+      missing: 'falta', extra: 'sobra', empty: 'La tabla aún está vacía.',
+    },
+  });
+  Object.assign(dict.en.m0, {
+    modes: 'Mode', practice: 'Practise', route: 'Step by step', learn: 'Learn more',
+    rt: {
+      question: 'Which precedences does «{frag}» give?', none: 'None', redundant: 'Redundant with the ones already there',
+      add: 'Add', from: 'Before', to: 'After',
+      tableTitle: 'Table up to this step', cleanTitle: 'Final table, without redundancies',
+      missing: 'missing', extra: 'not needed', empty: 'The table is still empty.',
+    },
+  });
+  dict.es.m0Steps = { text: 'El enunciado', activity: 'Actividad {act}', duration: 'Duración de {act}', precedence: 'Frase de dependencia',
+    none: 'Frase sin precedencia', start: 'Inicio', end: 'Final', clean: 'Tabla depurada' };
+  dict.en.m0Steps = { text: 'The statement', activity: 'Activity {act}', duration: 'Duration of {act}', precedence: 'Dependency phrase',
+    none: 'Phrase with no precedence', start: 'Start', end: 'End', clean: 'Cleaned table' };
+  dict.es.m0Narr = {
+    text: 'Recorremos el enunciado fragmento a fragmento, en el orden del texto ({n} fragmentos). Cada paso resalta uno y dice qué da: una actividad, una duración, precedencias o nada.',
+    hidden: '¿Qué precedencias da «{frag}»? Elige las que da, «Ninguna» o «Redundante con las que ya hay», y comprueba.',
+    activity: '«{frag}» es la actividad {act}.', activityGives: '«{frag}» es la actividad {act}, y da {list}.',
+    duration: '«{frag}»: la duración de {act} es {value}.', gives: '«{frag}» da {list}.',
+    none: '«{frag}» no da ninguna precedencia.',
+    redundantOne: '{edge} es redundante: ya la implica {path}.',
+    already: '{edge} ya está en la tabla.',
+    redundantAll: 'Todas ya están en la tabla o las implican las que hay: son redundantes.',
+    redundantSomeOne: 'De ellas, solo hace falta {need}: con ella y las que ya hay, las demás quedan implicadas.',
+    redundantSome: 'De ellas, solo hacen falta {need}: con ellas y las que ya hay, las demás quedan implicadas.',
+    clean: 'La tabla depurada quita {list}, que otras precedencias ya implican. Es la que se usa para dibujar la red: se puede abrir en M1 o en M2.',
+    cleanSame: 'La tabla no tiene precedencias redundantes: ya es la tabla depurada, la que se usa para dibujar la red. Se puede abrir en M1 o en M2.',
+    learnTitle: 'Del enunciado a la tabla: las precedencias',
+  };
+  dict.en.m0Narr = {
+    text: 'We go through the statement fragment by fragment, in the order of the text ({n} fragments). Each step highlights one and says what it gives: an activity, a duration, precedences or nothing.',
+    hidden: 'Which precedences does «{frag}» give? Choose the ones it gives, “None” or “Redundant with the ones already there”, and check.',
+    activity: '«{frag}» is activity {act}.', activityGives: '«{frag}» is activity {act}, and it gives {list}.',
+    duration: '«{frag}»: the duration of {act} is {value}.', gives: '«{frag}» gives {list}.',
+    none: '«{frag}» gives no precedence.',
+    redundantOne: '{edge} is redundant: {path} already implies it.',
+    already: '{edge} is already in the table.',
+    redundantAll: 'They are all already in the table or implied by the ones there: they are redundant.',
+    redundantSomeOne: 'Of these, only {need} is needed: with it and the ones already there, the rest are implied.',
+    redundantSome: 'Of these, only {need} are needed: with them and the ones already there, the rest are implied.',
+    clean: 'The cleaned table removes {list}, which other precedences already imply. It is the one used to draw the network: it can be opened in M1 or M2.',
+    cleanSame: 'The table has no redundant precedences: it is already the cleaned table, the one used to draw the network. It can be opened in M1 or M2.',
+    learnTitle: 'From statement to table: precedences',
+  };
+
   const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne'];
 
   function lookup(lang, key) {

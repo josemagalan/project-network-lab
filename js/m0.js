@@ -25,6 +25,8 @@
   const Store = req('./store.js', 'store');
   const PM = req('./views/prec-matrix.js', 'precMatrix');
   const Ed = req('./editor.js', 'editor');
+  const NR = req('./narrate.js', 'narrate');
+  const PR = req('./predict.js', 'predict');
 
   const ID_RE = /^[A-Z0-9]{1,4}$/;
   const norm = (v) => String(v == null ? '' : v).trim().toUpperCase();
@@ -47,7 +49,7 @@
     const structureOnly = !!st.structureOnly || P.blankDurations(rows);
     const parsed = P.parse(rows, mode, { structureOnly });
     const marks = state.mk || [];
-    return { def, st, rows, mode, parsed, project: parsed.project, report: parsed.report, explain: PC.explain(parsed),
+    return { def, st, route: S.route(st), rows, mode, parsed, project: parsed.project, report: parsed.report, explain: PC.explain(parsed),
       warnings: S.markWarnings(st, marks, parsed.project), structureOnly, marks, lang };
   }
 
@@ -262,7 +264,13 @@
     const btnCheck = h('button', { type: 'button', class: 'ghost primary', id: 'm0Check', onclick: check });
     const lblSt = h('span', {});
     const segTv = h('div', { class: 'seg', role: 'group' }, [btnList, btnMatrix]);
-    const bar = h('div', { class: 'card m0-bar' }, [h('label', { class: 'small' }, [lblSt, ' ', selSt]), segTv, h('div', { class: 'row-wrap push' }, [btnUl, btnCheck])]);
+    // Modos (T018): practicar y ruta paso a paso; «Preparar un enunciado» llega con el hito 2.
+    const setMode = (mm) => { if (hooks.state().mm === mm) return; closePanel(); ul = false; hooks.stop(); hooks.dispatch({ type: 'set', key: 'mm', value: mm }); hooks.dispatch({ type: 'first' }); };
+    const btnPractice = h('button', { type: 'button', id: 'm0Practice', onclick: () => setMode('practice') });
+    const btnRoute = h('button', { type: 'button', id: 'm0Route', onclick: () => setMode('route') });
+    const segMode = h('div', { class: 'seg', role: 'group' }, [btnPractice, btnRoute]);
+    const btnLearn = h('button', { type: 'button', class: 'ghost', id: 'm0Learn', onclick: () => hooks.learn() });
+    const bar = h('div', { class: 'card m0-bar' }, [h('label', { class: 'small' }, [lblSt, ' ', selSt]), segMode, segTv, h('div', { class: 'row-wrap push' }, [btnUl, btnCheck, btnLearn])]);
     const textHead = h('h2', { id: 'm0TextHead' });
     const textSrc = h('p', { class: 'muted small m0-src' });
     const textHint = h('p', { class: 'small m0-hint', id: 'm0Hint' });
@@ -284,7 +292,27 @@
     const diagBody = h('div', {});
     const diagCard = h('section', { class: 'card m0-diag', 'aria-labelledby': 'm0DiagHead', hidden: true }, [diagHead, diagBody]);
     const openBox = h('div', { class: 'm0-open' });
-    const right = h('div', { class: 'm0-right' }, [panelBox, tableCard, valCard, diagCard, openBox]);
+    // Ruta paso a paso (T018): el paso con su predicción, la tabla hasta el paso y el reproductor.
+    const rHead = h('h2', { id: 'm0StepHead', class: 'eyebrow' });
+    const rText = h('p', { class: 'm0-step-text' });
+    const rPredict = h('div', { class: 'predict m0-predict' });
+    const rStep = h('section', { class: 'card m0-step', 'aria-labelledby': 'm0StepHead' }, [rHead, rText, rPredict]);
+    const rTableHead = h('h2', { id: 'm0RTableHead' });
+    const rTableBody = h('div', { class: 'scroll-box' });
+    const rOpen = h('div', { class: 'm0-open' });
+    const rTable = h('section', { class: 'card m0-table', 'aria-labelledby': 'm0RTableHead' }, [rTableHead, rTableBody, rOpen]);
+    const rCounter = h('span', {});
+    const rFirst = h('button', { type: 'button', onclick: () => hooks.dispatch({ type: 'first' }) }, ['⏮']);
+    const rPrev = h('button', { type: 'button', onclick: () => hooks.dispatch({ type: 'prev' }) }, ['←']);
+    const rPlay = h('button', { type: 'button', class: 'primary', onclick: () => hooks.togglePlay() });
+    const rNext = h('button', { type: 'button', onclick: () => hooks.dispatch({ type: 'next' }) }, ['→']);
+    const rPred = h('input', { type: 'checkbox', onchange: (e) => hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }) });
+    const rPredLbl = h('span', {});
+    const rKeys = h('span', { class: 'muted small center' });
+    const rBar = h('div', { class: 'bar' }, [h('div', { class: 'm0-fill' })]);
+    const rPlayer = h('div', { class: 'card player m0-player' }, [h('div', { class: 'player-buttons' }, [rFirst, rPrev, rPlay, rNext]),
+      h('div', { class: 'm0-player-info' }, [h('span', { class: 'muted small' }, [rCounter]), rBar, h('label', { class: 'check' }, [rPred, ' ', rPredLbl])]), rKeys]);
+    const right = h('div', { class: 'm0-right' }, [panelBox, tableCard, valCard, diagCard, openBox, rStep, rPlayer, rTable]);
     clear(container);
     container.appendChild(bar);
     container.appendChild(h('div', { class: 'm0-grid' }, [textCard, right]));
@@ -558,8 +586,135 @@
       btnCheck.title = m.st.ref ? '' : t('m0.diag.noRef');
     }
 
+    // ---------- Ruta paso a paso ----------
+
+    let lastStep = null;
+    function routeChoices(step, k) {
+      const f = m.st.frags.find((x) => x.id === step.frag);
+      const known = routeTable(m.st, m.route, k, true).rows.map((r) => r.id);
+      if (f.act && (f.kind === 'activity' || f.kind === 'end')) return { cands: known.filter((x) => x !== f.act).map((p) => `${p}>${f.act}`), known };
+      if (f.act && f.kind === 'start') return { cands: known.filter((x) => x !== f.act).map((a) => `${f.act}>${a}`), known };
+      return { cands: null, known };
+    }
+
+    function drawRoutePredict(step, k) {
+      clear(rPredict);
+      const s = hooks.state();
+      rPredict.hidden = !(s.pred && step.fields);
+      if (rPredict.hidden) return;
+      const pred = hooks.pred();
+      if (!pred.answers.has(PR.M0_GIVES)) pred.answers.set(PR.M0_GIVES, new Set());
+      const chosen = pred.answers.get(PR.M0_GIVES);
+      const shown = pred.done && !pred.result;
+      const want = new Set(step.answer.edges.map((e) => e.join('>')).concat(step.answer.kind === 'none' ? ['none'] : step.answer.kind === 'redundant' ? ['redundant'] : []));
+      const diff = pred.result ? PR.m0Diff(step, pred.answers) : null;
+      const res = pred.result ? pred.result.get(PR.M0_GIVES) : null;
+      const mark = (key) => {
+        if (!diff) return null;
+        const bad = diff.missing.includes(key) ? 'missing' : diff.extra.includes(key) ? 'extra'
+          : (key === 'none' && diff.none) || (key === 'redundant' && diff.redundant) ? (chosen.has(key) ? 'extra' : 'missing') : null;
+        return bad ? h('span', { class: 'mark wrong' }, [`✗ ${t(`m0.rt.${bad}`)}`]) : null;
+      };
+      const box = (key, label) => h('label', { class: diff && mark(key) ? 'wrong' : '' }, [
+        h('input', { type: 'checkbox', checked: shown ? want.has(key) : chosen.has(key), disabled: shown, onchange: (e) => { if (e.target.checked) chosen.add(key); else chosen.delete(key); } }),
+        label, mark(key)]);
+      const f = m.st.frags.find((x) => x.id === step.frag);
+      const { cands, known } = routeChoices(step, k);
+      const lbl = (key) => key.replace('>', ' → ');
+      // La pregunta ya está en el texto del paso: la leyenda queda para el lector de pantalla.
+      const fs = h('fieldset', { class: 'rule-acts' }, [h('legend', { class: 'sr-only' }, [t('m0.rt.question', { frag: fragText(m.st, f.from, f.to) })])]);
+      if (cands) cands.forEach((key) => fs.appendChild(box(key, lbl(key))));
+      else {
+        const extra = [...(shown ? want : chosen)].filter((x) => x.includes('>'));
+        extra.forEach((key) => fs.appendChild(box(key, lbl(key))));
+        let a = known[0] || '';
+        let b = known[1] || known[0] || '';
+        const sel = (v, label, on) => h('select', { 'aria-label': label, disabled: shown, onchange: (e) => on(e.target.value) }, known.map((x) => h('option', { value: x, selected: x === v }, [x])));
+        fs.appendChild(h('span', { class: 'm0-add-edge' }, [h('label', {}, [t('m0.rt.from'), ' ', sel(a, t('m0.rt.from'), (v) => { a = v; })]), ' → ',
+          h('label', {}, [t('m0.rt.to'), ' ', sel(b, t('m0.rt.to'), (v) => { b = v; })]),
+          h('button', { type: 'button', class: 'ghost', disabled: shown || known.length < 2, onclick: () => { if (a && b && a !== b) chosen.add(`${a}>${b}`); draw({ keepFocus: true }); }, 'data-fk': 'rt-add' }, [t('m0.rt.add')])]));
+        if (diff && diff.missing.length) fs.appendChild(h('p', { class: 'mark wrong' }, [`✗ ${t('m0.rt.missing')}: ${diff.missing.map(lbl).join(', ')}`]));
+      }
+      fs.appendChild(box('none', t('m0.rt.none')));
+      fs.appendChild(box('redundant', t('m0.rt.redundant')));
+      rPredict.appendChild(fs);
+      if (res === 'ok') rPredict.appendChild(h('p', { class: 'mark ok' }, [`✓ ${t('predict.ok')}`]));
+      rPredict.appendChild(h('div', { class: 'row-wrap' }, [
+        h('button', { type: 'button', class: 'ghost primary', id: 'm0PredCheck', onclick: () => hooks.predCheck(step) }, [t('predict.check')]),
+        h('button', { type: 'button', class: 'ghost', onclick: () => hooks.predShow() }, [t('predict.show')])]));
+      if (hooks.predicting(step)) rPredict.appendChild(h('p', { class: 'muted small' }, [t('predict.hidden')]));
+    }
+
+    function drawRoute() {
+      const s = hooks.state();
+      const tr = m.route;
+      const k = Math.min(s.step, tr.length - 1);
+      const step = tr[k];
+      const hide = hooks.predicting(step);
+      const n = NR.narrate(step, { lang: lang(), st: m.st, trace: tr, hide });
+      const f = step.kind === 'm0Frag' ? m.st.frags.find((x) => x.id === step.frag) : null;
+      textHead.textContent = t('m0.text');
+      textSrc.textContent = m.def.source ? t('m0.source', { src: m.def.source[lang()] }) : '';
+      textNotice.hidden = true; textHint.hidden = true; marksBox.hidden = true;
+      root.PNL.statementView.render(textBody, { st: m.st, marks: [], label: () => ({ badge: '' }), underline: false, hl: f ? { from: f.from, to: f.to } : null });
+      const key = `${m.st.id}|${lang()}|${k}`;
+      if (key !== lastStep) {
+        lastStep = key;
+        const hl = textBody.querySelector('.hl');
+        if (hl && hl.scrollIntoView) hl.scrollIntoView({ block: 'nearest' });
+        hooks.announce(`${n.title}. ${n.text}`);
+      }
+      rHead.textContent = n.title;
+      rText.textContent = n.text;
+      drawRoutePredict(step, k);
+      const tb = routeTable(m.st, tr, k, hide);
+      const clean = step.kind === 'm0Clean';
+      rTableHead.textContent = t(clean ? 'm0.rt.cleanTitle' : 'm0.rt.tableTitle');
+      clear(rTableBody);
+      const noDur = !!m.st.structureOnly;
+      const newRow = new Set(tb.added);
+      const newIn = new Set(tb.edges.map((e) => e[1]));
+      if (!tb.rows.length) rTableBody.appendChild(h('p', { class: 'muted small' }, [t('m0.rt.empty')]));
+      else {
+        rTableBody.appendChild(h('table', { class: 'data m0-rtable' }, [h('caption', { class: 'sr-only' }, [rTableHead.textContent]),
+          h('thead', {}, [h('tr', {}, [h('th', { scope: 'col' }, [t('work.colId')]), h('th', { scope: 'col' }, [t('work.colName')]),
+            noDur ? null : h('th', { scope: 'col' }, [t('work.colDuration')]), h('th', { scope: 'col' }, [t('work.colPred')])])]),
+          h('tbody', {}, tb.rows.map((r) => h('tr', { class: newRow.has(r.id) || newIn.has(r.id) ? 'new' : null }, [h('th', { scope: 'row' }, [r.id]), h('td', { class: 'name' }, [r.name]),
+            noDur ? null : h('td', {}, [r.duration || '—']), h('td', {}, [newIn.has(r.id) ? h('strong', {}, [r.links]) : (r.links || '—')])])))]));
+      }
+      clear(rOpen);
+      rOpen.hidden = !clean;
+      if (clean) {
+        const go = (where) => hooks.open(where, tb.rows, 'pred');
+        rOpen.appendChild(h('div', { class: 'row-wrap' }, [h('span', { class: 'small' }, [`${t('m0.open.label')}:`]),
+          h('button', { type: 'button', class: 'ghost', disabled: noDur, onclick: () => go('m1') }, [t('m0.open.m1')]),
+          h('button', { type: 'button', class: 'ghost', onclick: () => go('m2') }, [t('m0.open.m2')]),
+          h('button', { type: 'button', class: 'ghost', onclick: () => go('work') }, [t('m0.open.work')])]));
+        if (noDur) rOpen.appendChild(h('p', { class: 'muted small' }, [t('m0.open.noM1')]));
+      }
+      rCounter.textContent = t('player.counter', { i: k + 1, n: tr.length });
+      rBar.firstChild.style.width = `${Math.round(((k + 1) / tr.length) * 100)}%`;
+      rFirst.disabled = k === 0; rPrev.disabled = k === 0; rNext.disabled = k >= tr.length - 1 || hide;
+      rFirst.setAttribute('aria-label', t('player.first')); rPrev.setAttribute('aria-label', t('player.prev')); rNext.setAttribute('aria-label', t('player.next'));
+      rPlay.textContent = hooks.playing() ? '⏸' : '▶';
+      rPlay.setAttribute('aria-label', t(hooks.playing() ? 'player.pause' : 'player.play'));
+      rPred.checked = !!s.pred;
+      rPredLbl.textContent = t('predict.toggle');
+      rKeys.textContent = t('player.keys');
+    }
+
     function draw(o) {
       if (!m) return;
+      const route = hooks.state().mm === 'route';
+      btnPractice.textContent = t('m0.practice'); btnRoute.textContent = t('m0.route');
+      btnPractice.setAttribute('aria-pressed', String(!route)); btnRoute.setAttribute('aria-pressed', String(route));
+      segMode.setAttribute('aria-label', t('m0.modes'));
+      btnLearn.textContent = t('m0.learn');
+      for (const el of [segTv, btnUl, btnCheck, panelBox, tableCard, valCard, diagCard, openBox]) el.hidden = route;
+      for (const el of [rStep, rTable, rPlayer]) el.hidden = !route;
+      if (route) { drawBar(); segTv.hidden = true; btnUl.hidden = true; btnCheck.hidden = true; panelBox.hidden = true; drawRoute(); return; }
+      marksBox.hidden = false;
+      lastStep = null;
       const keep = o && o.keepFocus && container.contains(root.document.activeElement) ? root.document.activeElement.getAttribute('data-fk') : null;
       const s = hooks.state();
       const v = validation(lang(), m);
@@ -595,7 +750,8 @@
         const before = m;
         m = model;
         if (before && (before.st.id !== m.st.id || before.lang !== m.lang)) { panel = null; sel = null; focusWord = 0; }
-        if (!(opts && opts.notice)) { if (before && before.st.id !== m.st.id) notice = null; } else notice = opts.notice;
+        // El aviso del cambio de idioma dura hasta la siguiente edición o el siguiente enunciado.
+        if (before && (before.st.id !== m.st.id || (before.lang === m.lang && JSON.stringify([before.rows, before.marks]) !== JSON.stringify([m.rows, m.marks])))) notice = null;
         draw(opts);
       },
       langNotice(dropped) { notice = dropped ? (dropped === 1 ? t('m0.langMovedOne') : t('m0.langMoved', { n: dropped })) : null; },
@@ -604,7 +760,10 @@
     };
   }
 
-  const api = { model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
+  // Tabla de la ruta paso a paso hasta el paso k (narrate.m0Table).
+  const routeTable = (st, tr, k, hide) => NR.m0Table(st, tr, k, hide);
+
+  const api = { routeTable, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
   root.PNL = root.PNL || {};
   root.PNL.m0 = api;
   if (isNode) module.exports = api;

@@ -8,6 +8,9 @@
  * regla no se aplica) y el número de ficticias que crea (RULE_COUNT, un entero).
  * En los pasos de actividad del dibujo progresivo (F2b, AC8): de qué suceso sale (PROG_START, uno de PROG_STARTS)
  * y, si tiene varias precedentes, cuáles necesitan una ficticia de dependencia (PROG_DUMMIES, un conjunto).
+ * En los fragmentos de la ruta paso a paso de M0 (F2c, AC10), qué precedencias da (M0_GIVES, un conjunto de «A>D»,
+ * «none» y «redundant»): el conjunto exacto de step.answer.edges; «ninguna» si no da; «redundante» (con o sin sus
+ * precedencias) si ya las implican las que hay.
  */
 (function (root) {
   'use strict';
@@ -29,6 +32,7 @@
   const PROG_START = 'prog.start';
   const PROG_DUMMIES = 'prog.dummies';
   const PROG_STARTS = ['initial', 'pred', 'existing', 'new'];
+  const M0_GIVES = 'm0.gives';
   const byId = (a, b) => a.localeCompare(b, 'en', { numeric: true });
 
   // Qué precedentes marcadas sobran y cuáles faltan respecto a las que llevan ficticia de dependencia.
@@ -45,8 +49,31 @@
     return { missing: [...want].filter((a) => !given.has(a)).sort(byId), extra: [...given].filter((a) => !want.has(a)).sort(byId) };
   }
 
+  // Qué precedencias marcadas faltan o sobran, y si «ninguna» o «redundante» están mal puestas (o mal quitadas).
+  function m0Diff(step, answers) {
+    const given = new Set(answers.get(M0_GIVES) || []);
+    const a = step.answer;
+    const want = new Set(a.edges.map((e) => `${e[0]}>${e[1]}`));
+    const edges = [...given].filter((x) => x.includes('>'));
+    const red = a.kind === 'redundant';
+    return {
+      missing: red && !edges.length ? [] : [...want].filter((x) => !given.has(x)).sort(),
+      extra: edges.filter((x) => !want.has(x)).sort(),
+      none: given.has('none') !== (a.kind === 'none'),
+      redundant: given.has('redundant') !== red,
+    };
+  }
+
   function check(step, answers) {
     const out = new Map();
+    if (step.kind === 'm0Frag') {
+      if (!step.fields) return out;
+      const given = answers.get(M0_GIVES);
+      if (!given || !given.size) { out.set(M0_GIVES, 'empty'); return out; }
+      const d = m0Diff(step, answers);
+      out.set(M0_GIVES, d.missing.length || d.extra.length || d.none || d.redundant ? 'wrong' : 'ok');
+      return out;
+    }
     if (step.kind === 'progAct') {
       const st = answers.get(PROG_START);
       out.set(PROG_START, st == null || st === '' ? 'empty' : (st === step.prog.start ? 'ok' : 'wrong'));
@@ -75,9 +102,10 @@
     return c;
   }
 
-  const hasPrediction = (step) => !!step && (step.kind === 'progAct' || !!step.rule || (!!step.reveals && step.reveals.length > 0));
+  const hasPrediction = (step) => !!step && (step.kind === 'progAct' || !!step.rule || (step.kind === 'm0Frag' && !!step.fields)
+    || (!!step.reveals && step.reveals.length > 0));
 
-  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
+  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, m0Diff, M0_GIVES, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
   root.PNL = root.PNL || {};
   root.PNL.predict = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

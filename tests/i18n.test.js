@@ -123,3 +123,13 @@ test('F2c (T015): textos de practicar en M0 en los dos idiomas: barra, texto, su
   assert.equal(I.t('es', 'm0.nActs', { n: 11 }), '11 actividades');
   assert.equal(I.t('en', 'm0.nActs', { n: 11 }), '11 activities');
 });
+
+test('F2c (T017): textos de la ruta paso a paso de M0 en los dos idiomas', () => {
+  for (const lang of I.languages) {
+    const d = I.dict[lang];
+    for (const k of ['modes', 'practice', 'route', 'learn']) assert.ok(d.m0[k], `${lang}.m0.${k}`);
+    for (const k of ['question', 'none', 'redundant', 'add', 'from', 'to', 'tableTitle', 'cleanTitle', 'missing', 'extra', 'empty']) assert.ok(d.m0.rt[k], `${lang}.m0.rt.${k}`);
+    for (const k of ['text', 'activity', 'duration', 'precedence', 'none', 'start', 'end', 'clean']) assert.ok(d.m0Steps[k], `${lang}.m0Steps.${k}`);
+    for (const k of ['text', 'hidden', 'activity', 'activityGives', 'duration', 'gives', 'redundantOne', 'redundantSome', 'none', 'clean', 'cleanSame', 'learnTitle']) assert.ok(d.m0Narr[k], `${lang}.m0Narr.${k}`);
+  }
+});

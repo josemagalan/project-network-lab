@@ -133,3 +133,28 @@ test('T015 · AC15: abrir la tabla depurada en M1, M2 o el taller deja la URL li
   }
   assert.equal(U.encode(st), back, 'el estado de M0 no cambia');
 });
+
+test('T017 · AC10: la tabla de la ruta se llena paso a paso y en el último es la depurada', () => {
+  const st = S.build(ST.get('ej5'), 'es');
+  const tr = S.route(st);
+  const k = tr.findIndex((s) => s.frag === 'aD');
+  const before = M0.routeTable(st, tr, k, true);
+  assert.deepEqual(before.rows.map((r) => r.id), ['A', 'B', 'C'], 'mientras se predice, sin lo que da el paso');
+  assert.ok(before.rows.every((r) => r.links === '' && r.duration === ''));
+  const after = M0.routeTable(st, tr, k, false);
+  const d = after.rows.find((r) => r.id === 'D');
+  assert.equal(d.links, 'A, B');
+  assert.equal(d.name, 'Fabricar Y', 'con el nombre de la referencia');
+  assert.deepEqual(after.added, ['D']);
+  assert.deepEqual(after.edges, [['A', 'D'], ['B', 'D']]);
+  const end = M0.routeTable(st, tr, tr.length - 1, false);
+  assert.equal(end.rows.find((r) => r.id === 'D').duration, '7');
+  const p = P.parse(end.rows, 'pred').project;
+  assert.deepEqual(p.preds, PC.reduce(st.ref).preds);
+  // En la cocina, la tabla del último paso ya no tiene las redundantes de «lo último».
+  const k2 = S.build(ST.get('cocina'), 'es');
+  const t2 = S.route(k2);
+  const pre = M0.routeTable(k2, t2, t2.length - 2, false);
+  assert.equal(pre.rows.find((r) => r.id === 'H').links, 'A, B, C, D, E, F, G');
+  assert.equal(M0.routeTable(k2, t2, t2.length - 1, false).rows.find((r) => r.id === 'H').links, 'G');
+});
