@@ -245,3 +245,8 @@ test('T027 · diagnose: en un enunciado con duraciones, una tabla sin ninguna da
   const d = C.diagnose(proj(REF), parsed(REF, null), null, { durations: true });
   assert.deepEqual(d.issues, ['A', 'B', 'C', 'D'].map((id) => ({ code: 'duration', ids: [id] })));
 });
+
+test('T027 (ronda 2, F1) · diagnose: falta una actividad que es predecesora de otras de la tabla', () => {
+  const d = C.diagnose(proj(REF), parsed({ B: [], C: ['B'], D: ['B', 'C'] }), null, { durations: true });
+  assert.deepEqual(d.issues, [{ code: 'missingActivity', ids: [], ref: ['A'] }, { code: 'falsePrecedence', ids: ['B', 'C'] }]);
+});

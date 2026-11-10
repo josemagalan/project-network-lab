@@ -166,7 +166,9 @@
     });
     pairs.sort((x, y) => y.s - x.s || x.f.from - y.f.from || x.row - y.row);
     for (const x of pairs) if (!(x.id in map) && !claimed.has(x.f.act)) { map[x.id] = x.f.act; claimed.add(x.f.act); }
-    const pending = ids.filter((id) => !(id in map) && !pairs.some((x) => x.id === id));
+    // Una fila sin pareja por subrayado (o con un subrayado que solo pisa fragmentos ya emparejados) va por su
+    // identificador (revisión de la F2c, ronda 2, F2).
+    const pending = ids.filter((id) => !(id in map));
     for (const id of pending) if (refActs.includes(id) && !claimed.has(id)) { map[id] = id; claimed.add(id); }
     return { map, extra: ids.filter((id) => !(id in map)), missing: refActs.filter((id) => !claimed.has(id)) };
   }

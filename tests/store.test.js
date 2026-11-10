@@ -244,3 +244,10 @@ test('T027 · cambiar de enunciado quita los subrayados del anterior; abrir M1 o
   const inMatrix = Object.assign(s0(), { v: 'm0', st: 'ej5', ex: null, graph: 'aon', view: 'matrix' });
   assert.equal(S.reduce(inMatrix, { type: 'open', v: 'route', graph: 'aon', rows, mode: 'pred' }, 1).view, 'net');
 });
+
+test('T027 (ronda 2, F10) · volver a elegir el mismo enunciado también lo empieza de cero', () => {
+  const marked = Object.assign(s0(), { v: 'm0', st: 'ej5', ex: null, mk: [{ from: 0, to: 2, kind: 'activity', act: 'A' }], t: [{ id: 'A', name: '', duration: '', links: '' }] });
+  const again = S.reduce(marked, { type: 'm0', st: 'ej5' });
+  assert.equal(again.mk, null);
+  assert.equal(again.t, null);
+});

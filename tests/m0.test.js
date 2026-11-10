@@ -493,3 +493,46 @@ test('T027 (F17) · un subrayado que la URL no puede guardar se dice en el panel
   assert.equal(M0.markProblem(many, { from: 300, to: 300, kind: 'none' }), 'tooMany');
   assert.equal(M0.markProblem(many, { from: 5, to: 5, kind: 'none' }), null, 'sustituir uno no suma');
 });
+
+// ── T027, ronda 2 ──────────────────────────────────────────────────────────────────────────────────────────
+test('T027 (ronda 2, F3) · el enlace recorta cada celda de la tabla del alumno y de la referencia a su límite', () => {
+  const L = U.LIMITS;
+  const big = { id: 'A'.repeat(L.id + 3), name: 'n'.repeat(L.name + 5), duration: '1'.repeat(L.duration + 4), links: 'B'.repeat(L.links + 7) };
+  const base = decodes(M0.share(prep(), 'es').student);
+  for (const s of [Object.assign({}, base, { t: [big] }), Object.assign({}, base, { own: Object.assign({}, base.own, { ref: { mode: 'pred', rows: [big] } }) })]) {
+    const back = decodes(U.encodeSafe(s).hash);
+    const r = back.t ? back.t[0] : back.own.ref.rows[0];
+    assert.deepEqual([r.id.length, r.name.length, r.duration.length, r.links.length], [L.id, L.name, L.duration, L.links]);
+  }
+});
+
+test('T027 (ronda 2, F5) · cada celda de la tabla del docente que no cabe impide compartir; en el límite, no', () => {
+  const L = U.LIMITS;
+  const withA = (a) => prep({ t: [Object.assign(row('A', 1, '', 'Reservar el aula'), a), row('B', 3, 'A'), row('C', 4, 'B'), row('D', 2, 'C')] });
+  for (const [a, why] of [[{ duration: '1'.repeat(L.duration + 1) }, 'duración'], [{ links: ' '.repeat(L.links + 1) }, 'precedencias'], [{ id: `A${' '.repeat(L.id)}` }, 'identificador'], [{ name: 'n'.repeat(L.name + 1) }, 'nombre']]) {
+    assert.equal(M0.share(withA(a), 'es').blocked, 'tooBig', why);
+  }
+  for (const [a, why] of [[{ duration: `${'0'.repeat(L.duration - 1)}1` }, 'duración'], [{ links: ' '.repeat(L.links) }, 'precedencias'], [{ id: `A${' '.repeat(L.id - 1)}` }, 'identificador']]) {
+    const sh = M0.share(withA(a), 'es');
+    assert.notEqual(sh.blocked, 'tooBig', why);
+  }
+});
+
+test('T027 (ronda 2, F4) · un enlace que no se podría abrir no se da y se dice por qué', () => {
+  const text = 'x\u0001\u0001'.repeat(1000);
+  const rows = Array.from({ length: 30 }, (_, k) => row(`A${k}`, 1, k ? `A${k - 1}` : '', '"'.repeat(80)));
+  const mk = Array.from({ length: 200 }, (_, k) => ({ from: k, to: k, kind: 'none' }));
+  const st = prep({ own: { lang: 'es', text, frags: [], ref: null }, t: rows, mk });
+  assert.deepEqual([U.encodeSafe(st).hash, U.encodeSafe(st).reason], [null, 'unreadable']);
+  const sh = M0.share(st, 'es');
+  assert.equal(sh.blocked, 'tooLong');
+  assert.match(sh.issues[0].text, /no se podría abrir/);
+  // Fuera de un enunciado propio no se descomprime nada: una tabla normal no es nunca «ilegible».
+  assert.notEqual(U.encodeSafe(m0State({ t: rows })).reason, 'unreadable');
+});
+
+test('T027 (ronda 2, F9) · un subrayado con más de 60 precedencias se dice en el panel', () => {
+  const gives = (n) => Array.from({ length: n }, (_, k) => [`A${k}`, 'B']);
+  assert.equal(M0.markProblem([], { from: 0, to: 1, kind: 'precedence', gives: gives(60) }), null);
+  assert.equal(M0.markProblem([], { from: 0, to: 1, kind: 'precedence', gives: gives(61) }), 'tooManyEdges');
+});

@@ -352,7 +352,7 @@
     const stu = U.encodeSafe(base);
     const sol = def.ref ? U.encodeSafe(Object.assign({}, base, { sol: 1 })) : null;
     if (!stu.hash || (sol && !sol.hash)) {
-      const unreadable = (stu.reason || (sol && sol.reason)) === 'unreadable';
+      const unreadable = [stu, sol].some((r) => r && r.reason === 'unreadable');
       return block('tooLong', [{ code: 'tooLong', text: t(unreadable ? 'm0.prep.linkUnreadable' : 'm0.prep.linkTooLong') }]);
     }
     out.student = stu.hash;
@@ -368,11 +368,12 @@
   }
 
   // Lo que impide guardar un subrayado en la URL, para decirlo en el panel en lugar de perderlo (F17): una duración
-  // con más cifras de las que admite, o el subrayado 201.
+  // con más cifras de las que admite, el subrayado 201 o más de 60 precedencias en un subrayado (ronda 2, F9).
   function markProblem(marks, mk) {
     const kept = (marks || []).filter((x) => x.to < mk.from || x.from > mk.to);
     if (kept.length >= U.MAX_MARKS) return 'tooMany';
-    if (mk.value !== undefined && !U.cleanMarks([mk])) return 'valueTooBig';
+    if (mk.value !== undefined && !U.cleanMarks([Object.assign({}, mk, { gives: undefined })])) return 'valueTooBig';
+    if (!U.cleanMarks([mk])) return 'tooManyEdges';
     return null;
   }
 

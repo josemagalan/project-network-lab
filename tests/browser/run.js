@@ -2852,6 +2852,15 @@ check('F2c T027 · desde un archivo del equipo, «Copiar» avisa de que el enlac
   await ctx.close();
 });
 
+check('F2c T027 · en la web, «Copiar» da la página sin su consulta y sin el aviso de archivo del equipo', async () => {
+  const page = await open(`cpm.html?lang=en&x=1${U0.encode(Object.assign(U0.defaults(), { v: 'm0' }, ownPrep('es', { t: OWN_ROWS('es') })))}`);
+  await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+  const student = await copyLink(page, 'student');
+  assert.ok(!student.includes('?'), student);
+  assert.equal(await page.locator('#m0FileLink').count(), 0);
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

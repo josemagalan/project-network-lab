@@ -681,7 +681,7 @@
       noneNote: 'La frase no da ninguna precedencia; por ejemplo, «en paralelo» o un recurso compartido.',
       ok: 'Subrayar', save: 'Guardar', remove: 'Quitar el subrayado', cancel: 'Cancelar',
       badId: 'El identificador tiene de 1 a 4 letras o cifras.', badValue: 'Escribe la duración: un número mayor o igual que 0.', valueTooBig: 'La duración admite como mucho 6 cifras y 4 decimales.',
-      tooMany: 'Ya hay 200 subrayados, el máximo: quita alguno para subrayar otro.', pickAct: 'Elige la actividad.',
+      tooMany: 'Ya hay 200 subrayados, el máximo: quita alguno para subrayar otro.', tooManyEdges: 'Un subrayado admite como mucho 60 precedencias.', pickAct: 'Elige la actividad.',
     },
     marks: {
       title: 'Subrayados ({n})', none: 'Aún no has subrayado nada. El subrayado es una ayuda: también puedes escribir la tabla directamente.',
@@ -754,7 +754,7 @@
       noneNote: 'The phrase gives no precedence; for example, “in parallel” or a shared resource.',
       ok: 'Underline', save: 'Save', remove: 'Remove the underline', cancel: 'Cancel',
       badId: 'The identifier has 1 to 4 letters or digits.', badValue: 'Type the duration: a number greater than or equal to 0.', valueTooBig: 'The duration takes at most 6 digits and 4 decimal places.',
-      tooMany: 'There are already 200 underlines, the maximum: remove one to underline another.', pickAct: 'Choose the activity.',
+      tooMany: 'There are already 200 underlines, the maximum: remove one to underline another.', tooManyEdges: 'An underline takes at most 60 precedences.', pickAct: 'Choose the activity.',
     },
     marks: {
       title: 'Underlines ({n})', none: 'You have not underlined anything yet. Underlining is a help: you can also write the table directly.',

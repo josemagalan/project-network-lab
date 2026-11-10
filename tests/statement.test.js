@@ -294,3 +294,21 @@ test('T027 (F6) · moveMarks: un subrayado que cruza dos fragmentos pasa al que 
   const tie = S.moveMarks(DEF, [{ from: fb.to, to: fc.from, kind: 'none' }], 'es', 'en');
   assert.deepEqual(tie.marks.map((m) => [m.from, m.to]), [[fragOf(en, 'fb').from, fragOf(en, 'fb').to]]);
 });
+
+test('T027 (ronda 2, F2) · match: una fila cuyo subrayado solo pisa un fragmento ya emparejado vuelve a su identificador', () => {
+  const st = S.build(DEF, 'es');
+  const fa = fragOf(st, 'fa'), e1 = fragOf(st, 'e1');
+  const m = S.match(st, [{ from: fa.from, to: fa.to - 1, kind: 'activity', act: 'A' }, { from: fa.to, to: fa.to, kind: 'activity', act: 'B' }], project({ A: [], B: ['A'] }));
+  assert.deepEqual(m.map, { A: 'A', B: 'B' });
+  assert.deepEqual(m.extra, []);
+  // Un subrayado que no pisa ninguna actividad tampoco quita la vuelta al identificador.
+  const d = S.match(st, [{ from: e1.from, to: e1.to, kind: 'activity', act: 'D' }], project({ A: [], B: ['A'], C: ['A'], D: ['B', 'C'] }));
+  assert.deepEqual(d.map, { A: 'A', B: 'B', C: 'C', D: 'D' });
+});
+
+test('T027 (ronda 2, F8) · validate: la duración se compara sin redondear', () => {
+  const d = clone(); d.ref.rows[0].duration = '2,4';
+  assert.deepEqual(S.validate(d, { strict: false }).filter((x) => !x.warn).map((x) => x.code), ['durMismatch']);
+  d.frags.da.value = 2.4;
+  assert.deepEqual(S.validate(d, { strict: false }).filter((x) => !x.warn), []);
+});
