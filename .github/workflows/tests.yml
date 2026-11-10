@@ -42,6 +42,23 @@ jobs:
         run: npm install --no-save --no-package-lock playwright@1.63.0 axe-core@4.10.2
       - name: Instalar Chromium
         run: npx playwright install --with-deps chromium
+      # Las pruebas de 1280×720 dependen del ancho de la letra. La fuente del sistema cambia con la imagen del
+      # ejecutor (en Ubuntu 26, DejaVu Sans, más ancha); se fija Liberation Sans, con las medidas de Arial, como en
+      # Windows y macOS, para que el resultado no dependa de la imagen.
+      - name: Fijar la fuente del sistema (Liberation Sans)
+        run: |
+          mkdir -p ~/.config/fontconfig
+          cat > ~/.config/fontconfig/fonts.conf <<'XML'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <match target="pattern"><test qual="any" name="family"><string>system-ui</string></test><edit name="family" mode="prepend" binding="strong"><string>Liberation Sans</string></edit></match>
+            <match target="pattern"><test qual="any" name="family"><string>sans-serif</string></test><edit name="family" mode="prepend" binding="strong"><string>Liberation Sans</string></edit></match>
+          </fontconfig>
+          XML
+          fc-cache -f >/dev/null
+          fc-match system-ui
+          fc-match system-ui | grep -q 'Liberation Sans'
       - name: Pruebas de navegador (ruta, URL, matriz, teclado, axe y presupuesto de 1 MB)
         run: node tests/browser/run.js
         env:

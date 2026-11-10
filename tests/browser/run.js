@@ -101,6 +101,11 @@ async function shot(page, name, full) {
 }
 
 const cases = [];
+// Escapado de los comandos de GitHub Actions (mensaje y, en las propiedades, también «:» y «,»).
+const ghEscape = (text, prop) => {
+  const t = String(text).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+  return prop ? t.replace(/:/g, '%3A').replace(/,/g, '%2C') : t;
+};
 const check = (name, fn) => cases.push({ name, fn });
 
 // ---------- AC6 y AC15: la ruta guiada en los dos idiomas ----------
@@ -2820,6 +2825,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
       failed++;
       if (process.env.STACK) console.log(err.stack);
       console.log(`✗ ${c.name}\n    ${String(err.message).split('\n').join('\n    ')}`);
+      // En GitHub Actions, cada fallo sale también como anotación: se lee en el resumen de la ejecución sin abrir el registro.
+      if (process.env.GITHUB_ACTIONS) console.log(`::error title=${ghEscape(c.name, true)}::${ghEscape(String(err.message).split('\n').slice(0, 6).join('\n'))}`);
     }
   }
   await browser.close();
