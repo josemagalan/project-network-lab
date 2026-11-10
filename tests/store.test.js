@@ -235,3 +235,12 @@ test('T021: un enunciado propio puede llegar con su tabla, sus subrayados y su f
   const tool = S.reduce(s0(), { type: 'm0', st: 'ej2', rows, marks });
   assert.equal(tool.t, null); assert.equal(tool.mk, null);
 });
+
+// ── T027 (F12): los dos reinicios de M0 que no tenían prueba ───────────────────────────────────────────────
+test('T027 · cambiar de enunciado quita los subrayados del anterior; abrir M1 o M2 empieza en la red', () => {
+  const marked = Object.assign(s0(), { v: 'm0', st: 'ej5', ex: null, mk: [{ from: 0, to: 2, kind: 'activity', act: 'A' }] });
+  assert.equal(S.reduce(marked, { type: 'm0', st: 'ej2' }).mk, null);
+  const rows = [{ id: 'A', name: '', duration: '', links: '' }];
+  const inMatrix = Object.assign(s0(), { v: 'm0', st: 'ej5', ex: null, graph: 'aon', view: 'matrix' });
+  assert.equal(S.reduce(inMatrix, { type: 'open', v: 'route', graph: 'aon', rows, mode: 'pred' }, 1).view, 'net');
+});

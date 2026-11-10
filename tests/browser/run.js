@@ -2003,7 +2003,7 @@ check('F2c AC2 · quitar un subrayado (en la lista de subrayados o en su panel) 
   await close(page);
 });
 
-check('F2c AC4 y AC5 · redundancias con su camino y la frase de su subrayado, en la lista y en la matriz; se elige cuál', async () => {
+check('F2c AC4 · redundancias con su camino y la frase de su subrayado, en la lista y en la matriz; se elige cuál', async () => {
   for (const lang of ['es', 'en']) {
     const probe = await m0Lab({ st: 'cocina', lang });
     const fr = await fragsOf(probe, 'cocina', lang);
@@ -2039,7 +2039,7 @@ check('F2c AC4 y AC5 · redundancias con su camino y la frase de su subrayado, e
   }
 });
 
-check('F2c AC6 · ciclo de la trampa de lectura: su recorrido en la lista y en la matriz, con la frase que lo provocó; sin tabla depurada', async () => {
+check('F2c AC5 · ciclo de la trampa de lectura: su recorrido en la lista y en la matriz, con la frase que lo provocó; sin tabla depurada', async () => {
   for (const lang of ['es', 'en']) {
     const probe = await m0Lab({ st: 'congreso', lang });
     const fr = await fragsOf(probe, 'congreso', lang);
@@ -2278,7 +2278,7 @@ check('F2c AC17 · cambio de idioma: el texto y los subrayados pasan al otro idi
   await close(page);
 });
 
-check('F2c AC9–AC11 · ruta paso a paso del Ej. 5 sin predicción: cada paso resalta su fragmento y llena la tabla; al final, la depurada abre M1', async () => {
+check('F2c AC10 · ruta paso a paso del Ej. 5 sin predicción: cada paso resalta su fragmento y llena la tabla; al final, la depurada abre M1', async () => {
   for (const lang of ['es', 'en']) {
     const page = await m0Lab({ mm: 'route', lang });
     const n = await page.evaluate(() => PNL.app.model().route.length);
@@ -2344,7 +2344,7 @@ check('F2c AC10 · ruta con predicción: nada se adelanta; una respuesta incompl
   }
 });
 
-check('F2c AC12 y AC19 · la URL guarda el enunciado, la tabla, los subrayados, la vista y el modo, y otro navegador abre lo mismo', async () => {
+check('F2c AC16 · la URL guarda el enunciado, la tabla, los subrayados, la vista y el modo, y otro navegador abre lo mismo', async () => {
   const page = await m0Lab({ st: 'cocina' });
   const fr = await fragsOf(page, 'cocina', 'es');
   await underline(page, fr.aA.from, fr.aA.to, { fill: (p) => p.locator('input:not([type])').first().fill('A') });
@@ -2374,7 +2374,7 @@ check('F2c AC12 y AC19 · la URL guarda el enunciado, la tabla, los subrayados, 
   await close(page);
 });
 
-check('F2c AC16 · a 1280×720 el texto y la tabla se ven a la vez; a 360 px nada desborda la página en practicar, la matriz, el panel ni la ruta', async () => {
+check('F2c AC19 · a 1280×720 el texto y la tabla se ven a la vez; a 360 px nada desborda la página en practicar, la matriz, el panel ni la ruta', async () => {
   const wide = await m0Lab({ t: COCINA, st: 'cocina' });
   const b = await wide.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); return { text: r('#m0View .m0-text'), table: r('#m0View .m0-table'), w: document.documentElement.scrollWidth }; });
   assert.ok(b.text.top < 720 && b.table.top < 720 && b.table.left >= b.text.right - 1 && b.w <= 1280, JSON.stringify(b));
@@ -2747,7 +2747,7 @@ check('F2c AC18 · preparar solo con el teclado: escribir el texto, usarlo, volv
   await close(page);
 });
 
-check('F2c AC16 y AC18 · preparar a 1280×720 (texto y tabla a la vez) y a 360 px sin desbordar; axe sin violaciones en claro y oscuro', async () => {
+check('F2c AC19 y AC18 · preparar a 1280×720 (texto y tabla a la vez) y a 360 px sin desbordar; axe sin violaciones en claro y oscuro', async () => {
   const page = await open('cpm.html#v=m0&st=own&mm=prepare&lang=es');
   await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
   for (const sel of ['#m0Draft', '#m0View [aria-labelledby="m0TableHead"]']) {
@@ -2803,6 +2803,53 @@ check('F2c T024 · «Preparar un enunciado» está en la barra de M0: abre el cu
     }
     await close(page);
   }
+});
+
+// ---------- F2c, T027: correcciones de la revisión de nivel 2 (ronda 1) ----------
+
+check('F2c T027 · AC10 · con predicción, el título de una frase no delata su tipo hasta comprobar', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await m0Lab({ st: 'cocina', mm: 'route', pred: 1, lang });
+    await go(page, 8);                     // «… pueden trabajar a la vez»: no da precedencias
+    const neutral = await page.evaluate((l) => PNL.i18n.t(l, 'm0Steps.phrase'), lang);
+    assert.equal((await page.locator('#m0StepHead').innerText()).trim().toLowerCase(), neutral.toLowerCase());
+    assert.doesNotMatch(await page.locator('#m0View').innerText(), lang === 'es' ? /Frase sin precedencia/i : /Phrase with no precedence/i);
+    await page.locator('#m0View .m0-predict label', { hasText: lang === 'es' ? 'Ninguna' : 'None' }).locator('input').check();
+    await page.locator('#m0PredCheck').click();
+    assert.match((await page.locator('#m0StepHead').innerText()).trim(), lang === 'es' ? /Frase sin precedencia/i : /Phrase with no precedence/i);
+    await close(page);
+  }
+});
+
+check('F2c T027 · un subrayado de duración con demasiadas cifras se dice en el panel y no se pierde', async () => {
+  const page = await m0Lab({ t: [R('A', '')] });
+  const fr = await fragsOf(page, 'ej5', 'es');
+  await page.locator('#m0Ul').click();
+  await word(page, fr.dA.from).click();
+  await word(page, fr.dA.to).click();
+  await m0Panel(page).waitFor({ state: 'visible' });
+  await m0Panel(page).locator('input[name="m0Kind"][value="duration"]').check();
+  const inputs = m0Panel(page).locator('label input:not([type])');
+  await inputs.nth(0).fill('A');
+  await inputs.nth(1).fill('0,00001');
+  await page.locator('#m0PanelOk').click();
+  assert.ok(await m0Panel(page).isVisible(), 'el panel sigue abierto');
+  assert.match(await m0Panel(page).locator('.m0-err').innerText(), /6 cifras y 4 decimales/);
+  assert.equal((await m0st(page)).marks.length, 0);
+  await close(page);
+});
+
+check('F2c T027 · desde un archivo del equipo, «Copiar» avisa de que el enlace solo se abre en él', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`file://: ${e.message}`));
+  await page.goto(require('node:url').pathToFileURL(path.join(ROOT, 'cpm.html')).href + U0.encode(Object.assign(U0.defaults(), { v: 'm0' }, ownPrep('es', { t: OWN_ROWS('es') }))));
+  await page.waitForFunction(() => window.PNL && PNL.m0 && PNL.m0.state && PNL.m0.state() && PNL.m0.state().st === 'own');
+  await page.locator('#m0CopyStudent').click();
+  await page.locator('#m0FileLink').waitFor();
+  assert.match(await page.locator('#m0Link').inputValue(), /^file:\/\//);
+  assert.match(await page.locator('#m0FileLink').innerText(), /archivo de tu equipo/);
+  await ctx.close();
 });
 
 // ---------- Principio 27: presupuesto de 1 MB ----------

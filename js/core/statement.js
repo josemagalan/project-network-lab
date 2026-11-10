@@ -119,6 +119,12 @@
     for (const { key, frag } of entries) {
       if (!KINDS.includes(frag.kind)) { issues.push({ code: 'badKind', frag: key }); continue; }
       if (WITH_ACT.includes(frag.kind) && !known.has(frag.act)) issues.push({ code: 'unknownAct', frag: key, ids: [frag.act] });
+      // La duración de un fragmento es la de la referencia (revisión de la F2c, F10): si no, la ruta enseña una y
+      // la corrección pide otra.
+      else if (frag.kind === 'duration') {
+        const a = ref.activities.find((x) => x.id === frag.act);
+        if (a.d == null || a.d !== frag.value) issues.push({ code: 'durMismatch', frag: key, ids: [frag.act] });
+      }
       for (const e of frag.gives || []) {
         if (!known.has(e[0]) || !known.has(e[1])) { issues.push({ code: 'unknownAct', frag: key, ids: e.slice() }); continue; }
         if (!reach.get(e[0]).has(e[1])) issues.push({ code: 'fragNotInRef', frag: key, ids: e.slice() });
@@ -140,7 +146,9 @@
   const overlap = (m, f) => Math.max(0, Math.min(m.to, f.to) - Math.max(m.from, f.from) + 1);
 
   // Al comprobar: cada actividad del alumno con subrayados va con la actividad de la referencia con la que
-  // comparte más palabras (empate: la primera en el texto); las demás, por identificador.
+  // comparte más palabras; los pares se eligen de mayor a menor solape en toda la tabla (empate: el fragmento
+  // primero en el texto y, después, la fila primera de la tabla), así que una fila escrita antes con un subrayado
+  // dudoso no le quita el fragmento a la que lo subrayó entero (revisión de la F2c, F13). Las demás, por identificador.
   function match(st, marks, project) {
     const refActs = st.ref ? st.ref.activities.map((a) => a.id) : [];
     if (!project) return { map: {}, extra: [], missing: refActs.slice() };
@@ -148,27 +156,33 @@
     const map = {};
     const claimed = new Set();
     const ids = project.activities.map((a) => a.id);
-    const pending = [];
-    for (const id of ids) {
+    const pairs = [];
+    ids.forEach((id, row) => {
       const ms = (marks || []).filter((m) => m.kind === 'activity' && m.act === id);
-      const scored = actFrags.map((f) => ({ f, s: ms.reduce((acc, m) => acc + overlap(m, f), 0) }))
-        .filter((x) => x.s > 0).sort((x, y) => y.s - x.s || x.f.from - y.f.from);
-      const pick = scored.find((x) => !claimed.has(x.f.act));
-      if (pick) { map[id] = pick.f.act; claimed.add(pick.f.act); } else pending.push(id);
-    }
+      for (const f of actFrags) {
+        const s = ms.reduce((acc, m) => acc + overlap(m, f), 0);
+        if (s > 0) pairs.push({ id, row, f, s });
+      }
+    });
+    pairs.sort((x, y) => y.s - x.s || x.f.from - y.f.from || x.row - y.row);
+    for (const x of pairs) if (!(x.id in map) && !claimed.has(x.f.act)) { map[x.id] = x.f.act; claimed.add(x.f.act); }
+    const pending = ids.filter((id) => !(id in map) && !pairs.some((x) => x.id === id));
     for (const id of pending) if (refActs.includes(id) && !claimed.has(id)) { map[id] = id; claimed.add(id); }
     return { map, extra: ids.filter((id) => !(id in map)), missing: refActs.filter((id) => !claimed.has(id)) };
   }
 
-  // Avisos de las marcas del alumno; nunca miran la referencia (sin pistas antes de comprobar).
-  function markWarnings(st, marks, project) {
+  // Avisos de las marcas del alumno; nunca miran la referencia (sin pistas antes de comprobar). rowIds son los
+  // identificadores de las filas: con un error en la tabla no hay proyecto, pero una fila escrita sigue estando
+  // (revisión de la F2c, F5); sin proyecto, los inicios y finales declarados no se comprueban.
+  function markWarnings(st, marks, project, rowIds) {
     const out = [];
-    const has = (id) => !!project && project.activities.some((a) => a.id === id);
+    const rows = rowIds ? new Set(rowIds) : null;
+    const has = (id) => (project ? project.activities.some((a) => a.id === id) : !!rows && rows.has(id));
     (marks || []).forEach((m, k) => {
       if (m.decl) {
         const a = m.decl.act;
         if (!has(a)) out.push({ code: 'markedMissing', mark: k, ids: [a] });
-        else {
+        else if (project) {
           const end = m.decl.end === 'end';
           const side = end ? project.succs : project.preds;
           const others = project.activities.map((x) => x.id).filter((x) => x !== a && !side[x].length).sort(byId);

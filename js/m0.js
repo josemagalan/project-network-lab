@@ -50,7 +50,7 @@
     const parsed = P.parse(rows, mode, { structureOnly });
     const marks = state.mk || [];
     return { def, st, route: S.route(st), rows, mode, parsed, project: parsed.project, report: parsed.report, explain: PC.explain(parsed),
-      warnings: S.markWarnings(st, marks, parsed.project), structureOnly, marks, lang };
+      warnings: S.markWarnings(st, marks, parsed.project, rows.map((r) => norm(r.id)).filter(Boolean)), structureOnly, marks, lang };
   }
 
   function fragText(st, from, to) {
@@ -329,6 +329,11 @@
       const cyc = m.explain.cycle;
       if (cyc && cyc.length) return block('cycle', [{ code: 'cycle', ids: cyc.slice(), text: t('m0.prep.cycle', { path: cyc.concat(cyc[0]).join(' → ') }) }]);
       if (!m.project) return block('invalid', [{ code: 'invalid', text: t('m0.prep.invalid') }]);
+      // La tabla del docente viaja entera o no viaja: el enlace recorta las celdas (revisión de la F2c, F1).
+      const L = U.LIMITS;
+      if (def.ref.rows.length > L.rows || def.ref.rows.some((r) => r.id.length > L.id || r.duration.length > L.duration || r.links.length > L.links || r.name.length > L.name)) {
+        return block('tooBig', [{ code: 'tooBig', text: t('m0.prep.tableTooBig') }]);
+      }
       out.warnings = m.explain.redundant.map((r) => ({ code: 'redundant', ids: r.edge.slice(), path: r.path.slice(),
         text: t('m0.prep.redundant', { edge: arrow(r.edge), path: r.path.join(' → ') }) }));
     } else out.warnings.push({ code: 'noRef', text: t('m0.prep.noRef') });
@@ -336,17 +341,39 @@
     for (const is of S.validate(def, { strict: false })) {
       if (is.code === 'unjustified') out.warnings.push({ code: 'unjustified', ids: is.ids.slice(), text: t('m0.prep.unjustified', { edge: arrow(is.ids) }) });
       else if (is.code === 'unknownAct') bad.push({ code: is.code, ids: is.ids.slice(), text: t('m0.prep.unknownAct', { frag: phrase(is.frag), list: is.ids.join(', ') }) });
-      else if (is.code === 'fragNotInRef') bad.push({ code: is.code, ids: is.ids.slice(), text: t('m0.prep.fragNotInRef', { frag: phrase(is.frag), edge: arrow(is.ids) }) });
+      else if (is.code === 'durMismatch') {
+        const f = def.frags[is.frag];
+        bad.push({ code: is.code, ids: is.ids.slice(), text: t('m0.prep.durMismatch', { frag: phrase(is.frag), act: is.ids[0], value: NR.fmt(lang, f.value) }) });
+      } else if (is.code === 'fragNotInRef') bad.push({ code: is.code, ids: is.ids.slice(), text: t('m0.prep.fragNotInRef', { frag: phrase(is.frag), edge: arrow(is.ids) }) });
       else bad.push({ code: is.code, text: t('m0.prep.badFrag', { frag: phrase(is.frag) }) });
     }
     if (bad.length) return block('mismatch', bad);
     const base = Object.assign(U.defaults(), { v: 'm0', st: 'own', ex: null, own: def, lang: def.lang, mm: 'practice', tv: state.tv === 'matrix' ? 'matrix' : 'list' });
     const stu = U.encodeSafe(base);
     const sol = def.ref ? U.encodeSafe(Object.assign({}, base, { sol: 1 })) : null;
-    if (!stu.hash || (sol && !sol.hash)) return block('tooLong', [{ code: 'tooLong', text: t('m0.prep.linkTooLong') }]);
+    if (!stu.hash || (sol && !sol.hash)) {
+      const unreadable = (stu.reason || (sol && sol.reason)) === 'unreadable';
+      return block('tooLong', [{ code: 'tooLong', text: t(unreadable ? 'm0.prep.linkUnreadable' : 'm0.prep.linkTooLong') }]);
+    }
     out.student = stu.hash;
     out.solution = sol ? sol.hash : null;
     return out;
+  }
+
+  // El enlace que se copia: la página sin su consulta y con el estado del ejercicio; local dice si es un archivo
+  // del equipo, que no sirve a nadie más (revisión de la F2c, F11).
+  function shareUrl(href, hash) {
+    const page = String(href).split('#')[0].split('?')[0];
+    return { url: page + hash, local: /^file:/i.test(page) };
+  }
+
+  // Lo que impide guardar un subrayado en la URL, para decirlo en el panel en lugar de perderlo (F17): una duración
+  // con más cifras de las que admite, o el subrayado 201.
+  function markProblem(marks, mk) {
+    const kept = (marks || []).filter((x) => x.to < mk.from || x.from > mk.to);
+    if (kept.length >= U.MAX_MARKS) return 'tooMany';
+    if (mk.value !== undefined && !U.cleanMarks([mk])) return 'valueTooBig';
+    return null;
   }
 
   // ---------- Vista ----------
@@ -553,6 +580,8 @@
       }
       let marks = m.marks.slice();
       if (p.edit !== null) marks = removeMark(marks, p.edit) || [];
+      const problem = markProblem(marks, mk);
+      if (problem) { p.err = t(`m0.ul.${problem}`); draw({ focusPanel: true }); return; }
       marks = putMark(marks, mk);
       const back = p.to;
       panel = null; sel = null; focusWord = back;
@@ -765,8 +794,8 @@
     }
 
     function copyLink(which, hash) {
-      const url = root.location.href.split('#')[0] + hash;
-      copied = { which, hash, url, ok: null };
+      const { url, local } = shareUrl(root.location.href, hash);
+      copied = { which, hash, url, local, ok: null };
       const done = (ok) => { if (copied && copied.hash === hash) { copied.ok = ok; draw({ keepFocus: true }); } };
       const cb = root.navigator && root.navigator.clipboard;
       if (cb && cb.writeText) cb.writeText(url).then(() => done(true), () => done(false)); else done(false);
@@ -789,6 +818,7 @@
         shareBody.appendChild(h('p', { class: 'small', role: 'status', id: 'm0CopyStatus' }, [msg]));
         shareBody.appendChild(h('label', { class: 'small m0-link' }, [t('m0.prep.link'),
           h('input', { type: 'text', readonly: true, id: 'm0Link', value: copied.url, onfocus: (e) => e.target.select() })]));
+        if (copied.local) shareBody.appendChild(h('p', { class: 'small m0-err', id: 'm0FileLink' }, [t('m0.prep.fileLink')]));
       }
       shareBody.appendChild(p(t('m0.prep.shareNote'), 'muted small'));
     }
@@ -1006,7 +1036,7 @@
     return { cands: null, ids, label };
   }
 
-  const api = { routeTable, routeOptions, ownDef, toPrepare, openSolution, acceptText, share, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
+  const api = { routeTable, routeOptions, ownDef, toPrepare, openSolution, acceptText, share, shareUrl, markProblem, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
   root.PNL = root.PNL || {};
   root.PNL.m0 = api;
   if (isNode) module.exports = api;

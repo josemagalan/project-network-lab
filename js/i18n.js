@@ -680,7 +680,8 @@
       declare: 'Inicio o final que dice la frase', declNone: 'Ninguno', declStart: 'es la primera', declEnd: 'es la última',
       noneNote: 'La frase no da ninguna precedencia; por ejemplo, «en paralelo» o un recurso compartido.',
       ok: 'Subrayar', save: 'Guardar', remove: 'Quitar el subrayado', cancel: 'Cancelar',
-      badId: 'El identificador tiene de 1 a 4 letras o cifras.', badValue: 'Escribe la duración: un número mayor o igual que 0.', pickAct: 'Elige la actividad.',
+      badId: 'El identificador tiene de 1 a 4 letras o cifras.', badValue: 'Escribe la duración: un número mayor o igual que 0.', valueTooBig: 'La duración admite como mucho 6 cifras y 4 decimales.',
+      tooMany: 'Ya hay 200 subrayados, el máximo: quita alguno para subrayar otro.', pickAct: 'Elige la actividad.',
     },
     marks: {
       title: 'Subrayados ({n})', none: 'Aún no has subrayado nada. El subrayado es una ayuda: también puedes escribir la tabla directamente.',
@@ -752,7 +753,8 @@
       declare: 'Start or end that the phrase states', declNone: 'None', declStart: 'is the first', declEnd: 'is the last',
       noneNote: 'The phrase gives no precedence; for example, “in parallel” or a shared resource.',
       ok: 'Underline', save: 'Save', remove: 'Remove the underline', cancel: 'Cancel',
-      badId: 'The identifier has 1 to 4 letters or digits.', badValue: 'Type the duration: a number greater than or equal to 0.', pickAct: 'Choose the activity.',
+      badId: 'The identifier has 1 to 4 letters or digits.', badValue: 'Type the duration: a number greater than or equal to 0.', valueTooBig: 'The duration takes at most 6 digits and 4 decimal places.',
+      tooMany: 'There are already 200 underlines, the maximum: remove one to underline another.', pickAct: 'Choose the activity.',
     },
     marks: {
       title: 'Underlines ({n})', none: 'You have not underlined anything yet. Underlining is a help: you can also write the table directly.',
@@ -854,6 +856,10 @@
       noRef: 'Sin tabla, el ejercicio solo tiene validación: no hay corrección, ruta paso a paso ni enlace con la solución.',
       emptyShare: 'Primero escribe el texto del enunciado.',
       linkTooLong: 'El enlace no cabe en una URL (más de 8000 caracteres): acorta el texto o los nombres de las actividades.',
+      linkUnreadable: 'El enlace no se podría abrir: acorta el texto, los subrayados o la tabla.',
+      tableTooBig: 'La tabla no cabe en el enlace: en cada actividad, el nombre puede tener como mucho 80 caracteres, la duración 12 y las precedencias 200.',
+      durMismatch: 'El subrayado «{frag}» da a {act} una duración de {value} y la tabla no dice lo mismo: corrige la tabla o el subrayado para poder compartir.',
+      fileLink: 'Este enlace apunta a un archivo de tu equipo y solo se abre en él. Para compartir el ejercicio, prepáralo en la web publicada del laboratorio.',
     },
   });
   Object.assign(dict.en.m0, {
@@ -883,12 +889,16 @@
       noRef: 'Without a table, the exercise only has validation: no marking, no step-by-step route and no link with the solution.',
       emptyShare: 'First write the statement text.',
       linkTooLong: 'The link does not fit in a URL (more than 8000 characters): shorten the text or the activity names.',
+      linkUnreadable: 'The link could not be opened: shorten the text, the underlines or the table.',
+      tableTooBig: 'The table does not fit in the link: for each activity, the name can have at most 80 characters, the duration 12 and the precedences 200.',
+      durMismatch: 'The underline «{frag}» gives {act} a duration of {value} and the table does not say the same: fix the table or the underline to be able to share.',
+      fileLink: 'This link points to a file on your computer and only opens there. To share the exercise, prepare it on the published lab website.',
     },
   });
   dict.es.m0Steps = { text: 'El enunciado', activity: 'Actividad {act}', duration: 'Duración de {act}', precedence: 'Frase de dependencia',
-    none: 'Frase sin precedencia', start: 'Inicio', end: 'Final', clean: 'Tabla depurada' };
+    none: 'Frase sin precedencia', start: 'Inicio', end: 'Final', clean: 'Tabla depurada', phrase: 'Frase del enunciado' };
   dict.en.m0Steps = { text: 'The statement', activity: 'Activity {act}', duration: 'Duration of {act}', precedence: 'Dependency phrase',
-    none: 'Phrase with no precedence', start: 'Start', end: 'End', clean: 'Cleaned table' };
+    none: 'Phrase with no precedence', start: 'Start', end: 'End', clean: 'Cleaned table', phrase: 'Statement phrase' };
   dict.es.m0Narr = {
     text: 'Recorremos el enunciado fragmento a fragmento, en el orden del texto ({n} fragmentos). Cada paso resalta uno y dice qué da: una actividad, una duración, precedencias o nada.',
     hidden: '¿Qué precedencias da «{frag}»? Elige las que da, «Ninguna» o «Redundante con las que ya hay», y comprueba.',

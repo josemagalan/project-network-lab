@@ -1081,3 +1081,25 @@ test('T024: «Aprende más» de M0 explica el enunciado propio con los nombres d
     for (const re of want[lang]) assert.match(last, re, `${lang}: ${re}`);
   }
 });
+
+// ── T027 (F2): con la predicción, el título de un paso de la ruta de M0 no delata qué da la frase ─────────────
+test('T027 · AC10: en la ruta de M0 con predicción, las frases (de dependencia, sin precedencia, inicio y final) tienen el mismo título', () => {
+  const SM = require('../js/core/statement.js');
+  const STS = require('../js/core/statements.js');
+  const I = require('../js/i18n.js');
+  for (const lang of ['es', 'en']) {
+    const neutral = I.t(lang, 'm0Steps.phrase');
+    assert.ok(neutral && !/^m0Steps/.test(neutral));
+    for (const def of STS.list({ all: true })) {
+      const st = SM.build(def, lang);
+      const tr = SM.route(st);
+      for (const step of tr.filter((s) => s.kind === 'm0Frag')) {
+        const f = st.frags.find((x) => x.id === step.frag);
+        const hidden = N.narrate(step, { lang, st, trace: tr, hide: true });
+        const shown = N.narrate(step, { lang, st, trace: tr });
+        if (['precedence', 'none', 'start', 'end'].includes(f.kind)) assert.equal(hidden.title, neutral, `${def.id} ${lang} ${f.id}`);
+        else assert.equal(hidden.title, shown.title, `${def.id} ${lang} ${f.id}: una actividad o una duración no delatan nada`);
+      }
+    }
+  }
+});

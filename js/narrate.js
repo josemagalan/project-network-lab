@@ -344,7 +344,12 @@
     const frag = fragWords(st, f);
     const kind = f.kind;
     out.title = t(`m0Steps.${kind}`, { act: f.act || '' });
-    if (ctx.hide) { out.text = t('m0Narr.hidden', { frag }); return out; }
+    // Con la predicción, una frase no dice de qué tipo es (sin precedencia, inicio, final): sería la respuesta.
+    if (ctx.hide) {
+      if (!['activity', 'duration'].includes(kind)) out.title = t('m0Steps.phrase');
+      out.text = t('m0Narr.hidden', { frag });
+      return out;
+    }
     const gives = f.gives || [];
     const parts = [];
     if (kind === 'activity') parts.push(t(gives.length ? 'm0Narr.activityGives' : 'm0Narr.activity', { frag, act: f.act, list: list(gives) }));

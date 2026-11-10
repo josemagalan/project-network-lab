@@ -412,3 +412,84 @@ test('T021: al editar el texto, los subrayados que no cambian se conservan (desp
   assert.equal(same.dropped, 0);
   assert.deepEqual(same.marks, s.mk);
 });
+
+// ── T027: revisión de nivel 2 (ronda 1) ────────────────────────────────────────────────────────────────────
+const decodes = (hash) => { const d = U.decode(hash); assert.equal(d.warning, undefined, `el enlace no se abre: ${hash.slice(0, 80)}…`); return d.state; };
+
+test('T027 (F1) · el enlace del enunciado propio siempre se abre: las celdas se recortan como en la tabla de siempre', () => {
+  const long = 'Reservar el aula magna del edificio de ciencias para la jornada de puertas abiertas del departamento';
+  // La URL de «preparar» con una celda larga y la tabla del alumno de un enunciado propio con 41 filas.
+  const p = prep({ t: [row('A', 1, '', long), row('B', 3, 'A'), row('C', 4, 'B'), row('D', 2, 'C')] });
+  const back = decodes(U.encodeSafe(p).hash);
+  assert.equal(back.st, 'own');
+  assert.equal(back.own.text, FERIA);
+  assert.equal(back.t[0].name, long.slice(0, U.LIMITS.name));
+  const stu = Object.assign({}, decodes(M0.share(prep(), 'es').student), { t: Array.from({ length: 41 }, (_, k) => row(`A${k}`, 1)) });
+  const again = decodes(U.encodeSafe(stu).hash);
+  assert.equal(again.t.length, U.LIMITS.rows);
+});
+
+test('T027 (F1) · con una tabla del docente que no cabe en el enlace no se comparte, y se dice por qué', () => {
+  const long = 'x'.repeat(U.LIMITS.name + 1);
+  for (const t of [[row('A', 1, '', long), row('B', 3, 'A'), row('C', 4, 'B'), row('D', 2, 'C')],
+    Array.from({ length: U.LIMITS.rows + 1 }, (_, k) => row(`A${k}`, 1, k ? `A${k - 1}` : ''))]) {
+    const sh = M0.share(prep({ t, mk: null }), 'es');
+    // Un nombre largo no cabe en el enlace; 41 filas ya son una tabla con errores (como en el taller, 30 como mucho).
+    assert.equal(sh.blocked, t.length > U.LIMITS.rows ? 'invalid' : 'tooBig');
+    assert.equal(sh.student, null);
+    assert.ok(notKey(sh.issues[0].text));
+  }
+  // En el límite sí.
+  const sh = M0.share(prep({ t: [row('A', 1, '', 'y'.repeat(U.LIMITS.name)), row('B', 3, 'A'), row('C', 4, 'B'), row('D', 2, 'C')] }), 'es');
+  assert.equal(sh.blocked, null);
+  decodes(sh.student); decodes(sh.solution);
+});
+
+test('T027 (F10, F4) · una duración subrayada que no casa con la tabla, o sobre una actividad que no está, impide compartir', () => {
+  const dur = M0.share(prep({ mk: FERIA_MARKS.map((m) => (m.kind === 'duration' ? Object.assign({}, m, { value: 5 }) : m)) }), 'es');
+  assert.equal(dur.blocked, 'mismatch');
+  assert.deepEqual(dur.issues.map((i) => i.code), ['durMismatch']);
+  assert.ok(notKey(dur.issues[0].text) && dur.issues[0].text.includes('2 horas'), dur.issues[0].text);
+  const unk = M0.share(prep({ mk: FERIA_MARKS.map((m) => (m.kind === 'duration' ? Object.assign({}, m, { act: 'Z' }) : m)) }), 'es');
+  assert.equal(unk.blocked, 'mismatch');
+  assert.deepEqual(unk.issues.map((i) => i.code), ['unknownAct']);
+});
+
+test('T027 (F7) · la forma de la tabla (posteriores) se conserva al pasar a «preparar», al abrir la solución y al abrir M1 o M2', () => {
+  const succ = [row('A', 1, 'B', 'Reservar el aula'), row('B', 3, 'C', 'Carteles'), row('C', 4, 'D', 'Experimentos'), row('D', 2, '', 'Recoger')];
+  const sh = M0.share(prep({ mode: 'succ', t: succ }), 'es');
+  assert.equal(sh.blocked, null);
+  const sol = M0.openSolution(decodes(sh.solution));
+  assert.equal(sol.mode, 'succ');
+  const preds = (s) => { const pj = M0.model(s, 'es').project; return Object.fromEntries(pj.activities.map((a) => [a.id, pj.preds[a.id].slice()])); };
+  assert.deepEqual(preds(sol), { A: [], B: ['A'], C: ['B'], D: ['C'] });
+  const back = M0.toPrepare(decodes(sh.student));
+  assert.equal(back.mode, 'succ');
+  assert.deepEqual(preds(back), { A: [], B: ['A'], C: ['B'], D: ['C'] });
+  assert.equal(M0.openState(m0State(), 'm1', succ, 'succ').mode, 'succ');
+});
+
+test('T027 (F5) · con la tabla en error, las actividades subrayadas que tienen fila no avisan «no está en la tabla»', () => {
+  const st = S.build(ST.get('ej5'), 'es');
+  const aA = frag(st, 'aA'), aB = frag(st, 'aB');
+  const mk = [{ from: aA.from, to: aA.to, kind: 'activity', act: 'A' }, { from: aB.from, to: aB.to, kind: 'activity', act: 'B' }];
+  const m = M0.model(m0State({ t: [row('A', 3), row('B', '')], mk }), 'es');
+  assert.equal(m.project, null, 'la tabla tiene un error (falta una duración)');
+  assert.deepEqual(m.warnings, []);
+  const z = M0.model(m0State({ t: [row('A', 3), row('Z', '')], mk }), 'es');
+  assert.deepEqual(z.warnings.map((w) => [w.code, w.ids]), [['markedMissing', ['B']]]);
+});
+
+test('T027 (F11) · el enlace que se copia es la página sin su consulta; desde un archivo del equipo se avisa', () => {
+  assert.deepEqual(M0.shareUrl('https://x.org/lab/cpm.html?lang=en&token=1#v=m0', '#v=m0&st=own'), { url: 'https://x.org/lab/cpm.html#v=m0&st=own', local: false });
+  assert.deepEqual(M0.shareUrl('file:///C:/Users/ana/Descargas/cpm.html#v=m0', '#v=m0'), { url: 'file:///C:/Users/ana/Descargas/cpm.html#v=m0', local: true });
+});
+
+test('T027 (F17) · un subrayado que la URL no puede guardar se dice en el panel, no se pierde en silencio', () => {
+  assert.equal(M0.markProblem([], { from: 0, to: 1, kind: 'duration', act: 'A', value: 2.5 }), null);
+  assert.equal(M0.markProblem([], { from: 0, to: 1, kind: 'duration', act: 'A', value: 0.00001 }), 'valueTooBig');
+  assert.equal(M0.markProblem([], { from: 0, to: 1, kind: 'duration', act: 'A', value: 12345678 }), 'valueTooBig');
+  const many = Array.from({ length: 200 }, (_, k) => ({ from: k, to: k, kind: 'none' }));
+  assert.equal(M0.markProblem(many, { from: 300, to: 300, kind: 'none' }), 'tooMany');
+  assert.equal(M0.markProblem(many, { from: 5, to: 5, kind: 'none' }), null, 'sustituir uno no suma');
+});

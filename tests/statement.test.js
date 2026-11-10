@@ -239,3 +239,58 @@ test('T015: suggest dice si la letra sale del texto («A)», «A:», «A=») o e
   const { words: w2 } = S.tokenize('A precede a D');
   assert.equal(S.suggest(w2, 0, 3, []).fromText, false, 'una letra sin «)», «:» o «=» no es un identificador del texto');
 });
+
+// ── T027: revisión de nivel 2 (ronda 1) ────────────────────────────────────────────────────────────────────
+test('T027 (F4) · validate: una duración, un inicio o un final sobre una actividad que no está en la referencia', () => {
+  const codes = (def) => S.validate(def, { strict: true }).map((x) => x.code);
+  let d = clone(); d.frags.da.act = 'Z';
+  assert.deepEqual(codes(d), ['unknownAct']);
+  d = clone(); d.frags.e1.act = 'Z';
+  assert.deepEqual(codes(d), ['unknownAct']);
+  d = clone(); d.frags.e1.kind = 'start'; d.frags.e1.act = 'Z';
+  assert.deepEqual(codes(d), ['unknownAct']);
+});
+
+test('T027 (F10) · validate: la duración de un fragmento tiene que ser la de la referencia', () => {
+  const issues = (def) => S.validate(def, { strict: false }).filter((x) => !x.warn);
+  let d = clone(); d.frags.da.value = 5;
+  assert.deepEqual(issues(d), [{ code: 'durMismatch', frag: 'da', ids: ['A'] }]);
+  // En un enunciado propio, igual; y con una referencia sin duraciones, cualquier duración subrayada no casa.
+  const own = { lang: 'es', text: 'A dura 5 días. B sigue a A.', frags: [{ from: 0, to: 0, kind: 'activity', act: 'A' }, { from: 2, to: 3, kind: 'duration', act: 'A', value: 5 },
+    { from: 4, to: 7, kind: 'precedence', gives: [['A', 'B']] }], ref: { mode: 'pred', rows: [{ id: 'A', duration: '7', links: '', name: '' }, { id: 'B', duration: '1', links: 'A', name: '' }] } };
+  assert.deepEqual(issues(own), [{ code: 'durMismatch', frag: 1, ids: ['A'] }]);
+  own.ref.rows[0].duration = '5';
+  assert.deepEqual(issues(own), []);
+  own.ref.rows.forEach((r) => { r.duration = ''; });
+  assert.deepEqual(issues(own), [{ code: 'durMismatch', frag: 1, ids: ['A'] }]);
+});
+
+test('T027 (F13) · match: el emparejamiento busca el mayor solape en toda la tabla, no en el orden de las filas', () => {
+  const st = S.build(DEF, 'es');
+  const fa = fragOf(st, 'fa'), fb = fragOf(st, 'fb'), fc = fragOf(st, 'fc');
+  // P, escrita antes, comparte una palabra con fb y otra con fc; Q subraya fb entera. Q es B y P, C.
+  const marks = [{ from: fb.to, to: fc.from, kind: 'activity', act: 'P' }, { from: fb.from, to: fb.to, kind: 'activity', act: 'Q' }];
+  const m = S.match(st, marks, project({ P: [], Q: [] }));
+  assert.deepEqual(m.map, { P: 'C', Q: 'B' });
+  assert.deepEqual(m.extra, []);
+  // Con el mismo solape gana la primera del texto, y entre dos actividades del alumno, la primera de la tabla.
+  const tie = S.match(st, [{ from: fa.from, to: fa.to, kind: 'activity', act: 'P' }, { from: fa.from, to: fa.to, kind: 'activity', act: 'Q' }], project({ P: [], Q: [] }));
+  assert.deepEqual(tie.map, { P: 'A' });
+  assert.deepEqual(tie.extra, ['Q']);
+});
+
+test('T027 (F5) · markWarnings: con la tabla en error, una actividad subrayada que tiene fila no avisa', () => {
+  const st = S.build(DEF, 'es');
+  const marks = [{ from: 0, to: 1, kind: 'activity', act: 'A' }, { from: 2, to: 3, kind: 'activity', act: 'Z' },
+    { from: 4, to: 4, kind: 'precedence', gives: [], decl: { end: 'end', act: 'A' } }];
+  assert.deepEqual(S.markWarnings(st, marks, null, ['A', 'B']), [{ code: 'markedMissing', mark: 1, ids: ['Z'] }]);
+});
+
+test('T027 (F6) · moveMarks: un subrayado que cruza dos fragmentos pasa al que más solapa; con empate, al primero del texto', () => {
+  const es = S.build(DEF, 'es'), en = S.build(DEF, 'en');
+  const fb = fragOf(es, 'fb'), fc = fragOf(es, 'fc');
+  const one = S.moveMarks(DEF, [{ from: fb.to, to: fc.from + 1, kind: 'none' }], 'es', 'en');
+  assert.deepEqual(one.marks.map((m) => [m.from, m.to]), [[fragOf(en, 'fc').from, fragOf(en, 'fc').to]]);
+  const tie = S.moveMarks(DEF, [{ from: fb.to, to: fc.from, kind: 'none' }], 'es', 'en');
+  assert.deepEqual(tie.marks.map((m) => [m.from, m.to]), [[fragOf(en, 'fb').from, fragOf(en, 'fb').to]]);
+});

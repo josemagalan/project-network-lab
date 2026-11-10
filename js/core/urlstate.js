@@ -167,11 +167,18 @@
   const rowOk = (a) => Array.isArray(a) && a.length === 4 && a.every((x) => typeof x === 'string')
     && a[0].length <= LIMITS.id && a[1].length <= LIMITS.duration && a[2].length <= LIMITS.links && a[3].length <= LIMITS.name;
 
+  // Las filas se recortan a los límites de la tabla, como en encodeTable, para que unpackOwn las acepte siempre
+  // (revisión de la F2c, F1).
+  const packRows = (rows) => rows.slice(0, LIMITS.rows).map((r) => {
+    const a = rowArr(r);
+    return [cut(a[0], LIMITS.id), cut(a[1], LIMITS.duration), cut(a[2], LIMITS.links), cut(a[3], LIMITS.name)];
+  });
+
   // Enunciado propio: el enunciado, la tabla del alumno y sus subrayados en un solo paquete (puerta T002).
   function packOwn(s) {
     const o = s.own;
-    const payload = [1, o.lang, o.text, encodeMarks(o.frags), o.ref ? o.ref.mode : null, o.ref ? o.ref.rows.map(rowArr) : null,
-      s.t ? s.t.map(rowArr) : null, s.mode, s.mk ? encodeMarks(s.mk) : null];
+    const payload = [1, o.lang, o.text, encodeMarks(o.frags), o.ref ? o.ref.mode : null, o.ref ? packRows(o.ref.rows) : null,
+      s.t ? packRows(s.t) : null, s.mode, s.mk ? encodeMarks(s.mk) : null];
     return textpack().compress(JSON.stringify(payload));
   }
 
@@ -241,9 +248,14 @@
   }
 
   // Como encode, pero nunca da un enlace que decode rechazaría por largo (F2c, P5; tarea apuntada de la F2b).
+  // Un enlace que se da por bueno se abre: con un enunciado propio, además del largo, se comprueba que el paquete
+  // se lee (un texto muy repetitivo puede pasar del tope de lo descomprimido; revisión de la F2c, F1).
   function encodeSafe(state) {
     const hash = encode(state);
-    return hash.length <= LIMITS.hash ? { hash, length: hash.length } : { hash: null, reason: 'tooLong', length: hash.length };
+    if (hash.length > LIMITS.hash) return { hash: null, reason: 'tooLong', length: hash.length };
+    const s = Object.assign(defaults(), state);
+    if (s.v === 'm0' && s.st === 'own' && s.own && decode(hash).warning === 'malformed') return { hash: null, reason: 'unreadable', length: hash.length };
+    return { hash, length: hash.length };
   }
 
   function decode(hash) {
@@ -338,7 +350,7 @@
     return out;
   }
 
-  const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks };
+  const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

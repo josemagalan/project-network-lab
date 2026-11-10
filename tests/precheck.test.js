@@ -205,3 +205,43 @@ test('diagnose (propiedades del prototipo, 3000 tablas con semilla)', () => {
   }
   assert.ok(removed > 2000 && inverted > 2000 && added > 2000);
 });
+
+// ── T027 (F3): el diagnóstico con varios errores a la vez, entero (no solo «ok») ───────────────────────────
+test('T027 · diagnose: una actividad inventada usada como predecesora es solo una actividad que sobra', () => {
+  const d = C.diagnose(proj(REF), parsed({ A: [], Z: [], B: ['A', 'Z'], C: ['A'], D: ['B', 'C'] }), null, { durations: true });
+  assert.deepEqual(d.issues, [{ code: 'extraActivity', ids: ['Z'] }]);
+  assert.deepEqual(d.warnings, []);
+});
+
+test('T027 · diagnose: una precedencia que el cierre del alumno ya implica no falta, aunque no la escriba', () => {
+  const d = C.diagnose(proj({ A: [], B: [], C: ['A'] }), parsed({ A: [], B: ['A'], C: ['B'] }), null, { durations: true });
+  assert.deepEqual(d.issues, [{ code: 'falsePrecedence', ids: ['A', 'B'] }, { code: 'falsePrecedence', ids: ['B', 'C'] }]);
+});
+
+test('T027 · diagnose: la contraria por un camino no es una invertida', () => {
+  const d = C.diagnose(proj({ A: [], B: ['A'], C: [] }), parsed({ A: ['C'], B: [], C: ['B'] }), null, { durations: true });
+  assert.deepEqual(d.issues, [{ code: 'missingPrecedence', ids: ['A', 'B'] },
+    { code: 'falsePrecedence', ids: ['B', 'C'] }, { code: 'falsePrecedence', ids: ['C', 'A'] }]);
+});
+
+test('T027 · diagnose: todas las falsas, sin recortar', () => {
+  const ids = 'ABCDEFG'.split('');
+  const ref = Object.fromEntries(ids.map((id) => [id, []]));
+  const pairs = ids.flatMap((x, i) => ids.slice(i + 1).map((y) => [x, y])).slice(0, 16);
+  const stu = Object.fromEntries(ids.map((id) => [id, pairs.filter((e) => e[1] === id).map((e) => e[0])]));
+  const d = C.diagnose(proj(ref), parsed(stu), null, { durations: true });
+  assert.equal(d.issues.length, 16);
+  assert.ok(d.issues.every((i) => i.code === 'falsePrecedence'));
+  assert.deepEqual(key(d.issues.map((i) => i.ids)), key(pairs));
+});
+
+test('T027 · diagnose: una redundante sobre una precedencia falsa no avisa (ya es un error)', () => {
+  const d = C.diagnose(proj({ A: [], B: ['A'], C: [] }), parsed({ A: [], B: ['A'], C: ['A', 'B'] }), null, { durations: true });
+  assert.deepEqual(d.issues, [{ code: 'falsePrecedence', ids: ['A', 'C'] }, { code: 'falsePrecedence', ids: ['B', 'C'] }]);
+  assert.deepEqual(d.warnings, []);
+});
+
+test('T027 · diagnose: en un enunciado con duraciones, una tabla sin ninguna da un error de duración por actividad', () => {
+  const d = C.diagnose(proj(REF), parsed(REF, null), null, { durations: true });
+  assert.deepEqual(d.issues, ['A', 'B', 'C', 'D'].map((id) => ({ code: 'duration', ids: [id] })));
+});
