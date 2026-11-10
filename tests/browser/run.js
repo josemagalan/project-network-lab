@@ -2396,7 +2396,7 @@ check('F2c AC16 · a 1280×720 el texto y la tabla se ven a la vez; a 360 px nad
   }
 });
 
-check('F2c AC18 · axe sin violaciones en M0 (practicar, subrayar, panel, matriz, validación, corrección y ruta), en claro y oscuro', async () => {
+check('F2c AC18 · axe sin violaciones en M0 (practicar, subrayar, panel, matriz, validación, corrección y ruta), en claro y oscuro, y la ruta a 360 px con el teclado', async () => {
   const probe = await m0Lab({ st: 'congreso' });
   const fc = await fragsOf(probe, 'congreso', 'es');
   await close(probe);
@@ -2413,6 +2413,27 @@ check('F2c AC18 · axe sin violaciones en M0 (practicar, subrayar, panel, matriz
         await axe(page, `M0 · ${name} (${lang}, ${scheme})`);
         await close(page);
       }
+    }
+  }
+  // T025: a 360 px la tabla de la ruta se desplaza dentro de su caja, que tiene que alcanzarse con el teclado; con el
+  // foco en ella, las flechas la desplazan y no cambian de paso. (La tabla del Ej. 5 en inglés sobresale solo unos
+  // píxeles; la de la cocina en el paso 20, unos 60.)
+  for (const lang of ['es', 'en']) {
+    for (const [name, s] of [['ruta a 360 px', { mm: 'route', step: 4 }], ['ruta con predicción a 360 px', { mm: 'route', step: 4, pred: 1 }],
+      ['ruta de la cocina a 360 px', { mm: 'route', step: 20, st: 'cocina' }]]) {
+      const page = await m0Lab(Object.assign({ lang }, s), { width: 360, height: 740 });
+      await axe(page, `M0 · ${name} (${lang}, light)`);
+      const box = page.locator('section[aria-labelledby="m0RTableHead"] > .scroll-box');
+      assert.equal(await box.getAttribute('tabindex'), '0', `${name} (${lang}): la caja de la tabla se alcanza con el teclado`);
+      await box.focus();
+      await page.keyboard.press('ArrowRight');
+      await page.waitForTimeout(100);
+      assert.equal((await state(page)).step, s.step, `${name} (${lang}): las flechas en la caja no cambian de paso`);
+      if (s.st === 'cocina' && lang === 'es') {
+        assert.ok(await box.evaluate((b) => b.scrollWidth - b.clientWidth > 30), 'la tabla de la cocina se desplaza dentro de su caja');
+        assert.ok(await box.evaluate((b) => b.scrollLeft > 0), 'las flechas desplazan la tabla');
+      }
+      await close(page);
     }
   }
 });

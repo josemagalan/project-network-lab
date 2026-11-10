@@ -436,7 +436,9 @@
     const rPredict = h('div', { class: 'predict m0-predict' });
     const rStep = h('section', { class: 'card m0-step', 'aria-labelledby': 'm0StepHead' }, [rHead, rText, rPredict]);
     const rTableHead = h('h2', { id: 'm0RTableHead' });
-    const rTableBody = h('div', { class: 'scroll-box' });
+    // A 360 px la tabla se desplaza dentro de su caja (T025): se alcanza con el teclado y, con el foco en ella, las flechas
+    // la desplazan en lugar de cambiar de paso.
+    const rTableBody = h('div', { class: 'scroll-box', tabindex: '0', 'data-own-keys': '' });
     const rOpen = h('div', { class: 'm0-open' });
     const rTable = h('section', { class: 'card m0-table', 'aria-labelledby': 'm0RTableHead' }, [rTableHead, rTableBody, rOpen]);
     const rCounter = h('span', {});
