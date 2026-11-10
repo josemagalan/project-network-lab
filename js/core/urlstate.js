@@ -17,12 +17,13 @@
   // Ejemplos solo de estructura (sin duraciones): no tienen red ROY, así que se abren siempre en PERT.
   const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo'];
   const ENUMS = {
-    v: ['route', 'work', 'm0'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
+    v: ['route', 'work', 'm0', 'ex'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
     tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: ['0', '1'],
+    lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
   };
-  const NUMERIC = ['pred', 'min', 'sol'];
-  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd'];
+  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -37,10 +38,18 @@
   const LIMITS = { hash: 8000, rows: 40, id: 8, duration: 12, links: 200, name: 80, step: 999, ownText: OWN.text };
   const ID_RE = /^[A-Za-z0-9]{1,4}$/;
   const ID_UPPER = /^[A-Z0-9]{1,4}$/;
+  // F3a: «Ejercicios» (plan f3a-generador-calculo, §3). Letras de ask en el orden de core/grade.ASK.
+  const ASK = ['times', 'events', 'floats', 'sf', 'critical'];
+  const ASK_CODE = { times: 't', events: 'e', floats: 'f', sf: 's', critical: 'c' };
+  const DEFAULT_ASK = ['times', 'floats', 'critical'];
+  const EX = { seed: 999999, acts: 30, events: 60, value: 8, paths: 10, path: 120, packed: 20000 };
+  const ACT_FIELDS = ['ES', 'EF', 'LS', 'LF', 'TF', 'FF', 'IF', 'SF'];
+  const EV_FIELDS = ['TE', 'TL', 'slack'];
 
   function defaults() {
     return { v: 'route', ex: 'ej6', t: null, step: 0, view: 'net', lang: null, nota: 'en', box: '7', mode: 'pred', pred: 0, wi: null, graph: 'aon', min: 0, m: 'rules', ms: DEFAULT_MS.slice(), pair: null, sn: null,
-      st: null, own: null, mk: null, tv: 'list', mm: 'practice', sol: 0 };
+      st: null, own: null, mk: null, tv: 'list', mm: 'practice', sol: 0,
+      sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null };
   }
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -208,6 +217,85 @@
     return { own: { lang: a[1], text: a[2], frags, ref }, t, mode: a[7], mk };
   }
 
+  // ---------- F3a: «Ejercicios» ----------
+  const seedOk = (x) => Number.isInteger(x) && x >= 1 && x <= EX.seed;
+  const pairIn = (x, lo, hi) => Array.isArray(x) && x.length === 2 && x.every(Number.isInteger) && x[0] >= lo && x[0] <= x[1] && x[1] <= hi;
+  // Parámetros de «Personalizar»: solo los límites de la forma (generator.check dice lo que es imposible).
+  function cleanGp(gp) {
+    if (!gp || typeof gp !== 'object') return null;
+    const pred10 = Math.round(gp.pred * 10);
+    if (!pairIn(gp.n, 4, 30) || typeof gp.pred !== 'number' || Math.abs(gp.pred * 10 - pred10) > 1e-9 || pred10 < 10 || pred10 > 30) return null;
+    if (!(gp.dummies === null || pairIn(gp.dummies, 0, 30)) || !pairIn(gp.critical, 1, 3) || !(Number.isInteger(gp.dmax) && gp.dmax >= 2 && gp.dmax <= 30)) return null;
+    return { n: gp.n.slice(), pred: pred10 / 10, dummies: gp.dummies ? gp.dummies.slice() : null, critical: gp.critical.slice(), dmax: gp.dmax };
+  }
+  const encodeGp = (g) => [`n${g.n[0]}-${g.n[1]}`, `p${Math.round(g.pred * 10)}`].concat(g.dummies ? [`f${g.dummies[0]}-${g.dummies[1]}`] : [])
+    .concat([`c${g.critical[0]}-${g.critical[1]}`, `d${g.dmax}`]).join('.');
+  function decodeGp(text) {
+    const m = String(text).match(/^n(\d{1,2})-(\d{1,2})\.p(\d{2})(?:\.f(\d{1,2})-(\d{1,2}))?\.c(\d)-(\d)\.d(\d{1,2})$/);
+    if (!m) return null;
+    const n = (i) => Number(m[i]);
+    return cleanGp({ n: [n(1), n(2)], pred: n(3) / 10, dummies: m[4] === undefined ? null : [n(4), n(5)], critical: [n(6), n(7)], dmax: n(8) });
+  }
+  // Lo que se pide: un subconjunto no vacío de ASK, en su orden; la holgura de seguridad solo con las holguras.
+  function cleanAsk(ask) {
+    if (!Array.isArray(ask) || !ask.length || !ask.every((x) => ASK.includes(x)) || new Set(ask).size !== ask.length) return null;
+    const out = ASK.filter((x) => ask.includes(x) && (x !== 'sf' || ask.includes('floats')));
+    return out.length ? out : null;
+  }
+  function decodeAsk(text) {
+    const letters = String(text).split('');
+    const codes = ASK.map((x) => ASK_CODE[x]);
+    if (!letters.length || letters.some((c) => !codes.includes(c)) || new Set(letters).size !== letters.length) return null;
+    if (letters.map((c) => codes.indexOf(c)).some((v, i, a) => i && v < a[i - 1])) return null;
+    return cleanAsk(letters.map((c) => ASK[codes.indexOf(c)]));
+  }
+  const str8 = (v) => typeof v === 'string' && v.length <= EX.value;
+  // Respuestas: { act: { id: { ES… SF } }, dur, ev: { n: { TE, TL, slack } }, crit: [id], paths: [texto] }, todo texto.
+  function cleanAns(ans) {
+    if (!ans || typeof ans !== 'object') return null;
+    const act = ans.act || {};
+    const ev = ans.ev || {};
+    const crit = ans.crit || [];
+    const paths = ans.paths || [];
+    if (typeof act !== 'object' || Object.keys(act).length > EX.acts || typeof ev !== 'object' || Object.keys(ev).length > EX.events) return null;
+    if (!Array.isArray(crit) || crit.length > EX.acts || !crit.every((x) => typeof x === 'string' && ID_UPPER.test(x))) return null;
+    if (!Array.isArray(paths) || paths.length > EX.paths || !paths.every((x) => typeof x === 'string' && x.length <= EX.path)) return null;
+    if (!(ans.dur === undefined || ans.dur === null || str8(ans.dur))) return null;
+    const out = { act: {}, dur: ans.dur == null ? '' : ans.dur, ev: {}, crit: crit.slice(), paths: paths.slice() };
+    for (const [id, f] of Object.entries(act)) {
+      if (!ID_UPPER.test(id) || !f || typeof f !== 'object' || Object.keys(f).some((k) => !ACT_FIELDS.includes(k))) return null;
+      if (!ACT_FIELDS.every((k) => f[k] === undefined || str8(f[k]))) return null;
+      out.act[id] = Object.fromEntries(ACT_FIELDS.map((k) => [k, f[k] === undefined ? '' : f[k]]));
+    }
+    for (const [n, f] of Object.entries(ev)) {
+      if (!/^\d{1,2}$/.test(n) || Number(n) < 1 || Number(n) > EX.events || !f || typeof f !== 'object' || Object.keys(f).some((k) => !EV_FIELDS.includes(k))) return null;
+      if (!EV_FIELDS.every((k) => f[k] === undefined || str8(f[k]))) return null;
+      out.ev[n] = Object.fromEntries(EV_FIELDS.map((k) => [k, f[k] === undefined ? '' : f[k]]));
+    }
+    const empty = !out.dur && !out.crit.length && !out.paths.length
+      && Object.values(out.act).every((f) => ACT_FIELDS.every((k) => !f[k])) && Object.values(out.ev).every((f) => EV_FIELDS.every((k) => !f[k]));
+    return empty ? null : out;
+  }
+  function packAns(a) {
+    const payload = [1, Object.fromEntries(Object.entries(a.act).map(([id, f]) => [id, ACT_FIELDS.map((k) => f[k])])), a.dur,
+      Object.fromEntries(Object.entries(a.ev).map(([n, f]) => [n, EV_FIELDS.map((k) => f[k])])), a.crit, a.paths];
+    return textpack().compress(JSON.stringify(payload));
+  }
+  function unpackAns(packed) {
+    const tp = textpack();
+    const json = tp ? tp.decompress(packed, { max: EX.packed }) : null;
+    if (json === null) return null;
+    let a;
+    try { a = JSON.parse(json); } catch { return null; }
+    if (!Array.isArray(a) || a.length !== 6 || a[0] !== 1 || !a[1] || typeof a[1] !== 'object' || Array.isArray(a[1]) || !a[3] || typeof a[3] !== 'object' || Array.isArray(a[3])) return null;
+    const arr = (x, n) => Array.isArray(x) && x.length === n;
+    if (!Object.values(a[1]).every((x) => arr(x, ACT_FIELDS.length)) || !Object.values(a[3]).every((x) => arr(x, EV_FIELDS.length))) return null;
+    return cleanAns({
+      act: Object.fromEntries(Object.entries(a[1]).map(([id, x]) => [id, Object.fromEntries(ACT_FIELDS.map((k, i) => [k, x[i]]))])),
+      dur: a[2], ev: Object.fromEntries(Object.entries(a[3]).map(([n, x]) => [n, Object.fromEntries(EV_FIELDS.map((k, i) => [k, x[i]]))])),
+      crit: a[4], paths: a[5] });
+  }
+
   function encode(state) {
     const s = Object.assign(defaults(), state);
     const q = new URLSearchParams();
@@ -215,8 +303,9 @@
     // graph y min solo se escriben si no valen lo de siempre: los enlaces de la fase 1 no cambian (F2a, P4).
     if (s.graph === 'aoa') q.set('graph', 'aoa');
     const m0 = s.v === 'm0';
+    const exV = s.v === 'ex';
     const own = m0 && s.st === 'own' && s.own;
-    if (s.t && !own) q.set('t', encodeTable(s.t)); else if (s.ex && !m0) q.set('ex', s.ex);
+    if (exV) { /* la tabla sale de la semilla */ } else if (s.t && !own) q.set('t', encodeTable(s.t)); else if (s.ex && !m0) q.set('ex', s.ex);
     q.set('step', String(s.step));
     q.set('view', s.view);
     if (s.lang) q.set('lang', s.lang);
@@ -243,6 +332,20 @@
       if (s.tv !== 'list') q.set('tv', s.tv);
       if (s.mm !== 'practice') q.set('mm', s.mm);
       if (s.sol) q.set('sol', '1');
+    }
+    // F3a: «Ejercicios», solo lo que no vale lo de siempre.
+    if (exV) {
+      if (seedOk(s.sd)) q.set('sd', String(s.sd));
+      const gp = s.lv === 'custom' ? cleanGp(s.gp) : null;
+      if (s.lv !== 'medium' && (s.lv !== 'custom' || gp)) q.set('lv', s.lv);
+      if (gp) q.set('gp', encodeGp(gp));
+      const ask = cleanAsk(s.ask) || DEFAULT_ASK;
+      if (ask.join() !== DEFAULT_ASK.join()) q.set('ask', ask.map((x) => ASK_CODE[x]).join(''));
+      if (s.xm === 'exam') q.set('xm', 'exam');
+      const ans = cleanAns(s.ans);
+      if (ans) q.set('ans', packAns(ans));
+      if (s.xd) q.set('xd', '1');
+      if (Number.isInteger(s.gv) && s.gv >= 1) q.set('gv', String(s.gv));
     }
     return '#' + q.toString();
   }
@@ -332,6 +435,18 @@
         if (mk === null) malformed = true; else state.mk = mk.length ? mk : null;
       }
     }
+    // F3a: «Ejercicios» (la tabla sale de la semilla: t y ex no se leen).
+    if (state.v === 'ex') {
+      state.ex = null; state.t = null;
+      if (q.has('sd')) { const v = q.get('sd'); const n = /^\d{1,6}$/.test(v) ? Number(v) : NaN; if (seedOk(n)) state.sd = n; else malformed = true; }
+      if (state.lv === 'custom') {
+        const gp = q.has('gp') ? decodeGp(q.get('gp')) : null;
+        if (gp) state.gp = gp; else { state.lv = 'medium'; malformed = true; }
+      }
+      if (q.has('ask')) { const a = decodeAsk(q.get('ask')); if (a) state.ask = a; else malformed = true; }
+      if (q.has('ans')) { const a = unpackAns(q.get('ans')); if (a) state.ans = a; else malformed = true; }
+      if (q.has('gv')) { const v = q.get('gv'); if (/^\d{1,3}$/.test(v) && Number(v) >= 1) state.gv = Number(v); else malformed = true; }
+    }
     // El comparador y el reto son de la red PERT (F2b, plan §3).
     if ((state.view === 'cmp' || state.view === 'reto') && state.graph !== 'aoa') { state.view = 'net'; malformed = true; }
     // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
@@ -350,7 +465,8 @@
     return out;
   }
 
-  const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks };
+  const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
+    ASK, DEFAULT_ASK, EX, cleanGp, cleanAsk, cleanAns };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

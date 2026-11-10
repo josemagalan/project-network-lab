@@ -1,6 +1,7 @@
 /*
  * store — transiciones puras del estado de la página. El estado tiene la forma de core/urlstate
- * (v, ex, t, step, view, lang, nota, box, mode, pred, wi, graph, min y, en la F2b, m, ms, pair y sn); app lo escribe en
+ * (v, ex, t, step, view, lang, nota, box, mode, pred, wi, graph, min y, en la F2b, m, ms, pair y sn; en la F2c, st, own, mk, tv,
+ * mm y sol; en la F3a, sd, lv, gp, ask, xm, ans, xd y gv); app lo escribe en
  * la URL tras cada cambio.
  * reduce(state, action, total) nunca muta el estado recibido y solo acepta valores de la lista blanca.
  */
@@ -103,6 +104,22 @@
         s.t = (action.rows || []).map((r) => Object.assign({}, r)); s.ex = null; s.wi = null;
         s.step = clamp(s.step, action.total == null ? total : action.total);
         break;
+      // F3a: ejercicio nuevo (semilla, nivel, parámetros, qué se pide, modo): sin respuestas, sin entregar.
+      case 'ex': {
+        s.v = 'ex'; s.ex = null; s.t = null; s.step = 0; s.wi = null; s.ans = null; s.xd = 0; s.gv = null;
+        if (Number.isInteger(action.sd) && action.sd >= 1 && action.sd <= U.EX.seed) s.sd = action.sd;
+        if (['easy', 'medium', 'hard'].includes(action.lv)) { s.lv = action.lv; s.gp = null; }
+        else if (action.lv === 'custom') { const gp = U.cleanGp(action.gp); if (gp) { s.lv = 'custom'; s.gp = gp; } }
+        if (action.ask !== undefined) { const ask = U.cleanAsk(action.ask); if (ask) s.ask = ask; }
+        if (['practice', 'exam'].includes(action.xm)) s.xm = action.xm;
+        break;
+      }
+      case 'exAnswer':
+        if (s.xd) break;
+        if (action.ans === null) { s.ans = null; break; }
+        { const a = U.cleanAns(action.ans); if (a || !action.ans) s.ans = a; }
+        break;
+      case 'exDeliver': if (s.xm === 'exam') s.xd = 1; break;
       case 'whatif': {
         const others = (s.wi || []).filter(([id]) => id !== action.id);
         const d = Number(action.d);

@@ -251,3 +251,44 @@ test('T027 (ronda 2, F10) · volver a elegir el mismo enunciado también lo empi
   assert.equal(again.mk, null);
   assert.equal(again.t, null);
 });
+
+// ---------- F3a: «Ejercicios» (spec f3a-generador-calculo, AC10 y AC11; plan §3 y T007) ----------
+
+test('F3a: ex abre un ejercicio nuevo; conserva lo que no se cambia y quita respuestas, entrega y versión', () => {
+  let s = Object.assign(s0(), { v: 'work', t: [{ id: 'A', duration: '2', links: '' }], ex: null, wi: [['A', 3]], step: 4 });
+  s = S.reduce(s, { type: 'ex', sd: 17 }, 1);
+  assert.deepEqual([s.v, s.sd, s.lv, s.xm, s.t, s.ex, s.wi, s.step, s.ans, s.xd], ['ex', 17, 'medium', 'practice', null, null, null, 0, null, 0]);
+  s = Object.assign({}, s, { ans: { act: {}, dur: '3', ev: {}, crit: [], paths: [] }, xd: 1, gv: 1 });
+  s = S.reduce(s, { type: 'ex', lv: 'hard', sd: 18, xm: 'exam', ask: ['times', 'events'] }, 1);
+  assert.deepEqual([s.lv, s.sd, s.xm, s.ask, s.ans, s.xd, s.gv], ['hard', 18, 'exam', ['times', 'events'], null, 0, null]);
+  s = S.reduce(s, { type: 'ex', lv: 'custom', gp: { n: [5, 8], pred: 1.4, dummies: [0, 2], critical: [1, 2], dmax: 7 }, sd: 19 }, 1);
+  assert.deepEqual(s.gp, { n: [5, 8], pred: 1.4, dummies: [0, 2], critical: [1, 2], dmax: 7 });
+  // lo que no valida no se aplica
+  const t = S.reduce(s, { type: 'ex', lv: 'x', sd: 0, xm: 'quiz', ask: ['nope'], gp: { n: [1, 2] } }, 1);
+  assert.deepEqual([t.lv, t.sd, t.xm, t.ask, t.gp], [s.lv, s.sd, s.xm, s.ask, s.gp]);
+  // un nivel fijo quita los parámetros personalizados
+  assert.equal(S.reduce(s, { type: 'ex', lv: 'easy', sd: 20 }, 1).gp, null);
+});
+
+test('F3a: exAnswer guarda las respuestas (vacías → null) y no cambia nada tras entregar; exDeliver solo en Examen', () => {
+  let s = S.reduce(s0(), { type: 'ex', sd: 3 }, 1);
+  const ans = { act: { A: { ES: '0', EF: '2', LS: '', LF: '', TF: '', FF: '', IF: '', SF: '' } }, dur: '', ev: {}, crit: [], paths: [] };
+  s = S.reduce(s, { type: 'exAnswer', ans }, 1);
+  assert.deepEqual(s.ans, ans);
+  assert.equal(S.reduce(s, { type: 'exAnswer', ans: { act: { a: {} } } }, 1).ans, s.ans);   // no válida: no se aplica
+  assert.equal(S.reduce(s, { type: 'exAnswer', ans: null }, 1).ans, null);
+  assert.equal(S.reduce(s, { type: 'exDeliver' }, 1).xd, 0);                                 // Practicar no se entrega
+  s = S.reduce(s, { type: 'ex', xm: 'exam', sd: 3 }, 1);
+  s = S.reduce(s, { type: 'exAnswer', ans }, 1);
+  s = S.reduce(s, { type: 'exDeliver' }, 1);
+  assert.equal(s.xd, 1);
+  assert.equal(S.reduce(s, { type: 'exAnswer', ans: null }, 1).ans, s.ans);                  // entregado: bloqueado
+});
+
+test('F3a: «Tabla al azar» usa la acción work del taller con las filas generadas', () => {
+  const rows = [{ id: 'A', duration: '3', links: '' }, { id: 'B', duration: '2', links: 'A' }];
+  const s = S.reduce(Object.assign(s0(), { v: 'work', ex: 'ej6' }), { type: 'work', rows, mode: 'pred' }, 1);
+  assert.deepEqual([s.v, s.ex, s.mode], ['work', null, 'pred']);
+  assert.deepEqual(s.t, rows);
+  assert.notEqual(s.t[0], rows[0]);
+});

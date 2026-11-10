@@ -356,3 +356,110 @@ test('T021: «preparar» un enunciado propio se abre sin paquete, con el texto v
   assert.equal(U.decode('#v=m0&st=own&mm=route').warning, 'malformed');
   assert.equal(U.LIMITS.ownText, 3000);
 });
+
+// ---------- F3a: «Ejercicios» (spec f3a-generador-calculo, AC10; plan §3 y T007) ----------
+
+const EX_ANS = {
+  act: { A: { ES: '0', EF: '2', LS: '1', LF: '3', TF: '1', FF: '', IF: '1', SF: '' }, B: { ES: '0', EF: '3,5', LS: '', LF: '', TF: '', FF: '', IF: '', SF: '' } },
+  dur: '13', ev: { 1: { TE: '0', TL: '0', slack: '0' }, 2: { TE: '3', TL: '', slack: '' } }, crit: ['B', 'E'], paths: ['B-E-I-J-K', 'b e i'],
+};
+
+test('F3a: por defecto, «Ejercicios» no escribe nada propio y los parámetros nuevos valen lo de siempre', () => {
+  const d = U.defaults();
+  assert.deepEqual([d.sd, d.lv, d.gp, d.ask, d.xm, d.ans, d.xd, d.gv], [null, 'medium', null, ['times', 'floats', 'critical'], 'practice', null, 0, null]);
+  const h = U.encode(Object.assign(U.defaults(), { v: 'ex', ex: null }));
+  for (const k of ['sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'ex', 't']) assert.ok(!new URLSearchParams(h.slice(1)).has(k), k);
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  assert.equal(back.state.v, 'ex');
+  assert.equal(back.state.ex, null);
+});
+
+test('F3a: ida y vuelta de sd, lv, gp, ask, xm, ans, xd y gv', () => {
+  const s = Object.assign(U.defaults(), { v: 'ex', ex: null, sd: 424242, lv: 'custom',
+    gp: { n: [12, 16], pred: 2.5, dummies: [3, 5], critical: [2, 3], dmax: 20 }, ask: ['times', 'events', 'floats', 'sf', 'critical'],
+    xm: 'exam', ans: EX_ANS, xd: 1, gv: 2, lang: 'en', nota: 'es' });
+  const h = U.encode(s);
+  const q = new URLSearchParams(h.slice(1));
+  assert.equal(q.get('gp'), 'n12-16.p25.f3-5.c2-3.d20');
+  assert.equal(q.get('ask'), 'tefsc');
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  for (const k of ['v', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'lang', 'nota']) assert.deepEqual(back.state[k], s[k], k);
+  // sin ficticias
+  const s2 = Object.assign({}, s, { gp: { n: [20, 30], pred: 1, dummies: null, critical: [1, 1], dmax: 9 } });
+  assert.equal(new URLSearchParams(U.encode(s2).slice(1)).get('gp'), 'n20-30.p10.c1-1.d9');
+  assert.deepEqual(U.decode(U.encode(s2)).state.gp, s2.gp);
+  // lv distinto de custom no escribe gp; un nivel fijo se guarda tal cual
+  const s3 = Object.assign({}, s, { lv: 'hard' });
+  assert.ok(!new URLSearchParams(U.encode(s3).slice(1)).has('gp'));
+  assert.equal(U.decode(U.encode(s3)).state.gp, null);
+  assert.equal(U.decode(U.encode(s3)).state.lv, 'hard');
+});
+
+test('F3a: lista blanca y límites; lo que no valida vuelve a su valor por defecto con aviso', () => {
+  const bad = (frag, key, want) => {
+    const r = U.decode(`#v=ex&${frag}`);
+    assert.equal(r.warning, 'malformed', frag);
+    assert.deepEqual(r.state[key], want, frag);
+  };
+  bad('sd=0', 'sd', null);
+  bad('sd=1000000', 'sd', null);
+  bad('sd=12a', 'sd', null);
+  bad('lv=extreme', 'lv', 'medium');
+  bad('lv=custom', 'lv', 'medium');                         // custom sin gp
+  bad('lv=custom&gp=n3-9.p12.c1-1.d9', 'gp', null);         // fuera de los límites de «Personalizar»
+  bad('lv=custom&gp=n6-7.p35.c1-1.d9', 'gp', null);
+  bad('lv=custom&gp=n6-7.p12.c0-1.d9', 'gp', null);
+  bad('lv=custom&gp=n6-7.p12.c1-1.d1', 'gp', null);
+  bad('lv=custom&gp=n6-7.p12.f2-1.c1-1.d9', 'gp', null);
+  bad('lv=custom&gp=basura', 'gp', null);
+  bad('ask=tx', 'ask', ['times', 'floats', 'critical']);
+  bad('ask=', 'ask', ['times', 'floats', 'critical']);
+  bad('ask=ft', 'ask', ['times', 'floats', 'critical']);   // en el orden de ASK
+  bad('ask=tt', 'ask', ['times', 'floats', 'critical']);
+  bad('xm=quiz', 'xm', 'practice');
+  bad('xd=2', 'xd', 0);
+  bad('gv=0', 'gv', null);
+  bad('ans=xyz', 'ans', null);
+  assert.equal(U.decode('#v=ex&lv=custom&gp=n4-30.p30.c3-3.d30').state.gp.n[1], 30);
+  // la holgura de seguridad sin holguras se ignora
+  assert.deepEqual(U.decode('#v=ex&ask=ts').state.ask, ['times']);
+});
+
+test('F3a: las respuestas viajan con sus límites (30 actividades, 60 sucesos, 8 caracteres, 10 caminos de 120)', () => {
+  const ids = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['AA', 'AB', 'AC', 'AD']);
+  const full = { act: Object.fromEntries(ids.map((a) => [a, Object.fromEntries(['ES', 'EF', 'LS', 'LF', 'TF', 'FF', 'IF', 'SF'].map((f) => [f, '12345,67']))])),
+    dur: '12345,67', ev: Object.fromEntries(Array.from({ length: 60 }, (_, i) => [i + 1, { TE: '12345,67', TL: '12345,67', slack: '12345,67' }])),
+    crit: ids.slice(), paths: Array.from({ length: 10 }, () => ids.join('-').slice(0, 120)) };
+  const s = Object.assign(U.defaults(), { v: 'ex', ex: null, sd: 999999, lv: 'custom', gp: { n: [30, 30], pred: 3, dummies: null, critical: [3, 3], dmax: 30 },
+    ask: ['times', 'events', 'floats', 'sf', 'critical'], xm: 'exam', ans: full, xd: 1 });
+  const safe = U.encodeSafe(s);
+  assert.ok(safe.hash, `no cabe: ${safe.length}`);
+  assert.deepEqual(U.decode(safe.hash).state.ans, full);
+  const over = (mut) => { const a = JSON.parse(JSON.stringify(full)); mut(a); return U.decode(U.encode(Object.assign({}, s, { ans: a }))); };
+  assert.equal(over((a) => { a.act.A.ES = '123456789'; }).state.ans, null);
+  assert.equal(over((a) => { a.act.AE = a.act.A; }).state.ans, null);
+  assert.equal(over((a) => { a.act.a = a.act.A; }).state.ans, null);
+  assert.equal(over((a) => { a.ev[61] = a.ev[1]; }).state.ans, null);
+  assert.equal(over((a) => { a.paths.push('A'); }).state.ans, null);
+  assert.equal(over((a) => { a.paths[0] = 'A'.repeat(121); }).state.ans, null);
+  assert.equal(over((a) => { a.crit.push('ZZZZZ'); }).state.ans, null);
+  assert.equal(over((a) => { a.act.A.XX = '1'; }).state.ans, null);
+  // texto malicioso: se conserva como texto
+  const evil = over((a) => { a.act.A.ES = '<img/>'; a.paths[0] = 'javascript:alert(1)'; });
+  assert.equal(evil.state.ans.act.A.ES, '<img/>');
+  assert.equal(evil.state.ans.paths[0], 'javascript:alert(1)');
+});
+
+test('F3a: los enlaces de la F1 y la F2 no cambian con los parámetros nuevos', () => {
+  for (const h of ['#v=route&ex=ej6&step=3&view=net&nota=en&box=7&mode=pred&pred=0', '#v=work&t=A%2C2%2C%2C&step=0&view=net&nota=en&box=7&mode=pred&pred=0',
+    '#v=route&graph=aoa&ex=ej7&step=0&view=side&nota=en&box=7&mode=pred&pred=0', '#v=m0&step=0&view=net&nota=en&box=7&mode=pred&pred=0&st=ej5']) {
+    assert.equal(U.encode(U.decode(h).state), h, h);
+  }
+  // en «Ejercicios» la tabla sale de la semilla: t y ex no se escriben ni se leen
+  const r = U.decode('#v=ex&t=A%2C2%2C%2C&ex=ej4&sd=5');
+  assert.equal(r.state.t, null);
+  assert.equal(r.state.ex, null);
+  assert.equal(r.state.sd, 5);
+});
