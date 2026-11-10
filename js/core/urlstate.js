@@ -24,7 +24,7 @@
   const NUMERIC = ['pred', 'min', 'sol'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
-  const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7'];
+  const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
   const MK = { marks: 200, idx: /^\d{1,4}$/, gives: 60, value: /^\d{1,6}(\.\d{1,4})?$/ };
   const OWN = { text: 3000, frags: 200, packed: 20000 };

@@ -95,3 +95,55 @@ test('los enunciados de los apuntes reconstruyen exactamente su texto y sus frag
     }
   }
 });
+
+// ── T013: enunciados nuevos (aprobados por el autor el 2026-11-10; ocultos hasta T020) ─────────────────────────
+const NUEVOS = ['cocina', 'congreso', 'mudanza', 'lanzamiento'];
+const edgesOf = (p) => p.activities.flatMap((a) => p.preds[a.id].map((x) => [x, a.id]));
+
+test('los enunciados nuevos están, ocultos, y la revisión estricta no les encuentra problemas', () => {
+  const all = ST.list({ all: true }).map((s) => s.id);
+  for (const id of NUEVOS) {
+    assert.ok(all.includes(id), id);
+    assert.equal(ST.get(id).hidden, true);
+    assert.deepEqual(S.validate(ST.get(id), { strict: true }), [], id);
+  }
+  assert.deepEqual(ST.list().map((s) => s.id).filter((id) => NUEVOS.includes(id)), []);
+});
+
+test('entre todos cubren los tipos de frase de la spec (AC11)', () => {
+  const defs = NUEVOS.map((id) => ST.get(id));
+  const frags = defs.flatMap((d) => Object.values(d.frags));
+  for (const kind of ['activity', 'duration', 'precedence', 'none', 'start', 'end']) assert.ok(frags.some((f) => f.kind === kind), kind);
+  // Distractores (en paralelo y recursos): al menos cuatro frases que no dan precedencia, con su porqué en las de recursos.
+  assert.ok(frags.filter((f) => f.kind === 'none').length >= 4);
+  assert.ok(frags.filter((f) => f.kind === 'none' && f.why).length >= 2);
+  // Redundancia provocada: alguna frase da una precedencia que la referencia no necesita.
+  assert.ok(defs.some((d) => {
+    const st = S.build(d, 'es');
+    const red = new Set(edgesOf(require('../js/core/precheck.js').reduce(st.ref)).map((e) => e.join('>')));
+    return Object.values(d.frags).some((f) => f.kind === 'precedence' && (f.gives || []).some((e) => !red.has(e.join('>'))));
+  }));
+  // Prosa sin letras: ningún identificador de la referencia aparece como palabra en el texto.
+  assert.ok(defs.some((d) => ['es', 'en'].every((L) => { const st = S.build(d, L); const ids = new Set(st.ref.activities.map((a) => a.id)); return !st.words.some((w) => ids.has(w.t)); })));
+  // Unidades distintas de días.
+  assert.ok(defs.some((d) => d.unit && d.unit.es === 'semanas'));
+});
+
+test('congreso: leer «B sigue a A» al revés da un ciclo (trampa de lectura) y bien leído no', () => {
+  const st = S.build(ST.get('congreso'), 'es');
+  assert.deepEqual(st.frags.find((f) => f.id === 'p1').gives, [['A', 'B']]);
+  const rows = st.ref.activities.map((a) => ({ id: a.id, duration: '', links: st.ref.preds[a.id].join(', ') }));
+  const wrong = rows.map((r) => (r.id === 'A' ? Object.assign({}, r, { links: 'B' }) : r));
+  assert.deepEqual(P.parse(wrong, 'pred', { structureOnly: true }).report.errors.map((e) => e.code), ['cycle']);
+  assert.equal(P.parse(rows, 'pred', { structureOnly: true }).report.errors.length, 0);
+});
+
+test('duraciones y caminos críticos de los enunciados nuevos con duraciones', () => {
+  const dur = (id) => C.solve(S.build(ST.get(id), 'es').ref);
+  assert.equal(dur('cocina').duration, 13);
+  assert.deepEqual(dur('cocina').critical, ['A', 'B', 'D', 'F', 'G', 'H']);
+  assert.equal(dur('mudanza').duration, 9);
+  assert.equal(dur('lanzamiento').duration, 19);
+  assert.deepEqual(dur('lanzamiento').critical, ['A', 'B', 'E', 'F']);
+  assert.equal(S.build(ST.get('congreso'), 'es').structureOnly, true);
+});

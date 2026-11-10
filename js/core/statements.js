@@ -5,7 +5,8 @@
  * fragmento con el mismo fragId en los dos idiomas. frags dice qué da cada fragmento (actividad, duración,
  * precedencias, ninguna, inicio o final). ref es la tabla de referencia: la del ejemplo de la F1/F2a cuando
  * el enunciado es un ejercicio ya resuelto (example), o la validada por el autor (Electrona, 2026-11-10).
- * Los siete primeros son la hoja de ejercicios del Tema 6 del autor; el texto español es el de la hoja.
+ * Los siete primeros son la hoja de ejercicios del Tema 6 del autor (el texto español es el de la hoja); los
+ * cuatro siguientes, escritos para la herramienta, cubren los tipos de frase de la spec (ocultos hasta T020).
  * La herramienta no deduce nada del texto: las precedencias de cada fragmento están escritas aquí.
  */
 (function (root) {
@@ -196,8 +197,191 @@
       { id: 'K', duration: '1', links: 'J', name: { es: 'Envasar', en: 'Package' } }] },
   };
 
+
+  // ── Enunciados nuevos, escritos para la herramienta (aprobados por el autor el 2026-11-10; T012) ──────────
+  const SRC_LAB = { es: 'Project Network Lab (enunciado escrito para la herramienta)', en: 'Project Network Lab (statement written for the tool)' };
+  const rows = (list) => list.map(([id, d, links, es, en]) => ({ id, duration: d === null ? '' : String(d), links, name: { es, en } }));
+
+  // ── 1. Reforma de la cocina: prosa sin letras ───────────────────────────────────────────────────────────────
+  const cocina = {
+    id: 'cocina', structureOnly: false, unit: DAYS, source: SRC_LAB, hidden: true,
+    title: { es: 'Reforma de la cocina', en: 'Kitchen refit' },
+    text: {
+      es: ['Ana va a reformar la cocina de su piso. Para empezar hay que ', ['aA', 'desmontar la cocina vieja'], ', lo que lleva ', ['dA', '2 días'], '. ',
+        ['p1', 'Con la cocina vacía'], ', el electricista puede ', ['aB', 'renovar la instalación eléctrica'], ' (', ['dB', '3 días'], ') y el fontanero ',
+        ['aC', 'cambiar las tuberías'], ' (', ['dC', '2 días'], '); ', ['n1', 'los dos pueden trabajar a la vez'], '. ',
+        ['n2', 'El electricista y el pintor comparten la misma escalera, pero se organizan sin problema'], '. ',
+        ['p2', 'Las paredes no se pueden alicatar hasta que terminen el electricista y el fontanero'], ': ', ['aD', 'alicatar las paredes'], ' lleva ', ['dD', '4 días'], '. ',
+        ['p3', 'En cuanto la cocina esté desmontada'], ', el pintor puede ', ['aE', 'pintar el techo'], ' en ', ['dE', '1 día'], '. ',
+        ['p4', 'Los muebles se montan cuando las paredes están alicatadas y el techo pintado'], '; ', ['aF', 'montar los muebles'], ' lleva ', ['dF', '2 días'], '. ',
+        ['p5', 'Una vez montados los muebles'], ' se pueden ', ['aG', 'instalar los electrodomésticos'], ' (', ['dG', '1 día'], '). ',
+        ['r1', 'Ana insiste en que los electrodomésticos no se instalen antes de alicatar las paredes'], '. Por último, hay que ',
+        ['aH', 'limpiar la obra'], ' (', ['dH', '1 día'], '): ', ['e1', 'es lo último que se hace'], '.'],
+      en: ['Ana is going to refit the kitchen in her flat. To begin with, someone has to ', ['aA', 'strip out the old kitchen'], ', which takes ', ['dA', '2 days'], '. ',
+        ['p1', 'Once the kitchen is empty'], ', the electrician can ', ['aB', 'rewire the kitchen'], ' (', ['dB', '3 days'], ') and the plumber can ',
+        ['aC', 'replace the pipes'], ' (', ['dC', '2 days'], '); ', ['n1', 'both can work at the same time'], '. ',
+        ['n2', 'The electrician and the painter share the same ladder, but they manage without any trouble'], '. ',
+        ['p2', 'The walls cannot be tiled until the electrician and the plumber have finished'], ': ', ['aD', 'tiling the walls'], ' takes ', ['dD', '4 days'], '. ',
+        ['p3', 'As soon as the kitchen has been stripped out'], ', the painter can ', ['aE', 'paint the ceiling'], ' in ', ['dE', '1 day'], '. ',
+        ['p4', 'The units are fitted when the walls are tiled and the ceiling is painted'], '; ', ['aF', 'fitting the units'], ' takes ', ['dF', '2 days'], '. ',
+        ['p5', 'Once the units are fitted'], ', someone can ', ['aG', 'install the appliances'], ' (', ['dG', '1 day'], '). ',
+        ['r1', 'Ana insists that the appliances must not be installed before the walls are tiled'], '. Finally, someone has to ',
+        ['aH', 'clean up'], ' (', ['dH', '1 day'], '): ', ['e1', 'it is the very last task'], '.'],
+    },
+    frags: {
+      aA: { kind: 'activity', act: 'A' }, dA: { kind: 'duration', act: 'A', value: 2 },
+      p1: { kind: 'precedence', gives: g('A > B C') },
+      aB: { kind: 'activity', act: 'B' }, dB: { kind: 'duration', act: 'B', value: 3 },
+      aC: { kind: 'activity', act: 'C' }, dC: { kind: 'duration', act: 'C', value: 2 },
+      n1: { kind: 'none', why: { es: 'Ir a la vez no es una precedencia: B y C no dependen una de otra.', en: 'Working at the same time is not a precedence: B and C do not depend on each other.' } },
+      n2: { kind: 'none', why: { es: 'Compartir un recurso no es una precedencia; aquí, además, se organizan sin problema.', en: 'Sharing a resource is not a precedence; besides, here they manage without trouble.' } },
+      p2: { kind: 'precedence', gives: g('B C > D') },
+      aD: { kind: 'activity', act: 'D' }, dD: { kind: 'duration', act: 'D', value: 4 },
+      p3: { kind: 'precedence', gives: g('A > E') },
+      aE: { kind: 'activity', act: 'E' }, dE: { kind: 'duration', act: 'E', value: 1 },
+      p4: { kind: 'precedence', gives: g('D E > F') },
+      aF: { kind: 'activity', act: 'F' }, dF: { kind: 'duration', act: 'F', value: 2 },
+      p5: { kind: 'precedence', gives: g('F > G') },
+      aG: { kind: 'activity', act: 'G' }, dG: { kind: 'duration', act: 'G', value: 1 },
+      r1: { kind: 'precedence', gives: g('D > G'), why: { es: 'Ya lo implican «alicatar antes de montar los muebles» y «muebles antes de electrodomésticos».', en: 'Already implied by "tiling before fitting the units" and "units before appliances".' } },
+      aH: { kind: 'activity', act: 'H' }, dH: { kind: 'duration', act: 'H', value: 1 },
+      e1: { kind: 'end', act: 'H', gives: g('A B C D E F G > H') },
+    },
+    ref: { mode: 'pred', rows: rows([
+      ['A', 2, '', 'Desmontar la cocina', 'Strip out the kitchen'], ['B', 3, 'A', 'Instalación eléctrica', 'Rewiring'],
+      ['C', 2, 'A', 'Tuberías', 'Pipes'], ['D', 4, 'B, C', 'Alicatar', 'Tiling'], ['E', 1, 'A', 'Pintar el techo', 'Paint the ceiling'],
+      ['F', 2, 'D, E', 'Montar los muebles', 'Fit the units'], ['G', 1, 'F', 'Electrodomésticos', 'Appliances'], ['H', 1, 'G', 'Limpiar', 'Clean up']]) },
+  };
+
+  // ── 2. Congreso: lista con letras, frases en los dos sentidos, inicio, final y una trampa de lectura ───────
+  const congreso = {
+    id: 'congreso', structureOnly: true, unit: null, source: SRC_LAB, hidden: true,
+    title: { es: 'Organizar un congreso', en: 'Organising a conference' },
+    text: {
+      es: ['Un departamento organiza un congreso. Estas son las tareas:\n',
+        '\nA) ', ['aA', 'Elegir la fecha y la sede'], '.', '\nB) ', ['aB', 'Enviar las invitaciones a los ponentes'], '.',
+        '\nC) ', ['aC', 'Diseñar la web del congreso'], '.', '\nD) ', ['aD', 'Abrir las inscripciones'], '.',
+        '\nE) ', ['aE', 'Contratar el catering'], '.', '\nF) ', ['aF', 'Imprimir el programa'], '.', '\nG) ', ['aG', 'Celebrar el congreso'], '.',
+        '\n\n', ['p1', 'B sigue a A'], ', y ', ['p2', 'C no puede empezar hasta que acabe A'], '. ',
+        ['p3', 'Las invitaciones no se envían hasta que la web está terminada'], ', porque llevan su enlace. ',
+        ['p4', 'D empieza cuando acaban B y C'], '. ', ['p5', 'Antes de E hay que hacer D'], ', para saber cuántas personas vienen. ',
+        ['p6', 'Una vez terminado B, se puede hacer F'], '. ', ['n1', 'E y F pueden ir en paralelo'], '. ',
+        ['p7', 'E y F preceden a G'], '. Resumiendo: ', ['s1', 'todo empieza por A'], ' y ', ['e1', 'G es lo último'], '.'],
+      en: ['A department is organising a conference. These are the tasks:\n',
+        '\nA) ', ['aA', 'Choose the date and the venue'], '.', '\nB) ', ['aB', 'Send the invitations to the speakers'], '.',
+        '\nC) ', ['aC', 'Design the conference website'], '.', '\nD) ', ['aD', 'Open registration'], '.',
+        '\nE) ', ['aE', 'Hire the catering'], '.', '\nF) ', ['aF', 'Print the programme'], '.', '\nG) ', ['aG', 'Hold the conference'], '.',
+        '\n\n', ['p1', 'B follows A'], ', and ', ['p2', 'C cannot start until A has finished'], '. ',
+        ['p3', 'The invitations are not sent until the website is finished'], ', because they include its link. ',
+        ['p4', 'D starts when B and C have finished'], '. ', ['p5', 'Before E, D must be done'], ', so that we know how many people are coming. ',
+        ['p6', 'Once B is finished, F can be done'], '. ', ['n1', 'E and F can run in parallel'], '. ',
+        ['p7', 'E and F precede G'], '. In short, ', ['s1', 'everything starts with A'], ' and ', ['e1', 'G is the last task'], '.'],
+    },
+    frags: {
+      aA: { kind: 'activity', act: 'A' }, aB: { kind: 'activity', act: 'B' }, aC: { kind: 'activity', act: 'C' }, aD: { kind: 'activity', act: 'D' },
+      aE: { kind: 'activity', act: 'E' }, aF: { kind: 'activity', act: 'F' }, aG: { kind: 'activity', act: 'G' },
+      s1: { kind: 'start', act: 'A', gives: g('A > B C D E F G') },
+      p1: { kind: 'precedence', gives: g('A > B'), why: { es: '«B sigue a A» quiere decir que A va antes que B. Leído al revés, crearía un ciclo con C.', en: '"B follows A" means A comes before B. Read the other way round, it would create a cycle with C.' } },
+      p2: { kind: 'precedence', gives: g('A > C') },
+      p3: { kind: 'precedence', gives: g('C > B') },
+      p4: { kind: 'precedence', gives: g('B C > D') },
+      p5: { kind: 'precedence', gives: g('D > E') },
+      p6: { kind: 'precedence', gives: g('B > F') },
+      n1: { kind: 'none' },
+      p7: { kind: 'precedence', gives: g('E F > G') },
+      e1: { kind: 'end', act: 'G', gives: g('A B C D E F > G') },
+    },
+    ref: { mode: 'pred', rows: rows([
+      ['A', null, '', 'Fecha y sede', 'Date and venue'], ['B', null, 'C', 'Invitaciones', 'Invitations'], ['C', null, 'A', 'Web', 'Website'],
+      ['D', null, 'B', 'Inscripciones', 'Registration'], ['E', null, 'D', 'Catering', 'Catering'], ['F', null, 'B', 'Programa', 'Programme'],
+      ['G', null, 'E, F', 'Congreso', 'Conference']]) },
+  };
+
+  // ── 3. Mudanza de un laboratorio: letras entre paréntesis, «empieza cuando acaban», redundancia y distractor ─
+  const mudanza = {
+    id: 'mudanza', structureOnly: false, unit: DAYS, source: SRC_LAB, hidden: true,
+    title: { es: 'Mudanza de un laboratorio', en: 'Moving a laboratory' },
+    text: {
+      es: ['Un grupo de investigación cambia de edificio. Primero hay que ', ['aA', 'hacer el inventario de los equipos'], ' (A, ', ['dA', '3 días'], '). ',
+        ['p1', 'Una vez hecho el inventario, se puede embalar el vidrio y desconectar los equipos'], ': ', ['aB', 'embalar el material de vidrio'], ' (B) lleva ',
+        ['dB', '2 días'], ' y ', ['aC', 'desconectar y embalar los equipos grandes'], ' (C), otros ', ['dC', '2 días'], '. ',
+        ['n2', 'B y C usan la misma furgoneta de la universidad, pero el orden da igual'], '. Mientras tanto, el servicio técnico tiene que ',
+        ['aD', 'preparar el laboratorio nuevo'], ' (D, ', ['dD', '5 días'], '); ', ['n1', 'D puede ir en paralelo con A, B y C'], '. ',
+        ['p2', 'El transporte empieza cuando acaban B, C y D'], ': ', ['aE', 'transportarlo todo'], ' (E) se hace en ', ['dE', '1 día'], '. ',
+        ['r1', 'Evidentemente, el transporte no puede empezar antes del inventario'], '. ',
+        ['p3', 'En cuanto el laboratorio nuevo está preparado'], ', hay que ', ['aH', 'revisar su seguridad'], ' (H, ', ['dH', '1 día'], '). ',
+        ['p4', 'F y G siguen a E'], ': ', ['aF', 'instalar y calibrar los equipos'], ' (F) lleva ', ['dF', '3 días'], ' y ',
+        ['aG', 'desembalar el vidrio'], ' (G), ', ['dG', '1 día'], '. ', ['p5', 'Antes de instalar los equipos hay que haber revisado la seguridad'], '.'],
+      en: ['A research group is moving to a new building. First, someone has to ', ['aA', 'take an inventory of the equipment'], ' (A, ', ['dA', '3 days'], '). ',
+        ['p1', 'Once the inventory is done, the glassware can be packed and the equipment disconnected'], ': ', ['aB', 'packing the glassware'], ' (B) takes ',
+        ['dB', '2 days'], ' and ', ['aC', 'disconnecting and packing the large equipment'], ' (C) another ', ['dC', '2 days'], '. ',
+        ['n2', 'B and C use the same university van, but the order does not matter'], '. Meanwhile, the technical service has to ',
+        ['aD', 'get the new laboratory ready'], ' (D, ', ['dD', '5 days'], '); ', ['n1', 'D can run in parallel with A, B and C'], '. ',
+        ['p2', 'The move starts when B, C and D have finished'], ': ', ['aE', 'moving everything'], ' (E) takes ', ['dE', '1 day'], '. ',
+        ['r1', 'Obviously, the move cannot start before the inventory'], '. ',
+        ['p3', 'As soon as the new laboratory is ready'], ', someone has to ', ['aH', 'check its safety'], ' (H, ', ['dH', '1 day'], '). ',
+        ['p4', 'F and G follow E'], ': ', ['aF', 'installing and calibrating the equipment'], ' (F) takes ', ['dF', '3 days'], ' and ',
+        ['aG', 'unpacking the glassware'], ' (G), ', ['dG', '1 day'], '. ', ['p5', 'Before the equipment is installed, the safety check must be done'], '.'],
+    },
+    frags: {
+      aA: { kind: 'activity', act: 'A' }, dA: { kind: 'duration', act: 'A', value: 3 },
+      p1: { kind: 'precedence', gives: g('A > B C') },
+      aB: { kind: 'activity', act: 'B' }, dB: { kind: 'duration', act: 'B', value: 2 },
+      aC: { kind: 'activity', act: 'C' }, dC: { kind: 'duration', act: 'C', value: 2 },
+      n2: { kind: 'none', why: { es: 'Compartir la furgoneta es un recurso, no una precedencia.', en: 'Sharing the van is a resource, not a precedence.' } },
+      aD: { kind: 'activity', act: 'D' }, dD: { kind: 'duration', act: 'D', value: 5 },
+      n1: { kind: 'none' },
+      p2: { kind: 'precedence', gives: g('B C D > E') },
+      aE: { kind: 'activity', act: 'E' }, dE: { kind: 'duration', act: 'E', value: 1 },
+      r1: { kind: 'precedence', gives: g('A > E'), why: { es: 'Ya lo implican «inventario antes de embalar» y «embalar antes del transporte».', en: 'Already implied by "inventory before packing" and "packing before the move".' } },
+      p3: { kind: 'precedence', gives: g('D > H') },
+      aH: { kind: 'activity', act: 'H' }, dH: { kind: 'duration', act: 'H', value: 1 },
+      p4: { kind: 'precedence', gives: g('E > F G') },
+      aF: { kind: 'activity', act: 'F' }, dF: { kind: 'duration', act: 'F', value: 3 },
+      aG: { kind: 'activity', act: 'G' }, dG: { kind: 'duration', act: 'G', value: 1 },
+      p5: { kind: 'precedence', gives: g('H > F') },
+    },
+    ref: { mode: 'pred', rows: rows([
+      ['A', 3, '', 'Inventario', 'Inventory'], ['B', 2, 'A', 'Embalar el vidrio', 'Pack glassware'], ['C', 2, 'A', 'Embalar equipos', 'Pack equipment'],
+      ['D', 5, '', 'Preparar el laboratorio', 'Prepare the lab'], ['E', 1, 'B, C, D', 'Transporte', 'Move'], ['F', 3, 'E, H', 'Instalar equipos', 'Install equipment'],
+      ['G', 1, 'E', 'Desembalar el vidrio', 'Unpack glassware'], ['H', 1, 'D', 'Revisar la seguridad', 'Safety check']]) },
+  };
+
+  // ── 4. Lanzamiento de un producto: «lo primero», «debe estar terminado antes de», «sin saber», «lo último» ──
+  const lanzamiento = {
+    id: 'lanzamiento', structureOnly: false, unit: { es: 'semanas', en: 'weeks' }, source: SRC_LAB, hidden: true,
+    title: { es: 'Lanzamiento de un producto', en: 'Product launch' },
+    text: {
+      es: ['Una empresa prepara el lanzamiento de un producto. Las tareas y su duración, en semanas, son:\n',
+        '\nA) ', ['aA', 'Estudio de mercado'], ': ', ['dA', '4'], '.', '\nB) ', ['aB', 'Diseño del producto'], ': ', ['dB', '6'], '.',
+        '\nC) ', ['aC', 'Fijar el precio'], ': ', ['dC', '1'], '.', '\nD) ', ['aD', 'Campaña de publicidad'], ': ', ['dD', '5'], '.',
+        '\nE) ', ['aE', 'Fabricar la primera serie'], ': ', ['dE', '8'], '.', '\nF) ', ['aF', 'Lanzamiento'], ': ', ['dF', '1'], '.',
+        '\n\n', ['p1', 'El diseño y el precio dependen del estudio de mercado'], '. ',
+        ['p2', 'El diseño debe estar terminado antes de que empiece la fabricación'], ', y ', ['p3', 'la campaña no puede empezar sin saber el precio'], '. ',
+        ['n1', 'Fabricar y hacer la campaña pueden ir a la vez'], '. ', ['p4', 'F sigue a D y a E'], ': ', ['e1', 'el lanzamiento es lo último'], '. Y, como es lógico, ', ['s1', 'lo primero es el estudio de mercado'], '.'],
+      en: ['A company is preparing a product launch. The tasks and their durations, in weeks, are:\n',
+        '\nA) ', ['aA', 'Market research'], ': ', ['dA', '4'], '.', '\nB) ', ['aB', 'Product design'], ': ', ['dB', '6'], '.',
+        '\nC) ', ['aC', 'Set the price'], ': ', ['dC', '1'], '.', '\nD) ', ['aD', 'Advertising campaign'], ': ', ['dD', '5'], '.',
+        '\nE) ', ['aE', 'Manufacture the first batch'], ': ', ['dE', '8'], '.', '\nF) ', ['aF', 'Launch'], ': ', ['dF', '1'], '.',
+        '\n\n', ['p1', 'Both the design and the price depend on the market research'], '. ',
+        ['p2', 'The design must be finished before manufacturing starts'], ', and ', ['p3', 'the campaign cannot start without knowing the price'], '. ',
+        ['n1', 'Manufacturing and the campaign can happen at the same time'], '. ', ['p4', 'F follows D and E'], ': ', ['e1', 'the launch is the last task'], '. And, naturally, ', ['s1', 'market research comes first'], '.'],
+    },
+    frags: {
+      aA: { kind: 'activity', act: 'A' }, dA: { kind: 'duration', act: 'A', value: 4 }, aB: { kind: 'activity', act: 'B' }, dB: { kind: 'duration', act: 'B', value: 6 },
+      aC: { kind: 'activity', act: 'C' }, dC: { kind: 'duration', act: 'C', value: 1 }, aD: { kind: 'activity', act: 'D' }, dD: { kind: 'duration', act: 'D', value: 5 },
+      aE: { kind: 'activity', act: 'E' }, dE: { kind: 'duration', act: 'E', value: 8 }, aF: { kind: 'activity', act: 'F' }, dF: { kind: 'duration', act: 'F', value: 1 },
+      s1: { kind: 'start', act: 'A', gives: g('A > B C D E F') },
+      p1: { kind: 'precedence', gives: g('A > B C') }, p2: { kind: 'precedence', gives: g('B > E') }, p3: { kind: 'precedence', gives: g('C > D') },
+      n1: { kind: 'none' }, p4: { kind: 'precedence', gives: g('D E > F') }, e1: { kind: 'end', act: 'F', gives: g('A B C D E > F') },
+    },
+    ref: { mode: 'pred', rows: rows([
+      ['A', 4, '', 'Estudio de mercado', 'Market research'], ['B', 6, 'A', 'Diseño', 'Design'], ['C', 1, 'A', 'Precio', 'Price'],
+      ['D', 5, 'C', 'Campaña', 'Campaign'], ['E', 8, 'B', 'Fabricación', 'Manufacturing'], ['F', 1, 'D, E', 'Lanzamiento', 'Launch']]) },
+  };
+
   // list() da los enunciados visibles; list({ all: true }), también los ocultos (como examples, P9).
-  const list = [ej1, ej2, ej3, ej4, ej5, ej6, ej7];
+  const list = [ej1, ej2, ej3, ej4, ej5, ej6, ej7, cocina, congreso, mudanza, lanzamiento];
   const byId = Object.fromEntries(list.map((s) => [s.id, s]));
   const api = { list: (opts) => (opts && opts.all ? list.slice() : list.filter((s) => !s.hidden)), get: (id) => byId[id] || null };
   root.PNL = root.PNL || {};
