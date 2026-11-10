@@ -2504,6 +2504,260 @@ check('F2c T020 · AC11: los once enunciados están en el selector, y los nuevos
   }
 });
 
+// ---------- F2c, hito 2: el enunciado propio del docente (T023) ----------
+
+const S0 = require(path.join(ROOT, 'js', 'core', 'statement.js'));
+const OWN_TEXT = {
+  es: 'Para la feria de ciencias hay que reservar el aula, preparar los carteles y montar los experimentos. Los carteles se preparan después de reservar el aula. '
+    + 'Montar los experimentos requiere los carteles hechos. Al final, alguien tiene que recoger el aula.',
+  en: 'For the science fair we have to book the room, make the posters and set up the experiments. The posters are made after booking the room. '
+    + 'Setting up the experiments needs the posters made. Finally, someone has to tidy the room.',
+};
+const OWN_PH = {
+  es: { acts: ['reservar el aula', 'preparar los carteles', 'montar los experimentos', 'recoger el aula'], dep: 'Los carteles se preparan después de reservar el aula' },
+  en: { acts: ['book the room', 'make the posters', 'set up the experiments', 'tidy the room'], dep: 'The posters are made after booking the room' },
+};
+// Rango de palabras de una frase en un texto (la primera aparición).
+function wordsAt(text, phrase) {
+  const w = S0.tokenize(text).words;
+  const ph = S0.tokenize(phrase).words.map((x) => x.t);
+  const i = w.findIndex((_, k) => ph.every((q, j) => w[k + j] && w[k + j].t === q));
+  assert.ok(i >= 0, `«${phrase}» no está en el texto`);
+  return { from: i, to: i + ph.length - 1 };
+}
+const OWN_ROWS = (lang) => [R('A', '', ''), R('B', '', 'A'), R('C', '', 'B'), R('D', '', 'C')].map((r, k) => Object.assign(r, { name: `${lang}-${k}` }));
+const ownPrep = (lang, extra) => Object.assign({ st: 'own', mm: 'prepare', lang, own: { lang, text: OWN_TEXT[lang], frags: [], ref: null } }, extra || {});
+const shareState = (page) => page.evaluate(() => ({ student: !document.getElementById('m0CopyStudent').disabled, solution: !document.getElementById('m0CopySolution').disabled,
+  text: document.querySelector('#m0View .m0-share').innerText }));
+// Copia un enlace de «Compartir» y lo devuelve relativo al servidor (el campo de solo lectura lo muestra siempre).
+async function copyLink(page, which) {
+  await page.locator(which === 'student' ? '#m0CopyStudent' : '#m0CopySolution').click();
+  // El campo puede venir del enlace anterior: se espera al de este botón (el de la solución lleva sol=1).
+  await page.waitForFunction((sol) => { const l = document.getElementById('m0Link'); const st = document.getElementById('m0CopyStatus');
+    return l && st && st.textContent.length > 0 && /[&#]sol=1/.test(l.value) === sol; }, which === 'solution');
+  const url = await page.locator('#m0Link').inputValue();
+  assert.ok(url.startsWith(`${BASE}/cpm.html#`), url);
+  return url.slice(BASE.length + 1);
+}
+const focusVisible = (page) => page.evaluate(() => { const cs = getComputedStyle(document.activeElement); return document.activeElement !== document.body && cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 2; });
+
+for (const lang of ['es', 'en']) {
+  check(`F2c AC13 · enunciado propio en ${lang.toUpperCase()}: preparar (texto, subrayado y tabla), compartir y resolver en otro navegador; el enlace con la solución lo abre resuelto`, async () => {
+    const es = lang === 'es';
+    const text = OWN_TEXT[lang];
+    const page = await open(`cpm.html#v=m0&st=own&mm=prepare&lang=${lang}`);
+    await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+    assert.ok(await page.locator('#m0Draft').isVisible(), 'empieza con el cuadro de texto');
+    assert.equal((await shareState(page)).student, false, 'sin texto no hay enlace');
+    await page.locator('#m0Draft').fill(text);
+    assert.match(await page.locator('#m0DraftCount').innerText(), new RegExp(`^${text.length} / 3000`));
+    await page.selectOption('#m0DraftLang', lang);
+    await page.locator('#m0UseText').click();
+    await page.locator('#m0View .st-text').waitFor();
+    assert.equal((await state(page)).own.text, text);
+    // Subrayar las cuatro actividades (la propuesta da A, B, C y D) y escribir la tabla del docente.
+    for (const ph of OWN_PH[lang].acts) { const r = wordsAt(text, ph); await underline(page, r.from, r.to, { kind: 'activity' }); }
+    assert.deepEqual((await m0st(page)).rows.map((r) => r.id), ['A', 'B', 'C', 'D']);
+    for (const [id, l] of [['B', 'A'], ['C', 'B'], ['D', 'C']]) await (await listLinks(page, id)).fill(l);
+    await page.waitForFunction(() => PNL.app.model().project && PNL.app.model().project.preds.D.join() === 'C');
+    // La frase de dependencia enlazada a A → B, que ya está en la tabla.
+    const dep = wordsAt(text, OWN_PH[lang].dep);
+    await underline(page, dep.from, dep.to, { fill: async (panel) => {
+      await panel.locator('input[name="m0Kind"][value="precedence"]').check();
+      await panel.locator('.m0-edges label', { hasText: 'A → B' }).locator('input').check();
+    } });
+    const prep = await state(page);
+    assert.equal(prep.mk.length, 5);
+    assert.match(await page.locator('#m0TableHead').innerText(), es ? /Tabla de referencia \(la solución\)/ : /Reference table \(the solution\)/);
+    const sh = await shareState(page);
+    assert.ok(sh.student && sh.solution, sh.text);
+    assert.match(sh.text, es ? /B → C no sale de ninguna frase subrayada/ : /B → C does not come from any underlined phrase/);
+    assert.match(sh.text, es ? /no es un modo examen/ : /not an exam mode/);
+    await shot(page, `f2c-propio-${lang}-preparar`);
+    const student = await copyLink(page, 'student');
+    const solution = await copyLink(page, 'solution');
+    // La URL guarda la preparación: al recargar sigue todo.
+    await page.reload();
+    await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+    const again = await state(page);
+    assert.deepEqual([again.mm, again.own, again.t, again.mk], [prep.mm, prep.own, prep.t, prep.mk]);
+    if (es) {
+      // La interfaz cambia de idioma y el enunciado propio sigue en el suyo, con sus subrayados.
+      await page.selectOption('#selLang', 'en');
+      await page.waitForFunction(() => PNL.app.state().lang === 'en');
+      const s = await state(page);
+      assert.deepEqual([s.own.lang, s.mk], ['es', prep.mk]);
+      assert.equal(await page.locator('#m0View .m0-text .banner').isVisible(), false, 'no se quita ningún subrayado');
+    }
+    // «Practicar» prueba el ejercicio como el alumno; «Atrás» vuelve a preparar.
+    await page.locator('#m0Practice').click();
+    await page.waitForFunction(() => PNL.app.state().mm === 'practice');
+    assert.deepEqual((await m0st(page)).rows, []);
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().mm === 'prepare');
+    assert.deepEqual((await state(page)).t, prep.t);
+    await close(page);
+
+    // El alumno, en otro navegador (con el idioma contrario): el texto, la tabla vacía y nada de la solución.
+    const other = lang === 'es' ? 'en-US' : 'es-ES';
+    const st = await open(student, { locale: other });
+    await st.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+    const s0 = await state(st);
+    assert.deepEqual([s0.mm, s0.lang, s0.t, s0.mk, s0.sol], ['practice', lang, null, null, 0]);
+    assert.equal(await st.locator('#m0St').inputValue(), 'own');
+    assert.equal((await st.locator('#m0View .st-text').innerText()).replace(/\s+/g, ' ').trim(), text);
+    const body = await st.locator('#m0View').innerText();
+    assert.ok(!body.includes(`${lang}-0`) && !body.includes(`${lang}-3`), 'los nombres de la tabla del docente no se ven');
+    assert.ok(await st.locator('#m0View .m0-diag').isHidden());
+    assert.ok(await st.locator('#m0View .m0-share').isHidden());
+    assert.ok(await st.locator('#m0Check').isEnabled(), 'se puede comprobar');
+    await shot(st, `f2c-propio-${lang}-alumno`);
+    // Resuelve: con una precedencia de menos, un error; con la tabla del docente, correcta.
+    const solve = (rows) => st.evaluate((h) => { location.hash = h; }, U0.encode(Object.assign({}, s0, { t: rows })));
+    await solve(OWN_ROWS(lang).map((r) => (r.id === 'C' ? Object.assign({}, r, { links: '' }) : r)));
+    await st.waitForFunction(() => PNL.m0.state().rows.length === 4);
+    const bad = await m0Check(st);
+    assert.deepEqual(bad.items.map((i) => i.code), ['missingPrecedence']);
+    await solve(OWN_ROWS(lang));
+    await st.waitForFunction(() => PNL.m0.state().rows[2].links === 'B');
+    assert.equal((await m0Check(st)).ok, true);
+    // La ruta paso a paso recorre los cinco subrayados del docente.
+    await st.locator('#m0Route').click();
+    await st.waitForFunction(() => PNL.app.state().mm === 'route');
+    assert.equal(await st.evaluate(() => PNL.app.model().route.filter((x) => x.kind === 'm0Frag').length), 5);
+    await close(st);
+
+    // Con la solución: el ejercicio resuelto (tabla y subrayados del docente) y correcto al comprobar.
+    const so = await open(solution, { locale: other });
+    await so.waitForFunction(() => PNL.m0.state && PNL.m0.state().rows.length === 4);
+    const s1 = await state(so);
+    assert.equal(s1.sol, 0);
+    assert.deepEqual(s1.t.map((r) => [r.id, r.links]), prep.t.map((r) => [r.id, r.links]));
+    assert.equal(s1.mk.length, 5);
+    assert.equal((await m0Check(so)).ok, true);
+    await close(so);
+  });
+}
+
+check('F2c AC14 · con un ciclo en la tabla del docente no se puede compartir hasta romperlo; las redundancias solo avisan', async () => {
+  for (const lang of ['es', 'en']) {
+    const es = lang === 'es';
+    const cyc = OWN_ROWS(lang).map((r) => (r.id === 'A' ? Object.assign({}, r, { links: 'D' }) : r));
+    const page = await m0Lab(ownPrep(lang, { t: cyc }));
+    let sh = await shareState(page);
+    assert.deepEqual([sh.student, sh.solution], [false, false]);
+    assert.match(sh.text, es ? /Ciclo en la tabla: A → B → C → D → A\. Rómpelo/ : /Cycle in the table: A → B → C → D → A\. Break it/);
+    await shot(page, `f2c-propio-${lang}-ciclo`);
+    await (await listLinks(page, 'A')).fill('');
+    await page.waitForFunction(() => !document.getElementById('m0CopyStudent').disabled);
+    sh = await shareState(page);
+    assert.ok(sh.student && sh.solution);
+    // Una redundancia (C después de A y de B): aviso con su camino, y los dos enlaces.
+    await (await listLinks(page, 'C')).fill('A, B');
+    await page.waitForFunction(() => /A → C/.test(document.querySelector('#m0View .m0-share').innerText));
+    sh = await shareState(page);
+    assert.ok(sh.student && sh.solution);
+    assert.match(sh.text, es ? /A → C es redundante \(A → B → C\)/ : /A → C is redundant \(A → B → C\)/);
+    await close(page);
+  }
+});
+
+check('F2c AC13 · el texto malicioso se ve y se comparte como texto: sin etiquetas, sin scripts y sin diálogos', async () => {
+  const evil = 'A) <img src=x onerror="alert(1)"> pintar. B) <script>alert(\'x\')</script> <a href="javascript:alert(2)">enlace</a> después de A.';
+  const page = await open('cpm.html#v=m0&st=own&mm=prepare&lang=es');
+  let dialogs = 0;
+  page.on('dialog', (d) => { dialogs++; d.dismiss(); });
+  await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+  await page.locator('#m0Draft').fill(evil);
+  await page.locator('#m0UseText').click();
+  await page.locator('#m0View .st-text').waitFor();
+  const shown = (p) => p.locator('#m0View .st-text').innerText();
+  assert.equal((await shown(page)).replace(/\s+/g, ' ').trim(), evil);
+  const injected = (p) => p.evaluate(() => document.querySelectorAll('#m0View img, #m0View script, #m0View a[href^="javascript"]').length);
+  assert.equal(await injected(page), 0);
+  await (await page.locator('#m0View .m0-list tbody tr').first().locator('[data-f="id"]')).fill('A');
+  await page.waitForFunction(() => !document.getElementById('m0CopyStudent').disabled);
+  const link = await copyLink(page, 'student');
+  await close(page);
+  const st = await open(link);
+  st.on('dialog', (d) => { dialogs++; d.dismiss(); });
+  await st.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+  assert.equal((await shown(st)).replace(/\s+/g, ' ').trim(), evil);
+  assert.equal(await injected(st), 0);
+  await st.waitForTimeout(200);
+  assert.equal(dialogs, 0, 'ningún alert');
+  await close(st);
+});
+
+check('F2c AC18 · preparar solo con el teclado: escribir el texto, usarlo, volver a editarlo y copiar el enlace, con el foco a la vista', async () => {
+  const page = await open('cpm.html#v=m0&st=own&mm=prepare&lang=es');
+  await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+  const active = () => page.evaluate(() => document.activeElement.id || document.activeElement.className);
+  const tabTo = async (id, back) => { for (let i = 0; i < 40 && (await page.evaluate(() => document.activeElement.id)) !== id; i++) await page.keyboard.press(back ? 'Shift+Tab' : 'Tab'); assert.equal(await active(), id); };
+  await page.locator('#m0Draft').focus();
+  await page.keyboard.type('Pintar las paredes y después barrer el suelo.');
+  assert.ok(await focusVisible(page), 'foco visible en el cuadro de texto');
+  await tabTo('m0DraftLang');
+  await tabTo('m0UseText');
+  assert.ok(await focusVisible(page), 'foco visible en «Usar este texto»');
+  await page.keyboard.press('Enter');
+  await page.locator('#m0View .st-text').waitFor();
+  assert.equal(await active(), 'm0-textbody', 'el foco va al texto');
+  await tabTo('m0EditText');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.activeElement.id === 'm0Draft');
+  assert.equal(await page.locator('#m0Draft').inputValue(), 'Pintar las paredes y después barrer el suelo.');
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Al final, recoger.');
+  await tabTo('m0UseText');
+  await page.keyboard.press('Enter');
+  await page.locator('#m0View .st-text').waitFor();
+  assert.match((await state(page)).own.text, /recoger\.$/);
+  await tabTo('m0CopyStudent');
+  assert.ok(await focusVisible(page), 'foco visible en «Copiar enlace para el alumno»');
+  await page.keyboard.press('Enter');
+  await page.locator('#m0Link').waitFor();
+  assert.equal(await active(), 'm0CopyStudent', 'el foco sigue en el botón');
+  await close(page);
+});
+
+check('F2c AC16 y AC18 · preparar a 1280×720 (texto y tabla a la vez) y a 360 px sin desbordar; axe sin violaciones en claro y oscuro', async () => {
+  const page = await open('cpm.html#v=m0&st=own&mm=prepare&lang=es');
+  await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'own');
+  for (const sel of ['#m0Draft', '#m0View [aria-labelledby="m0TableHead"]']) {
+    const b = await page.locator(sel).boundingBox();
+    assert.ok(b && b.y >= 0 && b.y + 40 <= 720, `${sel} a la vista`);
+  }
+  await close(page);
+  const views = (lang) => [
+    ['vacío', ownPrep(lang, { own: { lang, text: '', frags: [], ref: null } }), null],
+    ['texto, tabla y enlace', ownPrep(lang, { t: OWN_ROWS(lang), mk: [Object.assign(wordsAt(OWN_TEXT[lang], OWN_PH[lang].acts[0]), { kind: 'activity', act: 'A' })] }), 'copy'],
+    ['ciclo en la matriz', ownPrep(lang, { tv: 'matrix', t: OWN_ROWS(lang).map((r) => (r.id === 'A' ? Object.assign({}, r, { links: 'D' }) : r)) }), null],
+    ['texto demasiado largo', ownPrep(lang), 'long'],
+  ];
+  for (const width of [360, 1280]) {
+    for (const lang of ['es', 'en']) {
+      for (const [name, s, act] of views(lang)) {
+        for (const scheme of width === 1280 ? ['light', 'dark'] : ['light']) {
+          const p = await m0Lab(s, { width, height: 740, scheme });
+          if (act === 'copy') await copyLink(p, 'student');
+          if (act === 'long') { await p.locator('#m0EditText').click(); await p.locator('#m0Draft').fill('palabra '.repeat(400)); await p.locator('#m0UseText').click(); await p.locator('.m0-prep .m0-err').waitFor(); }
+          assert.ok(await noHScroll(p), `${name} (${lang}) a ${width} px no desborda`);
+          if (width === 360 && lang === 'es') await shot(p, `f2c-propio-360-${name.replace(/[^a-záéíóúñ]+/gi, '-')}`, true);
+          await axe(p, `M0 · preparar · ${name} (${lang}, ${width}, ${scheme})`);
+          await close(p);
+        }
+      }
+    }
+  }
+});
+
+check('F2c T022 · «Preparar un enunciado» aún no está en la barra con los enunciados de la herramienta (llega con T024)', async () => {
+  const page = await m0Lab({});
+  assert.ok(await page.locator('#m0Prepare').isHidden());
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
@@ -2543,6 +2797,7 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
       console.log(`✓ ${c.name}`);
     } catch (err) {
       failed++;
+      if (process.env.STACK) console.log(err.stack);
       console.log(`✗ ${c.name}\n    ${String(err.message).split('\n').join('\n    ')}`);
     }
   }
