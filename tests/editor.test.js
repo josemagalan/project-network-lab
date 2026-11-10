@@ -106,3 +106,106 @@ test('T022: una tabla sin ninguna duración se da por buena, solo para la red PE
   assert.equal(P.blankDurations(mixed), false);
   assert.ok(show('es', mixed).msg.errorsHead);
 });
+
+// ---------- F2c (T015): ganchos del editor para M0 y la matriz de precedencias ----------
+const PM = require('../js/views/prec-matrix.js');
+
+const parseRows = (rows, mode) => P.parse(rows, mode, { structureOnly: P.blankDurations(rows) });
+
+test('T015 · sin decoración, el taller no cambia: ninguna fila ni campo marcado y sin columna de correspondencia', () => {
+  const rows = [row('A', 1), row('B', 1, 'A'), row('C', 5, 'A, B')];
+  for (const deco of [null, undefined, {}]) {
+    const d = Ed.decorate(rows, 'pred', deco, 'es');
+    assert.equal(d.length, rows.length);
+    for (const x of d) assert.deepEqual(x, { tag: null, links: null, note: null });
+  }
+});
+
+test('T015 · AC4: la redundancia marca su campo y el camino elegido marca las filas y campos de sus precedencias, en los dos sentidos', () => {
+  // A → B → C hace redundante A → C.
+  const pred = [row('A', 1), row('B', 1, 'A'), row('C', 5, 'A, B'), row('D', 1, 'C')];
+  const deco = { redundant: [['A', 'C']], path: { edge: ['A', 'C'], path: ['A', 'B', 'C'] } };
+  const d = Ed.decorate(pred, 'pred', deco, 'es');
+  assert.deepEqual(d.map((x) => x.links), [null, 'path', 'red', null], 'con predecesoras, cada precedencia vive en la fila de la posterior');
+  assert.deepEqual(d.map((x) => x.tag), ['path', 'path', 'path', null]);
+  const succ = [row('A', 1, 'B, C'), row('B', 1, 'C'), row('C', 5, 'D'), row('D', 1)];
+  const s = Ed.decorate(succ, 'succ', deco, 'en');
+  assert.deepEqual(s.map((x) => x.links), ['red', 'path', null, null], 'con posteriores, en la fila de la precedente');
+  // Sin camino elegido, solo el campo redundante.
+  assert.deepEqual(Ed.decorate(pred, 'pred', { redundant: [['A', 'C']] }, 'es').map((x) => x.links), [null, null, 'red', null]);
+});
+
+test('T015 · AC5: el ciclo marca sus filas y el campo de cada precedencia del recorrido, aunque la tabla no sea válida', () => {
+  const rows = [row('A', 1, 'C'), row('B', 2, 'A'), row('C', 3, 'B'), row('D', 1, 'C')];
+  const parsed = parseRows(rows, 'pred');
+  assert.equal(parsed.project, null);
+  const cycle = parsed.report.errors.find((e) => e.code === 'cycle').ids;
+  const d = Ed.decorate(rows, 'pred', { cycle }, 'es');
+  assert.deepEqual(d.map((x) => x.tag), ['cycle', 'cycle', 'cycle', null]);
+  assert.deepEqual(d.map((x) => x.links), ['cycle', 'cycle', 'cycle', null]);
+});
+
+test('T015 · AC7: tras comprobar, cada fila dice a qué actividad corresponde y si está bien, mal o con aviso', () => {
+  const rows = [row('A', 2), row('T', 1, 'A'), row('X', 1), row('', '', '')];
+  const deco = { map: { A: 'A', T: 'E' }, bad: ['X'], warn: ['T'] };
+  for (const lang of ['es', 'en']) {
+    const d = Ed.decorate(rows, 'pred', deco, lang);
+    assert.deepEqual(d.map((x) => x.tag), ['ok', 'warn', 'bad', null]);
+    assert.equal(d[0].note, '= A');
+    assert.match(d[1].note, /^= E \(.+\)$/, 'otra letra: emparejada por el subrayado');
+    assert.equal(d[2].note, '—');
+    assert.equal(d[3].note, null, 'una fila vacía no corresponde a nada');
+    assert.notEqual(Ed.decorate(rows, 'pred', deco, 'es')[1].note, Ed.decorate(rows, 'pred', deco, 'en')[1].note);
+  }
+});
+
+test('T015 · AC3: la matriz lee la misma tabla que la lista, con predecesoras o con posteriores', () => {
+  const pred = [row('A', 1), row('B', 1, 'a'), row('C', 5, 'A; B'), row('', '', ''), row('D', 1, 'C, Z')];
+  const m = PM.model(pred, 'pred');
+  assert.deepEqual(m.ids, ['A', 'B', 'C', 'D']);
+  assert.deepEqual([...m.has].sort(), ['A>B', 'A>C', 'B>C', 'C>D'], 'las referencias desconocidas no tienen casilla');
+  const succ = [row('A', 1, 'B, C'), row('B', 1, 'C'), row('C', 5, 'D'), row('D', 1)];
+  assert.deepEqual([...PM.model(succ, 'succ').has].sort(), ['A>B', 'A>C', 'B>C', 'C>D']);
+});
+
+test('T015 · AC3: marcar o desmarcar una casilla cambia la lista, en los dos sentidos, sin tocar lo demás', () => {
+  const pred = [row('A', 1), row('B', 1, 'A'), row('C', 5, 'A, B')];
+  const on = PM.toggle(pred, 'pred', 'B', 'A', true);
+  assert.equal(on[0].links, 'B');
+  assert.equal(pred[0].links, '', 'no muta la tabla recibida');
+  const off = PM.toggle(pred, 'pred', 'A', 'C', false);
+  assert.equal(off[2].links, 'B');
+  assert.deepEqual(off.map((r) => [r.id, r.duration, r.name]), pred.map((r) => [r.id, r.duration, r.name]));
+  assert.equal(PM.toggle(pred, 'pred', 'A', 'B', true)[1].links, 'A', 'marcar una que ya está no la repite');
+  assert.equal(PM.toggle(pred, 'pred', 'A', 'Q', true), pred, 'sin fila para la actividad, nada cambia');
+  const succ = [row('A', 1, 'B'), row('B', 1), row('C', 2)];
+  const s = PM.toggle(succ, 'succ', 'B', 'C', true);
+  assert.equal(s[1].links, 'C', 'con posteriores, la casilla cambia la fila de la precedente');
+  const back = PM.model(s, 'succ');
+  assert.ok(back.has.has('B>C'));
+  // Lista ⇔ matriz: la tabla que sale de la matriz da el mismo proyecto que la escrita a mano.
+  const hand = [row('A', 1, 'B, C'), row('B', 1), row('C', 2)];
+  const viaMatrix = PM.toggle(PM.toggle([row('A', 1), row('B', 1), row('C', 2)], 'succ', 'A', 'B', true), 'succ', 'A', 'C', true);
+  assert.deepEqual(parseRows(viaMatrix, 'succ').project.succs, parseRows(hand, 'succ').project.succs);
+});
+
+test('T015: cada casilla de la matriz se nombra con su precedencia y dice si es redundante, del ciclo o del camino', () => {
+  const ids = ['A', 'B', 'C'];
+  const has = new Set(['A>B', 'B>C', 'A>C']);
+  for (const lang of ['es', 'en']) {
+    const cells = PM.cells(ids, has, { redundant: [['A', 'C']], path: { edge: ['A', 'C'], path: ['A', 'B', 'C'] } }, lang);
+    const c = (p, a) => cells.find((x) => x.p === p && x.a === a);
+    assert.equal(cells.length, 6, 'sin la diagonal');
+    assert.equal(c('A', 'C').mark, 'red');
+    assert.equal(c('A', 'B').mark, 'path');
+    assert.equal(c('B', 'A').mark, null);
+    assert.equal(c('A', 'B').checked, true);
+    assert.equal(c('B', 'A').checked, false);
+    assert.match(c('A', 'C').label, /^A → C\b.+/);
+    assert.equal(c('B', 'A').label, 'B → A');
+    const cyc = PM.cells(ids, has, { cycle: ['A', 'B', 'C'] }, lang);
+    assert.equal(cyc.find((x) => x.p === 'C' && x.a === 'A').mark, 'cycle');
+    assert.notEqual(PM.cells(ids, has, { redundant: [['A', 'C']] }, 'es').find((x) => x.p === 'A' && x.a === 'C').label,
+      PM.cells(ids, has, { redundant: [['A', 'C']] }, 'en').find((x) => x.p === 'A' && x.a === 'C').label);
+  }
+});

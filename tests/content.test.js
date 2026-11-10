@@ -858,3 +858,147 @@ test('revisión F2b, F10: si las ficticias que sobran no se pueden quitar todas 
   assert.equal(out.lines[out.lines.length - 1].text, 'Cada una sobra por separado, pero no todas a la vez: después de quitar una, comprueba otra vez.');
   assert.ok(N.retoResult(r, { lang: 'en', project: p6 }).lines.some((l) => l.text === 'Each one can be removed on its own, but not all of them together: after removing one, check again.'));
 });
+
+// ---------- F2c (T015): textos de practicar en M0 (validación explicada y corrección) ----------
+const U2 = require('../js/core/urlstate.js');
+const S2 = require('../js/core/statement.js');
+const ST2 = require('../js/core/statements.js');
+const M0 = require('../js/m0.js');
+
+const m0Model = (st, rows, marks, lang) => M0.model(Object.assign(U2.defaults(), { v: 'm0', st, ex: null, t: rows, mk: marks || null }), lang);
+const r0 = (id, duration, links = '', name = '') => ({ id, name, duration: String(duration), links });
+const fragMark = (st, id, extra) => { const f = st.frags.find((x) => x.id === id); return Object.assign({ from: f.from, to: f.to, kind: f.kind === 'start' || f.kind === 'end' ? 'precedence' : f.kind }, extra || {}); };
+const noKeys = (s) => assert.doesNotMatch(s, /\{\w+\}|\bm0\.\w|undefined|null/, s);
+const allTexts = (v) => [v.note, v.ends, ...v.errors, ...v.warnings, ...(v.cycle ? [v.cycle.text, ...v.cycle.edges.map((e) => e.text)] : []), ...v.redundant.map((r) => r.text)].filter(Boolean);
+
+test('T015 · AC1: con la tabla vacía, la validación invita a empezar y recuerda que solo se compara al comprobar', () => {
+  for (const lang of ['es', 'en']) {
+    const v = M0.validation(lang, m0Model('ej5', null, null, lang));
+    assert.deepEqual([v.errors, v.warnings, v.redundant, v.cycle, v.ends], [[], [], [], null, null]);
+    assert.ok(v.note.length > 20);
+    noKeys(v.note);
+  }
+});
+
+test('T015 · AC4: cada redundancia da su camino y, si el alumno la enlazó, su subrayado (tablero 28)', () => {
+  for (const lang of ['es', 'en']) {
+    const st = S2.build(ST2.get('congreso'), lang);
+    const marks = [fragMark(st, 'p1', { gives: [['A', 'B']] }), fragMark(st, 'p3', { gives: [['C', 'B']] })];
+    const rows = [r0('A', ''), r0('B', '', 'A, C'), r0('C', '', 'A'), r0('D', '', 'B, C'), r0('E', '', 'D'), r0('F', '', 'B'), r0('G', '', 'E, F')];
+    const m = m0Model('congreso', rows, marks, lang);
+    const v = M0.validation(lang, m);
+    assert.deepEqual(v.redundant.map((r) => r.edge.join('>')), ['A>B', 'C>D']);
+    assert.deepEqual(v.redundant[0].path, ['A', 'C', 'B']);
+    assert.match(v.redundant[0].text, /A → B/);
+    assert.match(v.redundant[0].text, /A → C → B/);
+    const words = st.words.slice(marks[0].from, marks[0].to + 1).map((w) => w.t);
+    assert.ok(v.redundant[0].text.includes(words[words.length - 1]), 'nombra la frase subrayada');
+    assert.doesNotMatch(v.redundant[1].text, /«/, 'sin subrayado no cita ninguna frase');
+    assert.match(v.ends, /A/);
+    assert.match(v.ends, /G/);
+    assert.deepEqual(v.errors, []);
+    allTexts(v).forEach(noKeys);
+  }
+});
+
+test('T015 · AC5: el ciclo de la trampa de lectura da su recorrido y la frase de cada precedencia enlazada (tablero 29)', () => {
+  for (const lang of ['es', 'en']) {
+    const st = S2.build(ST2.get('congreso'), lang);
+    const marks = [fragMark(st, 'p1', { gives: [['B', 'A']] }), fragMark(st, 'p2', { gives: [['A', 'C']] }), fragMark(st, 'p3', { gives: [['C', 'B']] })];
+    const rows = [r0('A', '', 'B'), r0('B', '', 'C'), r0('C', '', 'A'), r0('D', '', 'B, C')];
+    const v = M0.validation(lang, m0Model('congreso', rows, marks, lang));
+    assert.ok(v.cycle);
+    assert.equal(v.cycle.edges.length, 3);
+    const ids = v.cycle.ids;
+    assert.equal(new Set(ids).size, 3);
+    assert.match(v.cycle.text, new RegExp(`${ids[0]} → ${ids[1]} → ${ids[2]} → ${ids[0]}`));
+    for (const e of v.cycle.edges) assert.match(e.text, /«.+»/, 'cada precedencia del ciclo está enlazada a una frase');
+    assert.equal(v.errors.length, 0, 'el ciclo no se repite como error genérico');
+    assert.equal(v.ends, null, 'con un ciclo no hay iniciales ni finales');
+    allTexts(v).forEach(noKeys);
+  }
+});
+
+test('T015 · AC6: los avisos de inicios y finales y de una actividad subrayada fuera de la tabla, sin mirar la referencia', () => {
+  for (const lang of ['es', 'en']) {
+    const st = S2.build(ST2.get('congreso'), lang);
+    const marks = [fragMark(st, 'e1', { decl: { end: 'end', act: 'G' } }), fragMark(st, 'aD', { act: 'D' })];
+    const rows = [r0('A', ''), r0('B', '', 'A'), r0('G', '', 'A')];
+    const m = m0Model('congreso', rows, marks, lang);
+    const v = M0.validation(lang, m);
+    assert.equal(v.warnings.length, 2);
+    assert.match(v.warnings[0], /G/);
+    assert.match(v.warnings[0], /B/, 'nombra la otra actividad final');
+    assert.match(v.warnings[1], /\bD\b/);
+    v.warnings.forEach(noKeys);
+    // Sin pistas: lo mismo con y sin la referencia del enunciado.
+    const blind = M0.validation(lang, Object.assign({}, m, { st: Object.assign({}, m.st, { ref: null, frags: [] }) }));
+    assert.deepEqual(blind, v);
+  }
+});
+
+test('T015 · AC7: la corrección nombra un error de cada tipo, con la frase del enunciado o el subrayado, y la correspondencia (tablero 30)', () => {
+  for (const lang of ['es', 'en']) {
+    const st = S2.build(ST2.get('cocina'), lang);
+    const am = (id, act) => fragMark(st, id, { act });
+    const marks = [am('aA', 'A'), am('aB', 'B'), am('aC', 'C'), am('aD', 'D'), am('aE', 'T'), am('aF', 'F'), am('aG', 'G'),
+      fragMark(st, 'dD', { act: 'D', value: 3 }), fragMark(st, 'n1', { kind: 'precedence', gives: [['B', 'C']] })];
+    const rows = [r0('A', 2, 'T'), r0('B', 3, 'A'), r0('C', 2, 'A, B'), r0('D', 3, 'C'), r0('T', 1), r0('F', 2, 'T'), r0('G', 1, 'D, F'), r0('X', 1)];
+    const d = M0.diagnosis(lang, m0Model('cocina', rows, marks, lang));
+    assert.equal(d.ok, false);
+    const codes = d.items.map((i) => i.code);
+    for (const c of ['missingActivity', 'extraActivity', 'duration', 'inverted', 'missingPrecedence', 'falsePrecedence']) assert.ok(codes.includes(c), `${lang}: falta ${c}`);
+    const by = (c) => d.items.find((i) => i.code === c);
+    assert.match(by('extraActivity').text, /\bX\b/);
+    assert.match(by('duration').text, /\bD\b/);
+    assert.doesNotMatch(by('duration').text, /\b4\b/, 'no da la duración correcta');
+    assert.match(by('inverted').text, /T → A|A → T/);
+    const falseBC = d.items.find((i) => i.code === 'falsePrecedence' && i.ids.join() === 'B,C');
+    assert.match(falseBC.text, /«.+»/, 'cita el subrayado del alumno');
+    assert.ok(d.items.filter((i) => i.code === 'missingPrecedence').some((i) => /«.+»/.test(i.text)), 'cita la frase del enunciado');
+    assert.match(by('missingActivity').text, /«.+»/);
+    assert.ok(d.warnings.length >= 1);
+    assert.match(d.warnings[0].text, /→/);
+    assert.match(d.head, /\d/);
+    // La correspondencia de las filas para el editor.
+    assert.equal(d.deco.map.T, 'E');
+    assert.ok(d.deco.bad.includes('X'));
+    [d.head, ...d.items.map((i) => i.text), ...d.warnings.map((w) => w.text)].forEach(noKeys);
+  }
+});
+
+test('T015 · AC8: Electrona resuelta con la referencia es correcta, y con un ciclo o una tabla inválida no se corrige el resto', () => {
+  for (const lang of ['es', 'en']) {
+    const st = S2.build(ST2.get('ej5'), lang);
+    const rows = st.ref.activities.map((a) => r0(a.id, a.d, st.ref.preds[a.id].join(', ')));
+    const ok = M0.diagnosis(lang, m0Model('ej5', rows, null, lang));
+    assert.equal(ok.ok, true);
+    assert.deepEqual(ok.items, []);
+    noKeys(ok.head);
+    const cyc = rows.map((r) => (r.id === 'A' ? Object.assign({}, r, { links: 'K' }) : r));
+    const c = M0.diagnosis(lang, m0Model('ej5', cyc, null, lang));
+    assert.deepEqual(c.items.map((i) => i.code), ['cycle']);
+    assert.match(c.items[0].text, /→/);
+    const bad = M0.diagnosis(lang, m0Model('ej5', [r0('A', 'x')], null, lang));
+    assert.deepEqual(bad.items.map((i) => i.code), ['invalid']);
+    [c.items[0].text, bad.items[0].text].forEach(noKeys);
+  }
+});
+
+test('T015: cada subrayado se describe en la lista de subrayados y en su etiqueta, en los dos idiomas', () => {
+  for (const lang of ['es', 'en']) {
+    const st = S2.build(ST2.get('ej5'), lang);
+    const marks = [fragMark(st, 'aD', { act: 'D' }), fragMark(st, 'dD', { act: 'D', value: 7 }),
+      { from: 0, to: 2, kind: 'precedence', gives: [['A', 'D'], ['B', 'D']] }, { from: 3, to: 4, kind: 'precedence', decl: { end: 'end', act: 'K' } },
+      { from: 5, to: 6, kind: 'none' }];
+    const ls = marks.map((m) => M0.markLabel(lang, st, m));
+    assert.equal(ls[0].badge, 'D');
+    assert.equal(ls[1].badge, '= 7');
+    assert.equal(ls[2].badge, 'A→D B→D');
+    assert.match(ls[3].badge, /^K /);
+    assert.ok(ls[4].badge.length > 3);
+    assert.ok(ls[0].frag.startsWith(lang === 'es' ? 'Fabricar' : 'Make'));
+    for (const l of ls) { noKeys(l.what); noKeys(l.badge); assert.ok(l.what.length > 3); }
+    assert.notEqual(M0.markLabel('es', st, marks[3]).badge, M0.markLabel('en', st, marks[3]).badge);
+  }
+});

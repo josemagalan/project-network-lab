@@ -11,6 +11,8 @@
  * reglas: solo lo dibujado hasta el paso, sin contador ni lado a lado, y con su predicción (T019).
  * F2b: con view=reto, el reto de ficticias (js/reto y views/reto-table) ocupa el panel principal; la red del alumno
  * vive en sn (URL) y el último diagnóstico, solo en la página (T021).
+ * F2c: con v=m0, M0 (js/m0) ocupa la página: texto, tabla, matriz, validación y corrección (T016). Todavía sin pestaña
+ * en la barra (P9): solo se llega escribiendo la URL. La URL se escribe con encodeSafe: si no cabe, se avisa.
  */
 (function () {
   'use strict';
@@ -37,6 +39,7 @@
   let reto = null;          // { key, st }: la red del alumno (st de js/reto) de la estructura actual
   let retoSol = null;       // método cuya red se enseña con «Ver una solución» (null: ninguna)
   let retoMethod = 'rules'; // el último elegido
+  let m0 = null;            // controlador de M0 (F2c)
 
   const lang = () => state.lang || 'es';
   const t = (k, p) => I.t(lang(), k, p);
@@ -46,6 +49,8 @@
   // ---------- Modelo ----------
 
   function compute() {
+    // M0 (F2c): el enunciado y la tabla del alumno; sin traza que reproducir en practicar.
+    if (state.v === 'm0') { model = Object.assign(G.m0.model(state, lang()), { m0: true }); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
@@ -94,22 +99,24 @@
   // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022), y sin
   // la vista lado a lado ni la matriz, que necesitan la red ROY (revisión de cierre, F2).
   function fitGraph() {
-    if (!model.structureOnly || !model.project) return;
+    if (model.m0 || !model.structureOnly || !model.project) return;
     const view = state.view === 'matrix' || state.view === 'side' ? 'net' : state.view;
     if (pert() && view === state.view) return;
     state = Object.assign({}, state, { graph: 'aoa', view, step: pert() ? state.step : 0 });
   }
   // La traza que se reproduce: la de la red PERT con graph=aoa y la de ROY en otro caso.
   function trace() {
-    if (!model) return null;
+    if (!model || model.m0) return null;
     if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
   const total = () => { const tr = trace(); return tr ? tr.length : 1; };
 
+  // Si el estado no cabe en el enlace (encodeSafe, F2c), la URL se queda como estaba y se avisa (también en el reto).
   function writeHash(push) {
-    const hash = U.encode(state);
-    if (location.hash === hash) return;
+    const { hash } = U.encodeSafe(state);
+    $('urlTooLong').hidden = !!hash;
+    if (!hash || location.hash === hash) return;
     if (push) history.pushState(null, '', hash); else history.replaceState(null, '', hash);
   }
 
@@ -118,12 +125,12 @@
   function dispatch(action, opts) {
     const before = state;
     state = S.reduce(state, action, total());
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
     if (before.step !== state.step || dataChanged || traceChanged) resetPred();
-    writeHash(before.v !== state.v);
+    if (!(opts && opts.noHash)) writeHash(before.v !== state.v || !!(opts && opts.push));
     const fullEditor = before.v !== state.v || before.lang !== state.lang || before.mode !== state.mode
       || (dataChanged && !(opts && opts.fromEditor));
     render(Object.assign({ fullEditor }, opts));
@@ -173,6 +180,9 @@
 
   function render(opts) {
     renderTexts();
+    const m0On = state.v === 'm0';
+    $('m0View').hidden = !m0On;
+    if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
     const work = state.v === 'work';
     $('workshop').hidden = !work;
     if (work) editor.render(Object.assign({}, model, { showComputed, numFmt, hideDuration: durationHidden() }), !!(opts && opts.fullEditor));
@@ -826,7 +836,17 @@
     $('btnReto').addEventListener('click', () => openView('reto'));
     $('btnAon').addEventListener('click', () => switchGraph('aon'));
     $('btnAoa').addEventListener('click', () => switchGraph('aoa'));
-    $('selLang').addEventListener('change', (e) => dispatch({ type: 'set', key: 'lang', value: e.target.value }));
+    $('selLang').addEventListener('change', (e) => {
+      // En M0, los subrayados pasan al otro idioma por los fragmentos del enunciado (F2c, AC17).
+      if (state.v === 'm0') {
+        const moved = G.m0.switchLang(state, lang(), e.target.value);
+        dispatch({ type: 'set', key: 'lang', value: e.target.value }, { noHash: true });
+        m0.langNotice(moved.dropped);
+        dispatch({ type: 'marks', value: moved.marks }, { fullEditor: true });
+        return;
+      }
+      dispatch({ type: 'set', key: 'lang', value: e.target.value });
+    });
     $('selNota').addEventListener('change', (e) => dispatch({ type: 'set', key: 'nota', value: e.target.value }));
     $('selBox').addEventListener('change', (e) => dispatch({ type: 'set', key: 'box', value: e.target.value }));
     $('chkPredict').addEventListener('change', (e) => dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }));
@@ -834,11 +854,13 @@
     $('btnWhatIf').addEventListener('click', () => { whatIfOpen = !whatIfOpen; render(); });
     $('btnLearn').addEventListener('click', () => (prog() ? openMethodLearn('prog') : openLearn()));
     $('btnLearnClose').addEventListener('click', () => $('learnDialog').close());
-    $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }); dispatch({ type: 'route' }); });
+    $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
       if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || $('stage').hidden || !$('cmpView').hidden || !$('retoView').hidden) return;
+      // El texto en modo «Subrayar» y la matriz de M0 usan las flechas para moverse (F2c, plan §0).
+      if (e.target.closest && e.target.closest('[data-own-keys]')) return;
       if (tag === 'button' && (e.key === ' ' || e.key === 'Enter')) return;
       if (e.key === 'ArrowRight' && !$('btnNext').disabled) { e.preventDefault(); dispatch({ type: 'next' }); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); dispatch({ type: 'prev' }); }
@@ -870,6 +892,12 @@
   }
 
   function init() {
+    m0 = G.m0.create($('m0View'), {
+      state: () => state, lang, dispatch,
+      // La tabla depurada se abre en M1, M2 o el taller con una entrada nueva en el historial: «Atrás» vuelve a M0.
+      open: (where, rows, mode) => { stopPlay(); const s = G.m0.openState(state, where, rows, mode); dispatch({ type: 'open', v: s.v, graph: s.graph, rows, mode }); window.scrollTo(0, 0); },
+    });
+    G.m0.state = () => m0.debug();
     editor = G.editor.create($('workshop'), {
       state: () => state, lang, dispatch,
       loadExample: (id) => { const ex = EX.get(id); dispatch({ type: 'work', rows: workRows(ex.rows), mode: ex.mode }); },

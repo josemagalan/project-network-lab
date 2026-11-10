@@ -186,11 +186,11 @@
   }
 
   // Propuesta para un fragmento subrayado: la letra que el texto le da («A)», «A:», «A=») o la siguiente
-  // libre, y el primer número (con decimales si van pegados: «2,5»). Solo mira lo subrayado.
+  // libre (fromText dice cuál de las dos), y el primer número (con decimales si van pegados: «2,5»). Solo mira lo subrayado.
   function suggest(words, from, to, used) {
     const tagged = (w) => !!w && ID_RE.test(w.t) && /^\s*[):=]/.test(w.sep);
-    const id = tagged(words[from]) ? words[from].t : (from > 0 && tagged(words[from - 1]) ? words[from - 1].t : nextFree(used));
-    const out = { id };
+    const own = tagged(words[from]) ? words[from].t : (from > 0 && tagged(words[from - 1]) ? words[from - 1].t : null);
+    const out = { id: own || nextFree(used), fromText: !!own };
     for (let i = from; i <= to && i < words.length; i++) {
       if (!/^\d+$/.test(words[i].t)) continue;
       const dec = (words[i].sep === ',' || words[i].sep === '.') && i + 1 <= to && /^\d+$/.test((words[i + 1] || {}).t || '');

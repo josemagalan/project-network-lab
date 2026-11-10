@@ -204,3 +204,15 @@ test('F2c: subrayados del alumno válidos, o nada', () => {
   assert.equal(S.reduce(s, { type: 'marks', value: null }).mk, null);
   assert.equal(S.reduce(s, { type: 'marks', value: [] }).mk, null);
 });
+
+test('F2c (T015) · AC15: «open» abre una tabla en la ruta (ROY o PERT) o en el taller desde el paso 0, sin la vista anterior', () => {
+  const rows = [{ id: 'A', name: '', duration: '1', links: '' }];
+  const base = Object.assign(U.defaults(), { v: 'm0', st: 'ej5', ex: null, view: 'net', min: 1, m: 'prog', sn: { events: [], arcs: [], dummies: [] }, wi: [['A', 3]], step: 4 });
+  const r = S.reduce(base, { type: 'open', v: 'route', graph: 'aoa', rows, mode: 'succ' }, 1);
+  assert.deepEqual([r.v, r.graph, r.step, r.view, r.mode, r.min, r.m, r.sn, r.wi, r.ex], ['route', 'aoa', 0, 'net', 'succ', 0, 'rules', null, null, null]);
+  assert.deepEqual(r.t, rows);
+  assert.notEqual(r.t, rows, 'copia las filas');
+  assert.equal(S.reduce(base, { type: 'open', v: 'work', graph: 'aon', rows, mode: 'pred' }, 1).v, 'work');
+  const bad = S.reduce(base, { type: 'open', v: 'nada', graph: 'aon', rows, mode: 'pred' }, 1);
+  assert.equal(bad.v, 'm0', 'un destino desconocido no cambia nada');
+});

@@ -159,12 +159,12 @@ test('markWarnings: inicio declarado; da lo mismo con referencia que sin ella', 
 // ── suggest ────────────────────────────────────────────────────────────────────────────────────────────────
 test('suggest: la letra del texto, la siguiente libre y el número', () => {
   const { words } = S.tokenize('A) Aprovisionamiento de materiales. Duraciones: A=3, B=1 y C = 2,5 días. Fabricar Y.');
-  assert.deepEqual(S.suggest(words, 0, 3, []), { id: 'A' });
-  assert.deepEqual(S.suggest(words, 1, 3, []), { id: 'A' });
-  assert.deepEqual(S.suggest(words, 5, 6, ['B']), { id: 'A', value: 3 });
-  assert.deepEqual(S.suggest(words, 10, 12, ['A', 'B']), { id: 'C', value: 2.5 });
-  assert.deepEqual(S.suggest(words, 14, 15, ['A', 'B', 'C']), { id: 'D' });
-  assert.deepEqual(S.suggest(words, 14, 15, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')), { id: 'A1' });
+  assert.deepEqual(S.suggest(words, 0, 3, []), { id: 'A', fromText: true });
+  assert.deepEqual(S.suggest(words, 1, 3, []), { id: 'A', fromText: true });
+  assert.deepEqual(S.suggest(words, 5, 6, ['B']), { id: 'A', fromText: true, value: 3 });
+  assert.deepEqual(S.suggest(words, 10, 12, ['A', 'B']), { id: 'C', fromText: true, value: 2.5 });
+  assert.deepEqual(S.suggest(words, 14, 15, ['A', 'B', 'C']), { id: 'D', fromText: false });
+  assert.deepEqual(S.suggest(words, 14, 15, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')), { id: 'A1', fromText: false });
 });
 
 // ── sources ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -228,4 +228,14 @@ test('route: también con un enunciado propio (solo sus fragmentos)', () => {
   const tr = S.route(S.build(OWN));
   assert.deepEqual(tr.map((s) => s.kind), ['m0Text', 'm0Frag', 'm0Frag', 'm0Clean']);
   assert.deepEqual(tr[2].adds, { acts: ['B'], durations: [], edges: [['A', 'B']] });
+});
+
+test('T015: suggest dice si la letra sale del texto («A)», «A:», «A=») o es la siguiente libre', () => {
+  const { words } = S.tokenize('A) Comprar materiales. Luego montar la estructura.');
+  assert.deepEqual(S.suggest(words, 1, 2, []), { id: 'A', fromText: true });
+  const n = S.suggest(words, 4, 6, ['A']);
+  assert.equal(n.id, 'B');
+  assert.equal(n.fromText, false);
+  const { words: w2 } = S.tokenize('A precede a D');
+  assert.equal(S.suggest(w2, 0, 3, []).fromText, false, 'una letra sin «)», «:» o «=» no es un identificador del texto');
 });

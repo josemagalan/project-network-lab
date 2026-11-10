@@ -96,3 +96,30 @@ test('F2b (T016): nombres y tipos de cada método, estados de tarjeta, diagnóst
   assert.equal(I.dict.es.cmp.names.cgl, 'Corneil, Gotlieb y Lee (1973)');
   assert.equal(I.dict.en.cmp.names.rules, 'Set rules');
 });
+
+test('F2c (T015): textos de practicar en M0 en los dos idiomas: barra, texto, subrayado, tabla, matriz, validación y corrección', () => {
+  const need = {
+    m0: ['region', 'statement', 'tableView', 'list', 'matrixView', 'underline', 'check', 'text', 'textUnderline', 'source', 'table', 'nActs', 'nActsOne',
+      'validation', 'correction', 'langMoved', 'langMovedOne'],
+    'm0.kinds': ['activity', 'duration', 'precedence', 'none'],
+    'm0.ul': ['hint', 'pickEnd', 'title', 'titleEdit', 'kind', 'actId', 'actName', 'fromText', 'durAct', 'durValue', 'linkExisting', 'noEdges', 'addEdge',
+      'from', 'to', 'add', 'declare', 'declNone', 'declStart', 'declEnd', 'noneNote', 'ok', 'save', 'remove', 'cancel', 'badId', 'badValue', 'pickAct', 'region'],
+    'm0.marks': ['title', 'none', 'edit', 'remove', 'activity', 'duration', 'precedence', 'precedenceNone', 'declStart', 'declEnd', 'noPrec', 'first', 'last'],
+    'm0.val': ['empty', 'ok', 'cycle', 'cycleEdge', 'cycleEdgeFrom', 'redundant', 'redundantFrom', 'redundantNote', 'ends', 'checkNote', 'declStartPreds',
+      'declStartOthers', 'declEndSuccs', 'declEndOthers', 'markedMissing'],
+    'm0.diag': ['ok', 'errors', 'errorsOne', 'warnings', 'warningsOne', 'missingActivity', 'extraActivity', 'duration', 'inverted', 'missingPrecedence',
+      'falsePrecedence', 'cycle', 'invalid', 'redundant', 'fromFrag', 'fromMark', 'corresponds', 'corrMark', 'noRef'],
+    'm0.open': ['label', 'm1', 'm2', 'work', 'show', 'hide', 'disabled', 'noM1', 'caption'],
+    'm0.matrix': ['caption', 'corner', 'red', 'cycle', 'path', 'empty', 'region'],
+  };
+  for (const lang of I.languages) {
+    for (const [group, keys] of Object.entries(need)) {
+      const g = group.split('.').reduce((o, k) => (o ? o[k] : o), I.dict[lang]);
+      assert.ok(g, `${lang}.${group}`);
+      for (const k of keys) assert.ok(g[k], `${lang}.${group}.${k}`);
+    }
+    assert.ok(I.dict[lang].app.urlTooLong, `${lang}.app.urlTooLong`);
+  }
+  assert.equal(I.t('es', 'm0.nActs', { n: 11 }), '11 actividades');
+  assert.equal(I.t('en', 'm0.nActs', { n: 11 }), '11 activities');
+});

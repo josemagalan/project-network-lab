@@ -366,3 +366,95 @@ button.small-btn { font-size: 13px; padding: 3px 8px; min-height: 28px; }
 }
 .reto-result h2 { margin: 0; font-size: 17px; }
 @media (min-width: 861px) and (min-height: 600px) { .reto-solution .cmp-net svg { max-height: calc(100vh - 470px); } }
+
+/* ---------- F2c · M0, del enunciado a la tabla (tableros 27–36) ---------- */
+.m0 { display: flex; flex-direction: column; gap: 12px; }
+.m0 h2 { margin: 0; font-size: 15px; }
+.m0-bar { padding: 8px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.m0-bar label { display: flex; align-items: center; gap: 6px; }
+.m0-bar select { padding: 4px; max-width: min(320px, 100%); }
+.m0-bar .seg button, .m0-bar button.ghost { min-height: 36px; }
+.m0-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+.m0-right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.m0-text, .m0-table, .m0-val, .m0-diag { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.m0-head { display: flex; align-items: center; gap: 8px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--soft); color: var(--muted); }
+.m0-src, .m0-hint, .m0-text .banner { margin: 0; }
+.m0-hint { background: var(--accent-soft); border-radius: 8px; padding: 6px 10px; }
+/* El texto: los subrayados se distinguen por el estilo de la raya y por su etiqueta, no solo por el color (AC18). */
+.st-text { white-space: pre-wrap; font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; }
+.st-text .mk { text-underline-offset: 4px; text-decoration-skip-ink: none; }
+.st-text .mk-activity { text-decoration: underline solid var(--accent) 3px; }
+.st-text .mk-duration { text-decoration: underline double var(--warn-line) 3px; }
+.st-text .mk-precedence { text-decoration: underline dashed var(--ok) 2px; }
+.st-text .mk-none { text-decoration: underline dotted var(--muted) 2px; }
+.st-text .hl { background: var(--warn-soft); }
+.st-text .badge { display: inline-block; font-size: 11.5px; font-weight: 700; line-height: 1.35; padding: 0 5px; margin-left: 3px; border-radius: 6px; vertical-align: 1px; white-space: nowrap; border: 1px solid transparent; }
+.st-text .b-activity { background: var(--accent); color: var(--accent-ink); }
+.st-text .b-duration { background: var(--warn-soft); color: var(--warn); border-color: var(--warn-line); }
+.st-text .b-precedence { background: var(--ok-soft); color: var(--ok); border-color: var(--ok); }
+.st-text .b-none { background: var(--soft); color: var(--muted); border-color: var(--line); }
+.st-text.ul .w { font: inherit; line-height: inherit; color: inherit; background: none; border: 0; margin: 0; padding: 0 1px; border-radius: 3px; cursor: pointer; }
+.st-text.ul .w:hover { background: var(--accent-soft); }
+.st-text.ul .w.sel { background: var(--accent-mid); box-shadow: 0 0 0 1px var(--accent); }
+.m0-marks summary { cursor: pointer; font-size: 14px; color: var(--accent); }
+.m0-marks ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.m0-marks li span { margin-right: 8px; }
+.m0-marks .linklike { margin-right: 8px; }
+/* Panel de subrayar. */
+.m0-panel { border: 2px solid var(--accent); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.m0-kinds { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0 16px; }
+.m0-kinds label, .m0-edges label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; font-size: 14px; }
+.m0-fields { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-end; }
+.m0-fields > label { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.m0-fields > label.grow { flex: 1 1 200px; }
+.m0-fields input:not([type]), .m0-fields select { height: 32px; padding: 0 6px; }
+.m0-fields input.short { width: 72px; }
+.m0-edges, .m0-add { flex-basis: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 14px; }
+.m0-edges legend, .m0-add legend { font-size: 13px; padding: 0 4px; }
+.m0-add label { display: inline-flex; align-items: center; gap: 6px; }
+.m0-err { color: var(--critical-text); margin: 0; font-weight: 600; }
+/* La lista: la tabla del taller con las marcas de M0 (camino, ciclo, corrección). */
+.m0 .work-main.compact { gap: 8px; }
+.m0 fieldset.mode { padding: 2px 10px 6px; font-size: 13px; }
+.m0 .edit-table td { padding: 2px 3px; }
+.m0 .edit-table input { height: 30px; }
+.edit-table tr.m0-cycle td, .edit-table tr.m0-bad td { background: var(--critical-soft); }
+.edit-table tr.m0-warn td { background: var(--warn-soft); }
+.edit-table tr.m0-ok td { background: var(--ok-soft); }
+.edit-table tr.m0-path td { background: var(--accent-soft); }
+.edit-table input.m0-cycle { border: 2px solid var(--critical); }
+.edit-table input.m0-red { border: 2px dashed var(--warn-line); }
+.edit-table input.m0-path { border: 2px solid var(--accent); }
+.edit-table td.corr { font-size: 13px; text-align: left; white-space: nowrap; }
+/* La matriz. */
+.pm-wrap { overflow: auto; max-width: 100%; }
+table.pm { border-collapse: collapse; font-size: 13px; }
+table.pm caption { caption-side: top; text-align: left; font-size: 12px; color: var(--muted); padding-bottom: 6px; }
+table.pm th, table.pm td { width: 32px; min-width: 32px; height: 30px; text-align: center; border: 1px solid var(--line); padding: 0; position: relative; }
+table.pm thead th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+table.pm tbody th { position: sticky; left: 0; background: var(--card); z-index: 1; }
+table.pm td.diag { background: var(--soft); }
+table.pm input { width: 18px; height: 18px; margin: 0; vertical-align: middle; accent-color: var(--accent); }
+table.pm td.m-red { outline: 2px dashed var(--warn-line); outline-offset: -3px; background: var(--warn-soft); }
+table.pm td.m-cycle { outline: 3px solid var(--critical); outline-offset: -3px; background: var(--critical-soft); }
+table.pm td.m-path { outline: 2px solid var(--accent); outline-offset: -3px; background: var(--accent-soft); }
+table.pm .sym { position: absolute; top: 0; right: 2px; font-size: 10px; font-weight: 700; line-height: 1.2; }
+/* Validación, corrección y salida. */
+.m0-val p, .m0-diag p { margin: 0; font-size: 14px; }
+.m0 .issues ul, .m0-diag ul { margin: 0; padding-left: 18px; font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.m0-reds { list-style: none; padding-left: 0 !important; }
+button.m0-red { text-align: left; background: none; border: 2px solid transparent; border-radius: 6px; padding: 3px 6px; font-size: 14px; cursor: pointer; color: inherit; }
+button.m0-red[aria-pressed="true"] { border-color: var(--accent); background: var(--card); }
+.m0-head-line.ok { color: var(--ok); } .m0-head-line.bad { color: var(--critical-text); }
+.m0-open { display: flex; flex-direction: column; gap: 6px; }
+.m0-open p { margin: 0; }
+.m0-open button.ghost:disabled { opacity: .55; cursor: not-allowed; }
+table.m0-clean { width: auto; font-size: 13px; }
+table.m0-clean caption { text-align: left; font-size: 13px; color: var(--muted); padding-bottom: 4px; }
+/* A 1280×720 caben el texto y la tabla sin desplazar la página (AC19): cada columna se desplaza por dentro. */
+@media (min-width: 961px) and (min-height: 600px) {
+  .m0-grid { height: calc(100vh - 176px); min-height: 400px; }
+  .m0-text, .m0-right { max-height: 100%; overflow: auto; position: relative; }
+}
+@media (max-width: 960px) { .m0-grid { grid-template-columns: minmax(0, 1fr); } .m0-textbody { max-height: 55vh; overflow: auto; } }

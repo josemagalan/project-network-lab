@@ -75,6 +75,13 @@
         if (mk) s.mk = mk;
         break;
       }
+      // F2c: la tabla depurada de M0 se abre en la ruta (ROY o PERT) o en el taller, desde el principio (AC15).
+      case 'open':
+        if (!['route', 'work'].includes(action.v) || !VIEW_OK[action.graph]) break;
+        s.v = action.v; s.graph = action.graph; s.ex = null; s.step = 0; s.wi = null; s.view = 'net'; s.min = 0; s.m = 'rules'; s.sn = null;
+        s.t = (action.rows || []).map((r) => Object.assign({}, r));
+        if (SETTABLE.mode.includes(action.mode)) s.mode = action.mode;
+        break;
       case 'work':
         s.v = 'work'; s.ex = null; s.step = 0; s.wi = null;
         s.t = (action.rows || []).map((r) => Object.assign({}, r));
