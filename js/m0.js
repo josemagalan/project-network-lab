@@ -254,6 +254,7 @@
     let diag = null;            // { key, res }: el último diagnóstico (solo en la página)
     let cleanOpen = false;
     let notice = null;          // aviso del cambio de idioma
+    let keepNotice = false;     // el aviso acaba de ponerse: los subrayados movidos al otro idioma no lo quitan
     let lastTv = null;
 
     // Esqueleto: barra, texto (izquierda) y tabla, validación, corrección y salida (derecha).
@@ -589,13 +590,6 @@
     // ---------- Ruta paso a paso ----------
 
     let lastStep = null;
-    function routeChoices(step, k) {
-      const f = m.st.frags.find((x) => x.id === step.frag);
-      const known = routeTable(m.st, m.route, k, true).rows.map((r) => r.id);
-      if (f.act && (f.kind === 'activity' || f.kind === 'end')) return { cands: known.filter((x) => x !== f.act).map((p) => `${p}>${f.act}`), known };
-      if (f.act && f.kind === 'start') return { cands: known.filter((x) => x !== f.act).map((a) => `${f.act}>${a}`), known };
-      return { cands: null, known };
-    }
 
     function drawRoutePredict(step, k) {
       clear(rPredict);
@@ -619,7 +613,7 @@
         h('input', { type: 'checkbox', checked: shown ? want.has(key) : chosen.has(key), disabled: shown, onchange: (e) => { if (e.target.checked) chosen.add(key); else chosen.delete(key); } }),
         label, mark(key)]);
       const f = m.st.frags.find((x) => x.id === step.frag);
-      const { cands, known } = routeChoices(step, k);
+      const { cands, ids: known, label: optLabel } = routeOptions(m.st, m.route, k);
       const lbl = (key) => key.replace('>', ' → ');
       // La pregunta ya está en el texto del paso: la leyenda queda para el lector de pantalla.
       const fs = h('fieldset', { class: 'rule-acts' }, [h('legend', { class: 'sr-only' }, [t('m0.rt.question', { frag: fragText(m.st, f.from, f.to) })])]);
@@ -629,7 +623,7 @@
         extra.forEach((key) => fs.appendChild(box(key, lbl(key))));
         let a = known[0] || '';
         let b = known[1] || known[0] || '';
-        const sel = (v, label, on) => h('select', { 'aria-label': label, disabled: shown, onchange: (e) => on(e.target.value) }, known.map((x) => h('option', { value: x, selected: x === v }, [x])));
+        const sel = (v, label, on) => h('select', { 'aria-label': label, disabled: shown, onchange: (e) => on(e.target.value) }, known.map((x) => h('option', { value: x, selected: x === v }, [optLabel(x)])));
         fs.appendChild(h('span', { class: 'm0-add-edge' }, [h('label', {}, [t('m0.rt.from'), ' ', sel(a, t('m0.rt.from'), (v) => { a = v; })]), ' → ',
           h('label', {}, [t('m0.rt.to'), ' ', sel(b, t('m0.rt.to'), (v) => { b = v; })]),
           h('button', { type: 'button', class: 'ghost', disabled: shown || known.length < 2, onclick: () => { if (a && b && a !== b) chosen.add(`${a}>${b}`); draw({ keepFocus: true }); }, 'data-fk': 'rt-add' }, [t('m0.rt.add')])]));
@@ -751,10 +745,14 @@
         m = model;
         if (before && (before.st.id !== m.st.id || before.lang !== m.lang)) { panel = null; sel = null; focusWord = 0; }
         // El aviso del cambio de idioma dura hasta la siguiente edición o el siguiente enunciado.
-        if (before && (before.st.id !== m.st.id || (before.lang === m.lang && JSON.stringify([before.rows, before.marks]) !== JSON.stringify([m.rows, m.marks])))) notice = null;
+        const edited = before && before.st.id === m.st.id && before.lang === m.lang && JSON.stringify([before.rows, before.marks]) !== JSON.stringify([m.rows, m.marks]);
+        if (before && before.st.id !== m.st.id) notice = null;
+        else if (edited && keepNotice) keepNotice = false;
+        else if (edited) notice = null;
         draw(opts);
       },
-      langNotice(dropped) { notice = dropped ? (dropped === 1 ? t('m0.langMovedOne') : t('m0.langMoved', { n: dropped })) : null; },
+      // Lo llama app al cambiar de idioma, entre el cambio de idioma y el de los subrayados (que no debe quitarlo).
+      langNotice(dropped) { notice = dropped ? (dropped === 1 ? t('m0.langMovedOne') : t('m0.langMoved', { n: dropped })) : null; keepNotice = !!dropped; },
       debug: () => ({ st: m && m.st.id, rows: m && m.rows, marks: m && m.marks, underline: ul, sel, panel: panel ? { from: panel.from, to: panel.to, kind: panel.kind, edit: panel.edit } : null,
         diag: curDiag(), validation: m ? validation(lang(), m) : null }),
     };
@@ -763,7 +761,23 @@
   // Tabla de la ruta paso a paso hasta el paso k (narrate.m0Table).
   const routeTable = (st, tr, k, hide) => NR.m0Table(st, tr, k, hide);
 
-  const api = { routeTable, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
+  // Opciones de la predicción del paso k de la ruta (T019). En la descripción de una actividad o en «lo primero» y
+  // «lo último», una casilla por actividad ya conocida. En una frase de dependencia, dos listas con todas las
+  // actividades del enunciado, en orden y con su nombre de la referencia: la frase puede nombrar actividades que el
+  // texto aún no ha presentado (Ej. 2: «A precede a D y E» con la tabla vacía).
+  const natural = (u, v) => u.localeCompare(v, 'en', { numeric: true });
+  function routeOptions(st, tr, k) {
+    const f = st.frags.find((x) => x.id === tr[k].frag);
+    const known = routeTable(st, tr, k, true).rows.map((r) => r.id);
+    const refAct = (id) => (st.ref ? st.ref.activities.find((a) => a.id === id) : null);
+    const label = (id) => { const a = refAct(id); return a && a.name ? `${id} · ${a.name}` : id; };
+    if (f && f.act && (f.kind === 'activity' || f.kind === 'end')) return { cands: known.filter((x) => x !== f.act).map((p) => `${p}>${f.act}`), ids: known, label };
+    if (f && f.act && f.kind === 'start') return { cands: known.filter((x) => x !== f.act).map((a) => `${f.act}>${a}`), ids: known, label };
+    const ids = st.ref ? st.ref.activities.map((a) => a.id).sort(natural) : known;
+    return { cands: null, ids, label };
+  }
+
+  const api = { routeTable, routeOptions, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
   root.PNL = root.PNL || {};
   root.PNL.m0 = api;
   if (isNode) module.exports = api;

@@ -841,8 +841,10 @@ check('AC11 · «¿Y si…?» en la ruta: dentro de la holgura no cambia la dura
 
 // ---------- AC9: idioma ----------
 
-check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () => {
-  const page = await lab('v=route&ex=ej6&step=0&lang=es');
+// Trozos de las cadenas de cada idioma que no están en el otro (AC9; revisión, F18). Un trozo corto solo cuenta como
+// palabra completa («Red» no salta dentro de «Reduce») y se descarta si el otro idioma también usa esa palabra
+// («total» es español e inglés), porque entonces su presencia no prueba nada.
+async function foreignPieces(page) {
   const foreign = await page.evaluate(() => {
     const flat = (o, out = {}, pre = '') => { for (const [k, v] of Object.entries(o)) { if (v && typeof v === 'object') flat(v, out, `${pre}${k}.`); else out[pre + k] = String(v); } return out; };
     const es = flat(PNL.i18n.dict.es); const en = flat(PNL.i18n.dict.en);
@@ -851,15 +853,21 @@ check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () =
       .map((s) => s.trim()).filter((s) => s.length >= 3 && /\p{L}/u.test(s)))];
     return { es: pieces(es, en), en: pieces(en, es), all: { es: Object.values(es).join('\n'), en: Object.values(en).join('\n') } };
   });
-  // Revisión, F18: también se buscan los trozos cortos (antes, solo los de 10 caracteres o más). Un trozo corto solo cuenta
-  // como palabra completa («Red» no salta dentro de «Reduce») y se descarta si el otro idioma también usa esa palabra
-  // («total» es español e inglés), porque entonces su presencia no prueba nada.
-  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const found = (text, s) => (s.length >= 10 ? text.includes(s) : new RegExp(`(?<![\\p{L}\\p{N}])${esc(s)}(?![\\p{L}\\p{N}])`, 'u').test(text));
-  for (const [a, b] of [['es', 'en'], ['en', 'es']]) foreign[a] = foreign[a].filter((s) => !found(foreign.all[b], s));
+  for (const [a, b] of [['es', 'en'], ['en', 'es']]) foreign[a] = foreign[a].filter((s) => !foundIn(foreign.all[b], s));
+  return foreign;
+}
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const foundIn = (text, s) => (s.length >= 10 ? text.includes(s) : new RegExp(`(?<![\\p{L}\\p{N}])${escRe(s)}(?![\\p{L}\\p{N}])`, 'u').test(text));
+// Todo el texto visible de la página, el título y las etiquetas accesibles visibles.
+const corpusOf = (p) => p.evaluate(() => [document.body.innerText, document.title,
+  ...[...document.querySelectorAll('[aria-label]')].filter((e) => e.checkVisibility()).map((e) => e.getAttribute('aria-label'))].join('\n'));
+
+check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () => {
+  const page = await lab('v=route&ex=ej6&step=0&lang=es');
+  const foreign = await foreignPieces(page);
+  const found = foundIn;
+  const corpus = corpusOf;
   assert.ok(foreign.es.filter((s) => s.length < 10).length > 20, 'quedan trozos cortos que vigilar');
-  const corpus = (p) => p.evaluate(() => [document.body.innerText, document.title,
-    ...[...document.querySelectorAll('[aria-label]')].filter((e) => e.checkVisibility()).map((e) => e.getAttribute('aria-label'))].join('\n'));
   for (const [lang, other] of [['en', 'es'], ['es', 'en']]) {
     await page.selectOption('#selLang', lang);
     for (const n of [0, 2, 14, 26, 29, 31]) {
@@ -1858,12 +1866,558 @@ check('F2b T026 · entradas al reto: la barra de vistas de la red PERT, del prog
   }
 });
 
+// ---------- F2c, hito 1: M0, del enunciado a la tabla (T019) ----------
+
+const U0 = require(path.join(ROOT, 'js', 'core', 'urlstate.js'));
+// Abre M0 con un estado dado (enunciado, tabla, subrayados, vista y modo) directamente desde la URL.
+const m0Url = (s) => `cpm.html${U0.encode(Object.assign(U0.defaults(), { v: 'm0', st: 'ej5', lang: 'es' }, s))}`;
+async function m0Lab(s = {}, opts = {}) {
+  const page = await open(m0Url(s), opts);
+  await page.waitForFunction(() => PNL.m0.state && PNL.m0.state().st);
+  return page;
+}
+const m0st = (page) => page.evaluate(() => PNL.m0.state());
+// Fragmentos del enunciado en un idioma, por su id (para saber qué palabras subrayar).
+const fragsOf = (page, id, lang) => page.evaluate(([i, l]) => Object.fromEntries(PNL.statement.build(PNL.statements.get(i), l).frags.map((f) => [f.id, { from: f.from, to: f.to }])), [id, lang]);
+const word = (page, i) => page.locator(`#m0View .st-text.ul [data-i="${i}"]`);
+const m0Panel = (page) => page.locator('#m0View .m0-panel');
+// Subraya de la palabra «from» a la «to» con dos pulsaciones (sin arrastrar) y acepta la propuesta del panel.
+async function underline(page, from, to, opts = {}) {
+  if ((await page.locator('#m0Ul').getAttribute('aria-pressed')) !== 'true') await page.locator('#m0Ul').click();
+  const press = (loc) => (opts.tap ? loc.tap() : loc.click());
+  await press(word(page, from));
+  await press(word(page, to));
+  await m0Panel(page).waitFor({ state: 'visible' });
+  if (opts.kind) assert.equal(await m0Panel(page).locator('input[name="m0Kind"]:checked').getAttribute('value'), opts.kind, `propuesta de «${from}–${to}»`);
+  if (opts.fill) await opts.fill(m0Panel(page));
+  await press(page.locator('#m0PanelOk'));
+  await m0Panel(page).waitFor({ state: 'hidden' });
+}
+const m0Seg = (page, k) => page.locator('#m0View .m0-bar .seg').nth(1).locator('button').nth(k);   // 0: lista, 1: matriz
+const cell = (page, key) => page.locator(`#m0View [data-cell="${key}"]`);
+const cellTd = (page, key) => cell(page, key).locator('xpath=..');
+// Campo de precedencias de la fila de una actividad en la lista (las filas van en el orden de la tabla).
+async function listLinks(page, id) {
+  const i = (await m0st(page)).rows.findIndex((r) => r.id === id);
+  assert.ok(i >= 0, `no hay fila ${id}`);
+  return page.locator('#m0View .m0-list tbody tr').nth(i).locator('[data-f="links"]');
+}
+async function m0Check(page) {
+  await page.locator('#m0Check').click();
+  await page.locator('#m0DiagLine').waitFor();
+  return (await m0st(page)).diag;
+}
+const EJ5_PRED = [['A', 'D'], ['B', 'D'], ['B', 'E'], ['C', 'E'], ['A', 'F'], ['B', 'F'], ['F', 'G'], ['D', 'H'], ['E', 'H'], ['H', 'I'], ['G', 'J'], ['I', 'J'], ['J', 'K']];
+const EJ5_DUR = { A: 3, B: 1, C: 2, D: 7, E: 5, F: 6, G: 1, H: 2, I: 1, J: 3, K: 1 };
+const COCINA = [R('A', 2), R('B', 3, 'A'), R('C', 2, 'A'), R('D', 4, 'B, C'), R('E', 1, 'A'), R('F', 2, 'D, E'), R('G', 1, 'F'), R('H', 1, 'G')];
+const CONGRESO = [R('A', ''), R('B', '', 'C'), R('C', '', 'A'), R('D', '', 'B'), R('E', '', 'D'), R('F', '', 'B'), R('G', '', 'E, F')];
+const markOf = (f, kind, extra) => Object.assign({ from: f.from, to: f.to, kind }, extra || {});
+
+// Subraya las once actividades (con su letra) y sus duraciones del Ej. 5, y comprueba lo que la propuesta pone en la tabla.
+async function underlineEj5(page, lang) {
+  const fr = await fragsOf(page, 'ej5', lang);
+  const words = await page.evaluate((l) => PNL.statement.build(PNL.statements.get('ej5'), l).words.map((w) => w.t), lang);
+  for (const id of Object.keys(EJ5_DUR)) {
+    const f = fr[`a${id}`];
+    assert.equal(words[f.from - 1], id, `${lang}: la letra ${id} va justo antes de su descripción`);
+    await underline(page, f.from - 1, f.to, { kind: 'activity' });
+  }
+  for (const id of Object.keys(EJ5_DUR)) await underline(page, fr[`d${id}`].from, fr[`d${id}`].to, { kind: 'duration' });
+  const s = await m0st(page);
+  assert.deepEqual(s.rows.map((r) => r.id), Object.keys(EJ5_DUR));
+  assert.deepEqual(Object.fromEntries(s.rows.map((r) => [r.id, Number(r.duration)])), EJ5_DUR, 'las duraciones salen del texto');
+  assert.ok(s.rows.every((r) => r.name.length > 3 && r.links === ''), 'cada fila con su nombre y sin precedencias');
+  assert.equal(s.marks.length, 22);
+}
+
+for (const lang of ['es', 'en']) {
+  check(`F2c AC1–AC3, AC7 y AC15 · Ej. 5 en ${lang.toUpperCase()}: subrayado y ${lang === 'es' ? 'matriz' : 'lista'}, «Comprobar», M1 (17 días) y M2 y vuelta con «Atrás»`, async () => {
+    const es = lang === 'es';
+    const page = await m0Lab({ lang });
+    assert.deepEqual((await m0st(page)).rows, [], 'la tabla empieza vacía');
+    assert.ok(await page.locator('#m0View .m0-diag').isHidden(), 'nada de la corrección antes de comprobar');
+    await underlineEj5(page, lang);
+    if (es) {
+      await m0Seg(page, 1).click();
+      await page.waitForFunction(() => PNL.app.state().tv === 'matrix');
+      for (const [p, a] of EJ5_PRED) await cell(page, `${p}>${a}`).check();
+    } else {
+      const preds = {};
+      for (const [p, a] of EJ5_PRED) (preds[a] = preds[a] || []).push(p);
+      for (const [a, ps] of Object.entries(preds)) await (await listLinks(page, a)).fill(ps.join(', '));
+      await m0Seg(page, 1).click();
+      for (const [p, a] of EJ5_PRED) assert.ok(await cell(page, `${p}>${a}`).isChecked(), `la matriz refleja ${p} → ${a}`);
+      assert.equal(await page.locator('#m0View [data-cell]:checked').count(), EJ5_PRED.length);
+    }
+    await page.waitForFunction((n) => PNL.app.state().t.filter((r) => r.links).length === n, 8);
+    assert.match(await page.locator('#m0View .m0-val').innerText(), es ? /Sin ciclos ni precedencias redundantes/ : /No cycles and no redundant/);
+    const d = await m0Check(page);
+    assert.equal(d.ok, true, JSON.stringify(d.items));
+    assert.match(await page.locator('#m0DiagLine').innerText(), es ? /correcta/ : /correct/);
+    await shot(page, `f2c-ej5-${lang}-1280-corregido`);
+    // M1: la tabla depurada da 17 días; «Atrás» devuelve M0 tal como estaba, con la corrección.
+    await page.locator('#m0OpenM1').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'route' && PNL.app.state().graph === 'aon');
+    const sol = await page.evaluate(() => { const s = PNL.app.model().solution; return { d: s.duration, crit: s.critical.join('') }; });
+    assert.deepEqual(sol, { d: 17, crit: 'ADHIJK' });
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0.state().rows.length === 11);
+    assert.equal((await m0st(page)).marks.length, 22, 'los subrayados siguen');
+    assert.ok(await page.locator('#m0DiagLine').isVisible(), 'la corrección vuelve si nada cambió');
+    // M2: la red PERT de la tabla depurada (2 ficticias).
+    await page.locator('#m0OpenM2').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'route' && PNL.app.state().graph === 'aoa');
+    const net = await page.evaluate(() => { const n = PNL.app.model().net; return { dummies: n.dummies.length, events: n.events.length }; });
+    assert.deepEqual(net, { dummies: 2, events: 10 });
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0.state().rows.length === 11);
+    assert.equal((await state(page)).tv, 'matrix');
+    await close(page);
+  });
+}
+
+check('F2c AC2 · quitar un subrayado (en la lista de subrayados o en su panel) no borra la fila ni lo que puso en la tabla', async () => {
+  const page = await m0Lab();
+  const fr = await fragsOf(page, 'ej5', 'es');
+  await underline(page, fr.aA.from - 1, fr.aA.to);
+  await underline(page, fr.dA.from, fr.dA.to);
+  assert.equal((await m0st(page)).marks.length, 2);
+  // Desde la lista de subrayados.
+  await page.locator('#m0View .m0-marks summary').click();
+  await page.locator('#m0View [data-fk="mk-r-1"]').click();
+  await page.waitForFunction(() => PNL.m0.state().marks.length === 1);
+  // Desde el panel: pulsar una palabra subrayada lo abre para editarlo o quitarlo.
+  await word(page, fr.aA.from + 1).click();
+  await m0Panel(page).waitFor({ state: 'visible' });
+  assert.equal((await m0st(page)).panel.edit, 0);
+  await m0Panel(page).locator('button', { hasText: 'Quitar' }).click();
+  await page.waitForFunction(() => PNL.m0.state().marks.length === 0);
+  const s = await m0st(page);
+  assert.deepEqual(s.rows.map((r) => [r.id, r.duration]), [['A', '3']], 'la fila sigue, con su duración');
+  assert.match(s.rows[0].name, /^Aprovisionamiento/);
+  await close(page);
+});
+
+check('F2c AC4 y AC5 · redundancias con su camino y la frase de su subrayado, en la lista y en la matriz; se elige cuál', async () => {
+  for (const lang of ['es', 'en']) {
+    const probe = await m0Lab({ st: 'cocina', lang });
+    const fr = await fragsOf(probe, 'cocina', lang);
+    await close(probe);
+    const rows = COCINA.map((r) => (r.id === 'G' ? R('G', 1, 'F, D') : r.id === 'H' ? R('H', 1, 'G, A') : r));
+    const page = await m0Lab({ st: 'cocina', lang, t: rows, mk: [markOf(fr.r1, 'precedence', { gives: [['D', 'G']] })] });
+    const v = (await m0st(page)).validation;
+    assert.deepEqual(v.redundant.map((r) => r.edge.join('>')).sort(), ['A>H', 'D>G']);
+    const dg = v.redundant.find((r) => r.edge.join('>') === 'D>G');
+    assert.deepEqual(dg.path, ['D', 'F', 'G']);
+    const text = await page.locator('#m0View .m0-val').innerText();
+    assert.ok(text.includes(lang === 'es' ? 'D → G es redundante: D → F → G ya la implica.' : 'D → G'), text);
+    assert.match(text, lang === 'es' ? /Tu subrayado: «Ana insiste/ : /«Ana /, 'la frase subrayada que la dio');
+    assert.equal(v.errors.length, 0, 'una redundancia es un aviso');
+    // En la lista: el campo de la redundante (discontinuo) y el camino elegido (continuo).
+    const k = v.redundant.indexOf(dg);
+    await page.locator(`#m0View [data-fk="red-${k}"]`).click();
+    assert.match(await (await listLinks(page, 'G')).getAttribute('class'), /m0-red/);
+    assert.match(await (await listLinks(page, 'F')).getAttribute('class'), /m0-path/);
+    assert.equal(await page.locator(`#m0View [data-fk="red-${k}"]`).getAttribute('aria-pressed'), 'true');
+    // En la matriz: «r» en la redundante y marco en su camino; elegir la otra cambia el camino.
+    await m0Seg(page, 1).click();
+    await page.waitForFunction(() => PNL.app.state().tv === 'matrix');
+    assert.match(await cellTd(page, 'D>G').getAttribute('class'), /m-red/);
+    assert.equal(await cellTd(page, 'D>G').locator('.sym').innerText(), 'r');
+    for (const e of ['D>F', 'F>G']) assert.match(await cellTd(page, e).getAttribute('class'), /m-path/, e);
+    assert.match(await cell(page, 'D>G').getAttribute('aria-label'), lang === 'es' ? /D → G, redundante/ : /D → G, redundant/);
+    const other = v.redundant.find((r) => r !== dg);
+    await page.locator(`#m0View [data-fk="red-${v.redundant.indexOf(other)}"]`).click();
+    for (let i = 0; i + 1 < other.path.length; i++) assert.match(await cellTd(page, `${other.path[i]}>${other.path[i + 1]}`).getAttribute('class'), /m-path|m-red/);
+    if (lang === 'es') await shot(page, 'f2c-cocina-es-redundancia-matriz');
+    await close(page);
+  }
+});
+
+check('F2c AC6 · ciclo de la trampa de lectura: su recorrido en la lista y en la matriz, con la frase que lo provocó; sin tabla depurada', async () => {
+  for (const lang of ['es', 'en']) {
+    const probe = await m0Lab({ st: 'congreso', lang });
+    const fr = await fragsOf(probe, 'congreso', lang);
+    await close(probe);
+    const rows = CONGRESO.map((r) => (r.id === 'A' ? R('A', '', 'B') : r));
+    const page = await m0Lab({ st: 'congreso', lang, t: rows, mk: [markOf(fr.p1, 'precedence', { gives: [['B', 'A']] })] });
+    const v = (await m0st(page)).validation;
+    assert.deepEqual(v.cycle.ids.slice().sort(), ['A', 'B', 'C']);
+    const text = await page.locator('#m0View .m0-val').innerText();
+    assert.match(text, lang === 'es' ? /Ciclo: [ABC] → [ABC] → [ABC] → [ABC]/ : /Cycle: [ABC] → [ABC] → [ABC] → [ABC]/, text);
+    assert.match(text, lang === 'es' ? /B → A, de tu subrayado «B sigue a A»/ : /B → A, .*«B follows A»/, text);
+    for (const id of ['A', 'B', 'C']) assert.match(await (await listLinks(page, id)).getAttribute('class'), /m0-cycle/, `fila ${id}`);
+    assert.ok(await page.locator('#m0OpenM2').isDisabled(), 'con un ciclo no hay tabla depurada');
+    await m0Seg(page, 1).click();
+    for (const e of ['B>A', 'A>C', 'C>B']) {
+      assert.match(await cellTd(page, e).getAttribute('class'), /m-cycle/, e);
+      assert.equal(await cellTd(page, e).locator('.sym').innerText(), '!');
+    }
+    const d = await m0Check(page);
+    assert.deepEqual(d.items.map((i) => i.code), ['cycle']);
+    if (lang === 'es') await shot(page, 'f2c-congreso-es-ciclo-matriz');
+    await close(page);
+  }
+});
+
+check('F2c AC6 · iniciales y finales, y los avisos de «es lo primero» y «es lo último» que la tabla contradice', async () => {
+  const probe = await m0Lab({ st: 'congreso' });
+  const fr = await fragsOf(probe, 'congreso', 'es');
+  await close(probe);
+  const page = await m0Lab({ st: 'congreso', t: CONGRESO, mk: [markOf(fr.s1, 'precedence', { decl: { end: 'start', act: 'B' } }), markOf(fr.e1, 'precedence', { decl: { end: 'end', act: 'F' } })] });
+  const text = await page.locator('#m0View .m0-val').innerText();
+  assert.match(text, /Iniciales: A · Finales: G\./);
+  assert.match(text, /Tu subrayado «todo empieza por A» dice que B es la primera, pero en la tabla B tiene predecesoras: C\./);
+  assert.match(text, /Tu subrayado «G es lo último» dice que F es la última, pero en la tabla F tiene posteriores: G\./);
+  await close(page);
+  const two = await m0Lab({ st: 'congreso', t: CONGRESO.filter((r) => r.id !== 'G'), mk: [markOf(fr.e1, 'precedence', { decl: { end: 'end', act: 'E' } }), markOf({ from: fr.e1.from - 2, to: fr.e1.from - 2 }, 'activity', { act: 'G' })] });
+  const t2 = await two.locator('#m0View .m0-val').innerText();
+  assert.match(t2, /Iniciales: A · Finales: E, F\./);
+  assert.match(t2, /dice que E es la última, pero en la tabla también son finales: F\./);
+  assert.match(t2, /Has subrayado la actividad G en el texto, pero no está en la tabla\./);
+  await close(two);
+});
+
+check('F2c AC7 · «Comprobar»: un error de cada tipo, con su frase; la columna «Corresponde a»; editar oculta la corrección', async () => {
+  // Cocina: A con otra duración, falta C → D, D → E no está, G → F al revés, Z de más y falta H.
+  const rows = [R('A', 5), R('B', 3, 'A'), R('C', 2, 'A'), R('D', 4, 'B'), R('E', 1, 'A, D'), R('F', 2, 'D, E, G'), R('G', 1), R('Z', 1, 'F')];
+  for (const lang of ['es', 'en']) {
+    const page = await m0Lab({ st: 'cocina', lang, t: rows });
+    const corr = await page.evaluate((l) => PNL.i18n.t(l, 'm0.diag.corresponds'), lang);
+    assert.ok(await page.locator('#m0View .m0-diag').isHidden(), 'nada de la corrección antes de comprobar');
+    assert.ok(!(await page.locator('#m0View .m0-list thead').innerText()).includes(corr), 'sin la columna de la correspondencia');
+    const d = await m0Check(page);
+    assert.deepEqual([...new Set(d.items.map((i) => i.code))].sort(), ['duration', 'extraActivity', 'falsePrecedence', 'inverted', 'missingActivity', 'missingPrecedence']);
+    const text = await page.locator('#m0View .m0-diag').innerText();
+    if (lang === 'es') {
+      for (const re of [/Falta una actividad del enunciado: «limpiar la obra»\./i, /Z no es ninguna actividad del enunciado\./, /La duración de A no es la del enunciado\./,
+        /Precedencia invertida: el enunciado dice F → G y la tabla tiene la contraria\./, /Falta C → D: el enunciado la implica y la tabla no\. En el enunciado: «Las paredes/, /D → E no está en el enunciado\./]) assert.match(text, re, text);
+      await shot(page, 'f2c-cocina-es-errores');
+    }
+    assert.ok((await page.locator('#m0View .m0-list thead').innerText()).includes(corr), 'columna de la correspondencia');
+    // Editar la tabla oculta la corrección (ya no es la de esta tabla).
+    await (await listLinks(page, 'D')).fill('B, C');
+    await page.waitForFunction(() => !PNL.m0.state().diag);
+    assert.ok(await page.locator('#m0View .m0-diag').isHidden());
+    await close(page);
+  }
+  const bad = await m0Lab({ st: 'cocina', t: [R('A', -1), R('B', 3, 'A')] });
+  assert.deepEqual((await m0Check(bad)).items.map((i) => i.code), ['invalid']);
+  await close(bad);
+});
+
+check('F2c plan §0 · las flechas dentro del texto y de la matriz mueven el foco y no cambian de paso ni de modo', async () => {
+  const page = await m0Lab({ t: COCINA.slice(0, 4), tv: 'matrix' });
+  const before = await state(page);
+  await page.locator('#m0Ul').click();
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-i')), '0', 'al subrayar, el foco va al texto');
+  for (const k of ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowLeft', 'End', 'Home', 'ArrowRight']) await page.keyboard.press(k);
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-i')), '1');
+  await page.locator('#m0View [data-cell][tabindex="0"]').focus();
+  const start = await page.evaluate(() => document.activeElement.getAttribute('data-cell'));
+  for (const k of ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft', 'ArrowDown']) await page.keyboard.press(k);
+  const end = await page.evaluate(() => document.activeElement.getAttribute('data-cell'));
+  assert.ok(end && end !== start, `el foco se mueve por la matriz (${start} → ${end})`);
+  const after = await state(page);
+  assert.deepEqual([after.step, after.mm, after.tv, after.t], [before.step, before.mm, before.tv, before.t]);
+  // En la ruta paso a paso, en cambio, las flechas son las del reproductor.
+  const route = await m0Lab({ mm: 'route' });
+  await route.locator('#m0View .m0-textbody').focus();
+  await route.keyboard.press('ArrowRight');
+  await route.keyboard.press('ArrowRight');
+  assert.equal((await state(route)).step, 2);
+  await route.keyboard.press('Home');
+  assert.equal((await state(route)).step, 0);
+  await close(route);
+  await close(page);
+});
+
+check('F2c AC18 · alternativas en texto: la lista y la matriz dicen lo mismo, cada casilla dice qué es y la lista de subrayados dice lo del texto', async () => {
+  const probe = await m0Lab({ st: 'cocina' });
+  const fr = await fragsOf(probe, 'cocina', 'es');
+  await close(probe);
+  const marks = [markOf(fr.aA, 'activity', { act: 'A' }), markOf(fr.dA, 'duration', { act: 'A', value: 2 }), markOf(fr.p1, 'precedence', { gives: [['A', 'B'], ['A', 'C']] }), markOf(fr.n1, 'none')];
+  const page = await m0Lab({ st: 'cocina', t: COCINA, mk: marks });
+  // Lectura: cada subrayado lleva su etiqueta escrita, no solo un color.
+  const reading = await page.locator('#m0View .st-text').innerText();
+  for (const b of ['A', '= 2', 'A→B A→C', 'no da precedencia']) assert.ok(reading.includes(b), `etiqueta «${b}»`);
+  await page.locator('#m0View .m0-marks summary').click();
+  const list = await page.locator('#m0View .m0-marks').innerText();
+  assert.match(list, /Subrayados \(4\)/);
+  assert.match(list, /«desmontar la cocina vieja»: actividad A/);
+  assert.match(list, /«2 días»: duración de A: 2/);
+  assert.match(list, /«Con la cocina vacía»: da A → B y A → C/);
+  assert.match(list, /no da precedencia/);
+  // La matriz: título, cabeceras y cada casilla con su nombre; las mismas precedencias que la lista.
+  const fromList = Object.fromEntries(await Promise.all(COCINA.map(async (r) => [r.id, await (await listLinks(page, r.id)).inputValue()])));
+  await m0Seg(page, 1).click();
+  assert.match(await page.locator('#m0View .pm caption').innerText(), /Fila: actividad · columna: su predecesora/);
+  assert.equal(await page.locator('#m0View .pm thead th').count(), COCINA.length + 1);
+  const checked = await page.locator('#m0View [data-cell]:checked').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
+  const want = Object.entries(fromList).flatMap(([a, l]) => (l ? l.split(/,\s*/).map((p) => `${p} → ${a}`) : []));
+  assert.deepEqual(checked.sort(), want.sort());
+  await close(page);
+});
+
+check('F2c AC3 · lista ⇔ matriz: marcar en la matriz escribe en la lista y al revés, también con posteriores', async () => {
+  const page = await m0Lab({ t: [R('A', 3), R('B', 1), R('D', 7)] });
+  await (await listLinks(page, 'D')).fill('A');
+  await m0Seg(page, 1).click();
+  assert.ok(await cell(page, 'A>D').isChecked());
+  await cell(page, 'B>D').check();
+  await cell(page, 'A>D').uncheck();
+  await m0Seg(page, 0).click();
+  assert.equal(await (await listLinks(page, 'D')).inputValue(), 'B');
+  // Con posteriores, la matriz cambia la fila de la precedente.
+  await page.locator('#m0View input[name="pnlModeM0"][value="succ"]').check();
+  await page.waitForFunction(() => PNL.app.state().mode === 'succ');
+  assert.equal(await (await listLinks(page, 'B')).inputValue(), 'D');
+  await m0Seg(page, 1).click();
+  await cell(page, 'A>B').check();
+  await m0Seg(page, 0).click();
+  assert.equal(await (await listLinks(page, 'A')).inputValue(), 'B');
+  assert.deepEqual((await page.evaluate(() => PNL.app.model().project.preds)), { A: [], B: ['A'], D: ['B'] });
+  await close(page);
+});
+
+check('F2c AC18 · solo con el teclado: subrayar tres actividades, marcar A → D en la matriz y comprobar, con el foco siempre a la vista', async () => {
+  const page = await m0Lab();
+  const fr = await fragsOf(page, 'ej5', 'es');
+  const focusOk = () => page.evaluate(() => { const cs = getComputedStyle(document.activeElement); return document.activeElement !== document.body && cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 2; });
+  await page.locator('#m0Ul').focus();
+  await page.keyboard.press('Enter');
+  let at = 0;
+  for (const id of ['A', 'B', 'D']) {
+    const f = fr[`a${id}`];
+    const to = f.from - 1;
+    for (let i = 0; i < Math.abs(to - at); i++) await page.keyboard.press(to > at ? 'ArrowRight' : 'ArrowLeft');
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-i')), String(to));
+    assert.ok(await focusOk(), 'foco visible en el texto');
+    for (let i = to; i < f.to; i++) await page.keyboard.press('Shift+ArrowRight');
+    await page.keyboard.press('Enter');
+    await m0Panel(page).waitFor({ state: 'visible' });
+    for (let i = 0; i < 8 && (await page.evaluate(() => document.activeElement.id)) !== 'm0PanelOk'; i++) await page.keyboard.press('Tab');
+    assert.ok(await focusOk(), 'foco visible en el panel');
+    await page.keyboard.press('Enter');
+    await m0Panel(page).waitFor({ state: 'hidden' });
+    at = f.to;
+  }
+  assert.deepEqual((await m0st(page)).rows.map((r) => r.id), ['A', 'B', 'D']);
+  // A la matriz y, con las flechas, de la primera casilla (B → A) a A → D.
+  for (let i = 0; i < 60 && (await page.evaluate(() => document.activeElement.textContent)) !== 'Matriz'; i++) await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Matriz');
+  await page.keyboard.press('Enter');
+  for (let i = 0; i < 30 && !(await page.evaluate(() => document.activeElement.hasAttribute('data-cell'))); i++) await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-cell')), 'B>A');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-cell')), 'A>D');
+  assert.ok(await focusOk(), 'foco visible en la matriz');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => PNL.app.model().project && PNL.app.model().project.preds.D.join() === 'A');
+  for (let i = 0; i < 60 && (await page.evaluate(() => document.activeElement.id)) !== 'm0Check'; i++) await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Enter');
+  await page.locator('#m0DiagLine').waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'm0DiagLine', 'el foco va al resultado');
+  assert.ok((await m0st(page)).diag.items.length > 0);
+  await close(page);
+});
+
+check('F2c AC18 · solo con pulsaciones, sin arrastrar: subrayar en una pantalla táctil y marcar en la matriz', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true, locale: 'es-ES', reducedMotion: 'reduce' });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`táctil: ${e.message}`));
+  await page.goto(`${BASE}/${m0Url({})}`);
+  await page.waitForFunction(() => window.PNL && PNL.m0 && PNL.m0.state && PNL.m0.state().st);
+  const fr = await fragsOf(page, 'ej5', 'es');
+  await page.locator('#m0Ul').tap();
+  for (const id of ['A', 'D']) await underline(page, fr[`a${id}`].from - 1, fr[`a${id}`].to, { tap: true, kind: 'activity' });
+  for (const id of ['A', 'D']) await underline(page, fr[`d${id}`].from, fr[`d${id}`].to, { tap: true, kind: 'duration' });
+  await m0Seg(page, 1).tap();
+  await cell(page, 'A>D').tap();
+  await page.waitForFunction(() => PNL.app.model().project && PNL.app.model().project.preds.D.join() === 'A');
+  assert.deepEqual((await m0st(page)).rows.map((r) => [r.id, r.duration]), [['A', '3'], ['D', '7']]);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= 360), 'sin desplazamiento horizontal');
+  await shot(page, 'f2c-ej5-es-360-pulsaciones', true);
+  await ctx.close();
+});
+
+check('F2c AC17 · cambio de idioma: el texto y los subrayados pasan al otro idioma, se avisa del que se quita y la tabla no cambia', async () => {
+  const probe = await m0Lab();
+  const fr = await fragsOf(probe, 'ej5', 'es');
+  await close(probe);
+  const rows = [R('A', 3), R('D', 7, 'A')];
+  const page = await m0Lab({ t: rows, mk: [{ from: 0, to: 1, kind: 'none' }, markOf({ from: fr.aA.from - 1, to: fr.aA.to }, 'activity', { act: 'A' }), markOf(fr.dD, 'duration', { act: 'D', value: 7 })] });
+  await page.selectOption('#selLang', 'en');
+  await page.waitForFunction(() => PNL.app.state().lang === 'en');
+  const en = await fragsOf(page, 'ej5', 'en');
+  const s = await m0st(page);
+  assert.deepEqual(s.rows, rows, 'la tabla no cambia');
+  assert.equal(s.marks.length, 2);
+  assert.ok(s.marks[0].from <= en.aA.to && s.marks[0].to >= en.aA.from && s.marks[0].act === 'A', JSON.stringify(s.marks[0]));
+  assert.ok(s.marks[1].from <= en.dD.to && s.marks[1].to >= en.dD.from && s.marks[1].value === 7);
+  const text = await page.locator('#m0View').innerText();
+  assert.match(text, /1 underline .*removed|removed 1 underline/i, 'aviso del subrayado quitado');
+  assert.match(text, /Supply of materials|materials/i);
+  // Ninguna cadena del español en la vista en inglés, ni al revés.
+  const foreign = await foreignPieces(page);
+  for (const [lang, other] of [['en', 'es'], ['es', 'en']]) {
+    await page.selectOption('#selLang', lang);
+    for (const tv of [0, 1]) {
+      await m0Seg(page, tv).click();
+      const text = await corpusOf(page);
+      const left = foreign[other].filter((x) => foundIn(text, x));
+      assert.deepEqual(left, [], `${lang}, ${tv ? 'matriz' : 'lista'}`);
+    }
+  }
+  await close(page);
+});
+
+check('F2c AC9–AC11 · ruta paso a paso del Ej. 5 sin predicción: cada paso resalta su fragmento y llena la tabla; al final, la depurada abre M1', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await m0Lab({ mm: 'route', lang });
+    const n = await page.evaluate(() => PNL.app.model().route.length);
+    assert.equal(n, 24);
+    for (let k = 0; k < n; k++) {
+      assert.equal((await state(page)).step, k);
+      const head = (await page.locator('#m0StepHead').innerText()).trim();
+      assert.ok(head.length > 0, `paso ${k}: sin título`);
+      const rowsN = await page.locator('#m0View .m0-rtable tbody tr').count();
+      assert.equal(rowsN, Math.min(k, 11), `paso ${k}: filas de la tabla`);
+      if (k > 0 && k < n - 1) assert.equal(await page.locator('#m0View .st-text .hl').count(), 1, `paso ${k}: fragmento resaltado`);
+      const box = await page.evaluate(() => ({ y: window.scrollY, player: document.querySelector('#m0View .m0-player').getBoundingClientRect().bottom, w: document.documentElement.scrollWidth }));
+      assert.ok(box.y === 0 && box.player <= 720 && box.w <= 1280, `paso ${k}: el reproductor no cabe en 1280×720 (${JSON.stringify(box)})`);
+      if (lang === 'es' && [0, 4, 12, n - 1].includes(k)) await shot(page, `f2c-ruta-es-1280-${String(k).padStart(2, '0')}`);
+      if (k < n - 1) await page.keyboard.press('ArrowRight');
+    }
+    assert.match(await page.locator('#m0RTableHead').innerText(), lang === 'es' ? /Tabla final, sin redundancias/ : /./);
+    await page.locator('#m0View .m0-table:not([hidden]) .m0-open button').first().click();
+    await page.waitForFunction(() => PNL.app.state().v === 'route' && PNL.app.state().graph === 'aon');
+    assert.equal(await page.evaluate(() => PNL.app.model().solution.duration), 17);
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.app.state().mm === 'route');
+    assert.equal((await state(page)).step, n - 1);
+    await close(page);
+  }
+});
+
+check('F2c AC10 · ruta con predicción: nada se adelanta; una respuesta incompleta dice qué falta; las frases de dependencia se responden con todas las actividades', async () => {
+  const page = await m0Lab({ mm: 'route', pred: 1 });
+  await go(page, 4);                       // «Fabricar el componente Y» = D: da A → D y B → D
+  const next = page.locator('#m0View .m0-player .player-buttons button').nth(3);
+  assert.ok(await next.isDisabled(), '→ espera a comprobar');
+  const boxes = page.locator('#m0View .m0-predict input[type="checkbox"]');
+  assert.deepEqual(await page.locator('#m0View .m0-predict label').allInnerTexts(), ['A → D', 'B → D', 'C → D', 'Ninguna', 'Redundante con las que ya hay']);
+  assert.doesNotMatch(await page.locator('#m0View .m0-rtable').innerText(), /\bD\b/, 'la tabla no adelanta la fila de D');
+  await boxes.nth(0).check();
+  await page.locator('#m0PredCheck').click();
+  assert.match(await page.locator('#m0View .m0-predict').innerText(), /✗ falta/);
+  await boxes.nth(1).check();
+  await page.locator('#m0PredCheck').click();
+  assert.match(await page.locator('#m0View .m0-predict').innerText(), /✓/);
+  assert.ok(await next.isEnabled());
+  await next.click();
+  assert.equal((await state(page)).step, 5);
+  await close(page);
+  // Ej. 2: la primera frase llega con la tabla vacía y nombra A, D y E; la cocina nombra B y C antes de presentarlas.
+  for (const [st, k, edges, lang] of [['ej2', 1, [['A', 'D'], ['A', 'E']], 'es'], ['cocina', 3, [['A', 'B'], ['A', 'C']], 'es'], ['ej2', 1, [['A', 'D'], ['A', 'E']], 'en']]) {
+    const p = await m0Lab({ st, mm: 'route', pred: 1, lang });
+    await go(p, k);
+    const sels = p.locator('#m0View .m0-predict select');
+    const opts = await sels.first().locator('option').allInnerTexts();
+    assert.ok(opts.length >= 8 && opts.includes(st === 'cocina' ? 'B · Instalación eléctrica' : 'D'), `${st}: ${opts}`);
+    for (const [a, b] of edges) {
+      await sels.nth(0).selectOption(a);
+      await sels.nth(1).selectOption(b);
+      await p.locator('#m0View [data-fk="rt-add"]').click();
+    }
+    await p.locator('#m0PredCheck').click();
+    assert.match(await p.locator('#m0View .m0-predict').innerText(), /✓/, `${st} (${lang}), paso ${k}`);
+    assert.ok(await p.locator('#m0View .m0-player .player-buttons button').nth(3).isEnabled());
+    if (st === 'cocina') await shot(p, 'f2c-ruta-cocina-es-prediccion-frase');
+    await close(p);
+  }
+});
+
+check('F2c AC12 y AC19 · la URL guarda el enunciado, la tabla, los subrayados, la vista y el modo, y otro navegador abre lo mismo', async () => {
+  const page = await m0Lab({ st: 'cocina' });
+  const fr = await fragsOf(page, 'cocina', 'es');
+  await underline(page, fr.aA.from, fr.aA.to, { fill: (p) => p.locator('input:not([type])').first().fill('A') });
+  await underline(page, fr.dA.from, fr.dA.to);
+  await m0Seg(page, 1).click();
+  const url = page.url();
+  assert.match(url, /v=m0/);
+  assert.match(url, /st=cocina/);
+  assert.match(url, /tv=matrix/);
+  const before = await m0st(page);
+  const other = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const p2 = await other.newPage();
+  await p2.goto(url);
+  await p2.waitForFunction(() => window.PNL && PNL.m0 && PNL.m0.state && PNL.m0.state().st === 'cocina');
+  const after = await m0st(p2);
+  assert.deepEqual([after.rows, after.marks], [before.rows, before.marks]);
+  assert.equal((await state(p2)).tv, 'matrix');
+  await other.close();
+  // Un enlace solo con v=m0 abre Electrona; los enunciados nuevos siguen ocultos fuera de la lista hasta publicar.
+  const bare = await lab('v=m0');
+  await bare.waitForFunction(() => PNL.m0.state && PNL.m0.state().st === 'ej5');
+  await close(bare);
+  const route = await m0Lab({ st: 'mudanza', mm: 'route', step: 5 });
+  assert.equal((await state(route)).step, 5);
+  assert.equal((await state(route)).mm, 'route');
+  await close(route);
+  await close(page);
+});
+
+check('F2c AC16 · a 1280×720 el texto y la tabla se ven a la vez; a 360 px nada desborda la página en practicar, la matriz, el panel ni la ruta', async () => {
+  const wide = await m0Lab({ t: COCINA, st: 'cocina' });
+  const b = await wide.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); return { text: r('#m0View .m0-text'), table: r('#m0View .m0-table'), w: document.documentElement.scrollWidth }; });
+  assert.ok(b.text.top < 720 && b.table.top < 720 && b.table.left >= b.text.right - 1 && b.w <= 1280, JSON.stringify(b));
+  await close(wide);
+  for (const lang of ['es', 'en']) {
+    for (const s of [{}, { t: COCINA, st: 'cocina', tv: 'matrix' }, { t: COCINA, st: 'cocina' }, { mm: 'route', step: 6 }, { mm: 'route', step: 6, pred: 1, st: 'cocina' }]) {
+      const page = await m0Lab(Object.assign({ lang }, s), { width: 360, height: 740 });
+      assert.ok(await noHScroll(page), `${lang} ${JSON.stringify(s)}`);
+      if (!s.mm && !s.tv && s.t) {
+        await page.locator('#m0Ul').click();
+        await word(page, 2).click();
+        await word(page, 4).click();
+        await m0Panel(page).waitFor({ state: 'visible' });
+        assert.ok(await noHScroll(page), `${lang}: con el panel abierto`);
+        if (lang === 'es') await shot(page, 'f2c-cocina-es-360-panel', true);
+      }
+      await close(page);
+    }
+  }
+});
+
+check('F2c AC18 · axe sin violaciones en M0 (practicar, subrayar, panel, matriz, validación, corrección y ruta), en claro y oscuro', async () => {
+  const probe = await m0Lab({ st: 'congreso' });
+  const fc = await fragsOf(probe, 'congreso', 'es');
+  await close(probe);
+  const cyc = { st: 'congreso', t: CONGRESO.map((r) => (r.id === 'A' ? R('A', '', 'B') : r)), mk: [markOf(fc.p1, 'precedence', { gives: [['B', 'A']] })] };
+  const red = { st: 'cocina', t: COCINA.map((r) => (r.id === 'G' ? R('G', 1, 'F, D') : r)) };
+  for (const scheme of ['light', 'dark']) {
+    for (const lang of ['es', 'en']) {
+      for (const [name, s, act] of [['vacía', {}, null], ['subrayar con panel', { st: 'cocina', t: COCINA }, 'panel'], ['matriz con redundancia', Object.assign({ tv: 'matrix' }, red), null],
+        ['lista con ciclo', cyc, null], ['corrección', { st: 'cocina', t: COCINA.slice(0, 7) }, 'check'], ['ruta', { mm: 'route', step: 4 }, null],
+        ['ruta con predicción', { mm: 'route', step: 3, pred: 1, st: 'cocina' }, null], ['ruta, tabla final', { mm: 'route', step: 23 }, null]]) {
+        const page = await m0Lab(Object.assign({ lang }, s), { scheme });
+        if (act === 'panel') { await page.locator('#m0Ul').click(); await word(page, 13).click(); await word(page, 16).click(); await m0Panel(page).waitFor({ state: 'visible' }); }
+        if (act === 'check') await m0Check(page);
+        await axe(page, `M0 · ${name} (${lang}, ${scheme})`);
+        await close(page);
+      }
+    }
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
-    `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`]) {
+    `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });

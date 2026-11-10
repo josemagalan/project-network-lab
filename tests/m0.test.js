@@ -158,3 +158,30 @@ test('T017 · AC10: la tabla de la ruta se llena paso a paso y en el último es 
   assert.equal(pre.rows.find((r) => r.id === 'H').links, 'A, B, C, D, E, F, G');
   assert.equal(M0.routeTable(k2, t2, t2.length - 1, false).rows.find((r) => r.id === 'H').links, 'G');
 });
+
+test('T019 · AC10: cada paso con predicción de la ruta se puede responder con sus opciones, en los once enunciados (ES y EN)', () => {
+  const nat = (u, v) => u.localeCompare(v, 'en', { numeric: true });
+  for (const def of ST.list({ all: true })) {
+    for (const lang of ['es', 'en']) {
+      const st = S.build(def, lang);
+      const tr = S.route(st);
+      const all = st.ref.activities.map((a) => a.id).sort(nat);
+      tr.forEach((step, k) => {
+        if (!step.fields) return;
+        const o = M0.routeOptions(st, tr, k);
+        const where = `${def.id} (${lang}), paso ${k}`;
+        if (o.cands) {
+          for (const [p, a] of step.answer.edges) assert.ok(o.cands.includes(`${p}>${a}`), `${where}: falta la casilla ${p} → ${a}`);
+        } else {
+          // Frase de dependencia: las dos listas llevan todas las actividades del enunciado, en orden, con su nombre.
+          assert.deepEqual(o.ids, all, where);
+          for (const id of all) assert.match(o.label(id), new RegExp(`^${id}( · .+)?$`), where);
+        }
+      });
+    }
+  }
+  const st = S.build(ST.get('cocina'), 'es');
+  const o = M0.routeOptions(st, S.route(st), 3);
+  assert.equal(o.cands, null);
+  assert.equal(o.label('B'), 'B · Instalación eléctrica');
+});
