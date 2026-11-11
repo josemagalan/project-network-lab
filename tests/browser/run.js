@@ -3809,6 +3809,15 @@ check('F3b AC8 · v=moodle: título, resumen y vista previa igual al modelo del 
   }
 });
 
+check('F3b · la vista previa no recorta sus tablas aunque el recuadro se desplace (4b con la retroalimentación abierta)', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['4b ·'], ['Difícil']);
+  await page.locator('.mq-feedback summary').click();
+  assert.equal(await page.locator('.mq-preview tbody tr').count(), (await mq(page)).preview.n);
+  assert.ok(await page.$$eval('.mq-tables', (ds) => ds.every((d) => d.scrollHeight <= d.clientHeight + 1)), 'tablas recortadas');
+  await close(page);
+});
+
 check('F3b AC9 · descarga: un banco bien formado con el evento download, y el estado lo resume', async () => {
   const page = await mqOpen('es');
   await mqSelect(page, ['1 ·', '6 ·'], ['Fácil'], 2);

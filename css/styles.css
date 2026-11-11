@@ -633,6 +633,8 @@ table.data.ex-ans .d { text-align: right; padding-right: 8px; color: var(--muted
 .mq-count { font-size: 14px; }
 .mq-preview { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; max-height: 560px; overflow: auto; }
 .mq-preview p { margin: 0; font-size: 14px; line-height: 1.45; }
+/* Los bloques de la vista previa no se encogen: el recuadro se desplaza entero (las tablas se cortaban). */
+.mq-preview > * { flex-shrink: 0; }
 .mq-qname { font-family: var(--mono); font-size: 12px !important; color: var(--muted); }
 .mq-tables { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; max-width: 100%; overflow-x: auto; }
 .mq-table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
