@@ -2442,12 +2442,12 @@ check('F2c AC18 · axe sin violaciones en M0 (practicar, subrayar, panel, matriz
 
 // ---------- F2c, T020: publicación del hito 1 (pestaña, portada, taller y enunciados nuevos) ----------
 
-check('F2c T020 · P10: la pestaña «Del enunciado a la tabla» va la primera de la barra y abre practicar; las otras dos siguen igual', async () => {
+check('F2c T020 · P10: la pestaña «Del enunciado a la tabla» va la primera de la barra y abre practicar; las demás siguen igual', async () => {
   for (const [lang, label] of [['es', 'Del enunciado a la tabla'], ['en', 'From statement to table']]) {
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
     const tabs = await page.locator('header nav a').allInnerTexts();
     assert.deepEqual(tabs.map((x) => x.trim())[0], label);
-    assert.equal(tabs.length, 3);
+    assert.equal(tabs.length, 4, 'con «Ejercicios» (F3a, T017)');
     assert.equal(await page.locator('#navM0').getAttribute('aria-current'), 'false');
     await page.locator('#navM0').click();
     await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0.state().st);
@@ -3629,6 +3629,113 @@ check('F3a P10 · un enlace pegado carga lo que falta: M0 desde «Ejercicios» y
   await route.waitForFunction(() => PNL.app.state().v === 'route');
   assert.ok(await visible(route, '#stage'));
   await close(route);
+});
+
+// ---------- F3a, T017: publicación (pestaña, barra, portada y «Tabla al azar» visible) ----------
+
+check('F3a T017 · P11: la pestaña «Ejercicios» va la última de la barra, abre un ejercicio con semilla y «Atrás» vuelve', async () => {
+  for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Exercises']]]) {
+    const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
+    assert.deepEqual((await page.locator('header nav a').allInnerTexts()).map((x) => x.trim()), labels);
+    assert.equal(await page.locator('#navEx').getAttribute('aria-current'), 'false');
+    assert.match(await page.locator('#navEx').getAttribute('href'), /^#v=ex&.*sd=\d+/);
+    await page.locator('#navEx').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'ex' && PNL.ex && PNL.ex.state && PNL.ex.state().rows);
+    const s = await state(page);
+    assert.ok(Number.isInteger(s.sd) && s.sd >= 1 && s.sd <= 999999);
+    assert.deepEqual([s.lv, s.xm, s.ans, s.lang], ['medium', 'practice', null, lang]);
+    assert.match(page.url(), new RegExp(`[#&]sd=${s.sd}(&|$)`));
+    assert.equal(await page.locator('#navEx').getAttribute('aria-current'), 'page');
+    assert.equal(await page.locator('#navRoute').getAttribute('aria-current'), 'false');
+    // Pulsarla otra vez no cambia el ejercicio.
+    await page.locator('#navEx').click();
+    assert.equal((await state(page)).sd, s.sd);
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().v === 'route' && PNL.app.state().step === 3);
+    // De «Ejercicios» a las demás pestañas y vuelta: el ejercicio es el mismo, sin respuestas.
+    await page.goForward();
+    await page.waitForFunction(() => PNL.app.state().v === 'ex');
+    await exCell(page, 'A.ES').fill('0');
+    await page.locator('#navWork').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'work');
+    await page.locator('#navEx').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'ex');
+    assert.equal((await state(page)).sd, s.sd);
+    await page.locator('#navM0').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'm0');
+    await page.locator('#navEx').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'ex' && PNL.ex.state().rows);
+    await close(page);
+  }
+});
+
+check('F3a T017 · la barra con cuatro pestañas: a 1280 px la cabecera cabe en una fila; a 360 px las pestañas pasan a dos filas sin desbordar', async () => {
+  for (const lang of ['es', 'en']) {
+    for (const hash of ['v=route&ex=ej6&step=0', 'v=work', 'v=m0&st=ej5', 'v=ex&sd=14844']) {
+      const page = await lab(`${hash}&lang=${lang}`);
+      const head = await page.evaluate(() => {
+        const r = (el) => el.getBoundingClientRect();
+        const tops = [document.querySelector('.brand'), document.querySelector('.tabs'), document.querySelector('.controls')].map((el) => Math.round(r(el).top + r(el).height / 2));
+        return { h: r(document.querySelector('.site-head')).height, tops };
+      });
+      assert.ok(head.h <= 70, `${lang} ${hash}: la cabecera ocupa ${head.h} px`);
+      assert.ok(Math.max(...head.tops) - Math.min(...head.tops) <= 12, `${lang} ${hash}: marca, pestañas y controles en una fila (${head.tops})`);
+      await close(page);
+    }
+    const page = await lab(`v=ex&sd=14844&lang=${lang}`, { width: 360, height: 740 });
+    const bar = await page.evaluate(() => {
+      const links = [...document.querySelectorAll('.tabs a')].map((a) => a.getBoundingClientRect());
+      const lh = parseFloat(getComputedStyle(document.querySelector('.tabs a')).lineHeight) || 20;
+      return { w: document.documentElement.scrollWidth, right: Math.max(...links.map((x) => x.right)), rows: new Set(links.map((x) => Math.round(x.top))).size,
+        lines: links.map((x) => Math.round((x.height - 16) / lh)) };
+    });
+    assert.ok(bar.w <= 360 && bar.right <= 360, `${lang} 360 px: ${JSON.stringify(bar)}`);
+    assert.ok(bar.rows <= 2, `${lang} 360 px: ${bar.rows} filas de pestañas`);
+    assert.ok(bar.lines.every((n) => n <= 1), `${lang} 360 px: alguna pestaña se parte (${bar.lines})`);
+    await shot(page, `f3a-barra-360-${lang}`);
+    await close(page);
+  }
+});
+
+check('F3a T017 · AC17: la tarjeta «Ejercicios generados» de la portada está disponible y abre «Ejercicios» en el idioma elegido', async () => {
+  const noJs = await open('index.html', { js: false });
+  assert.equal(await noJs.locator('a[data-lab="ex"]').getAttribute('href'), 'cpm.html#v=ex&lang=es');
+  await close(noJs);
+  const portal = await open('index.html?lang=en');
+  const card = portal.locator('article.module-card').filter({ has: portal.locator('a[data-lab="ex"]') });
+  assert.match(await card.innerText(), /Generated exercises[\s\S]*Generate an exercise[\s\S]*Available/);
+  await card.locator('a[data-lab="ex"]').click();
+  await portal.waitForFunction(() => window.PNL && PNL.ex && PNL.ex.state && PNL.ex.state() && PNL.ex.state().rows);
+  const s = await state(portal);
+  assert.equal(s.lang, 'en');
+  assert.ok(s.sd >= 1, 'la interfaz elige la semilla');
+  assert.match(portal.url(), /[#&]sd=\d+/);
+  await close(portal);
+  for (const [scheme, width] of [['light', 1280], ['dark', 360]]) {
+    const home = await open('index.html?lang=es', { scheme, width, height: 800 });
+    assert.ok(await noHScroll(home), `portada a ${width} px`);
+    await axe(home, `portada con «Ejercicios generados» disponible (${scheme}, ${width} px)`);
+    await home.locator('a[data-lab="ex"]').scrollIntoViewIfNeeded();
+    await shot(home, `f3a-portada-${scheme}-${width}`);
+    await close(home);
+  }
+});
+
+check('F3a T017 · AC11: «Tabla al azar» se ve en el taller sin activarla a mano, con su nivel, y el taller la resuelve', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await lab(`v=work&lang=${lang}`);
+    assert.ok(await visible(page, '#workRandom'));
+    assert.equal(await page.locator('#workRandom').innerText(), I0.t(lang, 'work.random'));
+    assert.equal(await page.locator('#workRandLevel').inputValue(), 'medium');
+    await page.locator('#workRandom').click();
+    await page.waitForFunction(() => PNL.app.state().t && PNL.app.state().ex === null);
+    const n = (await state(page)).t.length;
+    assert.ok(n >= 9 && n <= 10, `nivel medio: ${n} actividades`);
+    await axe(page, `taller con «Tabla al azar» (${lang})`);
+    assert.equal(await page.evaluate(() => PNL.app.model().project.activities.length), n, 'el taller calcula la tabla al azar');
+    assert.ok(await visible(page, '#stage'), 'con su red y su paso a paso debajo');
+    await close(page);
+  }
 });
 
 // ---------- Principio 27: presupuesto de 1 MB ----------

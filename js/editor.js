@@ -278,8 +278,8 @@
     return out;
   }
 
-  // RANDOM_VISIBLE: «Tabla al azar» se ve al publicar la F3a (T017, P9).
-  const api = { create, FIELD, issueText, marks, messages, decorate, randomRows, randomNotice, RANDOM_VISIBLE: false };
+  // RANDOM_VISIBLE: «Tabla al azar» se ve desde la publicación de la F3a (T017, P8).
+  const api = { create, FIELD, issueText, marks, messages, decorate, randomRows, randomNotice, RANDOM_VISIBLE: true };
   root.PNL = root.PNL || {};
   root.PNL.editor = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

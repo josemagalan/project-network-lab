@@ -232,3 +232,7 @@ test('T012 · el aviso de «Tabla al azar» dice el nivel y el número de activi
   assert.equal(Ed.randomNotice('en', 'hard', 13), 'Random table, hard level (13 activities). The browser’s «Back» brings back the table you had.');
   for (const lang of ['es', 'en']) for (const lv of ['easy', 'medium', 'hard']) assert.doesNotMatch(Ed.randomNotice(lang, lv, 7), /\{|\}|undefined/);
 });
+
+test('F3a T017 · «Tabla al azar» está publicada (P8)', () => {
+  assert.equal(Ed.RANDOM_VISIBLE, true);
+});

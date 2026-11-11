@@ -69,7 +69,7 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
 test('ocho módulos, cinco de ellos disponibles; ids únicos y anclas que existen', () => {
   assert.equal((html.match(/class="module-card tone-/g) || []).length, 8);
   for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 6, 'M0, M1, M2, M3, M4 y el taller');
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 7, 'M0, M1, M2, M3, M4, el taller y los ejercicios generados');
   assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 0, 'la fase 2 ya no tiene nada en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
@@ -126,4 +126,27 @@ test('T020 · AC20: M0 abre practicar con Electrona en el idioma elegido, sin av
   assert.match(card, /class="module-card tone-blue"/);
   assert.match(card, /data-lab="m0"><span data-i18n="m0Open">Practicar con un enunciado<\/span>/);
   assert.equal(messages.en.m0Open, 'Practise with a statement');
+});
+
+test('F3a T017 · AC17: «Ejercicios generados» está disponible y abre «Ejercicios» en el idioma elegido, con semilla nueva', () => {
+  for (const lang of ['es', 'en']) {
+    const { state, warning } = U.decode('#' + labHref('ex', lang).split('#')[1]);
+    assert.equal(warning, undefined);
+    // Sin semilla: la elige la interfaz al abrir (plan §0); nivel medio, Practicar y lo que se pide por defecto.
+    assert.deepEqual([state.v, state.sd, state.lv, state.xm, state.lang, state.ans], ['ex', null, 'medium', 'practice', lang, null]);
+    assert.deepEqual(state.ask, U.DEFAULT_ASK);
+  }
+  const start = html.indexOf('data-i18n="practiceEyebrow"');
+  const card = html.slice(start, html.indexOf('</article>', start));
+  assert.match(card, /data-lab="ex"><span data-i18n="practiceOpen">Generar un ejercicio<\/span>/);
+  assert.match(card, /class="ok" data-i18n="available"/);
+  assert.doesNotMatch(card, /soonPhase3/);
+  assert.equal(messages.en.practiceOpen, 'Generate an exercise');
+  // El texto describe lo que hay (sin enunciado ni modo detective, que son de la F3c y la F3d).
+  for (const lang of ['es', 'en']) assert.doesNotMatch(messages[lang].practiceDesc, /detective|enunciado|statement/i, lang);
+  // El taller nombra la tabla al azar.
+  assert.match(messages.es.workTopics, /Tabla al azar/);
+  assert.match(messages.en.workTopics, /Random table/);
+  // Moodle sigue en preparación (F3b).
+  assert.equal((html.match(/data-i18n="soonPhase3"/g) || []).length, 1);
 });

@@ -54,11 +54,11 @@
       fitExplain: 'ROY y PERT parten de la misma tabla y llegan a los mismos tiempos; cambian el dibujo y la necesidad de ficticias. El bloque de incertidumbre reutiliza la red ya construida, y el taller sirve para todos los módulos.',
       toolsTitle: 'Para todos los módulos', toolsNote: 'Tus propios proyectos y ejercicios',
       workEyebrow: 'Taller', workTitle: 'Tu propia tabla',
-      workDesc: 'Escribe o pega desde una hoja de cálculo cualquier proyecto de hasta 30 actividades y resuélvelo paso a paso. El enlace guarda la tabla para compartirla.',
-      workTopics: 'Predecesoras o posteriores · Pegar desde una hoja de cálculo · Enlace para compartir',
+      workDesc: 'Escribe o pega desde una hoja de cálculo cualquier proyecto de hasta 30 actividades, o pide una tabla al azar, y resuélvelo paso a paso. El enlace guarda la tabla para compartirla.',
+      workTopics: 'Predecesoras o posteriores · Tabla al azar · Enlace para compartir',
       practiceEyebrow: 'Práctica', practiceTitle: 'Ejercicios generados',
-      practiceDesc: 'Proyectos nuevos con su enunciado y su solución, corrección con error consecuente y un modo detective para encontrar el fallo en una red ya resuelta.',
-      practiceTopics: 'Generador · Semilla · Error consecuente',
+      practiceDesc: 'Proyectos nuevos de tres niveles, o con tus parámetros, que se repiten con su semilla. Calcula tiempos, holguras y caminos críticos y recibe una corrección casilla a casilla con error consecuente, en modo Practicar o Examen.',
+      practiceTopics: 'Generador · Semilla · Error consecuente', practiceOpen: 'Generar un ejercicio',
       moodleEyebrow: 'Profesorado', moodleTitle: 'Banco de Moodle',
       moodleDesc: 'Preguntas en Moodle XML con tiempos, holguras, caminos y probabilidades. Cada pregunta enlaza su ejercicio resuelto paso a paso en el laboratorio.',
       moodleTopics: 'Moodle XML · Cloze · Numérica',
@@ -130,11 +130,11 @@
       fitExplain: 'Activity-on-node and activity-on-arrow networks start from the same table and reach the same times; what changes is the drawing and the need for dummies. The uncertainty block reuses the network already built, and the workshop works with every module.',
       toolsTitle: 'For every module', toolsNote: 'Your own projects and exercises',
       workEyebrow: 'Workshop', workTitle: 'Your own table',
-      workDesc: 'Type or paste from a spreadsheet any project with up to 30 activities and solve it step by step. The link keeps the table so you can share it.',
-      workTopics: 'Predecessors or successors · Paste from a spreadsheet · Shareable link',
+      workDesc: 'Type or paste from a spreadsheet any project with up to 30 activities, or ask for a random table, and solve it step by step. The link keeps the table so you can share it.',
+      workTopics: 'Predecessors or successors · Random table · Shareable link',
       practiceEyebrow: 'Practice', practiceTitle: 'Generated exercises',
-      practiceDesc: 'New projects with their statement and solution, marking that carries errors forward, and a detective mode to find the mistake in a solved network.',
-      practiceTopics: 'Generator · Seed · Error carried forward',
+      practiceDesc: 'New projects at three levels, or with your own parameters, that a seed reproduces. Work out times, floats and critical paths and get a cell-by-cell correction with carried errors, in Practice or Exam mode.',
+      practiceTopics: 'Generator · Seed · Carried errors', practiceOpen: 'Generate an exercise',
       moodleEyebrow: 'For teachers', moodleTitle: 'Moodle question bank',
       moodleDesc: 'Moodle XML questions on times, floats, paths and probabilities. Each question links to its exercise, solved step by step in the lab.',
       moodleTopics: 'Moodle XML · Cloze · Numerical',
@@ -173,10 +173,11 @@
   // Puntos de entrada en el laboratorio. Los pasos son los de la traza del Ejercicio 6:
   // 0 = tabla, 1 = construcción de la red, 2 = primera actividad hacia delante, 26 = primera holgura.
   // M2 abre el paso 0 de la traza de la red PERT (tabla de posteriores), con graph=aoa (F2a, AC14); sus otros
-  // dos enlaces, el comparador de métodos (F2b, T024) y el reto de ficticias (T026).
+  // dos enlaces, el comparador de métodos (F2b, T024) y el reto de ficticias (T026). «Ejercicios» (F3a, T017) abre sin
+  // semilla: la elige la interfaz al abrir.
   const TARGETS = {
     m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
-    m4: 'v=route&ex=ej6&step=26', work: 'v=work',
+    m4: 'v=route&ex=ej6&step=26', work: 'v=work', ex: 'v=ex',
   };
 
   function labHref(target, lang) {

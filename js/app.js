@@ -161,6 +161,17 @@
 
   // Entrada a M0 desde la barra o el taller (T020): practicar con el enunciado de antes, o Electrona, y la tabla vacía.
   const m0Entry = () => (state.v === 'm0' ? Object.assign({}, state, { mm: 'practice', step: 0 }) : S.reduce(state, { type: 'm0', st: state.st, mm: 'practice' }, 1));
+  // Entrada a «Ejercicios» desde la barra (F3a, T017): el ejercicio de antes (semilla y parámetros) sin respuestas, o uno
+  // nuevo con una semilla de la interfaz, elegida una vez para que el enlace de la pestaña no cambie en cada repintado.
+  let tabSeed = null;
+  const exEntry = () => (state.v === 'ex' ? state : S.reduce(state, { type: 'ex', sd: state.sd || (tabSeed = tabSeed || newSeed()) }, 1));
+  function toEx() {
+    stopPlay();
+    if (state.v === 'ex') return;
+    if (!G.ex) { need('ex').then(toEx); return; }
+    dispatch({ type: 'ex', sd: exEntry().sd });
+    window.scrollTo(0, 0);
+  }
   function toM0() {
     stopPlay();
     if (!G.m0) { need('m0').then(toM0); return; }
@@ -222,9 +233,11 @@
     $('navM0').setAttribute('aria-current', state.v === 'm0' ? 'page' : 'false');
     $('navRoute').setAttribute('aria-current', state.v === 'route' ? 'page' : 'false');
     $('navWork').setAttribute('aria-current', state.v === 'work' ? 'page' : 'false');
+    $('navEx').setAttribute('aria-current', state.v === 'ex' ? 'page' : 'false');
     $('navM0').href = U.encode(m0Entry());
     $('navRoute').href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: state.ex || 'ej6', step: 0, wi: null }));
     $('navWork').href = U.encode(Object.assign({}, state, { v: 'work', step: 0 }));
+    $('navEx').href = U.encode(exEntry());
     $('brandLink').href = `index.html?lang=${lang()}`;
   }
 
@@ -923,6 +936,7 @@
     $('btnLearnClose').addEventListener('click', () => $('learnDialog').close());
     // F2c, T020 (P10): la pestaña de M0 abre practicar con el enunciado de antes (o Electrona) y su tabla vacía.
     $('navM0').addEventListener('click', (e) => { e.preventDefault(); toM0(); });
+    $('navEx').addEventListener('click', (e) => { e.preventDefault(); toEx(); });
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
     document.addEventListener('keydown', (e) => {
