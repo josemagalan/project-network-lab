@@ -49,7 +49,8 @@ test('T010 · AC14: parámetros imposibles se dicen antes de generar, y una tabl
   const noExact = X.model(exState({ lv: 'custom', gp: { n: [17, 18], pred: 1.6, dummies: [2, 3], critical: [1, 2], dmax: 12 } }), 'es');
   assert.deepEqual(noExact.issues.map((i) => i.code), ['dummiesNoExact']);
   for (const lang of ['es', 'en']) assert.ok(X.issueText(noExact.issues[0], noExact.params, lang).length > 30);
-  const nf = X.model(exState({ sd: 40, lv: 'custom', gp: { n: [16, 16], pred: 3.0, dummies: [5, 5], critical: [3, 3], dmax: 30 } }), 'es');
+  // Un caso barato (unos 150 ms) para no cargar la CPU mientras corren las pruebas de tiempo del generador (CI 56).
+  const nf = X.model(exState({ sd: 1, lv: 'custom', gp: { n: [4, 4], pred: 1.0, dummies: [0, 0], critical: [3, 3], dmax: 2 } }), 'es');
   assert.equal(nf.rows, null);
   assert.equal(nf.notFound.worst, 'critical');
   assert.equal(X.notFoundText(nf.notFound, 'es'), 'No he encontrado una tabla con estos parámetros en 500 intentos. Lo que más ha fallado: el número de caminos críticos. Prueba a pedir menos caminos críticos o menos predecesoras por actividad.');
