@@ -37,6 +37,7 @@
     const { h } = G.dom;
     const markId = `${cellId(c.key)}-m`;
     const input = h('input', { type: 'text', inputmode: 'decimal', autocomplete: 'off', spellcheck: 'false', id: cellId(c.key), 'data-key': c.key, value: c.value || '',
+      maxlength: String(G.urlstate.EX.value),                    // el límite del enlace (T020): nunca se pierde lo escrito
       'aria-label': c.label, 'aria-describedby': c.state ? markId : null, readonly: c.locked ? 'readonly' : null,
       oninput: (e) => c.onInput(c.key, e.target.value), onfocus: () => c.onFocus(c.key),
       onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); c.onEnter(c.key); } } });

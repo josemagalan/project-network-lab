@@ -5,14 +5,26 @@
 // core/aoa (solo su estructura: sucesos numerados y arcos con su actividad). Un dato del alumno es su valor si
 // es un número; si está vacío o no es válido, se usa el correcto.
 const FIELDS = ['ES', 'EF', 'LS', 'LF', 'TF', 'FF', 'IF', 'SF'];
-const r2 = (x) => Math.round(x * 100) / 100;
-const same = (a, b) => Math.abs(r2(a) - r2(b)) < 1e-9;
+// Comparación a 2 decimales (plan P3, «como predict»), escrita aparte de core/grade: en centésimas enteras.
+const cents = (x) => Math.round(Number(x) * 100);
+const same = (a, b) => cents(a) === cents(b);
 
+// Un número del alumno, por definición (spec: «números con coma o punto decimal»), sin la expresión de core/grade:
+// vacío → null; signo opcional, dígitos y como mucho una coma o un punto, con al menos un dígito → número; lo demás → NaN.
 function num(v) {
-  const s = String(v == null ? '' : v).trim().replace(',', '.');
+  const s = String(v == null ? '' : v).trim();
   if (!s) return null;
-  return /^-?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN;
+  let i = s[0] === '-' ? 1 : 0; let digits = 0; let sep = 0; let out = s[0] === '-' ? '-' : '';
+  for (; i < s.length; i++) {
+    const ch = s[i];
+    if (ch >= '0' && ch <= '9') { digits++; out += ch; } else if ((ch === ',' || ch === '.') && !sep) { sep++; out += '.'; } else return NaN;
+  }
+  return digits ? Number(out) : NaN;
 }
+
+// Separadores de un camino (plan P4: guiones, comas o espacios; también punto y coma, raya y flechas), sin expresión regular.
+const SEPS = [' ', '\t', ',', ';', '-', '–', '>', '→'];
+const splitPath = (w) => { let s = String(w); for (const c of SEPS) s = s.split(c).join(' '); return s.toUpperCase().split(' ').filter(Boolean); };
 
 // Orden topológico por definición (Kahn, desempate por posición en ids).
 function topo(t) {
@@ -128,9 +140,10 @@ function classify(t, net, answers, ask) {
     const expect = new Set(every.filter((p) => p.acts.every((a) => marked.has(a)) && same(p.length, durS)).map((p) => key(p.acts)));
     const seen = new Set();
     for (const w of answers.paths || []) {
-      const acts = String(w).toUpperCase().split(/[\s,;\-–>→]+/).filter(Boolean);
+      const acts = splitPath(w);
       const k = key(acts);
-      if (!acts.length || acts.some((a) => !t.ids.includes(a))) paths.push('invalid');
+      if (!String(w).trim()) paths.push('blank');               // un campo vacío no es un camino (T020)
+      else if (!acts.length || acts.some((a) => !t.ids.includes(a))) paths.push('invalid');
       else if (seen.has(k)) paths.push('wrong');
       else if (right.has(k)) paths.push('ok');
       else if (expect.has(k)) paths.push('carried');

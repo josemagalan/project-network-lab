@@ -75,7 +75,7 @@
     return [
       pair('acts', 'actsOne', prm.n),
       t(lang, 'ex.sum.pred', { p: fmt(lang, prm.pred) }),
-      prm.dummies ? pair('dummies', 'dummiesOne', prm.dummies) : t(lang, 'ex.sum.dummiesFree'),
+      prm.dummies ? pair('dummies', 'dummiesOne', prm.dummies, 'dummyOne') : t(lang, 'ex.sum.dummiesFree'),
       pair('crit', 'critN', prm.critical, 'critOne'),
       t(lang, 'ex.sum.dmax', { max: prm.dmax }),
     ].join(' · ');
@@ -129,6 +129,12 @@
     for (const f of Object.values(out.act)) for (const k of ACT_F) if (f[k] === undefined) f[k] = '';
     for (const f of Object.values(out.ev)) for (const k of EV_F) if (f[k] === undefined) f[k] = '';
     out.paths = out.paths.filter((p, i, xs) => p.trim() || i < xs.length - 1);
+    // Se recorta a los límites del enlace (los mismos que el `maxlength` de los campos): nunca se anula todo (T020).
+    const cut = (v) => String(v).slice(0, U.EX.value);
+    for (const f of Object.values(out.act)) for (const k of ACT_F) f[k] = cut(f[k]);
+    for (const f of Object.values(out.ev)) for (const k of EV_F) f[k] = cut(f[k]);
+    out.dur = cut(out.dur == null ? '' : out.dur);
+    out.paths = out.paths.slice(0, U.EX.paths).map((p) => p.slice(0, U.EX.path));
     return U.cleanAns(out);
   }
   const hasAnswers = (state) => !!state.ans && !!forUrl(answersOf(state));
@@ -158,7 +164,7 @@
   function counts(g) {
     const c = { ok: 0, carried: 0, wrong: 0, blank: 0, invalid: 0 };
     for (const k of Object.keys(g.cells)) c[g.cells[k].state]++;
-    for (const w of g.paths.written) c[w.state]++;
+    for (const w of g.paths.written) if (w.state !== 'blank') c[w.state]++;   // un campo de camino vacío no cuenta (T020)
     return c;
   }
   const scoreText = (g, lang) => t(lang, 'ex.score', { pct: fmt(lang, g.score.pct), got: g.score.got, total: g.score.total });
@@ -265,6 +271,7 @@
     const w = g.paths.written[i];
     const raw = String((ans.paths || [])[i] || '').trim();
     const acts = w.acts; const ps = acts.join('-');
+    if (w.state === 'blank') return '';
     if (w.state === 'invalid') return t(lang, 'ex.explain.pathInvalid', { p: raw });
     if (w.state === 'ok') return t(lang, 'ex.explain.pathOk', { p: ps });
     if (w.state === 'carried') return t(lang, 'ex.explain.pathCarried', { p: ps });
@@ -276,6 +283,9 @@
     if (p.succs[acts[acts.length - 1]].length) return t(lang, 'ex.explain.pathNotEnd', { p: ps });
     const d = Object.fromEntries(p.activities.map((x) => [x.id, x.d]));
     const len = acts.reduce((s, a) => s + d[a], 0);
+    // Si dura lo que dice el alumno, falla porque pasa por una actividad que no marcó como crítica (T020).
+    const unmarked = acts.find((a) => !(ans.crit || []).includes(a));
+    if (Math.abs(len - usedVal(m, ans, 'dur')) < 1e-9 && unmarked) return t(lang, 'ex.explain.pathNotMarked', { p: ps, a: unmarked });
     return t(lang, 'ex.explain.pathLength', { p: ps, sum: acts.map((a) => fmt(lang, d[a])).join(' + '), len: fmt(lang, len), dur: fmt(lang, usedVal(m, ans, 'dur')) });
   }
 
@@ -506,9 +516,10 @@
       // Escribir en un campo vacío del final rellena con caminos vacíos los de antes (forUrl solo quita los del final).
       const upTo = (a, i) => { let out = a; while (out.paths.length < i) out = addPath(out); return out; };
       const rows = paths.map((p, i) => {
-        const w = g && marksOn() && m.ans.paths.length ? g.paths.written[i] : null;
+        const w0 = g && marksOn() && m.ans.paths.length ? g.paths.written[i] : null;
+        const w = w0 && w0.state !== 'blank' ? w0 : null;      // un campo vacío no lleva marca (T020)
         const id = `exPath${i}`;
-        const input = h('input', { type: 'text', id, autocomplete: 'off', spellcheck: 'false', class: 'mono', value: p, readonly: locked ? 'readonly' : null,
+        const input = h('input', { type: 'text', id, autocomplete: 'off', spellcheck: 'false', class: 'mono', value: p, readonly: locked ? 'readonly' : null, maxlength: String(U.EX.path),
           'aria-describedby': w ? `${id}-m` : null,
           oninput: (e) => setAns(setPath(upTo(m.ans, i), i, e.target.value)), onfocus: () => { selKey = `path${i}`; drawExplain(); } });
         return h('div', { class: 'ex-path' }, [h('label', { for: id }, [tt('ex.pathN', { n: i + 1 })]),
@@ -520,7 +531,8 @@
           } }, ['×'])]);
       });
       return h('fieldset', { class: 'ex-paths' }, [h('legend', {}, [tt('ex.paths')]), locked || (g && marksOn()) ? null : h('p', { class: 'muted small' }, [tt('ex.pathsHelp')])].concat(rows)
-        .concat(locked ? [] : [h('div', {}, [button(`+ ${tt('ex.addPath')}`, () => { pathFields = n + 1; draw(); focus(`exPath${n}`); }, { attrs: { id: 'exAddPath' } })])]));
+        .concat(locked ? [] : [h('div', {}, [button(`+ ${tt('ex.addPath')}`, () => { pathFields = n + 1; draw(); focus(`exPath${n}`); },
+          { attrs: { id: 'exAddPath', disabled: n >= U.EX.paths ? 'disabled' : null } })])]));
     }
 
     function answersCard() {

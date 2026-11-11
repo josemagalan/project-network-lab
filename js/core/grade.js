@@ -74,6 +74,9 @@
       }
       if (want.has('floats')) {
         judge(`${a}.TF`, raw(a, 'TF'), F[a].TF, [val(a, 'LS') - val(a, 'ES'), val(a, 'LF') - val(a, 'EF')], 'TF', [`${a}.LS`, `${a}.ES`]);
+        // Si el valor del alumno sale solo por LF − EF, la casilla dice esa vía (para explicarla con sus datos; T020).
+        const tf = cells[`${a}.TF`];
+        if (tf.state === 'carried' && !same(tf.value, val(a, 'LS') - val(a, 'ES'))) Object.assign(tf, { expect: r2(val(a, 'LF') - val(a, 'EF')), uses: [`${a}.LF`, `${a}.EF`] });
         judge(`${a}.FF`, raw(a, 'FF'), F[a].FF, [esMin - val(a, 'EF')], 'FF', esMinUses.concat([`${a}.EF`]));
         judge(`${a}.IF`, raw(a, 'IF'), F[a].IF, [Math.max(0, esMin - lfMax - d[a])], 'IF', esMinUses.concat(keys(ps, 'LF')));
         if (want.has('sf')) judge(`${a}.SF`, raw(a, 'SF'), F[a].SF, [val(a, 'LF') - lfMax - d[a]], 'SF', [`${a}.LF`].concat(keys(ps, 'LF')));
@@ -135,6 +138,8 @@
         const acts = splitPath(w);
         const k = key(acts);
         let state;
+        // Un campo vacío no es un camino: ni suma ni resta (T020).
+        if (!String(w == null ? '' : w).trim()) { paths.written.push({ acts, state: 'blank' }); continue; }
         if (!acts.length || acts.some((x) => !(x in d))) state = 'invalid';
         else if (seen.has(k)) state = 'wrong';
         else if (rightK.has(k)) state = 'ok';
@@ -148,7 +153,9 @@
       // holguras aguas arriba salen negativas), no se le exigen caminos que no puede deducir: solo cuentan los que
       // escribe, los de la solución suman y los erróneos restan (T018, decisión del autor; AC5).
       pathTotal = paths.expect.length || good;
-      pathPoints = Math.max(0, good - extra);
+      // Tope (T020, decisión del autor): el apartado vale lo deducible de sus marcas; los caminos de la solución que
+      // escriba de más no suman, así que la nota nunca pasa del total.
+      pathPoints = Math.min(pathTotal, Math.max(0, good - extra));
     }
 
     const list = Object.values(cells);

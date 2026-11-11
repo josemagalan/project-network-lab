@@ -256,3 +256,85 @@ test('AC5 con caminos (T018): un solo error en un tiempo temprano, arrastrado en
   const g2 = K.grade(sol, ans, ['times', 'floats', 'critical']);
   assert.deepEqual([g2.score.got, g2.score.total], [115, 116]);
 });
+
+// ---------- Revisión de cierre (T020, ronda 1) ----------
+
+test('T020 B1: la nota nunca pasa del total y el 100 % exige no tener casillas mal (caminos de la solución que no se deducen de las marcas)', () => {
+  const ask = ['times', 'floats', 'critical'];
+  // Difícil, semilla 6: H.TF mal (3) y H sin marcar (error consecuente); escribe los 3 caminos críticos de la solución.
+  const p = fromGen(6, 'hard');
+  const sol = K.solve(p);
+  const ans = solutionAnswers(sol);
+  ans.act.H.TF = '3'; ans.crit = ans.crit.filter((x) => x !== 'H');
+  const g = K.grade(sol, ans, ask);
+  assert.equal(g.cells['H.TF'].state, 'wrong');
+  assert.equal(g.cells['H.crit'].state, 'carried');
+  assert.equal(g.paths.expect.length, 1);
+  assert.equal(sol.cpm.criticalPaths.length, 3);
+  assert.deepEqual(g.paths.written.map((w) => w.state), ['ok', 'ok', 'ok']);
+  // Tope (decisión del autor): el apartado de caminos vale lo deducible de sus marcas; solo pierde H.TF.
+  assert.deepEqual([g.score.got, g.score.total], [g.score.total - 1, Object.keys(g.cells).length + 1]);
+  // Propiedad: quitar una marca crítica (y, a veces, escribir mal su holgura total) en 300 tablas.
+  const r = R.mulberry32(20261111);
+  for (const lv of ['easy', 'medium', 'hard']) {
+    for (let sd = 1; sd <= 100; sd++) {
+      const q = fromGen(sd, lv);
+      const sq = K.solve(q);
+      for (const ak of [ask, ['critical'], ALL]) {
+        const a = solutionAnswers(sq);
+        const x = a.crit[R.int(r, 0, a.crit.length - 1)];
+        a.crit = a.crit.filter((y) => y !== x);
+        if (r() < 0.5) a.act[x].TF = String(R.int(r, 1, 5));
+        if (r() < 0.3) a.paths = a.paths.concat(['', a.paths[0]]);
+        const gq = K.grade(sq, a, ak);
+        const bad = Object.values(gq.cells).some((c) => c.state !== 'ok' && c.state !== 'carried') || gq.paths.written.some((w) => w.state === 'wrong' || w.state === 'invalid');
+        assert.ok(gq.score.got <= gq.score.total, `${lv} ${sd} ${ak}: ${gq.score.got} de ${gq.score.total}`);
+        if (bad) assert.ok(gq.score.pct < 100, `${lv} ${sd} ${ak}: 100 % con algo mal`);
+      }
+    }
+  }
+});
+
+test('T020: un campo de camino vacío no cuenta (ni suma ni resta) y queda como «vacío»', () => {
+  const sol = K.solve(fromEx('ej6'));
+  const a = solutionAnswers(sol);
+  const base = K.grade(sol, a, ['critical']).score;
+  for (const paths of [['', 'B-E-I-J-K'], ['B-E-I-J-K', ''], ['', '  ', 'B-E-I-J-K']]) {
+    a.paths = paths;
+    const g = K.grade(sol, a, ['critical']);
+    assert.deepEqual(g.score, base, JSON.stringify(paths));
+    assert.deepEqual(g.paths.written.map((w) => w.state), paths.map((x) => (x.trim() ? 'ok' : 'blank')));
+  }
+});
+
+test('T020: la holgura total que sale por LF − EF dice esa vía en `uses` y en `expect`', () => {
+  const sol = K.solve(fromEx('ej6'));
+  const a = solutionAnswers(sol);
+  const T = sol.cpm.times.B;
+  a.act.B.EF = String(T.EF + 2);                        // EF de B mal
+  a.act.B.TF = String(T.LF - (T.EF + 2));               // y su TF por LF − EF
+  let g = K.grade(sol, a, ['times', 'floats']);
+  assert.equal(g.cells['B.TF'].state, 'carried');
+  assert.deepEqual(g.cells['B.TF'].uses, ['B.LF', 'B.EF']);
+  assert.equal(g.cells['B.TF'].expect, T.LF - (T.EF + 2));
+  a.act.B.TF = String(T.LS - T.ES + 7);                 // ni por una vía ni por otra: la primera
+  g = K.grade(sol, a, ['times', 'floats']);
+  assert.equal(g.cells['B.TF'].state, 'wrong');
+  assert.deepEqual(g.cells['B.TF'].uses, ['B.LS', 'B.ES']);
+});
+
+test('T020: tolerancia de 2 decimales, separadores de los caminos y nada pedido', () => {
+  const sol = K.solve(fromEx('ej6'));
+  const a = solutionAnswers(sol);
+  for (const [v, st] of [['0.004', 'ok'], ['0,004', 'ok'], ['-0.004', 'ok'], ['0.006', 'wrong'], ['0.01', 'wrong']]) {
+    a.act.A.ES = v;
+    assert.equal(K.grade(sol, a, ['times']).cells['A.ES'].state, st, v);
+  }
+  a.act.A.ES = '0';
+  for (const w of ['B→E→I→J→K', 'B,E,I,J,K', 'B;E;I;J;K', 'B>E>I>J>K', 'B – E – I – J – K', 'b e i j k', 'B->E->I->J->K']) {
+    a.paths = [w];
+    assert.equal(K.grade(sol, a, ['critical']).paths.written[0].state, 'ok', w);
+  }
+  assert.deepEqual(K.grade(sol, a, []).score, { got: 0, total: 0, pct: 0 });
+  assert.deepEqual(K.grade(sol, a, ['sf']).score, { got: 0, total: 0, pct: 0 });
+});

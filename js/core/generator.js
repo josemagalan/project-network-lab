@@ -1,6 +1,6 @@
 /*
  * core/generator — proyectos nuevos con semilla para los ejercicios (spec f3a-generador-calculo, AC1–AC3 y AC14;
- * plan §3, P1 y P6). Algoritmo y niveles calibrados en clarify con el prototipo de 02-DOCS (spikes/f3a-generador/):
+ * plan §3, P1 y P6). Algoritmo y niveles calibrados en clarify con un prototipo:
  *   1. estructura: las actividades en orden 0..n−1; cada una, salvo los inicios extra (probabilidad 1/(1+j)),
  *      elige k ≈ pred ± 1 predecesoras entre las anteriores a una distancia geométrica (sesgo a las cercanas);
  *      después, reducción transitiva: la tabla sale sin precedencias redundantes;

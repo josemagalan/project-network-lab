@@ -40,8 +40,11 @@ jobs:
           node-version: 22
       - name: Instalar Playwright y axe-core sin tocar package.json
         run: npm install --no-save --no-package-lock playwright@1.63.0 axe-core@4.10.2
+      # Sin --with-deps: la imagen del ejecutor ya trae las bibliotecas de Chromium, y --with-deps solo añadía fuentes de
+      # relleno (CJK, tailandés, unifont) que estas páginas no usan; en Ubuntu 26 su descarga fallaba por el DNS de los
+      # espejos (CI 61). Si faltara una biblioteca, Chromium no arrancaría y la primera prueba lo diría.
       - name: Instalar Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
       # Las pruebas de 1280×720 dependen del ancho de la letra. La fuente del sistema cambia con la imagen del
       # ejecutor (en Ubuntu 26, DejaVu Sans, más ancha); se fija Liberation Sans, con las medidas de Arial, como en
       # Windows y macOS, para que el resultado no dependa de la imagen.

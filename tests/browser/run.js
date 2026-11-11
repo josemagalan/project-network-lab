@@ -3740,6 +3740,44 @@ check('F3a T017 · AC11: «Tabla al azar» se ve en el taller sin activarla a ma
   }
 });
 
+check('F3a T020 · un valor largo se corta en el campo y no borra lo escrito; diez caminos como mucho; un campo de camino vacío no cuenta; la semilla fuera de límites no se acepta; tras entregar, «Otro ejercicio» no pide confirmación', async () => {
+  const s = { sd: 14844, lv: 'medium', lang: 'es' };
+  const m = exModel(s);
+  const page = await exLab(s);
+  for (const [k, v] of [['A.ES', '0'], ['A.EF', '7'], ['B.ES', '3,3333333']]) { await exCell(page, k).click(); await page.keyboard.type(v); }
+  await page.waitForFunction(() => { const a = PNL.app.state().ans; return a && a.act.B && a.act.B.ES === '3,333333'; });
+  assert.equal(await exCell(page, 'B.ES').inputValue(), '3,333333', 'el campo no admite más de 8 caracteres');
+  assert.deepEqual(await page.evaluate(() => [PNL.app.state().ans.act.A.ES, PNL.app.state().ans.act.A.EF]), ['0', '7']);
+  assert.match(page.url(), /[#&]ans=/);
+  // Caminos: 120 caracteres por campo y 10 campos como mucho.
+  assert.equal(await page.locator('#exPath0').getAttribute('maxlength'), '120');
+  for (let i = 1; i < 10; i++) await page.locator('#exAddPath').click();
+  assert.equal(await page.locator('#exView .ex-path').count(), 10);
+  assert.ok(await page.locator('#exAddPath').isDisabled(), '«Añadir camino» se desactiva con 10');
+  // Un campo vacío delante de un camino escrito no lleva marca ni resta.
+  await page.locator('#exPath1').click(); await page.keyboard.type('A-E-J');
+  await page.waitForFunction(() => (PNL.app.state().ans.paths || []).length === 2);
+  await page.locator('#exCheck').click();
+  const pst = await page.locator('#exView .ex-pcell').evaluateAll((els) => els.slice(0, 2).map((e) => (/st-(\w+)/.exec(e.className) || [])[1] || null));
+  const ans = await page.evaluate(() => PNL.app.state().ans);
+  const a1 = X0.answersOf(Object.assign(exState0(s), { ans }));
+  const g = GR0.grade(m.sol, Object.assign({}, a1, { paths: ['A-E-J'] }), U0.DEFAULT_ASK);
+  assert.deepEqual(pst, [null, g.paths.written[0].state]);
+  assert.equal(await exScore(page), X0.scoreText(g, 'es'));
+  // La semilla fuera de 1–999 999 no se acepta y no pide confirmación.
+  await page.locator('#exSeed').fill('1000000'); await page.locator('#exSeed').press('Tab');
+  assert.equal(await page.locator('#exSeed').inputValue(), '14844');
+  assert.equal(await page.locator('#exLoseYes').count(), 0);
+  assert.equal((await exSt(page)).seed, 14844);
+  await close(page);
+  // Entregado el Examen, «Otro ejercicio» empieza otro sin pedir confirmación.
+  const done = await exLab(Object.assign({ ans: X0.forUrl(exStudent(s)), xm: 'exam', xd: 1 }, s));
+  await done.locator('#exAnother').click();
+  await done.waitForFunction(() => PNL.ex.state().seed !== 14844);
+  assert.equal(await done.locator('#exLoseYes').count(), 0);
+  await close(done);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

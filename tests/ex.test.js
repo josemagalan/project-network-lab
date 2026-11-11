@@ -184,3 +184,96 @@ test('T010 · antes de entregar, la confirmación cuenta las casillas vacías', 
   assert.equal(X.blanks(m, ans, U.DEFAULT_ASK), 4);
   assert.equal(X.blanks(m, X.empty(), ['critical']), 0, 'las casillas de verificación no cuentan como vacías');
 });
+
+// ---------- Revisión de cierre (T020, ronda 1) ----------
+
+test('T020 B2: lo que va al enlace se recorta a sus límites y nunca borra las respuestas (8 caracteres, 10 caminos de 120)', () => {
+  let a = X.empty();
+  a = X.setCell(a, 'A.ES', '0'); a = X.setCell(a, 'A.EF', '7');
+  a = X.setCell(a, 'B.ES', '3,3333333');                         // 9 caracteres
+  let u = X.forUrl(a);
+  assert.ok(u, 'no se anulan las respuestas');
+  assert.equal(u.act.A.ES, '0'); assert.equal(u.act.A.EF, '7');
+  assert.equal(u.act.B.ES, '3,333333');
+  a = X.setCell(a, 'dur', '123456789012'); a = X.setCell(a, 'e2.TE', 'abcdefghij');
+  for (let i = 0; i < 12; i++) { a = X.addPath(a); a = X.setPath(a, i, i === 0 ? 'A-'.repeat(70) + 'B' : `A-B-${i}`); }
+  u = X.forUrl(a);
+  assert.ok(u);
+  assert.equal(u.dur, '12345678'); assert.equal(u.ev[2].TE, 'abcdefgh');
+  assert.equal(u.paths.length, U.EX.paths); assert.equal(u.paths[0].length, U.EX.path); assert.equal(u.paths[1], 'A-B-1');
+  assert.deepEqual(U.cleanAns(u), u, 'lo recortado pasa la lista blanca de la URL');
+  const s = exState({ ans: u });
+  assert.equal(U.decode(U.encode(s)).state.ans.act.A.EF, '7');
+});
+
+test('T020: «1 ficticia» en el resumen de un nivel con una sola ficticia', () => {
+  const prm = { n: [9, 10], pred: 1.6, dummies: [1, 1], critical: [1, 2], dmax: 9 };
+  assert.match(X.levelSummary(prm, 'es'), / · 1 ficticia · /);
+  assert.match(X.levelSummary(prm, 'en'), / · 1 dummy · /);
+  assert.match(X.levelSummary(Object.assign({}, prm, { dummies: [2, 2] }), 'es'), / · 2 ficticias · /);
+});
+
+test('T020: la holgura total que sale por LF − EF se explica con LF − EF', () => {
+  const m = X.model(exState({ sd: 5, lv: 'easy' }), 'es');
+  const ask = ['times', 'floats'];
+  const T = m.sol.cpm.times.B;
+  const ans = boardStudent(m, {}, ask);
+  ans.act.B.EF = String(T.EF + 3); ans.act.B.TF = String(T.LF - T.EF - 3);
+  const g = GR.grade(m.sol, ans, ask);
+  assert.equal(g.cells['B.TF'].state, 'carried');
+  assert.match(X.explain(m, ans, g, 'B.TF', 'es', 'en'), new RegExp(`TF de B = LF de B = ${T.LF} − EF de B = ${T.EF + 3} = ${T.LF - T.EF - 3}\\.`));
+  assert.match(X.explain(m, ans, g, 'B.TF', 'en', 'en'), new RegExp(`TF of B = LF of B = ${T.LF} − EF of B = ${T.EF + 3} = ${T.LF - T.EF - 3}\\.`));
+});
+
+test('T020: un camino que dura lo que el proyecto pero pasa por una actividad sin marcar lo dice; un campo vacío no se explica ni se cuenta', () => {
+  const m = X.model(exState({ sd: 1234, lv: 'easy' }), 'es');
+  const ask = ['times', 'critical'];
+  const ans = boardStudent(m, {}, ask, { dur: '12', crit: [], paths: ['A-B-C', ''] });
+  const g = GR.grade(m.sol, ans, ask);
+  assert.equal(g.paths.written[0].state, 'wrong');
+  assert.equal(X.pathExplain(m, ans, 0, g, 'es'), 'A-B-C pasa por A, que no has marcado como crítica.');
+  assert.equal(X.pathExplain(m, ans, 0, g, 'en'), 'A-B-C goes through A, which you have not marked as critical.');
+  assert.equal(g.paths.written[1].state, 'blank');
+  assert.equal(X.pathExplain(m, ans, 1, g, 'es'), '');
+  assert.equal(X.counts(g).blank, Object.values(g.cells).filter((c) => c.state === 'blank').length, 'los caminos vacíos no cuentan como casillas sin contestar');
+});
+
+test('T020: el texto de cada fórmula con los datos del alumno (AC6), literal en ES y EN', () => {
+  const m = X.model(exState(), 'es');
+  const all = ['times', 'events', 'floats', 'sf', 'critical'];
+  const a1 = boardStudent(m, { 'D.ES': 8.5, 'e2.TE': 8, 'H.TF': 0 }, all, { crit: ['A', 'B', 'C', 'E', 'G', 'H'], paths: [] });
+  const g1 = GR.grade(m.sol, a1, all);
+  const c = (g, a, key, lang) => X.explain(m, a, g, key, lang, 'en').split(': ').slice(1).join(': ').split('. No coincide')[0].split('. It differs')[0];
+  const fix = [
+    [g1, a1, 'D.EF', 'EF de D = ES de D = 8,5 + 1 = 9,5', 'EF of D = ES of D = 8.5 + 1 = 9.5'],
+    [g1, a1, 'D.TF', 'TF de D = LS de D = 12 − ES de D = 8,5 = 3,5', 'TF of D = LS of D = 12 − ES of D = 8.5 = 3.5'],
+    [g1, a1, 'C.FF', 'FF de C = mín(ES de D = 8,5, ES de F = 11) − EF de C = 11 = -2,5', 'FF of C = min(ES of D = 8.5, ES of F = 11) − EF of C = 11 = -2.5'],
+    [g1, a1, 'H.IF', 'IF de H = máx(0, ES de I = 9,5 − LF de A = 7 − 2) = 0,5', 'IF of H = max(0, ES of I = 9.5 − LF of A = 7 − 2) = 0.5'],
+    [g1, a1, 'e1.TL', 'tardío del suceso 1 = mín(TL(2) − d(A), TL(3) − d(B), TL(4) − d(C)) = mín(8 − 7, 9 − 8, 13 − 11) = 1', 'latest time of event 1 = min(TL(2) − d(A), TL(3) − d(B), TL(4) − d(C)) = min(8 − 7, 9 − 8, 13 − 11) = 1'],
+    [g1, a1, 'e1.slack', 'holgura del suceso 1 = tardío del suceso 1 = 1 − temprano del suceso 1 = 0 = 1', 'slack of event 1 = latest time of event 1 = 1 − earliest time of event 1 = 0 = 1'],
+  ];
+  const ask2 = ['times', 'floats', 'sf'];
+  const a2 = boardStudent(m, { 'I.LF': 17 }, ask2);
+  const g2 = GR.grade(m.sol, a2, ask2);
+  fix.push(
+    [g2, a2, 'C.LF', 'LF de C = mín(LS de D = 11, LS de F = 14) = 11', 'LF of C = min(LS of D = 11, LS of F = 14) = 11'],
+    [g2, a2, 'D.LS', 'LS de D = LF de D = 12 − 1 = 11', 'LS of D = LF of D = 12 − 1 = 11'],
+    [g2, a2, 'F.SF', 'SF de F = LF de F = 18 − LF de C = 11 − 4 = 3', 'SF of F = LF of F = 18 − LF of C = 11 − 4 = 3'],
+    [g2, a2, 'I.LF', 'LF de I = duración del proyecto = 18 = 18.', 'LF of I = project duration = 18 = 18.'],
+  );
+  for (const [g, a, key, es, en] of fix) {
+    assert.equal(c(g, a, key, 'es'), es, key);
+    assert.equal(c(g, a, key, 'en'), en, key);
+  }
+  // Las dependientes de una casilla vacía usan el valor correcto (P3), también en el texto.
+  const a3 = boardStudent(m, { 'D.ES': 8 }, ['times']); a3.act.B.EF = '';
+  const g3 = GR.grade(m.sol, a3, ['times']);
+  assert.match(X.explain(m, a3, g3, 'D.ES', 'es', 'en'), /EF de B = 8,/);
+});
+
+test('T020: la confirmación de «Entregar» cuenta solo las vacías, no las que no son un número', () => {
+  const m = X.model(exState({ sd: 39595, lv: 'easy' }), 'es');
+  const ans = boardStudent(m, {}, U.DEFAULT_ASK);
+  ans.act.B.IF = ''; ans.act.C.FF = 'x'; ans.act.D.TF = '?';
+  assert.equal(X.blanks(m, ans, U.DEFAULT_ASK), 1);
+});

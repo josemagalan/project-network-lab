@@ -942,7 +942,7 @@
   dict.es.ex = {
     region: 'Ejercicios', level: 'Nivel', seed: 'Semilla', another: 'Otro ejercicio', mode: 'Modo', practice: 'Practicar', exam: 'Examen',
     levels: { easy: 'Fácil', medium: 'Media', hard: 'Difícil', custom: 'Personalizar' },
-    sum: { acts: '{lo}–{hi} actividades', actsOne: '{n} actividades', pred: '{p} predecesoras de media', dummies: '{lo}–{hi} ficticias', dummiesOne: '{n} ficticias',
+    sum: { acts: '{lo}–{hi} actividades', actsOne: '{n} actividades', pred: '{p} predecesoras de media', dummies: '{lo}–{hi} ficticias', dummiesOne: '{n} ficticias', dummyOne: '1 ficticia',
       dummiesFree: 'ficticias libres', crit: '{lo}–{hi} caminos críticos', critOne: '1 camino crítico', critN: '{n} caminos críticos', dmax: 'd de 1 a {max}' },
     ask: 'Qué se pide', asks: { times: 'Tiempos de actividad', events: 'Tiempos de suceso', floats: 'Holguras', sf: 'Holgura de seguridad', critical: 'Caminos críticos' },
     given: 'Datos del proyecto', preds: 'Predecesoras', succs: 'Posteriores', act: 'Act.', d: 'd',
@@ -978,6 +978,7 @@
       pathRepeat: '{p} ya está escrito.', pathInvalid: '«{p}» no es una secuencia de actividades de la tabla.',
       pathNotDirect: 'En {p}, {a} no precede directamente a {b}.', pathNotStart: '{p} no empieza en una actividad inicial: {a} tiene predecesoras.',
       pathNotEnd: '{p} no llega a una actividad final.', pathLength: '{p} dura {sum} = {len}, no {dur}: un camino crítico dura lo que el proyecto.',
+      pathNotMarked: '{p} pasa por {a}, que no has marcado como crítica.',
     },
     custom: {
       region: 'Personalizar el ejercicio', acts: 'Actividades', pred: 'Predecesoras por actividad (media)', dummies: 'Ficticias en la red PERT mínima',
@@ -997,7 +998,7 @@
   dict.en.ex = {
     region: 'Exercises', level: 'Level', seed: 'Seed', another: 'New exercise', mode: 'Mode', practice: 'Practice', exam: 'Exam',
     levels: { easy: 'Easy', medium: 'Medium', hard: 'Hard', custom: 'Customise' },
-    sum: { acts: '{lo}–{hi} activities', actsOne: '{n} activities', pred: '{p} predecessors on average', dummies: '{lo}–{hi} dummies', dummiesOne: '{n} dummies',
+    sum: { acts: '{lo}–{hi} activities', actsOne: '{n} activities', pred: '{p} predecessors on average', dummies: '{lo}–{hi} dummies', dummiesOne: '{n} dummies', dummyOne: '1 dummy',
       dummiesFree: 'any dummies', crit: '{lo}–{hi} critical paths', critOne: '1 critical path', critN: '{n} critical paths', dmax: 'd from 1 to {max}' },
     ask: 'What to find', asks: { times: 'Activity times', events: 'Event times', floats: 'Floats', sf: 'Safety float', critical: 'Critical paths' },
     given: 'Project data', preds: 'Predecessors', succs: 'Successors', act: 'Act.', d: 'd',
@@ -1033,6 +1034,7 @@
       pathRepeat: '{p} is already written.', pathInvalid: '«{p}» is not a sequence of activities from the table.',
       pathNotDirect: 'In {p}, {a} does not directly precede {b}.', pathNotStart: '{p} does not start at a start activity: {a} has predecessors.',
       pathNotEnd: '{p} does not reach an end activity.', pathLength: '{p} lasts {sum} = {len}, not {dur}: a critical path lasts as long as the project.',
+      pathNotMarked: '{p} goes through {a}, which you have not marked as critical.',
     },
     custom: {
       region: 'Customise the exercise', acts: 'Activities', pred: 'Predecessors per activity (average)', dummies: 'Dummies in the minimum AOA network',

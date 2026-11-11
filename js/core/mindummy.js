@@ -16,7 +16,7 @@
  *     llega) de un suceso concreto o alcanzable, y se ramifica sobre ella. Para en cuanto alcanza la cota.
  *   - el presupuesto cuenta todo lo que se examina, también los repartos y las estructuras que se descartan:
  *     así acota de verdad el tiempo, también con muchas actividades equivalentes (revisión de cierre, F1).
- * Comprobado contra el oráculo de fuerza bruta (tests/oracle-mindummy.js). Prototipo: 02-DOCS (no público).
+ * Comprobado contra el oráculo de fuerza bruta (tests/oracle-mindummy.js).
  */
 (function (root) {
   'use strict';

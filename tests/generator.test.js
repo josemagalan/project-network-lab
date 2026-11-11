@@ -1,6 +1,6 @@
 'use strict';
 // core/generator: proyectos con semilla y niveles de dificultad (spec f3a-generador-calculo, AC1–AC3 y AC14;
-// plan §0, §3, P6 y T002). Niveles y algoritmo calibrados con el prototipo de clarify (spikes/f3a-generador/).
+// plan §0, §3, P6 y T002). Niveles y algoritmo calibrados con el prototipo de clarify.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
