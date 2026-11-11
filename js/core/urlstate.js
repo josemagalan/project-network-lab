@@ -17,7 +17,7 @@
   // Ejemplos solo de estructura (sin duraciones): no tienen red ROY, así que se abren siempre en PERT.
   const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo'];
   const ENUMS = {
-    v: ['route', 'work', 'm0', 'ex'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
+    v: ['route', 'work', 'm0', 'ex', 'moodle'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
     tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: ['0', '1'],
     lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
@@ -300,6 +300,12 @@
     const s = Object.assign(defaults(), state);
     const q = new URLSearchParams();
     q.set('v', s.v);
+    // F3b: la vista del exportador de Moodle solo guarda el idioma y la notación (plan P7).
+    if (s.v === 'moodle') {
+      if (s.lang) q.set('lang', s.lang);
+      q.set('nota', s.nota);
+      return '#' + q.toString();
+    }
     // graph y min solo se escriben si no valen lo de siempre: los enlaces de la fase 1 no cambian (F2a, P4).
     if (s.graph === 'aoa') q.set('graph', 'aoa');
     const m0 = s.v === 'm0';
@@ -435,6 +441,8 @@
         if (mk === null) malformed = true; else state.mk = mk.length ? mk : null;
       }
     }
+    // F3b: el exportador de Moodle no tiene tabla ni ejemplo.
+    if (state.v === 'moodle') { state.ex = null; state.t = null; }
     // F3a: «Ejercicios» (la tabla sale de la semilla: t y ex no se leen).
     if (state.v === 'ex') {
       state.ex = null; state.t = null;

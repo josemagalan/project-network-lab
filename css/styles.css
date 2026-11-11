@@ -609,3 +609,44 @@ table.data.ex-ans .d { text-align: right; padding-right: 8px; color: var(--muted
 .work-random[hidden] { display: none; }
 .work-random select { padding: 4px; }
 .work-notice { margin: 0; }
+
+/* ---------- F3b: exportador de Moodle (cpm.html#v=moodle; tableros 51–56) ---------- */
+.mq-layout { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 22px; align-items: start; }
+.mq-form, .mq-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mq h1 { margin: 0; font-size: 22px; }
+.mq h2 { margin: 0; font-size: 16px; }
+.mq-lead { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.mq-box { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; }
+.mq-actions { display: flex; flex-direction: column; gap: 6px; }
+.mq-actions progress { width: 100%; height: 14px; accent-color: var(--accent); }
+.mq-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mq-summary, .mq-status { margin: 0; font-size: 14px; }
+.mq-status:empty { display: none; }
+.mq-group { margin: 0; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mq-group legend { padding: 0 4px; font-weight: 700; font-size: 14px; }
+.mq-stages { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.mq-check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.35; min-height: 24px; }
+.mq-check input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.mq-hint { display: block; margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.mq-two { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 8px; align-items: start; }
+.mq-size input { width: 72px; font: inherit; font-size: 14px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+.mq-count { font-size: 14px; }
+.mq-preview { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; max-height: 560px; overflow: auto; }
+.mq-preview p { margin: 0; font-size: 14px; line-height: 1.45; }
+.mq-qname { font-family: var(--mono); font-size: 12px !important; color: var(--muted); }
+.mq-tables { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; max-width: 100%; overflow-x: auto; }
+.mq-table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.mq-table th, .mq-table td { padding: 2px 7px; border: 1px solid var(--line); text-align: center; }
+.mq-table thead th { background: var(--accent-soft); }
+.mq-hole { width: 40px; font-size: 12px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--ink); }
+select.mq-hole { width: auto; }
+.mq-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.mq-feedback { border-top: 1px solid var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.mq-feedback summary { font-weight: 600; cursor: pointer; }
+@media (max-width: 900px) {
+  .mq-layout { grid-template-columns: minmax(0, 1fr); }
+  .mq-preview { max-height: none; }
+}
+@media (max-width: 520px) {
+  .mq-stages, .mq-two { grid-template-columns: minmax(0, 1fr); }
+}

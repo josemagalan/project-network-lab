@@ -45,6 +45,7 @@
   let retoMethod = 'rules'; // el último elegido
   let m0 = null;            // controlador de M0 (F2c)
   let exc = null;           // controlador de «Ejercicios» (F3a)
+  let mqc = null;           // controlador del exportador de Moodle (F3b)
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
   // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al
@@ -52,14 +53,18 @@
   const LAZY = {
     m0: ['js/core/precheck.js', 'js/core/statement.js', 'js/core/statements.js', 'js/views/prec-matrix.js', 'js/views/statement-view.js', 'js/m0.js'],
     ex: ['js/core/grade.js', 'js/views/answer-table.js', 'js/ex.js'],
+    // F3b (plan P5 y P7): el banco de Moodle, sus textos y su vista.
+    mq: ['js/core/grade.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/question-view.js', 'js/moodle-page.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
     if (!loading[group]) {
       loading[group] = new Promise((resolve, reject) => {
-        const files = LAZY[group];
+        // Un script que ya cargó otro grupo (core/grade lo usan «Ejercicios» y Moodle) no se vuelve a pedir.
+        const have = new Set([...document.scripts].map((x) => x.getAttribute('src')));
+        const files = LAZY[group].filter((src, i, all) => !have.has(src) || i === all.length - 1);
         files.forEach((src, i) => {
           const el = document.createElement('script');
           el.src = src; el.async = false;
@@ -71,7 +76,7 @@
     }
     return loading[group];
   }
-  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : null);
+  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : null);
   const hashView = (hash) => new URLSearchParams(String(hash || '').replace(/^#/, '')).get('v');
 
   const lang = () => state.lang || 'es';
@@ -86,6 +91,8 @@
     if (state.v === 'm0') { model = Object.assign(G.m0.model(state, lang()), { m0: true }); return; }
     // «Ejercicios» (F3a): la tabla generada, su solución y lo escrito; sin traza que reproducir.
     if (state.v === 'ex') { model = Object.assign(G.ex.model(state, lang()), { exm: true }); return; }
+    // El exportador de Moodle (F3b): sin tabla ni traza; la vista guarda su selección.
+    if (state.v === 'moodle') { model = { mqm: true }; return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
@@ -134,7 +141,7 @@
   // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022), y sin
   // la vista lado a lado ni la matriz, que necesitan la red ROY (revisión de cierre, F2).
   function fitGraph() {
-    if (model.m0 || model.exm || !model.structureOnly || !model.project) return;
+    if (model.m0 || model.exm || model.mqm || !model.structureOnly || !model.project) return;
     const view = state.view === 'matrix' || state.view === 'side' ? 'net' : state.view;
     if (pert() && view === state.view) return;
     state = Object.assign({}, state, { graph: 'aoa', view, step: pert() ? state.step : 0 });
@@ -143,7 +150,7 @@
   function trace() {
     if (!model) return null;
     if (model.m0) return state.mm === 'route' ? model.route : null;
-    if (model.exm) return null;
+    if (model.exm || model.mqm) return null;
     if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -245,10 +252,15 @@
     renderTexts();
     const m0On = state.v === 'm0';
     const exOn = state.v === 'ex';
+    const mqOn = state.v === 'moodle';
     $('m0View').hidden = !m0On;
     $('exView').hidden = !exOn;
+    $('mqView').hidden = !mqOn;
+    // La caja del nodo no tiene sentido en el exportador (bocetos de la F3b).
+    $('selBox').closest('label').hidden = mqOn;
     if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
     if (exOn) { $('workshop').hidden = true; $('stage').hidden = true; exc.render(model, opts); return; }
+    if (mqOn) { $('workshop').hidden = true; $('stage').hidden = true; mqc.render(model, opts); return; }
     const work = state.v === 'work';
     $('workshop').hidden = !work;
     if (work) editor.render(Object.assign({}, model, { showComputed, numFmt, hideDuration: durationHidden() }), !!(opts && opts.fullEditor));
@@ -998,6 +1010,13 @@
         learn: openExLearn,
       });
       G.ex.state = () => exc.debug();
+    }
+    if (G.moodlePage && !mqc) {
+      mqc = G.moodlePage.create($('mqView'), {
+        state: () => state, lang,
+        announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
+      });
+      G.moodlePage.state = () => mqc.debug();
     }
   }
 

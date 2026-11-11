@@ -463,3 +463,21 @@ test('F3a: los enlaces de la F1 y la F2 no cambian con los parámetros nuevos', 
   assert.equal(r.state.ex, null);
   assert.equal(r.state.sd, 5);
 });
+
+// ---------- F3b: vista del exportador de Moodle (plan P7, T008) ----------
+test('F3b: v=moodle solo escribe v, lang y nota', () => {
+  const h = U.encode(Object.assign(U.defaults(), { v: 'moodle', lang: 'en', nota: 'es', ex: 'ej6', step: 4, sd: 12, t: [{ id: 'A', duration: '1', links: '' }] }));
+  assert.equal(h, '#v=moodle&lang=en&nota=es');
+  assert.equal(U.encode(Object.assign(U.defaults(), { v: 'moodle' })), '#v=moodle&nota=en');
+});
+
+test('F3b: decode de v=moodle, sin tabla ni ejemplo, y de ida y vuelta', () => {
+  const r = U.decode('#v=moodle&lang=en&nota=es');
+  assert.equal(r.warning, undefined);
+  assert.equal(r.state.v, 'moodle'); assert.equal(r.state.lang, 'en'); assert.equal(r.state.nota, 'es');
+  assert.equal(r.state.ex, null); assert.equal(r.state.t, null);
+  const r2 = U.decode('#v=moodle&ex=ej4&t=A%2C1%2C%2C&sd=5');
+  assert.equal(r2.state.v, 'moodle'); assert.equal(r2.state.ex, null); assert.equal(r2.state.t, null);
+  assert.equal(U.decode(U.encode(r.state)).state.v, 'moodle');
+  assert.equal(U.decode('#v=moodles').warning, 'malformed');
+});

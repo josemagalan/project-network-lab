@@ -3778,13 +3778,101 @@ check('F3a T020 · un valor largo se corta en el campo y no borra lo escrito; di
   await close(done);
 });
 
+// ---------- F3b: exportador de Moodle (spec f3b-moodle; tableros 51–56) ----------
+
+const mq = (page) => page.evaluate(() => PNL.moodlePage.state());
+const mqOpen = async (lang, opts) => { const p = await lab(`v=moodle&lang=${lang}`, opts); await p.waitForFunction(() => PNL.moodlePage && PNL.moodlePage.state); return p; };
+// Deja marcadas solo estas etapas y niveles (por su texto) y fija los ejemplares.
+async function mqSelect(page, stages, levels, count) {
+  const labels = await page.$$eval('#mqView .mq-check', (ls) => ls.map((l) => l.textContent));
+  for (let i = 0; i < labels.length; i++) {
+    const want = [...stages, ...levels].some((x) => labels[i].startsWith(x));
+    const box = page.locator('#mqView .mq-check input').nth(i);
+    if ((await box.isChecked()) !== want) await box.click();
+  }
+  if (count) { await page.locator('#mqCount').fill(String(count)); await page.locator('#mqCount').press('Tab'); }
+}
+
+check('F3b AC8 · v=moodle: título, resumen y vista previa igual al modelo del núcleo, en ES y EN', async () => {
+  for (const [lang, sum, h1] of [['es', 'Se generarán 70 preguntas en 7 categorías.', 'Bancos de preguntas para Moodle'], ['en', '70 questions will be generated in 7 categories.', 'Question banks for Moodle']]) {
+    const page = await mqOpen(lang);
+    assert.equal(await page.locator('#mqView h1').textContent(), h1);
+    assert.equal(await page.locator('.mq-summary').textContent(), sum);
+    const st = await mq(page);
+    assert.equal(st.preview.stage, 'early'); assert.equal(st.preview.level, 'medium'); assert.equal(st.preview.seed, 1);
+    assert.equal(await page.locator('.mq-qname').textContent(), st.preview.name);
+    assert.equal(await page.locator('.mq-preview input.mq-hole').count(), Object.keys(st.preview.answers).length);
+    assert.equal(await page.locator('#stage').isVisible(), false);
+    assert.equal(await page.locator('#selBox').isVisible(), false);
+    await close(page);
+  }
+});
+
+check('F3b AC9 · descarga: un banco bien formado con el evento download, y el estado lo resume', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['1 ·', '6 ·'], ['Fácil'], 2);
+  assert.equal(await page.locator('.mq-summary').textContent(), 'Se generarán 4 preguntas en 2 categorías.');
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('#mqDownload').click()]);
+  assert.match(dl.suggestedFilename(), /^banco-redes-\d{4}-\d{2}-\d{2}-s\d+\.xml$/);
+  const xml = fs.readFileSync(await dl.path(), 'utf8');
+  assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>'));
+  assert.equal((xml.match(/<question type="cloze">/g) || []).length, 4);
+  assert.ok(xml.includes('$course$/top/Redes de proyectos/1 · Tiempos tempranos/Fácil'));
+  assert.ok(xml.includes('$course$/top/Redes de proyectos/6 · Sucesos: tiempos tardíos y holguras/Fácil'));
+  assert.deepEqual(require('../xml-check.js').check(xml), { ok: true });
+  await page.waitForFunction(() => /Descargado banco-redes-/.test(document.querySelector('.mq-status').textContent));
+  const st = await mq(page);
+  assert.equal(st.last.questions, 4); assert.equal(st.running, false);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'mqDownload');
+  await close(page);
+});
+
+check('F3b AC9 · un banco grande no bloquea la página: avanza la barra y «Cancelar» lo detiene sin descargar', async () => {
+  const page = await mqOpen('en', { scheme: 'dark' });
+  await mqSelect(page, ['1 ·', '2 ·', '3 ·', '4a ·', '4b ·', '5 ·', '6 ·'], ['Easy', 'Medium', 'Hard'], 50);
+  let downloaded = false; page.on('download', () => { downloaded = true; });
+  await page.locator('#mqDownload').click();
+  await page.waitForFunction(() => { const p = document.querySelector('#mqProgress'); return p && p.value > 0; });
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'mqCancel');
+  assert.equal((await mq(page)).total, 1050);
+  await axe(page, 'F3b · generando (EN, oscuro)');
+  await page.locator('#mqCancel').click();
+  await page.waitForFunction(() => /cancelled/.test(document.querySelector('.mq-status').textContent));
+  const st = await mq(page);
+  assert.equal(st.running, false); assert.ok(st.made < 1050);
+  assert.equal(downloaded, false);
+  await close(page);
+});
+
+check('F3b AC12 · axe sin violaciones en claro y oscuro, ES y EN; sin desplazamiento horizontal a 1280 y 360 px', async () => {
+  for (const [lang, scheme, width] of [['es', 'light', 1280], ['en', 'dark', 1280], ['es', 'dark', 360], ['en', 'light', 360]]) {
+    const page = await mqOpen(lang, { scheme, width, height: width === 360 ? 800 : 720 });
+    await axe(page, `F3b · exportador (${lang}, ${scheme}, ${width} px)`);
+    await page.locator('.mq-feedback summary').click();
+    await axe(page, `F3b · retroalimentación abierta (${lang}, ${scheme}, ${width} px)`);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${lang} ${width}`);
+    await close(page);
+  }
+});
+
+check('F3b AC8 · cambiar la notación rehace la vista previa y conserva la selección', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['3 ·'], ['Difícil'], 7);
+  await page.locator('#selNota').selectOption('es');
+  await page.waitForFunction(() => [...document.querySelectorAll('.mq-preview th')].some((th) => th.textContent === 'HT'));
+  const st = await mq(page);
+  assert.deepEqual(st.sel.stages, ['floats']); assert.deepEqual(st.sel.levels, ['hard']); assert.equal(st.sel.count, 7);
+  assert.equal(await page.locator('.mq-summary').textContent(), 'Se generarán 7 preguntas en una categoría.');
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK })]) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), 'cpm.html#v=moodle&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -3796,6 +3884,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
       .reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
     console.log(`    ${url}: ${(bytes / 1024).toFixed(0)} KB`);
+    // F3b (plan P5 y P7): solo la vista del exportador carga el banco de Moodle y sus textos.
+    if (!url.includes('v=moodle')) assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /moodle/.test(e.name))), false, `${url} carga Moodle`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);
     await ctx.close();
   }
