@@ -3,6 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const I = require('../js/i18n.js');
+// F3b: el catálogo del banco de Moodle se carga aparte (plan P5) y entra en las mismas comprobaciones.
+require('../js/i18n-moodle.js');
 
 const keysDeep = (o, prefix = '') => Object.entries(o).flatMap(([k, v]) =>
   (v && typeof v === 'object' && !Array.isArray(v) ? keysDeep(v, prefix + k + '.') : [prefix + k])).sort();
@@ -178,4 +180,14 @@ test('F3a (T012): «Tabla al azar» del taller, con su selector de nivel, en los
   for (const lang of I.languages) for (const k of ['easy', 'medium', 'hard']) assert.ok(I.dict[lang].work.levelName[k], `${lang}.work.levelName.${k}`);
   assert.equal(I.t('es', 'work.random'), 'Tabla al azar');
   assert.equal(I.t('en', 'work.random'), 'Random table');
+});
+
+test('F3b: el catálogo del banco de Moodle está en los dos idiomas y se fusiona en mq', () => {
+  const IM = require('../js/i18n-moodle.js');
+  for (const lang of I.languages) {
+    assert.ok(I.dict[lang].mq && I.dict[lang].mq.stage.critPath, `${lang}.mq`);
+    assert.equal(IM.tr(lang)('stage.early'), I.dict[lang].mq.stage.early);
+  }
+  assert.equal(IM.tr('es')('stem.late', { dur: 13 }).includes('13'), true);
+  assert.deepEqual(IM.labels('es'), Object.assign(I.notation('es'), I.eventNotation('es')));
 });

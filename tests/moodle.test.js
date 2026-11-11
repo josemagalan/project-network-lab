@@ -372,3 +372,28 @@ test('AC6: tablas ligeras con th y scope (P4)', () => {
   assert.ok(!/<td style=/.test(xml));
   assert.ok(/<a href="[^"]*" target="_blank" rel="noopener">link.step<\/a>/.test(xml));
 });
+
+// ---------- T006: textos de verdad (i18n-moodle) ----------
+test('AC8: banco inglés sin español y banco español sin inglés, con los textos de i18n-moodle', () => {
+  const IM = require('../js/i18n-moodle.js');
+  const bank = (lang, nota) => {
+    const t = IM.tr(lang);
+    return M.toXml(M.generate(OPTS({ lang, nota, labels: IM.labels(nota), sf: true, count: 1 }), t), t);
+  };
+  const enXml = bank('en', 'es'); const esXml = bank('es', 'en');
+  // Fuera de los enlaces (dirección y parámetros) y de las etiquetas (identificadores), iguales en los dos idiomas.
+  const words = (xml) => xml.replace(/href="[^"]*"/g, '').replace(/<tags>.*?<\/tags>/g, '');
+  for (const w of ['Actividad', 'Duración', 'Predecesoras', 'Suceso', 'Holgura', 'Solución', 'ficticia', 'crítica', 'Sí', 'tempranos', 'Fácil', 'Redes de proyectos']) {
+    assert.ok(!words(enXml).includes(w), `EN: ${w}`);
+  }
+  for (const w of ['Activity', 'Duration', 'Predecessors', 'Event', 'Slack', 'Solution', 'dummy', 'critical', 'Yes', 'Early', 'Easy', 'Project networks']) {
+    assert.ok(!words(esXml).includes(w), `ES: ${w}`);
+  }
+  assert.ok(enXml.includes('$course$/top/Project networks/4b · Critical paths/Hard'));
+  assert.ok(esXml.includes('$course$/top/Redes de proyectos/6 · Sucesos: tiempos tardíos y holguras/Fácil'));
+  assert.ok(enXml.includes('{1:MULTICHOICE:=Yes~No}') || enXml.includes('{1:MULTICHOICE:Yes~=No}'));
+  assert.ok(enXml.includes('<th scope="col">HT</th>'), 'notación española en el banco inglés');
+  assert.deepEqual(X.check(enXml), { ok: true });
+  // Ningún texto se queda en su clave (mq.…) ni con un parámetro sin sustituir.
+  for (const xml of [enXml, esXml]) assert.ok(!/(^|[^\w])(stem|col|sol|fb|link|stage|level)\.[a-z]/i.test(words(xml).replace(/<name>.*?<\/name>/g, '')) && !/\{(dur|acts|paths|len|name)\}/.test(xml));
+});
