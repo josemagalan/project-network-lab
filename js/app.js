@@ -862,6 +862,11 @@
     const body = clear($('learnBody'));
     $('learnTitle').textContent = t(titleKey);
     LR.topics[topic][lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
+    // F3b (T012): «Ejercicios» termina con el enlace al exportador de Moodle (tablero 56).
+    if (topic === 'ex') {
+      const close = () => { const d = $('learnDialog'); if (typeof d.close === 'function') d.close(); else d.removeAttribute('open'); };
+      body.appendChild(h('p', {}, [t('ex.learnMoodle'), ' ', h('a', { id: 'exLearnMoodle', href: U.encode({ v: 'moodle', lang: lang(), nota: state.nota }), onclick: close }, [t('ex.moodle')]), '.']));
+    }
     body.appendChild(h('h3', {}, [t('learn.refs')]));
     body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
     const dlg = $('learnDialog');

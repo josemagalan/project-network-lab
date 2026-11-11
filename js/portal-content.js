@@ -60,8 +60,8 @@
       practiceDesc: 'Proyectos nuevos de tres niveles, o con tus parámetros, que se repiten con su semilla. Calcula tiempos, holguras y caminos críticos y recibe una corrección casilla a casilla con error consecuente, en modo Practicar o Examen.',
       practiceTopics: 'Generador · Semilla · Error consecuente', practiceOpen: 'Generar un ejercicio',
       moodleEyebrow: 'Profesorado', moodleTitle: 'Banco de Moodle',
-      moodleDesc: 'Preguntas en Moodle XML con tiempos, holguras, caminos y probabilidades. Cada pregunta enlaza su ejercicio resuelto paso a paso en el laboratorio.',
-      moodleTopics: 'Moodle XML · Cloze · Numérica',
+      moodleDesc: 'Preguntas de cálculo por etapas en Moodle XML: tiempos, holguras, caminos críticos y sucesos, en tres niveles. Cada pregunta enlaza con su ejercicio y con la solución paso a paso en el laboratorio.',
+      moodleTopics: 'Moodle XML · Cloze · Por etapas', moodleOpen: 'Para profesorado: bancos de preguntas para Moodle',
       learnEyebrow: 'En clase o por tu cuenta', learnTitle: 'Aprende haciendo.',
       learnLead: 'Todos los módulos comparten la misma forma de trabajar. Elige un ejemplo y sigue cada decisión del cálculo.',
       featStepTitle: 'Sigue cada paso', featStepDesc: 'Cada valor aparece con su explicación, su fórmula y la línea del pseudocódigo que lo calcula.',
@@ -136,8 +136,8 @@
       practiceDesc: 'New projects at three levels, or with your own parameters, that a seed reproduces. Work out times, floats and critical paths and get a cell-by-cell correction with carried errors, in Practice or Exam mode.',
       practiceTopics: 'Generator · Seed · Carried errors', practiceOpen: 'Generate an exercise',
       moodleEyebrow: 'For teachers', moodleTitle: 'Moodle question bank',
-      moodleDesc: 'Moodle XML questions on times, floats, paths and probabilities. Each question links to its exercise, solved step by step in the lab.',
-      moodleTopics: 'Moodle XML · Cloze · Numerical',
+      moodleDesc: 'Calculation questions in stages in Moodle XML: times, floats, critical paths and events, at three levels. Each question links to its exercise and to the step-by-step solution in the lab.',
+      moodleTopics: 'Moodle XML · Cloze · In stages', moodleOpen: 'For teachers: question banks for Moodle',
       learnEyebrow: 'In class or on your own', learnTitle: 'Learn by doing.',
       learnLead: 'Every module works the same way. Pick an example and follow each decision of the calculation.',
       featStepTitle: 'Follow every step', featStepDesc: 'Each value appears with its explanation, its formula and the line of pseudocode that computes it.',
@@ -177,7 +177,7 @@
   // semilla: la elige la interfaz al abrir.
   const TARGETS = {
     m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
-    m4: 'v=route&ex=ej6&step=26', work: 'v=work', ex: 'v=ex',
+    m4: 'v=route&ex=ej6&step=26', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle',
   };
 
   function labHref(target, lang) {

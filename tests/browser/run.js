@@ -3598,7 +3598,8 @@ check('F3a AC7 · «Aprende más» de «Ejercicios» abre su tema en el idioma d
     await page.locator('#learnDialog[open]').waitFor();
     assert.equal(await page.locator('#learnTitle').innerText(), I0.t(lang, 'ex.learnTitle'));
     const ps = await page.locator('#learnBody > p').allInnerTexts();
-    assert.deepEqual(ps, LR0.topics.ex[lang]);
+    // F3b (T012): el tema termina con el párrafo del banco de Moodle y su enlace.
+    assert.deepEqual(ps, [...LR0.topics.ex[lang], `${I0.t(lang, 'ex.learnMoodle')} ${I0.t(lang, 'ex.moodle')}.`]);
     await page.locator('#btnLearnClose').click();
     assert.equal(await page.locator('#learnDialog[open]').count(), 0);
     assert.equal(await activeId(page), 'exLearn', 'el foco vuelve al botón');
@@ -3867,6 +3868,25 @@ check('F3b · «Cómo usarlo en Moodle» y la nota de la semilla, plegados bajo 
     await axe(page, `F3b · «Cómo usarlo en Moodle» abierto (${lang})`);
     await close(page);
   }
+});
+
+check('F3b AC13 · entradas: la tarjeta de la portada y el «Aprende más» de «Ejercicios» abren el exportador en el idioma elegido', async () => {
+  for (const lang of ['es', 'en']) {
+    const home = await open(`index.html?lang=${lang}`);
+    const card = home.locator('a[data-lab="moodle"]');
+    assert.equal(await card.getAttribute('href'), `cpm.html#v=moodle&lang=${lang}`);
+    await card.click();
+    await home.waitForFunction(() => window.PNL && PNL.moodlePage && PNL.moodlePage.state);
+    assert.equal((await state(home)).v, 'moodle'); assert.equal((await state(home)).lang, lang);
+    await close(home);
+  }
+  const page = await lab(exUrl({ sd: 14844 }).replace('cpm.html#', ''));
+  assert.equal(await page.locator('#exMoodle').count(), 0, 'sin enlace en la barra (no cabe en 1280×720; decisión del autor)');
+  await page.locator('#exLearn').click();
+  await page.locator('#exLearnMoodle').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'moodle');
+  assert.equal(await page.locator('#learnDialog').evaluate((d) => d.open), false);
+  await close(page);
 });
 
 check('F3b AC8 · cambiar la notación rehace la vista previa y conserva la selección', async () => {

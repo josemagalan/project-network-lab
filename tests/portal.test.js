@@ -69,7 +69,7 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
 test('ocho módulos, cinco de ellos disponibles; ids únicos y anclas que existen', () => {
   assert.equal((html.match(/class="module-card tone-/g) || []).length, 8);
   for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 7, 'M0, M1, M2, M3, M4, el taller y los ejercicios generados');
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 8, 'M0, M1, M2, M3, M4, el taller, los ejercicios generados y el banco de Moodle');
   assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 0, 'la fase 2 ya no tiene nada en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
@@ -147,6 +147,12 @@ test('F3a T017 · AC17: «Ejercicios generados» está disponible y abre «Ejerc
   // El taller nombra la tabla al azar.
   assert.match(messages.es.workTopics, /Tabla al azar/);
   assert.match(messages.en.workTopics, /Random table/);
-  // Moodle sigue en preparación (F3b).
-  assert.equal((html.match(/data-i18n="soonPhase3"/g) || []).length, 1);
+  // F3b (T012): el banco de Moodle, disponible, abre el exportador en el idioma elegido.
+  assert.equal((html.match(/data-i18n="soonPhase3"/g) || []).length, 0);
+  const mStart = html.indexOf('data-i18n="moodleEyebrow"');
+  const mCard = html.slice(mStart, html.indexOf('</article>', mStart));
+  assert.match(mCard, /data-lab="moodle"><span data-i18n="moodleOpen">Para profesorado: bancos de preguntas para Moodle<\/span>/);
+  assert.match(mCard, /class="ok" data-i18n="available"/);
+  assert.equal(labHref('moodle', 'en'), 'cpm.html#v=moodle&lang=en');
+  for (const lang of ['es', 'en']) assert.doesNotMatch(messages[lang].moodleDesc, /probabilidad|probabilit/i, lang);
 });
