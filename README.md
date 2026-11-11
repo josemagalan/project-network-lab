@@ -1,8 +1,8 @@
 # Project Network Lab · PERT · CPM · ROY
 
-**ES** · Laboratorio interactivo y bilingüe para enseñar redes de proyectos: de la tabla de precedencias a las redes ROY (actividad en nodo) y PERT (actividad en arco), tiempos, holguras, caminos críticos, el TCL y sus trampas, y el análisis de riesgo con Montecarlo. Incluirá práctica autocorregida y bancos de preguntas para Moodle.
+**ES** · Laboratorio interactivo y bilingüe para enseñar redes de proyectos: de la tabla de precedencias a las redes ROY (actividad en nodo) y PERT (actividad en arco), tiempos, holguras, caminos críticos, el TCL y sus trampas, y el análisis de riesgo con Montecarlo. Incluye ejercicios generados con corrección automática y error consecuente; los bancos de preguntas para Moodle llegarán después.
 
-**EN** · Interactive bilingual lab for teaching project networks: from precedence tables to activity-on-node (ROY) and activity-on-arrow (PERT) networks, scheduling, slack, critical paths, the pitfalls of the central limit theorem, and Monte Carlo risk analysis. Self-graded practice and Moodle question banks will follow.
+**EN** · Interactive bilingual lab for teaching project networks: from precedence tables to activity-on-node (ROY) and activity-on-arrow (PERT) networks, scheduling, slack, critical paths, the pitfalls of the central limit theorem, and Monte Carlo risk analysis. It includes generated exercises with automatic marking that carries errors forward; Moodle question banks will follow.
 
 **Abrir el laboratorio / Open the lab:** https://josemagalan.github.io/project-network-lab/
 
@@ -43,7 +43,15 @@ Proyecto hermano de / Sister project of [Genetic Algorithms Lab](https://josemag
 - **Once enunciados** en español y en inglés: los siete ejercicios del Tema 6 de los apuntes de Gestión de Proyectos de la Universidad de Burgos (seis con la misma tabla que la ruta guiada y la red PERT, y Electrona, el ejercicio 5, con la tabla validada por el autor) y cuatro escritos para la herramienta (la reforma de una cocina, un congreso, la mudanza de un laboratorio y el lanzamiento de un producto), con frases que no dan precedencia, «es lo primero» y «es lo último», una precedencia redundante provocada, una trampa de lectura que da un ciclo y un texto en prosa sin letras.
 - **Enunciado propio** («Preparar un enunciado»): el docente pega su texto, lo subraya, escribe la tabla de referencia y copia dos enlaces: uno para el alumno, con la tabla vacía, y otro con la solución, para proyectarla. Con un ciclo en la tabla no se puede compartir. Todo viaja en el enlace, sin servidor; no es un modo examen, porque quien sabe leer la URL puede sacar la solución.
 
-La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M0 (del enunciado a la tabla, con la ruta paso a paso y el enunciado propio), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos) y el taller; la práctica, Moodle y la parte estocástica llegarán en las fases siguientes.
+### Fase 3a: ejercicios generados
+
+- **Ejercicios** (la pestaña «Ejercicios» y la tarjeta «Ejercicios generados» de la portada): [`cpm.html#v=ex`](https://josemagalan.github.io/project-network-lab/cpm.html#v=ex). Genera proyectos nuevos de tres niveles (fácil, media y difícil, con sus parámetros a la vista) o con los parámetros que se elijan en «Personalizar», que avisa si no son posibles. La misma semilla da siempre la misma tabla, así que el enlace comparte exactamente el mismo ejercicio. El alumno escribe en una tabla, con la red ROY (o la red PERT de las reglas) al lado y sin cifras, lo que se pide: tiempos de actividad, tiempos de suceso, holguras (con la de seguridad, si se quiere) y caminos críticos, en notación anglosajona o española.
+- **Corrección con error consecuente.** Cada casilla se juzga con la solución y con la fórmula del método aplicada a los datos del propio alumno: un error se penaliza una sola vez y las casillas que dependen de él cuentan como buenas. La explicación de cada casilla dice qué valor esperaba, con qué datos y dónde empezó el error. Las marcas se distinguen por icono, borde y fondo, no solo por el color.
+- **Practicar o Examen.** En Practicar se comprueba cuando se quiera. El modo Examen es una autoevaluación: no hay marcas, pistas ni solución hasta entregar; después, la tabla se bloquea y se ven la nota, la corrección y la solución paso a paso, también al recargar el enlace. Como la semilla reproduce el ejercicio, no oculta la solución a quien sepa buscarla.
+- **Solución paso a paso:** «Ver la solución paso a paso» abre la ruta guiada (o el cálculo de los sucesos en la red PERT) con la misma tabla, y «Atrás» vuelve al ejercicio.
+- **Tabla al azar** en el taller: pone una tabla generada del nivel elegido, que se resuelve como cualquier otra (en M1–M4, la red PERT, el comparador y el reto); «Atrás» recupera la tabla anterior.
+
+La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M0 (del enunciado a la tabla, con la ruta paso a paso y el enunciado propio), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos), el taller y los ejercicios generados; los bancos de Moodle y la parte estocástica llegarán en las fases siguientes.
 
 ### Usarlo sin conexión
 
@@ -60,7 +68,7 @@ npm run coverage       # cobertura de js/core (mínimo 90 % de líneas)
 npm run test:browser   # Chromium con Playwright y axe-core, si están instalados
 ```
 
-Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx playwright install chromium`; la integración continua las ejecuta en cada push. Recorren las rutas ROY y PERT en los dos idiomas, con y sin predicción, y comprueban el enlace y la recarga, la matriz, el lado a lado, el contador de ficticias, el comparador, el dibujo progresivo, el reto (con un error de cada tipo), el teclado, 1280×720 y 360 px, axe en modo claro y oscuro, y que ninguna vista cargue más de 1 MB.
+Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx playwright install chromium`; la integración continua las ejecuta en cada push. Recorren las rutas ROY y PERT en los dos idiomas, con y sin predicción, y comprueban el enlace y la recarga, la matriz, el lado a lado, el contador de ficticias, el comparador, el dibujo progresivo, el reto (con un error de cada tipo), los ejercicios generados (los tres niveles en Practicar y en Examen, el error consecuente, los sucesos, «Personalizar» y «Tabla al azar»), el teclado, 1280×720 y 360 px, axe en modo claro y oscuro, y que ninguna vista cargue más de 1 MB.
 
 ## English
 
@@ -97,7 +105,15 @@ Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx 
 - **Eleven statements** in Spanish and English: the seven exercises of Unit 6 of the Project Management course notes at the University of Burgos (six with the same table as the guided tour and the activity-on-arrow network, and Electrona, exercise 5, with the table validated by the author) and four written for the tool (a kitchen refit, a conference, moving a laboratory and a product launch), with phrases that give no precedence, “comes first” and “is the last task”, a deliberately redundant precedence, a reading trap that gives a cycle and a prose text with no letters.
 - **Your own statement** (“Prepare a statement”): teachers paste their text, underline it, write the reference table and copy two links: one for students, with an empty table, and one with the solution, to project it. A table with a cycle cannot be shared. Everything travels in the link, with no server; it is not an exam mode, because anyone who can read the URL can get the solution.
 
-The home page (`index.html`) presents the eight modules of the learning path. M0 (from statement to table, with the step-by-step tour and your own statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths) and the workshop are available today; practice, Moodle and the stochastic part will follow in later phases.
+### Phase 3a: generated exercises
+
+- **Exercises** (the “Exercises” tab and the “Generated exercises” card on the home page): [`cpm.html#v=ex`](https://josemagalan.github.io/project-network-lab/cpm.html#v=ex&lang=en). It generates new projects at three levels (easy, medium and hard, with their parameters shown) or with the parameters chosen in “Customise”, which warns when they are not possible. The same seed always gives the same table, so the link shares exactly the same exercise. Students write what is asked in a table, with the activity-on-node network (or the activity-on-arrow network from the set rules) beside it and no figures: activity times, event times, floats (with the safety float, if wanted) and critical paths, in English or Spanish notation.
+- **Marking that carries errors forward.** Each cell is judged against the solution and against the method’s formula applied to the student’s own data: a mistake is penalised only once, and the cells that depend on it count as right. The explanation of each cell says which value was expected, from which data, and where the mistake started. The marks differ in icon, border and background, not only in colour.
+- **Practice or Exam.** In Practice, students check whenever they like. Exam mode is a self-assessment: no marks, hints or solution until handing in; then the table locks and the score, the marking and the step-by-step solution appear, also when the link is reloaded. Since the seed reproduces the exercise, it does not hide the solution from anyone who looks for it.
+- **Step-by-step solution:** “See the solution step by step” opens the guided tour (or the event times on the activity-on-arrow network) with the same table, and “Back” returns to the exercise.
+- **Random table** in the workshop: it puts in a generated table of the chosen level, which is solved like any other (in M1–M4, the activity-on-arrow network, the method comparison and the dummy challenge); “Back” brings back the previous table.
+
+The home page (`index.html`) presents the eight modules of the learning path. M0 (from statement to table, with the step-by-step tour and your own statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths), the workshop and the generated exercises are available today; the Moodle banks and the stochastic part will follow in later phases.
 
 ### Offline use
 
@@ -114,7 +130,7 @@ npm run coverage       # js/core coverage (at least 90 % of lines)
 npm run test:browser   # Chromium with Playwright and axe-core, when installed
 ```
 
-Browser tests need `npm i --no-save playwright axe-core` and `npx playwright install chromium`; continuous integration runs them on every push. They walk the activity-on-node and activity-on-arrow tours in both languages, with and without prediction, and check links and reloads, the matrix, the side-by-side view, the dummy counter, the method comparison, progressive drawing, the dummy challenge (with one mistake of each kind), keyboard use, 1280×720 and 360 px, axe in light and dark mode, and that no view loads more than 1 MB.
+Browser tests need `npm i --no-save playwright axe-core` and `npx playwright install chromium`; continuous integration runs them on every push. They walk the activity-on-node and activity-on-arrow tours in both languages, with and without prediction, and check links and reloads, the matrix, the side-by-side view, the dummy counter, the method comparison, progressive drawing, the dummy challenge (with one mistake of each kind), the generated exercises (the three levels in Practice and Exam, carried errors, events, “Customise” and “Random table”), keyboard use, 1280×720 and 360 px, axe in light and dark mode, and that no view loads more than 1 MB.
 
 ## Equipo / Team
 
