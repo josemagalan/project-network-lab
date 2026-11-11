@@ -601,3 +601,9 @@ table.data.ex-ans .d { text-align: right; padding-right: 8px; color: var(--muted
 /* A 1280×720 la red cabe sin desplazar la página: se encoge con la altura de la ventana (AC16). */
 @media (min-width: 961px) and (min-height: 600px) { .ex-net svg.net { max-height: calc(100vh - 490px); } .ex-net svg.net.pert { max-height: calc(100vh - 520px); } }
 .ex-net-card .linklike { align-self: flex-start; }
+/* «Tabla al azar» en el taller (F3a, T013; tablero 46). */
+.work-random { display: inline-flex; align-self: flex-start; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 10px; background: var(--accent-soft); }
+.work-random button, .work-random select { height: 36px; }
+.work-random[hidden] { display: none; }
+.work-random select { padding: 4px; }
+.work-notice { margin: 0; }

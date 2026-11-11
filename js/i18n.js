@@ -931,6 +931,12 @@
   };
 
   // ---------- F3a · «Ejercicios» (T011; tableros 37–50) ----------
+  Object.assign(dict.es.work, { random: 'Tabla al azar', randomLevel: 'Nivel', randomGroup: 'Tabla al azar y su nivel',
+    randomNotice: 'Tabla al azar de nivel {lv} ({n} actividades). «Atrás» del navegador recupera la tabla que tenías.',
+    levelName: { easy: 'fácil', medium: 'medio', hard: 'difícil' } });
+  Object.assign(dict.en.work, { random: 'Random table', randomLevel: 'Level', randomGroup: 'Random table and its level',
+    randomNotice: 'Random table, {lv} level ({n} activities). The browser’s «Back» brings back the table you had.',
+    levelName: { easy: 'easy', medium: 'medium', hard: 'hard' } });
   dict.es.nav.ex = 'Ejercicios';
   dict.en.nav.ex = 'Exercises';
   dict.es.ex = {

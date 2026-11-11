@@ -1011,6 +1011,13 @@
       },
       toggleComputed: (v) => { showComputed = v; render(); },
       toM0,
+      // «Tabla al azar» (F3a, T013): semilla nueva de la interfaz, tabla del generador en la forma elegida y entrada en el
+      // historial («Atrás» recupera la anterior). La tabla va en t, como siempre, sin semilla.
+      random: (level) => {
+        const rows = G.editor.randomRows(newSeed(), level, state.mode);
+        dispatch({ type: 'work', rows, mode: state.mode }, { push: true });
+        return rows;
+      },
       goStage: (where) => {
         // «Comparar métodos» (T024) y «Reto de ficticias» (T026) se abren sobre la red PERT de la tabla.
         if (where === 'cmp' || where === 'reto') {

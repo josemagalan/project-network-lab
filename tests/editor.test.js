@@ -209,3 +209,26 @@ test('T015: cada casilla de la matriz se nombra con su precedencia y dice si es 
       PM.cells(ids, has, { redundant: [['A', 'C']] }, 'en').find((x) => x.p === 'A' && x.a === 'C').label);
   }
 });
+
+// ---------- F3a, T012: «Tabla al azar» ----------
+const GEN = require('../js/core/generator.js');
+
+test('T012 · AC11: «Tabla al azar» da la tabla del generador para la semilla y el nivel, como filas del taller', () => {
+  for (const [sd, lv] of [[35873, 'medium'], [39595, 'easy'], [92846, 'hard']]) {
+    const g = GEN.generate(sd, GEN.LEVELS[lv]);
+    const rows = Ed.randomRows(sd, lv, 'pred');
+    assert.deepEqual(rows, g.rows.map((r) => ({ id: r.id, name: '', duration: String(r.duration), links: r.links })));
+    // Con posteriores, la misma tabla escrita al revés.
+    const succ = Ed.randomRows(sd, lv, 'succ');
+    const a = P.parse(rows, 'pred').project; const b = P.parse(succ, 'succ').project;
+    assert.deepEqual(b.preds, a.preds);
+    assert.deepEqual(b.activities, a.activities);
+  }
+  assert.throws(() => Ed.randomRows(1, 'nope', 'pred'), /nivel/);
+});
+
+test('T012 · el aviso de «Tabla al azar» dice el nivel y el número de actividades, y que «Atrás» recupera la tabla anterior', () => {
+  assert.equal(Ed.randomNotice('es', 'medium', 10), 'Tabla al azar de nivel medio (10 actividades). «Atrás» del navegador recupera la tabla que tenías.');
+  assert.equal(Ed.randomNotice('en', 'hard', 13), 'Random table, hard level (13 activities). The browser’s «Back» brings back the table you had.');
+  for (const lang of ['es', 'en']) for (const lv of ['easy', 'medium', 'hard']) assert.doesNotMatch(Ed.randomNotice(lang, lv, 7), /\{|\}|undefined/);
+});

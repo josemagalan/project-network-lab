@@ -5,12 +5,17 @@
  * F2c (plan P3): la lista de M0 es esta misma tabla. Con hooks.compact se pinta sin las herramientas ni el panel
  * de mensajes del taller (M0 pone su propia validación), y ctx.deco la decora: el camino de una redundancia, el
  * recorrido de un ciclo y, tras comprobar, la correspondencia de cada fila (decorate, sin DOM). Sin deco, nada cambia.
+ * F3a (T013): «Tabla al azar» con su selector de nivel pone una tabla del generador (randomRows); app elige la semilla
+ * y despacha 'work' con entrada en el historial, así que «Atrás» recupera la tabla anterior. Oculto hasta publicar (P9).
  */
 (function (root) {
   'use strict';
 
   const G = root.PNL;
-  const I = (typeof module !== 'undefined' && module.exports) ? require('./i18n.js') : root.PNL.i18n;
+  const isNode = typeof module !== 'undefined' && module.exports;
+  const I = isNode ? require('./i18n.js') : root.PNL.i18n;
+  const GEN = () => (isNode ? require('./core/generator.js') : root.PNL.generator);
+  const PRJ = () => (isNode ? require('./core/project.js') : root.PNL.project);
 
   // ---------- Lógica sin DOM (tests/editor.test.js) ----------
 
@@ -45,9 +50,24 @@
     };
   }
 
+  // «Tabla al azar» (F3a, T012–T013): la tabla del generador para una semilla y un nivel, como filas del taller, escrita
+  // con predecesoras o con posteriores según la forma elegida.
+  function randomRows(seed, level, mode) {
+    const L = GEN().LEVELS[level];
+    if (!L) throw new Error(`nivel desconocido: ${level}`);
+    const g = GEN().generate(seed, L);
+    if (!g.ok) throw new Error(`sin tabla para la semilla ${seed}`);
+    const rows = g.rows.map((r) => ({ id: r.id, name: '', duration: String(r.duration), links: r.links }));
+    if (mode !== 'succ') return rows;
+    return PRJ().toRows(PRJ().parse(rows, 'pred').project, 'succ').map((r) => ({ id: r.id, name: '', duration: String(r.duration), links: r.links }));
+  }
+  const randomNotice = (lang, level, n) => I.t(lang, 'work.randomNotice', { lv: I.t(lang, `work.levelName.${level}`), n });
+
   function create(container, hooks) {
     const { h, clear } = G.dom;
     let refs = null;
+    let randLevel = 'medium';     // nivel de «Tabla al azar» (solo en la página)
+    let randShown = null;         // { rows, level }: la tabla al azar recién puesta, para su aviso
 
     const t = (k, p) => G.i18n.t(hooks.lang(), k, p);
 
@@ -57,7 +77,11 @@
         return { id: q('id'), name: q('name'), duration: q('duration'), links: q('links') };
       });
     }
-    const changed = () => hooks.dispatch({ type: 'table', rows: readRows() }, { fromEditor: true });
+    const changed = () => {
+      // Al editar, la tabla deja de ser la que se puso al azar: su aviso se va.
+      if (randShown) { randShown = null; const n = container.querySelector('.work-notice'); if (n) n.remove(); }
+      hooks.dispatch({ type: 'table', rows: readRows() }, { fromEditor: true });
+    };
 
     function rowEl(r) {
       const inp = (f, label, w) => h('input', { 'data-f': f, 'aria-label': label, value: r[f] == null ? '' : String(r[f]), style: w ? `max-width:${w}` : null, oninput: changed });
@@ -116,6 +140,8 @@
           // F2c, T020: entrada a M0 (practicar desde un enunciado), con su propia tabla; «Atrás» vuelve al taller.
           hooks.toM0 ? h('button', { type: 'button', class: 'ghost', onclick: () => hooks.toM0() }, [t('work.toM0')]) : null,
         ]),
+        hooks.random ? randomGroup() : null,
+        randomNoticeEl(ctx),
         pasteBox,
         h('fieldset', { class: 'mode' }, [h('legend', {}, [t('work.modeLegend')]), radio('pred', t('work.modePred')), radio('succ', t('work.modeSucc')),
           h('label', { style: 'margin-left:auto' }, [showComputed, ' ', t('work.showComputed')])]),
@@ -125,6 +151,30 @@
       container.appendChild(side);
       refs = { tbody, side, table };
       partial(ctx);
+    }
+
+    function randomGroup() {
+      const sel = h('select', { id: 'workRandLevel', onchange: (e) => { randLevel = e.target.value; } },
+        ['easy', 'medium', 'hard'].map((k) => h('option', { value: k, selected: k === randLevel }, [t(`ex.levels.${k}`)])));
+      const go = () => {
+        const rows = hooks.random(randLevel);
+        if (!rows) return;
+        randShown = { rows: JSON.stringify(rows), level: randLevel, n: rows.length };
+        const tools = container.querySelector('.work-random');
+        const note = randomNoticeEl({ rows });
+        if (tools && note && !container.querySelector('.work-notice')) tools.after(note);
+        const btn = container.querySelector('#workRandom');
+        if (btn) btn.focus();
+      };
+      return h('div', { class: 'work-random', role: 'group', 'aria-label': t('work.randomGroup'), hidden: !api.RANDOM_VISIBLE }, [
+        h('button', { type: 'button', class: 'ghost', id: 'workRandom', onclick: go }, [t('work.random')]),
+        h('label', { class: 'small', for: 'workRandLevel' }, [t('work.randomLevel')]), sel]);
+    }
+    // El aviso se ve mientras la tabla es la que se acaba de poner al azar.
+    function randomNoticeEl(ctx) {
+      const rows = ctx.rows.map((r) => ({ id: r.id, name: r.name || '', duration: String(r.duration), links: r.links }));
+      if (!randShown || JSON.stringify(rows) !== randShown.rows) { randShown = null; return null; }
+      return h('p', { class: 'banner small work-notice', role: 'status' }, [randomNotice(hooks.lang(), randShown.level, randShown.n)]);
     }
 
     function partial(ctx) {
@@ -228,7 +278,8 @@
     return out;
   }
 
-  const api = { create, FIELD, issueText, marks, messages, decorate };
+  // RANDOM_VISIBLE: «Tabla al azar» se ve al publicar la F3a (T017, P9).
+  const api = { create, FIELD, issueText, marks, messages, decorate, randomRows, randomNotice, RANDOM_VISIBLE: false };
   root.PNL = root.PNL || {};
   root.PNL.editor = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

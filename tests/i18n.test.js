@@ -172,3 +172,10 @@ test('F3a (T010): textos de «Ejercicios» en los dos idiomas: barra, «Personal
   assert.equal(I.t('es', 'ex.practice'), 'Practicar'); assert.equal(I.t('en', 'ex.practice'), 'Practice');
   assert.equal(I.t('es', 'ex.exam'), 'Examen'); assert.equal(I.t('en', 'ex.exam'), 'Exam');
 });
+
+test('F3a (T012): «Tabla al azar» del taller, con su selector de nivel, en los dos idiomas', () => {
+  for (const lang of I.languages) for (const k of ['random', 'randomLevel', 'randomNotice', 'randomGroup']) assert.ok(I.dict[lang].work[k], `${lang}.work.${k}`);
+  for (const lang of I.languages) for (const k of ['easy', 'medium', 'hard']) assert.ok(I.dict[lang].work.levelName[k], `${lang}.work.levelName.${k}`);
+  assert.equal(I.t('es', 'work.random'), 'Tabla al azar');
+  assert.equal(I.t('en', 'work.random'), 'Random table');
+});
