@@ -144,7 +144,10 @@
         if (state === 'ok' || state === 'carried') good++; else extra++;
         paths.written.push({ acts, state });
       }
-      pathTotal = paths.expect.length || paths.right.length;
+      // Si las críticas marcadas no forman ningún camino (p. ej., un error temprano cambió la duración del alumno y sus
+      // holguras aguas arriba salen negativas), no se le exigen caminos que no puede deducir: solo cuentan los que
+      // escribe, los de la solución suman y los erróneos restan (T018, decisión del autor; AC5).
+      pathTotal = paths.expect.length || good;
       pathPoints = Math.max(0, good - extra);
     }
 

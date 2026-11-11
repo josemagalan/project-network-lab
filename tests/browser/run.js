@@ -3574,6 +3574,8 @@ check('F3a AC16 · a 1280×720 «Ejercicios» cabe sin desplazar la página (tam
     await narrow('sucesos');
     await page.locator('#exArcs').click();
     await narrow('arcos');
+    // La tabla de arcos es más ancha que su caja: la caja se alcanza con el teclado (T018, scrollable-region-focusable).
+    await axe(page, `ex arcos a 360 px (${lang})`);
     await page.locator('#exLv-custom').click();
     await narrow('personalizar');
     await page.locator('#exLv-medium').click();

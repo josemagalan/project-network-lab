@@ -184,11 +184,20 @@ test('críticas y caminos: con las holguras del alumno si las escribió; caminos
   assert.deepEqual(g.paths.written[1].acts, ['B', 'E', 'I', 'J', 'K']);
   assert.equal(g.score.total, p.activities.length + 1);
   assert.equal(g.score.got, p.activities.length + 0);       // 1 bien − 2 de más, sin bajar de 0
-  // sin críticas marcadas no hay caminos esperados: el total es el de la solución
+  // sin críticas marcadas no hay caminos esperados: los caminos solo cuentan lo escrito (T018, decisión del autor)
   const a3 = solutionAnswers(sol); a3.crit = []; a3.paths = [];
   g = K.grade(sol, a3, ['critical']);
   assert.deepEqual(g.paths.expect, []);
-  assert.equal(g.score.total, p.activities.length + 1);
+  assert.equal(g.score.total, p.activities.length);
+  // …los de la solución suman y los erróneos restan, sin bajar de 0
+  const cellsGood = (gr) => Object.values(gr.cells).filter((c) => c.state === 'ok' || c.state === 'carried').length;
+  a3.paths = ['B-E-I-J-K'];
+  g = K.grade(sol, a3, ['critical']);
+  assert.deepEqual([g.score.got, g.score.total], [cellsGood(g) + 1, p.activities.length + 1]);
+  a3.paths = ['B-E-I-J-K', 'A-E-I-J-K'];
+  g = K.grade(sol, a3, ['critical']);
+  assert.deepEqual([g.score.got, g.score.total], [cellsGood(g), p.activities.length + 1]);
+  a3.paths = [];
   // un camino esperado empieza en una actividad inicial y acaba en una final, aunque un tramo dure lo que dice el alumno
   const a4 = solutionAnswers(sol); a4.dur = '10'; a4.crit = ['E', 'I', 'J', 'K']; a4.paths = ['E-I-J-K'];
   g = K.grade(sol, a4, ['times', 'critical']);
@@ -213,4 +222,37 @@ test('el dato del alumno solo vale si es un número; con la duración del alumno
   assert.equal(g2.cells.dur.state, 'invalid');
   assert.equal(g2.cells['K.LF'].state, 'wrong');            // sin duración válida, se espera la correcta (13)
   assert.equal(g2.cells['K.LF'].expect, 13);
+});
+
+test('AC5 con caminos (T018): un solo error en un tiempo temprano, arrastrado en todo, solo pierde esa casilla también con los caminos pedidos', () => {
+  // Si el error cambia la duración del proyecto, las holguras del alumno aguas arriba salen negativas y sus críticas no
+  // forman ningún camino: los caminos que no puede deducir no se le exigen (antes perdía 1–3 puntos más en el 42–62 %).
+  for (const lv of ['easy', 'medium', 'hard']) {
+    let lost = 0;
+    for (let sd = 1; sd <= 150; sd++) {
+      const p = fromGen(sd, lv);
+      const sol = K.solve(p);
+      const rnd = R.mulberry32(sd * 7919 + 13);
+      const cands = p.activities.filter((a) => p.preds[a.id].length && sol.cpm.times[a.id].ES >= 1).map((a) => a.id);
+      const a = cands[R.int(rnd, 0, cands.length - 1)];
+      for (const ask of [['times', 'floats', 'critical'], ALL]) {
+        const ans = O.answersFrom(O.fromProject(p), sol.net, { [`${a}.ES`]: sol.cpm.times[a].ES - 1 }, ask);
+        const g = K.grade(sol, ans, ask);
+        assert.equal(g.cells[`${a}.ES`].state, 'wrong');
+        if (g.score.got !== g.score.total - 1) lost++;
+      }
+    }
+    assert.equal(lost, 0, `${lv}: casos que pierden más que la casilla`);
+  }
+  // El caso del tablero: el difícil 92846 con el ES de G mal (16 en lugar de 17).
+  const p = fromGen(92846, 'hard');
+  const sol = K.solve(p);
+  const ans = O.answersFrom(O.fromProject(p), sol.net, { 'G.ES': 16 }, ['times', 'floats', 'critical']);
+  assert.deepEqual(ans.paths, []);
+  const g = K.grade(sol, ans, ['times', 'floats', 'critical']);
+  assert.deepEqual([g.score.got, g.score.total], [112, 113]);
+  // Si escribe los caminos de la solución, cuentan: el total crece con ellos.
+  ans.paths = sol.cpm.criticalPaths.map((x) => x.acts.join('-'));
+  const g2 = K.grade(sol, ans, ['times', 'floats', 'critical']);
+  assert.deepEqual([g2.score.got, g2.score.total], [115, 116]);
 });

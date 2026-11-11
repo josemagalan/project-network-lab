@@ -444,7 +444,9 @@
         h('div', { class: 'ex-halves' }, tables)]);
     }
 
-    const netHolder = h('div', { class: 'ex-net', id: 'exNet' });
+    // La red (o la tabla de arcos) puede ser más ancha que su caja: la caja se alcanza con el teclado para desplazarla
+    // (T018, axe scrollable-region-focusable). Sin role ni nombre propio: la tarjeta ya es la región con el título.
+    const netHolder = h('div', { class: 'ex-net', id: 'exNet', tabindex: '0' });
     function netCard() {
       const pert = view === 'events';
       const title = pert ? tt('ex.pert') : tt('ex.roy');
