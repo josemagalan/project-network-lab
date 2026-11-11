@@ -140,3 +140,35 @@ test('F2c T020: la pestaña de M0 y la entrada desde el taller, en los dos idiom
   assert.equal(I.t('es', 'work.toM0'), 'Practicar desde un enunciado (M0)');
   assert.equal(I.t('en', 'work.toM0'), 'Practise from a statement (M0)');
 });
+
+test('F3a (T010): textos de «Ejercicios» en los dos idiomas: barra, «Personalizar», tablas, marcas, nota, explicaciones y avisos', () => {
+  const need = {
+    ex: ['region', 'level', 'seed', 'another', 'mode', 'practice', 'exam', 'ask', 'given', 'preds', 'succs', 'act', 'd', 'roy', 'pert', 'fold', 'unfold',
+      'royAlt', 'arcLink', 'netLink', 'answers', 'tabActs', 'tabEvents', 'event', 'TE', 'TL', 'slack', 'projectDur', 'crit', 'paths', 'pathsHelp', 'addPath',
+      'removePath', 'pathN', 'check', 'deliver', 'step', 'confirm', 'confirmYes', 'confirmNo', 'examNote', 'delivered', 'stale', 'enterHint', 'score',
+      'lose', 'loseYes', 'loseNo', 'oldVersion', 'max', 'min', 'notFound', 'tableCaption', 'eventsCaption', 'legend'],
+    'ex.levels': ['easy', 'medium', 'hard', 'custom'],
+    'ex.asks': ['times', 'events', 'floats', 'sf', 'critical'],
+    'ex.sum': ['acts', 'actsOne', 'pred', 'dummies', 'dummiesOne', 'dummiesFree', 'crit', 'critOne', 'critN', 'dmax'],
+    'ex.st': ['ok', 'carried', 'wrong', 'blank', 'invalid'],
+    'ex.cnt': ['wrong', 'wrongOne', 'carried', 'carriedOne', 'blank', 'blankOne', 'invalid', 'invalidOne'],
+    'ex.lab': ['act', 'dur', 'TE', 'TL', 'slack'],
+    'ex.explain': ['wrong', 'carried', 'origin', 'blank', 'invalid', 'critCarried', 'critMarked', 'critUnmarked', 'pathOk', 'pathCarried', 'pathRepeat',
+      'pathInvalid', 'pathNotDirect', 'pathNotStart', 'pathNotEnd', 'pathLength'],
+    'ex.custom': ['region', 'acts', 'pred', 'dummies', 'crit', 'dmax', 'from', 'to', 'hintActs', 'hintPred', 'hintDummies', 'hintCrit', 'hintDmax', 'generate',
+      'back', 'range', 'dummiesNoExact', 'dummiesTooMany'],
+    'ex.worst': ['critical', 'dummies', 'exact'],
+    'ex.advice': ['critical', 'dummies', 'exact'],
+  };
+  for (const lang of I.languages) {
+    for (const [group, keys] of Object.entries(need)) {
+      const g = group.split('.').reduce((o, k) => (o ? o[k] : o), I.dict[lang]);
+      assert.ok(g, `${lang}.${group}`);
+      for (const k of keys) assert.ok(g[k], `${lang}.${group}.${k}`);
+    }
+  }
+  // Nombres visibles aprobados en clarify (2026-11-10).
+  assert.equal(I.t('es', 'nav.ex'), 'Ejercicios'); assert.equal(I.t('en', 'nav.ex'), 'Exercises');
+  assert.equal(I.t('es', 'ex.practice'), 'Practicar'); assert.equal(I.t('en', 'ex.practice'), 'Practice');
+  assert.equal(I.t('es', 'ex.exam'), 'Examen'); assert.equal(I.t('en', 'ex.exam'), 'Exam');
+});

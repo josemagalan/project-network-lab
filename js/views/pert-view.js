@@ -49,13 +49,15 @@
   function render(container, ctx) {
     const d3 = root.d3;
     const { net, lay, revealed, numFmt, onSelect } = ctx;
+    // F3a («Ejercicios»): ctx.geo estrecha los huecos y ctx.minWidth fija el ancho mínimo con ctx.fit.
+    const GG = Object.assign({}, GEO, ctx.geo || {});
     const N = G.i18n.eventNotation(ctx.nota);
     const rows = [...Object.values(lay.pos), ...Object.values(lay.bends).flat()].map((p) => p.row);
     const minRow = Math.min(...rows); const maxRow = Math.max(...rows);
-    const X = (col) => GEO.pad + col * GEO.colGap;
-    const Y = (row) => GEO.pad + GEO.top + (row - minRow) * GEO.rowGap;
-    const width = GEO.pad * 2 + (lay.cols - 1) * GEO.colGap;
-    const height = GEO.pad * 2 + GEO.top + (maxRow - minRow) * GEO.rowGap;
+    const X = (col) => GG.pad + col * GG.colGap;
+    const Y = (row) => GG.pad + GG.top + (row - minRow) * GG.rowGap;
+    const width = GG.pad * 2 + (lay.cols - 1) * GG.colGap;
+    const height = GG.pad * 2 + GG.top + (maxRow - minRow) * GG.rowGap;
     const at = (n) => ({ x: X(lay.pos[n].col), y: Y(lay.pos[n].row) });
     const cls = classes(ctx);
     const dur = ctx.durations || {};
@@ -63,7 +65,7 @@
     const sel = d3.select(container);
     sel.selectAll('*').remove();
     const svg = sel.append('svg').attr('class', 'net pert').attr('width', '100%')
-      .attr('style', ctx.fit ? `max-width:${width}px` : `max-width:${width}px;min-width:${Math.min(width, 560)}px`).attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('style', ctx.fit ? `max-width:${width}px;min-width:${Math.min(width, ctx.minWidth || 0)}px` : `max-width:${width}px;min-width:${Math.min(width, 560)}px`).attr('viewBox', `0 0 ${width} ${height}`)
       .attr('role', 'img').attr('aria-label', G.i18n.t(ctx.lang, 'pert.netLabel', { name: ctx.name, e: net.events.length, n: net.arcs.length, f: net.dummies.length }));
     const defs = svg.append('defs');
     const pre = ctx.idPrefix || 'pnl-pk';
@@ -87,12 +89,12 @@
       const clip = (p, q, r) => { const dx = q.x - p.x; const dy = q.y - p.y; const L = Math.hypot(dx, dy) || 1; return { x: p.x + dx * r / L, y: p.y + dy * r / L }; };
       let d; let mid;
       if (curved) {
-        const bow = GEO.colGap * 0.35;
-        const s = clip(a, { x: a.x + bow, y: a.y }, GEO.r); const f = clip(b, { x: b.x + bow, y: b.y }, GEO.r + 1);
+        const bow = GG.colGap * 0.35;
+        const s = clip(a, { x: a.x + bow, y: a.y }, GG.r); const f = clip(b, { x: b.x + bow, y: b.y }, GG.r + 1);
         d = `M${s.x} ${s.y} C ${a.x + bow} ${a.y}, ${b.x + bow} ${b.y}, ${f.x} ${f.y}`;
         mid = { x: a.x + bow * 0.8, y: (a.y + b.y) / 2 };
       } else {
-        const s = clip(pts[0], pts[1], GEO.r); const f = clip(pts[pts.length - 1], pts[pts.length - 2], GEO.r + 1);
+        const s = clip(pts[0], pts[1], GG.r); const f = clip(pts[pts.length - 1], pts[pts.length - 2], GG.r + 1);
         const ps = [s, ...pts.slice(1, -1), f];
         d = `M${ps[0].x} ${ps[0].y}`;
         for (let i = 1; i < ps.length; i++) {
@@ -122,10 +124,10 @@
       const p = at(ev.n);
       const crit = ctx.criticalOn && revealed.has(`${ev.n}.TE`) && revealed.get(`${ev.n}.TL`) - revealed.get(`${ev.n}.TE`) === 0;
       const g = ng.append('g').attr('class', `ev${ev.n === active ? ' active' : ''}${crit ? ' crit' : ''}`).attr('transform', `translate(${p.x},${p.y})`);
-      g.append('circle').attr('r', GEO.r);
+      g.append('circle').attr('r', GG.r);
       g.append('text').attr('class', 'nid').attr('y', 5).text(ctx.numbered ? String(ev.n) : '');
       if (revealed.has(`${ev.n}.TE`) || revealed.has(`${ev.n}.TL`)) {
-        const tb = g.append('g').attr('class', 'tbox').attr('transform', `translate(-26,${-GEO.r - 24})`);
+        const tb = g.append('g').attr('class', 'tbox').attr('transform', `translate(-26,${-GG.r - 24})`);
         tb.append('rect').attr('width', 52).attr('height', 20).attr('rx', 4);
         tb.append('line').attr('x1', 26).attr('x2', 26).attr('y1', 0).attr('y2', 20);
         tb.append('text').attr('x', 13).attr('y', 15).text(show(ev.n, 'TE')).append('title').text(N.TE);

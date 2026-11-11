@@ -14,6 +14,9 @@
  * F2c: con v=m0, M0 (js/m0) ocupa la página: texto, tabla, matriz, validación y corrección (T016). Todavía sin pestaña
  * en la barra (P9): solo se llega escribiendo la URL. La URL se escribe con encodeSafe: si no cabe, se avisa.
  * F2c: con v=m0&mm=route, el reproductor recorre la ruta paso a paso (statement.route), con su predicción (T018).
+ * F3a: con v=ex, «Ejercicios» (js/ex) ocupa la página: generador, tabla dada, red sin cifras y tabla de respuestas (T011).
+ *   Todavía sin pestaña (P9). Los scripts de M0 y de «Ejercicios» se cargan al entrar en su vista (P10, puerta T001):
+ *   antes de decodificar la URL se mira v en el enlace y, si hace falta, se cargan antes de arrancar.
  */
 (function () {
   'use strict';
@@ -41,6 +44,35 @@
   let retoSol = null;       // método cuya red se enseña con «Ver una solución» (null: ninguna)
   let retoMethod = 'rules'; // el último elegido
   let m0 = null;            // controlador de M0 (F2c)
+  let exc = null;           // controlador de «Ejercicios» (F3a)
+
+  // ---------- Carga bajo demanda (F3a, P10) ----------
+  // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al
+  // entrar en su vista. async = false los ejecuta en orden; la promesa se cumple con el último.
+  const LAZY = {
+    m0: ['js/core/precheck.js', 'js/core/statement.js', 'js/core/statements.js', 'js/views/prec-matrix.js', 'js/views/statement-view.js', 'js/m0.js'],
+    ex: ['js/core/grade.js', 'js/views/answer-table.js', 'js/ex.js'],
+  };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex };
+  const loading = {};
+  function need(group) {
+    if (!group || READY[group]()) return Promise.resolve();
+    if (!loading[group]) {
+      loading[group] = new Promise((resolve, reject) => {
+        const files = LAZY[group];
+        files.forEach((src, i) => {
+          const el = document.createElement('script');
+          el.src = src; el.async = false;
+          if (i === files.length - 1) { el.onload = () => resolve(); }
+          el.onerror = () => { delete loading[group]; reject(new Error(src)); };
+          document.body.appendChild(el);
+        });
+      }).then(() => { ensureControllers(); });
+    }
+    return loading[group];
+  }
+  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : null);
+  const hashView = (hash) => new URLSearchParams(String(hash || '').replace(/^#/, '')).get('v');
 
   const lang = () => state.lang || 'es';
   const t = (k, p) => I.t(lang(), k, p);
@@ -52,6 +84,8 @@
   function compute() {
     // M0 (F2c): el enunciado y la tabla del alumno; sin traza que reproducir en practicar.
     if (state.v === 'm0') { model = Object.assign(G.m0.model(state, lang()), { m0: true }); return; }
+    // «Ejercicios» (F3a): la tabla generada, su solución y lo escrito; sin traza que reproducir.
+    if (state.v === 'ex') { model = Object.assign(G.ex.model(state, lang()), { exm: true }); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
@@ -100,7 +134,7 @@
   // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022), y sin
   // la vista lado a lado ni la matriz, que necesitan la red ROY (revisión de cierre, F2).
   function fitGraph() {
-    if (model.m0 || !model.structureOnly || !model.project) return;
+    if (model.m0 || model.exm || !model.structureOnly || !model.project) return;
     const view = state.view === 'matrix' || state.view === 'side' ? 'net' : state.view;
     if (pert() && view === state.view) return;
     state = Object.assign({}, state, { graph: 'aoa', view, step: pert() ? state.step : 0 });
@@ -109,6 +143,7 @@
   function trace() {
     if (!model) return null;
     if (model.m0) return state.mm === 'route' ? model.route : null;
+    if (model.exm) return null;
     if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -128,6 +163,7 @@
   const m0Entry = () => (state.v === 'm0' ? Object.assign({}, state, { mm: 'practice', step: 0 }) : S.reduce(state, { type: 'm0', st: state.st, mm: 'practice' }, 1));
   function toM0() {
     stopPlay();
+    if (!G.m0) { need('m0').then(toM0); return; }
     // Ya en M0: de la ruta paso a paso vuelve a practicar sin perder la tabla.
     if (state.v === 'm0') { if (state.mm !== 'practice') { dispatch({ type: 'set', key: 'mm', value: 'practice' }); dispatch({ type: 'first' }); } return; }
     dispatch({ type: 'm0', st: state.st, mm: 'practice' });
@@ -137,7 +173,7 @@
   function dispatch(action, opts) {
     const before = state;
     state = S.reduce(state, action, total());
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -195,8 +231,11 @@
   function render(opts) {
     renderTexts();
     const m0On = state.v === 'm0';
+    const exOn = state.v === 'ex';
     $('m0View').hidden = !m0On;
+    $('exView').hidden = !exOn;
     if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
+    if (exOn) { $('workshop').hidden = true; $('stage').hidden = true; exc.render(model, opts); return; }
     const work = state.v === 'work';
     $('workshop').hidden = !work;
     if (work) editor.render(Object.assign({}, model, { showComputed, numFmt, hideDuration: durationHidden() }), !!(opts && opts.fullEditor));
@@ -897,6 +936,8 @@
     });
     window.addEventListener('hashchange', () => {
       if (location.hash === U.encode(state)) return;
+      const group = groupOf(hashView(location.hash));
+      if (group && !READY[group]()) { need(group).then(() => window.dispatchEvent(new Event('hashchange'))); return; }
       // Otro ejemplo u otra tabla: la selección era de la red anterior (revisión de cierre, F4).
       const before = state;
       load();
@@ -910,7 +951,9 @@
     const q = new URLSearchParams(location.search).get('lang');
     if (!s.lang) s.lang = q === 'en' || q === 'es' ? q : ((navigator.language || '').toLowerCase().startsWith('en') ? 'en' : 'es');
     // F2c, T022: el enlace con la solución de un enunciado propio se abre con la tabla y los subrayados del docente.
-    state = G.m0.openSolution(s);
+    state = G.m0 ? G.m0.openSolution(s) : s;
+    // «Ejercicios» sin semilla: la interfaz elige una (nunca el núcleo, plan §0) y se escribe con replaceState.
+    if (state.v === 'ex' && !state.sd) state = Object.assign({}, state, { sd: newSeed() });
     compute();
     fitGraph();
     state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -920,7 +963,27 @@
     if (warning) banner.textContent = I.t(state.lang, warning === 'structureOnly' ? 'app.structureOnlyWarning' : 'app.urlWarning');
   }
 
-  function init() {
+  // Semilla nueva con crypto.getRandomValues (file:// y GitHub Pages); si faltara, con la hora (fuera del núcleo).
+  function newSeed() {
+    const c = window.crypto;
+    if (c && c.getRandomValues) return 1 + (c.getRandomValues(new Uint32Array(1))[0] % 999999);
+    return 1 + (Date.now() % 999999);
+  }
+
+  function ensureControllers() {
+    if (G.m0 && !m0) createM0();
+    if (G.ex && !exc) {
+      exc = G.ex.create($('exView'), {
+        state: () => state, lang, dispatch, newSeed,
+        // «Ver la solución paso a paso» (AC12): la ruta (o los sucesos) con la misma tabla, con entrada en el historial.
+        open: (s) => { stopPlay(); dispatch({ type: 'open', v: s.v, graph: s.graph, rows: s.rows, mode: s.mode }, { push: true }); window.scrollTo(0, 0); },
+        announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
+      });
+      G.ex.state = () => exc.debug();
+    }
+  }
+
+  function createM0() {
     m0 = G.m0.create($('m0View'), {
       state: () => state, lang, dispatch,
       // La tabla depurada se abre en M1, M2 o el taller con una entrada nueva en el historial: «Atrás» vuelve a M0.
@@ -934,6 +997,10 @@
       learn: openM0Learn,
     });
     G.m0.state = () => m0.debug();
+  }
+
+  function init() {
+    ensureControllers();
     editor = G.editor.create($('workshop'), {
       state: () => state, lang, dispatch,
       loadExample: (id) => { const ex = EX.get(id); dispatch({ type: 'work', rows: workRows(ex.rows), mode: ex.mode }); },
@@ -963,7 +1030,10 @@
     render({ fullEditor: true });
   }
 
-  G.app = { state: () => Object.assign({ sel: selected }, state), step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model,
-    reto: () => (reto ? { net: reto.st.net, result: reto.st.result, solution: retoSol } : null) };
-  init();
+  function start() {
+    init();
+    G.app = { state: () => Object.assign({ sel: selected }, state), step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model,
+      reto: () => (reto ? { net: reto.st.net, result: reto.st.result, solution: retoSol } : null) };
+  }
+  need(groupOf(hashView(location.hash))).then(start, start);
 })();
