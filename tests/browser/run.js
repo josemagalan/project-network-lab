@@ -65,6 +65,8 @@ async function open(url, opts = {}) {
     javaScriptEnabled: opts.js !== false,
     reducedMotion: 'reduce',
   });
+  // F3a (T016): un guion que corre antes que los de la página (p. ej., «Tabla al azar» visible o una semilla fija).
+  if (opts.init) await ctx.addInitScript(opts.init);
   const page = await ctx.newPage();
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`${url}: ${m.text()}`); });
   page.on('pageerror', (e) => errors.push(`${url}: ${e.message}`));
@@ -2861,12 +2863,781 @@ check('F2c T027 · en la web, «Copiar» da la página sin su consulta y sin el 
   await close(page);
 });
 
+// ---------- F3a: ejercicios generados con semilla y corrección con error consecuente (T016) ----------
+
+const GEN0 = require(path.join(ROOT, 'js', 'core', 'generator.js'));
+const P0 = require(path.join(ROOT, 'js', 'core', 'project.js'));
+const GR0 = require(path.join(ROOT, 'js', 'core', 'grade.js'));
+const I0 = require(path.join(ROOT, 'js', 'i18n.js'));
+const LR0 = require(path.join(ROOT, 'js', 'learn.js'));
+const ED0 = require(path.join(ROOT, 'js', 'editor.js'));
+const X0 = require(path.join(ROOT, 'js', 'ex.js'));
+const OR0 = require(path.join(ROOT, 'tests', 'oracle-grade.js'));
+
+// Las semillas de los bocetos (tableros 37–50) y un error temprano en cada una, que arrastra otros.
+const EX_CASES = { easy: { sd: 39595, wrong: { 'E.ES': 9 } }, medium: { sd: 14844, wrong: { 'D.ES': 8 } }, hard: { sd: 92846, wrong: { 'D.ES': 13 } } };
+const ALL_ASK = ['times', 'events', 'floats', 'sf', 'critical'];
+const exState0 = (s) => Object.assign(U0.defaults(), { v: 'ex', ex: null, lang: 'es' }, s);
+const exUrl = (s) => `cpm.html${U0.encode(exState0(s))}`;
+const exModel = (s) => X0.model(exState0(s), s.lang || 'es');
+const askOf = (s) => U0.cleanAsk(s.ask) || U0.DEFAULT_ASK.slice();
+// Un alumno que calcula bien salvo en `wrong` y arrastra lo demás (el de los tableros), con lo de `extra` encima.
+function exStudent(s, wrong, extra) {
+  const m = exModel(s);
+  return Object.assign(OR0.answersFrom(OR0.fromProject(m.project), m.sol.net, wrong || {}, askOf(s)), extra || {});
+}
+async function exLab(s, opts) {
+  const page = await open(exUrl(s), opts);
+  await page.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state().seed);
+  return page;
+}
+const exSt = (page) => page.evaluate(() => PNL.ex.state());
+const exId = (key) => `exc-${key.replace(/[^A-Za-z0-9]/g, '_')}`;
+const exCell = (page, key) => page.locator(`#${exId(key)}`);
+// La marca de cada casilla de la tabla a la vista (null sin marca).
+const exMarks = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#exView [data-key]')]
+  .map((i) => [i.dataset.key, (/(?:^| )st-(\w+)/.exec(i.closest('.ex-cell').className) || [])[1] || null])));
+const marksOf = (g, view) => Object.fromEntries(Object.entries(g.cells).filter(([k]) => (view === 'events') === /^e\d/.test(k)).map(([k, c]) => [k, c.state]));
+const noMarksOf = (g, view) => Object.fromEntries(Object.keys(marksOf(g, view)).map((k) => [k, null]));
+const exScore = (page) => page.locator('#exView .ex-score strong').innerText();
+const exExplain = (page) => page.locator('#exExplain p').innerText();
+const exHash = (s) => U0.encode(exState0(s));
+const setHash = (page, hash) => page.evaluate((x) => { location.hash = x; }, hash);
+const activeId = (page) => page.evaluate(() => document.activeElement && document.activeElement.id);
+async function tabTo(page, id, key = 'Tab', max = 150) {
+  for (let i = 0; i < max && (await activeId(page)) !== id; i++) await page.keyboard.press(key);
+  assert.equal(await activeId(page), id, `el foco no llega a #${id}`);
+}
+
+check('F3a AC1 · la tabla generada en el navegador es la de Node para 3 semillas por nivel, también en la tabla dada', async () => {
+  const page = await exLab({ sd: 1, lv: 'easy' });
+  for (const lv of ['easy', 'medium', 'hard']) {
+    for (const sd of [1, 2, 3]) {
+      await setHash(page, exHash({ sd, lv }));
+      await page.waitForFunction(([x, l]) => PNL.ex.state().seed === x && PNL.app.state().lv === l, [sd, lv]);
+      const g = GEN0.generate(sd, GEN0.LEVELS[lv]);
+      assert.ok(g.ok, `${lv} ${sd}`);
+      assert.deepEqual((await exSt(page)).rows, g.rows, `${lv}, semilla ${sd}`);
+      const p = P0.parse(g.rows, 'pred').project;
+      const given = await page.locator('#exView table.ex-given tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.children].map((c) => c.textContent).join('|')));
+      assert.deepEqual(given, p.activities.map((a) => `${a.id}|${a.d}|${p.preds[a.id].join(', ') || '—'}`), `${lv}, semilla ${sd}: tabla dada`);
+      assert.equal(await page.locator('#exView table.ex-ans tbody tr').count(), p.activities.length);
+    }
+  }
+  await close(page);
+});
+
+for (const lv of ['easy', 'medium', 'hard']) {
+  for (const lang of ['es', 'en']) {
+    check(`F3a AC4–AC7 · nivel ${lv} en ${lang.toUpperCase()}: Practicar corrige al comprobar; Examen sin marcas ni pistas, entrega con confirmación, bloquea y se mantiene al recargar con xd=1`, async () => {
+      const { sd, wrong } = EX_CASES[lv];
+      const s = { sd, lv, lang };
+      const m = exModel(s);
+      const ans = exStudent(s, wrong);
+      ans.act.B.IF = '';
+      const ask = U0.DEFAULT_ASK;
+      const g = GR0.grade(m.sol, ans, ask);
+      const wk = Object.keys(wrong)[0];
+      const ck = Object.keys(g.cells).find((k) => g.cells[k].state === 'carried');
+      assert.ok(ck, 'el error arrastra alguna casilla');
+      // Practicar: sin marcas hasta «Comprobar».
+      let page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s));
+      assert.deepEqual((await exSt(page)).rows, m.rows);
+      assert.equal(await exCell(page, wk).inputValue(), String(wrong[wk]));
+      assert.deepEqual(await exMarks(page), noMarksOf(g));
+      assert.equal(await page.locator('#exDeliver').count(), 0);
+      await page.locator('#exCheck').click();
+      assert.deepEqual(await exMarks(page), marksOf(g));
+      assert.equal(await exScore(page), X0.scoreText(g, lang));
+      assert.equal(await page.locator('#exView .ex-score .muted').innerText(), X0.countText(g, lang));
+      // La marca no es solo color: icono y estado en texto, enlazado a la casilla.
+      assert.equal(await page.locator(`#${exId(wk)}-m .sr-only`).innerText(), I0.t(lang, 'ex.st.wrong'));
+      assert.equal(await page.locator(`#${exId(wk)}-m svg`).count(), 1);
+      assert.equal(await exCell(page, wk).getAttribute('aria-describedby'), `${exId(wk)}-m`);
+      for (const k of [wk, ck, 'B.IF']) {
+        await exCell(page, k).focus();
+        assert.equal(await exExplain(page), X0.explain(m, ans, g, k, lang, 'en'), k);
+      }
+      assert.ok(await visible(page, '#exStep'), 'en Practicar se ve «Ver la solución paso a paso»');
+      await close(page);
+
+      // Examen: ni marcas, ni «Comprobar», ni enlace a la solución hasta entregar.
+      page = await exLab(Object.assign({ ans: X0.forUrl(ans), xm: 'exam' }, s));
+      assert.deepEqual(await exMarks(page), noMarksOf(g));
+      assert.equal(await page.locator('#exCheck').count(), 0);
+      assert.equal(await page.locator('#exStep').count(), 0);
+      assert.equal(await page.locator('#exView .ex-score').count(), 0);
+      await exCell(page, wk).focus();
+      assert.equal(await page.locator('#exExplain').isVisible(), false, 'sin explicación antes de entregar');
+      assert.equal(await page.locator('#exView .ex-note').innerText(), I0.t(lang, 'ex.examNote'));
+      await page.locator('#exDeliver').click();
+      const dlg = page.locator('#exView .ex-confirm[role="alertdialog"]');
+      assert.equal(await dlg.locator('p').innerText(), I0.t(lang, 'ex.confirm', { n: X0.blanks(m, ans, ask) }));
+      assert.equal(await activeId(page), 'exConfirmYes');
+      assert.equal((await state(page)).xd, 0, 'confirmar no entrega todavía');
+      await page.locator('#exConfirmYes').click();
+      await page.waitForFunction(() => !!PNL.app.state().xd);
+      assert.match(page.url(), /[#&]xd=1(&|$)/);
+      const delivered = async (label) => {
+        assert.deepEqual(await exMarks(page), marksOf(g), label);
+        assert.equal(await exScore(page), X0.scoreText(g, lang), label);
+        assert.equal(await page.locator('#exView table.ex-ans input[type="text"]:not([readonly])').count(), 0, `${label}: casillas bloqueadas`);
+        assert.equal(await page.locator('#exView table.ex-ans input[type="checkbox"]:not([disabled])').count(), 0, `${label}: críticas bloqueadas`);
+        assert.equal(await page.locator('#exView .ex-paths input:not([readonly])').count(), 0, `${label}: caminos bloqueados`);
+        assert.equal(await page.locator('#exDeliver').count(), 0);
+        assert.ok(await visible(page, '#exStep'), `${label}: tras entregar se ve la solución paso a paso`);
+        assert.ok(await visible(page, '#exAnother2'));
+        assert.equal(await page.locator('#exView .ex-note').innerText(), I0.t(lang, 'ex.delivered'));
+        await exCell(page, wk).focus();
+        assert.equal(await exExplain(page), X0.explain(m, ans, g, wk, lang, 'en'), label);
+      };
+      await delivered('al entregar');
+      await page.reload();
+      await page.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state().seed);
+      await delivered('al recargar');
+      await close(page);
+    });
+  }
+}
+
+check('F3a AC5 · un error con sus consecuentes, una casilla vacía y una no válida: lo escrito con el teclado va al enlace y se corrige con los datos del alumno', async () => {
+  const s = { sd: 14844, lv: 'medium', lang: 'es' };
+  const m = exModel(s);
+  // El alumno calculó con ES de D = 8, pero aún no lo ha escrito; F.LS vacía y G.IF no válida.
+  const ans = exStudent(s, { 'D.ES': 8 });
+  ans.act.D.ES = ''; ans.act.F.LS = ''; ans.act.G.IF = 'abc';
+  const g1 = GR0.grade(m.sol, ans, U0.DEFAULT_ASK);
+  assert.equal(g1.cells['D.ES'].state, 'blank');
+  assert.equal(g1.cells['D.EF'].state, 'wrong', 'con la casilla vacía se usa el valor correcto');
+  const page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s));
+  await page.locator('#exCheck').click();
+  assert.deepEqual(await exMarks(page), marksOf(g1));
+  for (const k of ['D.ES', 'F.LS', 'G.IF']) {
+    await exCell(page, k).focus();
+    assert.equal(await exExplain(page), X0.explain(m, ans, g1, k, 'es', 'en'), k);
+  }
+  assert.equal(await exExplain(page), '«abc» no es un número: escribe una cifra con coma o punto decimal.');
+  // Al escribir, las marcas se van y se avisa de que hay que volver a comprobar (P7).
+  await exCell(page, 'D.ES').click();
+  await page.keyboard.type('8');
+  await page.waitForFunction(() => { const a = PNL.app.state().ans; return a && a.act.D && a.act.D.ES === '8'; });
+  assert.deepEqual(await exMarks(page), noMarksOf(g1));
+  assert.equal(await page.locator('#exView p.banner[role="status"]').innerText(), I0.t('es', 'ex.stale'));
+  assert.equal(await activeId(page), exId('D.ES'), 'el foco sigue en la casilla');
+  const ans2 = Object.assign({}, ans, { act: Object.assign({}, ans.act, { D: Object.assign({}, ans.act.D, { ES: '8' }) }) });
+  const g2 = GR0.grade(m.sol, ans2, U0.DEFAULT_ASK);
+  await page.locator('#exCheck').click();
+  assert.deepEqual(await exMarks(page), marksOf(g2));
+  assert.equal(g2.cells['D.ES'].state, 'wrong');
+  assert.equal(g2.cells['D.EF'].state, 'carried');
+  assert.equal(g2.cells['I.ES'].state, 'carried');
+  await exCell(page, 'I.ES').focus();
+  assert.equal(await exExplain(page), 'Has escrito 9, que sale bien de tus datos: ES de I = máx(EF de D = 9, EF de H = 9) = 9. No coincide con la solución porque arrastra un error anterior (empieza en ES de D): no se penaliza.');
+  assert.equal(await exCell(page, 'G.IF').inputValue(), 'abc', 'lo no válido se queda como se escribió');
+  assert.equal(await page.locator('#exView .ex-score .muted').innerText(), X0.countText(g2, 'es'));
+  await close(page);
+});
+
+check('F3a AC9 · sucesos: pestañas Actividades y Sucesos, la red PERT de las reglas con sus sucesos, la tabla de arcos y la corrección de los sucesos', async () => {
+  const s = { sd: 14844, lv: 'medium', lang: 'es', nota: 'es', ask: ['times', 'events'] };
+  const m = exModel(s);
+  const ans = exStudent(s, { 'e3.TE': m.sol.events.TE[3] + 2 });
+  const g = GR0.grade(m.sol, ans, s.ask);
+  const page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s));
+  assert.equal(await page.locator('#exTabActs').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#exView .ex-net-card h2').innerText(), I0.t('es', 'ex.roy'));
+  await page.locator('#exTabEvents').click();
+  assert.equal(await page.locator('#exTabEvents').getAttribute('aria-pressed'), 'true');
+  assert.equal(await activeId(page), 'exTabEvents');
+  assert.equal(await page.locator('#exView .ex-net-card h2').innerText(), I0.t('es', 'ex.pert'));
+  const evs = m.sol.net.events.map((e) => String(e.n));
+  assert.deepEqual(await page.locator('#exView table.ex-ans tbody th').allInnerTexts(), evs);
+  assert.deepEqual(await page.locator('#exView table.ex-ans thead th').allInnerTexts(), ['Suceso', 'Temprano (tᵢ)', 'Tardío (tᵢ*)', 'Holgura']);
+  // La red, numerada y sin tiempos.
+  assert.deepEqual(await page.locator('#exNet svg g.ev text.nid').allTextContents(), evs);
+  assert.equal(await page.locator('#exNet svg g.tbox').count(), 0, 'la red no enseña tiempos');
+  await page.locator('#exCheck').click();
+  assert.deepEqual(await exMarks(page), marksOf(g, 'events'));
+  assert.equal(g.cells['e3.TE'].state, 'wrong');
+  assert.ok(Object.values(marksOf(g, 'events')).includes('carried'));
+  assert.equal(await exScore(page), X0.scoreText(g, 'es'));
+  await exCell(page, 'e3.TE').focus();
+  assert.equal(await exExplain(page), X0.explain(m, ans, g, 'e3.TE', 'es', 'es'));
+  // Alternativa en texto: la tabla de arcos, con las ficticias.
+  await page.locator('#exArcs').click();
+  assert.equal(await activeId(page), 'exArcs');
+  assert.equal(await page.locator('#exArcs').innerText(), I0.t('es', 'ex.netLink'));
+  assert.equal(await page.locator('#exNet table.arcs tbody tr').count(), m.sol.net.arcs.length + m.sol.net.dummies.length);
+  assert.equal(await page.locator('#exNet svg').count(), 0);
+  for (const d of m.sol.net.dummies) assert.ok((await page.locator('#exNet table.arcs').innerText()).includes(d.name), d.name);
+  await page.locator('#exArcs').click();
+  assert.equal(await page.locator('#exNet svg').count(), 1);
+  // Volver a Actividades devuelve la red ROY y la tabla de actividades, con sus marcas.
+  await page.locator('#exTabActs').click();
+  assert.equal(await page.locator('#exView .ex-net-card h2').innerText(), I0.t('es', 'ex.roy'));
+  assert.deepEqual(await exMarks(page), marksOf(g));
+  await close(page);
+  // Solo sucesos: sin pestañas, la tabla de sucesos directamente.
+  const only = await exLab({ sd: 14844, lv: 'medium', lang: 'en', ask: ['events'] });
+  assert.equal(await only.locator('#exTabEvents').count(), 0);
+  assert.equal(await only.locator('#exView table.ex-ans tbody tr').count(), evs.length);
+  assert.deepEqual(await only.locator('#exView table.ex-ans thead th').allInnerTexts(), ['Event', 'Earliest (TE)', 'Latest (TL)', 'Slack']);
+  await close(only);
+});
+
+check('F3a AC8, AC13 · caminos críticos, lo que se pide y la notación española: columnas, casillas de críticas, caminos escritos y la misma nota', async () => {
+  const s = { sd: 92846, lv: 'hard', lang: 'es', nota: 'es', ask: ALL_ASK };
+  const m = exModel(s);
+  const full = exStudent(s);
+  const ans = Object.assign({}, full, { crit: [], paths: [] });
+  const page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s));
+  await page.locator('#exTabActs').click();
+  assert.deepEqual(await page.locator('#exView table.ex-ans thead th').allInnerTexts(), ['Act.', 'd', 'tᵢ', 'fᵢ', 'tᵢ*', 'fᵢ*', 'HT', 'HL', 'HI', 'HS', 'Crítica']);
+  assert.equal(await page.locator('#exView table.ex-ans tbody tr').count(), 14);
+  // Las críticas, con su casilla; los caminos, cada uno en su campo, con guiones, comas o espacios.
+  for (const a of full.crit) await exCell(page, `${a}.crit`).check();
+  await page.waitForFunction((n) => (PNL.app.state().ans.crit || []).length === n, full.crit.length);
+  const right = m.sol.cpm.paths.list.filter((p) => p.critical).map((p) => p.acts);
+  assert.equal(right.length, 3);
+  const written = [right[0].join('-'), right[1].join(', '), right[2].join(' '), `${right[0][0]}-${right[0][1]}`];
+  for (let i = 0; i < written.length; i++) {
+    if (i) await page.locator('#exAddPath').click(); else await page.locator('#exPath0').click();
+    assert.equal(await activeId(page), `exPath${i}`, 'el foco va al camino nuevo');
+    await page.keyboard.type(written[i]);
+  }
+  await page.waitForFunction((n) => (PNL.app.state().ans.paths || []).length === n, written.length);
+  const ans2 = Object.assign({}, ans, { crit: full.crit.slice(), paths: written });
+  const g = GR0.grade(m.sol, ans2, s.ask);
+  await page.locator('#exCheck').click();
+  assert.deepEqual(await exMarks(page), marksOf(g));
+  const pst = await page.locator('#exView .ex-pcell').evaluateAll((els) => els.map((e) => (/st-(\w+)/.exec(e.className) || [])[1]));
+  assert.deepEqual(pst, g.paths.written.map((w) => w.state));
+  assert.deepEqual(pst, ['ok', 'ok', 'ok', 'wrong']);
+  await page.locator('#exPath3').focus();
+  assert.equal(await exExplain(page), X0.pathExplain(m, ans2, 3, g, 'es'));
+  const scoreEs = await exScore(page);
+  assert.equal(scoreEs, X0.scoreText(g, 'es'));
+  // «×» quita un camino.
+  await page.getByRole('button', { name: 'Quitar el camino 4' }).click();
+  await page.waitForFunction(() => PNL.app.state().ans.paths.length === 3);
+  assert.equal(await page.locator('#exView .ex-path').count(), 3);
+  const url = page.url();
+  await close(page);
+  // La notación no cambia la corrección: el mismo enlace en notación inglesa da la misma nota.
+  const en = await open(url.slice(BASE.length + 1).replace('nota=es', 'nota=en'));
+  await en.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state().seed);
+  await en.locator('#exTabActs').click();
+  assert.deepEqual(await en.locator('#exView table.ex-ans thead th').allInnerTexts(), ['Act.', 'd', 'ES', 'EF', 'LS', 'LF', 'TF', 'FF', 'IF', 'SF', 'Crítica']);
+  await en.locator('#exCheck').click();
+  const g3 = GR0.grade(m.sol, Object.assign({}, ans2, { paths: written.slice(0, 3) }), s.ask);
+  assert.equal(await exScore(en), X0.scoreText(g3, 'es'));
+  assert.equal(g3.score.pct, 100);
+  await close(en);
+  // Lo que se pide: solo holguras (sin duración, críticas ni caminos); la nota cuenta solo esas casillas.
+  const fl = await exLab({ sd: 92846, lv: 'hard', lang: 'en', ask: ['floats'] });
+  assert.deepEqual(await fl.locator('#exView table.ex-ans thead th').allInnerTexts(), ['Act.', 'd', 'TF', 'FF', 'IF']);
+  assert.equal(await fl.locator(`#${exId('dur')}`).count(), 0);
+  assert.equal(await fl.locator('#exView .ex-paths').count(), 0);
+  assert.ok(await fl.locator('#exAsk-sf').isEnabled());
+  await fl.locator('#exCheck').click();
+  const gf = GR0.grade(m.sol, X0.empty(), ['floats']);
+  assert.equal(gf.score.total, 14 * 3);
+  assert.equal(await exScore(fl), X0.scoreText(gf, 'en'));
+  // Pedir otra cosa es otro ejercicio con la misma semilla: la tabla no cambia.
+  await fl.locator('#exAsk-sf').check();
+  await fl.waitForFunction(() => PNL.app.state().ask.join() === 'floats,sf');
+  assert.deepEqual(await fl.locator('#exView table.ex-ans thead th').allInnerTexts(), ['Act.', 'd', 'TF', 'FF', 'IF', 'SF']);
+  assert.deepEqual((await exSt(fl)).rows, m.rows);
+  assert.equal((await state(fl)).sd, 92846);
+  // La holgura de seguridad sola no se puede pedir: quitar las holguras no hace nada.
+  await fl.locator('#exAsk-floats').click();
+  assert.equal(await fl.locator('#exAsk-floats').isChecked(), true);
+  assert.equal((await state(fl)).ask.join(), 'floats,sf');
+  await close(fl);
+});
+
+check('F3a AC14 · «Personalizar»: los parámetros imposibles se dicen antes de generar; un caso sin tabla lo dice sin bloquear la página', async () => {
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'es' });
+  await page.locator('#exLv-custom').click();
+  assert.equal(await page.locator('#exLv-custom').getAttribute('aria-expanded'), 'true');
+  assert.ok(await visible(page, '#exCustom'));
+  assert.equal(await activeId(page), 'exCustN0');
+  const setNum = async (id, v) => { await page.locator(`#${id}`).fill(String(v)); await page.locator(`#${id}`).press('Tab'); };
+  const draft = Object.assign({}, GEN0.LEVELS.medium, { n: [6, 7] });
+  await setNum('exCustN0', 6); await setNum('exCustN1', 7);
+  assert.equal(await page.locator('#exCustDum').isChecked(), true);
+  await setNum('exCustF0', 3); await setNum('exCustF1', 4);
+  draft.dummies = [3, 4];
+  let chk = GEN0.check(draft);
+  assert.deepEqual(chk.issues.map((i) => i.code), ['dummiesTooMany']);
+  assert.equal(await page.locator('#exCustIssue').innerText(), X0.issueText(chk.issues[0], draft, 'es'));
+  assert.equal(await page.locator('#exCustIssue').getAttribute('role'), 'alert');
+  assert.equal(await page.locator('#exCustF0').getAttribute('aria-invalid'), 'true');
+  assert.equal(await page.locator('#exCustF0').getAttribute('aria-describedby'), 'exCustIssue');
+  assert.ok(await page.locator('#exCustGo').isDisabled());
+  // Fuera de los límites: la duración máxima.
+  await page.locator('#exCustDum').uncheck();
+  draft.dummies = null;
+  await setNum('exCustD', 1);
+  draft.dmax = 1;
+  chk = GEN0.check(draft);
+  assert.deepEqual(chk.issues.map((i) => i.key), ['dmax']);
+  assert.equal(await page.locator('#exCustIssue').innerText(), X0.issueText(chk.issues[0], draft, 'es'));
+  assert.ok(await page.locator('#exCustGo').isDisabled());
+  assert.equal((await state(page)).lv, 'medium', 'nada cambia mientras no se genera');
+  // Con valores posibles, «Generar» da una tabla con esos parámetros.
+  await setNum('exCustD', 9);
+  assert.equal(await page.locator('#exCustIssue').count(), 0);
+  await page.locator('#exCustGo').click();
+  await page.waitForFunction(() => PNL.app.state().lv === 'custom');
+  const st = await state(page);
+  assert.deepEqual(st.gp, { n: [6, 7], pred: 1.6, dummies: null, critical: [1, 2], dmax: 9 });
+  assert.deepEqual((await exSt(page)).rows, GEN0.generate(st.sd, st.gp).rows);
+  assert.equal(await page.locator('#exCustom').count(), 0);
+  await close(page);
+  // Sin tabla en 500 intentos: se dice qué falló y la página sigue respondiendo.
+  const gp = { n: [4, 4], pred: 1, dummies: [0, 0], critical: [3, 3], dmax: 2 };
+  const nf = GEN0.generate(1, gp);
+  assert.equal(nf.ok, false);
+  const bad = await exLab({ sd: 1, lv: 'custom', gp, lang: 'es' });
+  assert.equal(await bad.locator('#exView p.banner').innerText(), X0.notFoundText(nf, 'es'));
+  assert.equal(await bad.locator('#exView table.ex-ans').count(), 0);
+  await bad.locator('#exLv-medium').click();
+  await bad.waitForFunction(() => PNL.app.state().lv === 'medium');
+  assert.equal(await bad.locator('#exView table.ex-ans tbody tr').count(), GEN0.generate(1, GEN0.LEVELS.medium).rows.length);
+  await close(bad);
+});
+
+check('F3a AC10 · el enlace con la semilla y las respuestas abre lo mismo en otro navegador, sin las marcas de Practicar; el de un Examen entregado, entregado', async () => {
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'en' });
+  await exCell(page, 'A.ES').click();
+  await page.keyboard.type('0');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('7,5');
+  await exCell(page, 'A.crit').check();
+  await page.locator('#exPath0').fill('A-E-J');
+  await page.waitForFunction(() => { const a = PNL.app.state().ans; return a && a.paths && a.paths[0] === 'A-E-J' && a.act.A.EF === '7,5'; });
+  await page.locator('#exCheck').click();
+  const url = page.url().slice(BASE.length + 1);
+  assert.match(url, /[#&]sd=14844(&|$)/);
+  assert.match(url, /[#&]ans=/);
+  await close(page);
+  const other = await open(url);
+  await other.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state().seed);
+  assert.deepEqual((await exSt(other)).rows, exModel({ sd: 14844, lv: 'medium' }).rows);
+  assert.equal(await exCell(other, 'A.ES').inputValue(), '0');
+  assert.equal(await exCell(other, 'A.EF').inputValue(), '7,5');
+  assert.equal(await exCell(other, 'A.crit').isChecked(), true);
+  assert.equal(await other.locator('#exPath0').inputValue(), 'A-E-J');
+  assert.equal(await other.locator('#exView .ex-score').count(), 0, 'la corrección de Practicar vive solo en la página');
+  assert.equal(Object.values(await exMarks(other)).filter(Boolean).length, 0);
+  await close(other);
+  // Examen entregado.
+  const s = { sd: 39595, lv: 'easy', lang: 'es', xm: 'exam' };
+  const ans = exStudent(s, { 'E.ES': 9 });
+  const ex = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s));
+  await ex.locator('#exDeliver').click();
+  await ex.locator('#exConfirmYes').click();
+  await ex.waitForFunction(() => !!PNL.app.state().xd);
+  const done = ex.url().slice(BASE.length + 1);
+  await close(ex);
+  const back = await open(done, { scheme: 'dark' });
+  await back.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state().seed);
+  const g = GR0.grade(exModel(s).sol, ans, U0.DEFAULT_ASK);
+  assert.deepEqual(await exMarks(back), marksOf(g));
+  assert.equal(await back.locator('#exView table.ex-ans input[type="text"]:not([readonly])').count(), 0);
+  await close(back);
+});
+
+check('F3a AC12 · «Ver la solución paso a paso» abre la ruta (o los sucesos) con la misma tabla y «Atrás» vuelve al ejercicio; en Examen no está hasta entregar', async () => {
+  const s = { sd: 14844, lv: 'medium', lang: 'es', ask: ['times', 'events', 'critical'] };
+  const m = exModel(s);
+  const ans = exStudent(s, { 'D.ES': 8 });
+  const page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s));
+  const before = await state(page);
+  await page.locator('#exStep').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'route');
+  let st = await state(page);
+  assert.equal(st.graph, 'aon');
+  assert.deepEqual(st.t.map((r) => [r.id, String(r.duration), r.links]), m.rows.map((r) => [r.id, String(r.duration), r.links]));
+  assert.ok(await visible(page, '#stage'));
+  assert.equal(await page.locator('#exView').isVisible(), false);
+  assert.equal((await trace(page))[0].kind, 'table');
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().v === 'ex');
+  st = await state(page);
+  assert.equal(st.sd, before.sd);
+  assert.deepEqual(st.ans, before.ans);
+  assert.equal(await exCell(page, 'D.ES').inputValue(), '8');
+  // Desde la pestaña Sucesos, la construcción de la red PERT.
+  await page.locator('#exTabEvents').click();
+  await page.locator('#exStep').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'route');
+  assert.equal((await state(page)).graph, 'aoa');
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().v === 'ex');
+  await close(page);
+  const exam = await exLab(Object.assign({ ans: X0.forUrl(ans), xm: 'exam' }, s));
+  assert.equal(await exam.locator('#exStep').count(), 0);
+  assert.equal(await exam.locator('#exView a[href*="v=route"]').count(), 0, 'ningún enlace a la ruta antes de entregar');
+  await close(exam);
+});
+
+check('F3a · aviso antes de perder respuestas: otro nivel, otro ejercicio, otra semilla o lo que se pide piden confirmación en la página; sin respuestas, no', async () => {
+  const s = { sd: 14844, lv: 'medium', lang: 'es' };
+  const ans = exStudent(s, { 'D.ES': 8 });
+  const page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s));
+  const before = await state(page);
+  const lose = page.locator('#exView .ex-lose[role="alertdialog"]');
+  await page.locator('#exLv-hard').click();
+  assert.ok(await lose.isVisible());
+  assert.equal(await lose.locator('#exLoseText').innerText(), I0.t('es', 'ex.lose'));
+  assert.equal(await activeId(page), 'exLoseYes');
+  assert.equal((await state(page)).lv, 'medium');
+  await page.locator('#exLoseNo').click();
+  assert.equal(await lose.count(), 0);
+  assert.equal(await activeId(page), 'exAnother');
+  assert.deepEqual((await state(page)).ans, before.ans);
+  for (const act of [() => page.locator('#exAnother').click(), () => page.locator('#exAsk-events').click(),
+    async () => { await page.locator('#exSeed').fill('777'); await page.locator('#exSeed').press('Tab'); }]) {
+    await act();
+    assert.ok(await lose.isVisible());
+    assert.equal((await state(page)).sd, 14844);
+    await page.locator('#exLoseNo').click();
+  }
+  assert.equal(await page.locator('#exAsk-events').isChecked(), false);
+  await page.locator('#exLv-hard').click();
+  await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().lv === 'hard');
+  const st = await state(page);
+  assert.equal(st.ans, null);
+  assert.equal(st.sd, 14844, 'otro nivel conserva la semilla');
+  // Sin respuestas, el cambio es directo; «Atrás» vuelve al ejercicio con sus respuestas.
+  await page.locator('#exLv-easy').click();
+  await page.waitForFunction(() => PNL.app.state().lv === 'easy');
+  assert.equal(await lose.count(), 0);
+  await page.goBack();
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().lv === 'medium');
+  assert.deepEqual((await state(page)).ans, before.ans);
+  await close(page);
+});
+
+check('F3a AC15 · seleccionar una fila resalta la actividad en la red ROY y en la tabla dada, o el suceso en la red PERT; pulsar una actividad en la red lleva a su fila', async () => {
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'es', ask: ['times', 'events'] });
+  await exCell(page, 'D.EF').focus();
+  const selRows = (sel) => page.locator(`#exView ${sel}.sel`).evaluateAll((els) => els.map((e) => e.getAttribute('data-act') || e.getAttribute('data-ev')));
+  assert.deepEqual(await selRows('table.ex-ans tr'), ['D']);
+  assert.deepEqual(await selRows('table.ex-given tr'), ['D']);
+  // El texto de cada caja lleva su <title>: se busca por el primer nodo de texto.
+  const royNode = async (id) => page.locator('#exNet g.node').nth(await page.locator('#exNet g.node').evaluateAll((gs, x) => gs.findIndex((g) => {
+    const n = g.querySelector('text.nid'); return n && n.firstChild && n.firstChild.nodeValue === x; }), id));
+  assert.equal(await (await royNode('D')).locator('rect.sel').count(), 1);
+  assert.equal(await page.locator('#exNet rect.sel').count(), 1);
+  await (await royNode('H')).click();
+  assert.equal(await activeId(page), exId('H.ES'));
+  assert.deepEqual(await selRows('table.ex-ans tr'), ['H']);
+  assert.equal(await (await royNode('H')).locator('rect.sel').count(), 1);
+  // Un suceso.
+  await page.locator('#exTabEvents').click();
+  await exCell(page, 'e3.TL').focus();
+  assert.deepEqual(await selRows('table.ex-ans tr'), ['3']);
+  assert.deepEqual(await page.locator('#exNet g.ev.active text.nid').allTextContents(), ['3']);
+  await exCell(page, 'e5.TE').focus();
+  assert.deepEqual(await page.locator('#exNet g.ev.active text.nid').allTextContents(), ['5']);
+  // Plegar la red y volver a mostrarla.
+  await page.locator('#exFold').click();
+  assert.equal(await page.locator('#exFold').getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.locator('#exNet').isVisible(), false);
+  assert.equal(await activeId(page), 'exFold');
+  await page.locator('#exFold').click();
+  assert.equal(await page.locator('#exNet g.ev.active text.nid').count(), 1);
+  await close(page);
+});
+
+check('F3a · la tabla dada se lee con predecesoras o con posteriores', async () => {
+  const s = { sd: 92846, lv: 'hard', lang: 'en' };
+  const m = exModel(s);
+  const page = await exLab(s);
+  const links = () => page.locator('#exView table.ex-given tbody tr').evaluateAll((trs) => trs.map((tr) => [tr.children[0].textContent, tr.children[2].textContent]));
+  const want = (k) => m.project.activities.map((a) => [a.id, m.project[k][a.id].join(', ') || '—']);
+  assert.deepEqual(await links(), want('preds'));
+  assert.equal(await page.locator('#exPreds').getAttribute('aria-pressed'), 'true');
+  await page.locator('#exSuccs').click();
+  assert.equal(await page.locator('#exSuccs').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(await links(), want('succs'));
+  assert.equal(await page.locator('#exView table.ex-given thead th').nth(2).innerText(), I0.t('en', 'ex.succs'));
+  assert.equal((await state(page)).sd, 92846, 'cambiar la lectura no cambia el ejercicio');
+  await page.locator('#exPreds').click();
+  assert.deepEqual(await links(), want('preds'));
+  await close(page);
+});
+
+check('F3a plan §0 · las teclas del reproductor no actúan en «Ejercicios»; Intro baja de fila y Tab sigue el orden de lectura', async () => {
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'es' });
+  const before = JSON.stringify(await state(page));
+  await page.locator('#exView .ex-given-card h2').click();
+  for (const k of ['ArrowRight', 'ArrowRight', 'ArrowLeft', 'Home', 'End', 'Space']) await page.keyboard.press(k);
+  assert.equal(JSON.stringify(await state(page)), before);
+  assert.equal(await page.locator('#stage').isVisible(), false);
+  await exCell(page, 'A.ES').click();
+  await page.keyboard.type('0');
+  for (const k of ['ArrowRight', 'ArrowLeft', 'Home', 'End']) await page.keyboard.press(k);
+  assert.equal(await activeId(page), exId('A.ES'));
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), exId('B.ES'), 'Intro baja a la misma columna');
+  await page.keyboard.press('Tab');
+  assert.equal(await activeId(page), exId('B.EF'), 'Tab sigue la fila');
+  await exCell(page, 'J.LF').click();
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), exId('J.LF'), 'en la última fila, Intro no se mueve');
+  const st = await state(page);
+  assert.equal(st.v, 'ex');
+  assert.equal(st.step, 0);
+  assert.equal(st.ans.act.A.ES, '0');
+  await close(page);
+});
+
+// «Tabla al azar» se ve al publicar (T017); aquí se activa antes de cargar la página. La semilla se fija con
+// crypto.getRandomValues para comparar con la tabla de Node.
+const RAND_K = 123456788;
+const RAND_SEED = 1 + (RAND_K % 999999);
+const randomInit = `(() => {
+  let ed; const P = window.PNL || {};
+  Object.defineProperty(P, 'editor', { configurable: true, enumerable: true, get: () => ed, set: (v) => { ed = v; if (v) v.RANDOM_VISIBLE = true; } });
+  window.PNL = P;
+  crypto.getRandomValues = (a) => { a[0] = ${RAND_K}; return a; };
+})();`;
+
+check('F3a AC11 · «Tabla al azar» (visible en la prueba): pone la tabla del generador con el nivel elegido, avisa y «Atrás» recupera la anterior', async () => {
+  const page = await open('cpm.html#v=work&lang=es', { init: randomInit });
+  const rows = () => page.evaluate(() => PNL.app.model().rows.map((r) => [r.id, String(r.duration), r.links]));
+  const prev = await rows();
+  assert.ok(await visible(page, '#workRandom'));
+  assert.equal(await page.locator('#workRandLevel').inputValue(), 'medium');
+  await page.locator('#workRandLevel').selectOption('hard');
+  await page.locator('#workRandom').click();
+  const want = ED0.randomRows(RAND_SEED, 'hard', 'pred');
+  await page.waitForFunction((n) => PNL.app.state().t && PNL.app.state().t.length === n, want.length);
+  assert.equal((await state(page)).ex, null, 'la tabla al azar va en t, sin ejemplo');
+  assert.deepEqual(await rows(), want.map((r) => [r.id, r.duration, r.links]));
+  assert.equal(await page.locator('#workshop .work-notice').innerText(), ED0.randomNotice('es', 'hard', want.length));
+  assert.equal(await activeId(page), 'workRandom');
+  assert.equal((await state(page)).sd, null, 'la tabla del taller no lleva semilla');
+  // Se abre en M1 como cualquier tabla del taller.
+  assert.equal(await page.evaluate(() => PNL.app.model().project.activities.length), want.length);
+  // Editar quita el aviso.
+  await page.locator('#workshop tbody tr').first().locator('input').nth(1).fill('Otra');
+  await page.waitForFunction(() => !document.querySelector('#workshop .work-notice'));
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().ex === 'ej6' && !PNL.app.state().t);
+  assert.deepEqual(await rows(), prev);
+  // Con posteriores, la tabla al azar se escribe con posteriores.
+  await page.locator('#workshop input[type="radio"][value="succ"]').check();
+  await page.waitForFunction(() => PNL.app.state().mode === 'succ');
+  assert.equal(await page.locator('#workRandLevel').inputValue(), 'hard', 'el nivel elegido se conserva en la página');
+  await page.locator('#workRandLevel').selectOption('medium');
+  await page.locator('#workRandom').click();
+  const succ = ED0.randomRows(RAND_SEED, 'medium', 'succ');
+  await page.waitForFunction((n) => PNL.app.state().t && PNL.app.state().t.length === n && PNL.app.state().mode === 'succ', succ.length);
+  assert.deepEqual(await rows(), succ.map((r) => [r.id, r.duration, r.links]));
+  await close(page);
+});
+
+check('F3a AC15 · solo con el teclado: escribir, marcar una crítica, comprobar, pasar a Examen, entregar y abrir «Personalizar», con el foco a la vista', async () => {
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'es' });
+  await page.locator('#exAnother').focus();
+  await tabTo(page, exId('A.ES'));
+  assert.ok(await focusVisible(page), 'foco visible en la casilla');
+  await page.keyboard.type('0');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('0');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('8');
+  await tabTo(page, exId('B.crit'));
+  assert.ok(await focusVisible(page), 'foco visible en la casilla de crítica');
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => { const a = PNL.app.state().ans; return a && a.crit.includes('B') && a.act.B.EF === '8'; });
+  await tabTo(page, 'exPath0');
+  await page.keyboard.type('B-G');
+  await tabTo(page, 'exCheck');
+  assert.ok(await focusVisible(page), 'foco visible en «Comprobar»');
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'exCheck', 'el foco se queda en «Comprobar»');
+  assert.ok(await page.locator('#exView .ex-score').isVisible());
+  assert.equal(await page.locator('#live').innerText(), (await exScore(page)) + '. ' + (await page.locator('#exView .ex-score .muted').innerText()));
+  // A Examen (con respuestas, se confirma en la página).
+  await tabTo(page, 'exExam', 'Shift+Tab');
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'exLoseYes');
+  assert.ok(await focusVisible(page));
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.app.state().xm === 'exam');
+  await page.locator('#exExam').focus();
+  await tabTo(page, 'exDeliver');
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'exConfirmYes');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !!PNL.app.state().xd);
+  assert.equal(await activeId(page), 'exStep', 'tras entregar, el foco va a la solución paso a paso');
+  assert.ok(await focusVisible(page));
+  // «Personalizar» se abre y se recorre con el teclado.
+  await tabTo(page, 'exLv-custom', 'Shift+Tab');
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'exCustN0');
+  assert.ok(await focusVisible(page));
+  await tabTo(page, 'exCustGo');
+  await close(page);
+});
+
+check('F3a AC15 · axe sin violaciones en «Ejercicios» (Practicar, corrección, sucesos, arcos, «Personalizar», aviso, Examen, entrega, sin tabla y «Aprende más»), en claro y oscuro', async () => {
+  for (const scheme of ['light', 'dark']) {
+    const lang = scheme === 'light' ? 'es' : 'en';
+    const s = { sd: 14844, lv: 'medium', lang, ask: ALL_ASK, nota: lang };
+    const ans = exStudent(s, { 'D.ES': 8 });
+    ans.act.F.LS = ''; ans.act.G.IF = 'x';
+    let page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s), { scheme });
+    await page.locator('#exTabActs').click();
+    await axe(page, `ex practicar ${scheme}`);
+    await page.locator('#exCheck').click();
+    await exCell(page, 'I.ES').focus();
+    await axe(page, `ex corrección ${scheme}`);
+    await page.locator('#exTabEvents').click();
+    await axe(page, `ex sucesos ${scheme}`);
+    await page.locator('#exArcs').click();
+    await axe(page, `ex arcos ${scheme}`);
+    await page.locator('#exLv-custom').click();
+    await page.locator('#exCustD').fill('40'); await page.locator('#exCustD').press('Tab');
+    await axe(page, `ex personalizar ${scheme}`);
+    await page.locator('#exLv-hard').click();
+    await axe(page, `ex aviso ${scheme}`);
+    await page.locator('#exLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
+    await axe(page, `ex aprende más ${scheme}`);
+    await close(page);
+    page = await exLab(Object.assign({ ans: X0.forUrl(ans), xm: 'exam' }, s), { scheme });
+    await page.locator('#exDeliver').click();
+    await axe(page, `ex examen ${scheme}`);
+    await page.locator('#exConfirmYes').click();
+    await page.waitForFunction(() => !!PNL.app.state().xd);
+    await axe(page, `ex entregado ${scheme}`);
+    await close(page);
+    page = await exLab({ sd: 1, lv: 'custom', gp: { n: [4, 4], pred: 1, dummies: [0, 0], critical: [3, 3], dmax: 2 }, lang }, { scheme });
+    await axe(page, `ex sin tabla ${scheme}`);
+    await close(page);
+  }
+});
+
+check('F3a AC16 · a 1280×720 «Ejercicios» cabe sin desplazar la página (también el difícil de 14 actividades con todo pedido); a 360 px no hay desplazamiento horizontal', async () => {
+  const fits = async (page, label) => {
+    const b = await page.evaluate(() => ({ bottom: document.getElementById('exView').getBoundingClientRect().bottom, y: window.scrollY, w: document.documentElement.scrollWidth }));
+    assert.ok(b.y === 0 && b.bottom <= 720 && b.w <= 1280, `${label}: ${JSON.stringify(b)}`);
+  };
+  for (const lang of ['es', 'en']) {
+    for (const s of [{ sd: 14844, lv: 'medium' }, { sd: 39595, lv: 'easy', xm: 'exam' }, { sd: 92846, lv: 'hard', ask: ALL_ASK }, { sd: 14844, lv: 'medium', ask: ['times', 'events'] }]) {
+      const full = Object.assign({ lang }, s);
+      const ans = exStudent(full, { 'D.ES': s.lv === 'easy' ? 0 : 8 });
+      const page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, full));
+      const label = `${lang} ${s.lv} ${(s.ask || []).join('+')}`;
+      if (await page.locator('#exTabActs').count()) await page.locator('#exTabActs').click();
+      await fits(page, label);
+      if (s.xm === 'exam') {
+        await page.locator('#exDeliver').click();
+        await fits(page, `${label}, confirmación`);
+        await page.locator('#exConfirmYes').click();
+        await page.waitForFunction(() => !!PNL.app.state().xd);
+      } else await page.locator('#exCheck').click();
+      await exCell(page, 'D.EF').focus();
+      await fits(page, `${label}, corregido`);
+      await shot(page, `ex-${lang}-1280-${s.lv}${s.ask ? `-${s.ask.length}` : ''}`);
+      if (await page.locator('#exTabEvents').count()) {
+        await page.locator('#exTabEvents').click();
+        await fits(page, `${label}, sucesos`);
+      }
+      await close(page);
+    }
+    // 360 px: vacío, corregido, sucesos y arcos, «Personalizar», aviso y Examen entregado.
+    const s = { sd: 92846, lv: 'hard', lang, ask: ALL_ASK };
+    const ans = exStudent(s, { 'D.ES': 13 });
+    const page = await exLab(Object.assign({ ans: X0.forUrl(ans) }, s), { width: 360, height: 740 });
+    const narrow = async (label) => { const w = await page.evaluate(() => document.documentElement.scrollWidth); assert.ok(w <= 360, `${lang} 360 px, ${label}: ${w} px`); };
+    assert.equal(await page.locator('#exFold').getAttribute('aria-expanded'), 'false', 'en el móvil la red empieza plegada');
+    await narrow('al abrir');
+    await page.locator('#exTabActs').click();
+    await page.locator('#exCheck').click();
+    await exCell(page, 'D.EF').focus();
+    await narrow('corregido');
+    await shot(page, `ex-${lang}-360-hard`, true);
+    await page.locator('#exFold').click();
+    await narrow('con la red');
+    await page.locator('#exTabEvents').click();
+    await narrow('sucesos');
+    await page.locator('#exArcs').click();
+    await narrow('arcos');
+    await page.locator('#exLv-custom').click();
+    await narrow('personalizar');
+    await page.locator('#exLv-medium').click();
+    await narrow('aviso');
+    await close(page);
+    const ex = await exLab({ sd: 39595, lv: 'easy', lang, xm: 'exam', ans: X0.forUrl(exStudent({ sd: 39595, lv: 'easy' }, { 'E.ES': 9 })) }, { width: 360, height: 740 });
+    await ex.locator('#exDeliver').click();
+    await ex.locator('#exConfirmYes').click();
+    await ex.waitForFunction(() => !!PNL.app.state().xd);
+    const w = await ex.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(w <= 360, `${lang} 360 px, entregado: ${w} px`);
+    await close(ex);
+  }
+});
+
+check('F3a AC7 · «Aprende más» de «Ejercicios» abre su tema en el idioma de la página y se cierra', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await exLab({ sd: 14844, lv: 'medium', lang, xm: 'exam' });
+    await page.locator('#exLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
+    assert.equal(await page.locator('#learnTitle').innerText(), I0.t(lang, 'ex.learnTitle'));
+    const ps = await page.locator('#learnBody > p').allInnerTexts();
+    assert.deepEqual(ps, LR0.topics.ex[lang]);
+    await page.locator('#btnLearnClose').click();
+    assert.equal(await page.locator('#learnDialog[open]').count(), 0);
+    assert.equal(await activeId(page), 'exLearn', 'el foco vuelve al botón');
+    assert.equal((await state(page)).xd, 0, 'abrir la ayuda no entrega el examen');
+    await close(page);
+  }
+});
+
+check('F3a P10 · un enlace pegado carga lo que falta: M0 desde «Ejercicios» y «Ejercicios» desde la ruta, y «Atrás» vuelve', async () => {
+  const loaded = (page) => page.evaluate(() => performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => /\/js\/(m0|ex|core\/grade|core\/statement)\.js$/.test(p)).sort());
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'es' });
+  assert.equal(await page.evaluate(() => !!PNL.m0), false, 'M0 no se carga con «Ejercicios»');
+  await setHash(page, U0.encode(Object.assign(U0.defaults(), { v: 'm0', st: 'ej5', lang: 'es' })));
+  await page.waitForFunction(() => PNL.m0 && PNL.m0.state && !document.getElementById('m0View').hidden);
+  assert.equal(await page.locator('#exView').isVisible(), false);
+  assert.equal(await page.evaluate(() => PNL.app.state().st), 'ej5');
+  assert.ok((await page.locator('#m0View .st-text').innerText()).length > 50, 'se ve el enunciado');
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().v === 'ex' && !document.getElementById('exView').hidden);
+  assert.equal((await exSt(page)).seed, 14844);
+  await close(page);
+  const route = await lab('v=route&ex=ej6&step=0&lang=es');
+  assert.deepEqual(await loaded(route), [], 'la ruta no carga los scripts de M0 ni de «Ejercicios»');
+  await setHash(route, exHash({ sd: 39595, lv: 'easy', lang: 'es' }));
+  await route.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state().seed === 39595);
+  assert.deepEqual(await loaded(route), ['/js/core/grade.js', '/js/ex.js']);
+  assert.equal(await route.locator('#exView table.ex-ans tbody tr').count(), 7);
+  assert.equal(await route.locator('#stage').isVisible(), false);
+  await route.goBack();
+  await route.waitForFunction(() => PNL.app.state().v === 'route');
+  assert.ok(await visible(route, '#stage'));
+  await close(route);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
-    `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es']) {
+    `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es',
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK })]) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });

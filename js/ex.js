@@ -296,6 +296,8 @@
     // En el móvil la red empieza plegada (tableros 47 y 48).
     let folded = !!(root.matchMedia && root.matchMedia('(max-width: 720px)').matches); let succ = false; let view = 'acts'; let arcs = false;
     let customOpen = false; let draft = null;
+    // Campos de camino a la vista: el enlace no guarda los vacíos del final, así que «Añadir camino» vive en la página (T016).
+    let pathFields = 1;
     let pending = null;           // acción que borraría las respuestas, a la espera de confirmación
     let confirmOpen = false;      // Examen: confirmación de «Entregar»
     let lay = { key: null, roy: null, pert: null };
@@ -391,7 +393,8 @@
         seg([[tt('ex.practice'), s.xm !== 'exam', () => { if (s.xm === 'exam') newExercise({ xm: 'practice' }); }, 'exPractice'], [tt('ex.exam'), s.xm === 'exam', () => { if (s.xm !== 'exam') newExercise({ xm: 'exam' }); }, 'exExam']], tt('ex.mode')),
         h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), asks,
       ]);
-      return h('section', { class: 'card ex-bar', 'aria-label': tt('ex.region') }, [row1, row2, customOpen ? customPanel() : null]);
+      // Sin nombre propio: la vista entera ya es la región «Ejercicios» (axe, landmark-unique; T016).
+      return h('section', { class: 'card ex-bar' }, [row1, row2, customOpen ? customPanel() : null]);
     }
 
     function customPanel() {
@@ -496,19 +499,26 @@
     }
 
     function pathsBox(g, locked) {
-      const paths = m.ans.paths.length ? m.ans.paths : [''];
+      const n = Math.max(m.ans.paths.length, locked ? 1 : pathFields, 1);
+      const paths = Array.from({ length: n }, (_, i) => m.ans.paths[i] || '');
+      // Escribir en un campo vacío del final rellena con caminos vacíos los de antes (forUrl solo quita los del final).
+      const upTo = (a, i) => { let out = a; while (out.paths.length < i) out = addPath(out); return out; };
       const rows = paths.map((p, i) => {
         const w = g && marksOn() && m.ans.paths.length ? g.paths.written[i] : null;
         const id = `exPath${i}`;
         const input = h('input', { type: 'text', id, autocomplete: 'off', spellcheck: 'false', class: 'mono', value: p, readonly: locked ? 'readonly' : null,
           'aria-describedby': w ? `${id}-m` : null,
-          oninput: (e) => setAns(setPath(m.ans.paths.length ? m.ans : addPath(m.ans), i, e.target.value)), onfocus: () => { selKey = `path${i}`; drawExplain(); } });
+          oninput: (e) => setAns(setPath(upTo(m.ans, i), i, e.target.value)), onfocus: () => { selKey = `path${i}`; drawExplain(); } });
         return h('div', { class: 'ex-path' }, [h('label', { for: id }, [tt('ex.pathN', { n: i + 1 })]),
           h('span', { class: `ex-cell ex-pcell${w ? ` st-${w.state}` : ''}` }, [input, w ? AT.mark(w.state, `${id}-m`, tt) : null]),
-          locked ? null : h('button', { type: 'button', class: 'ghost ex-x', 'aria-label': tt('ex.removePath', { n: i + 1 }), onclick: () => { setAns(removePath(m.ans, i)); keepFocus(draw); } }, ['×'])]);
+          locked ? null : h('button', { type: 'button', class: 'ghost ex-x', 'aria-label': tt('ex.removePath', { n: i + 1 }), onclick: () => {
+            pathFields = Math.max(1, n - 1);
+            if (i < m.ans.paths.length) setAns(removePath(m.ans, i));
+            draw(); focus(`exPath${Math.min(i, pathFields - 1)}`);
+          } }, ['×'])]);
       });
       return h('fieldset', { class: 'ex-paths' }, [h('legend', {}, [tt('ex.paths')]), locked || (g && marksOn()) ? null : h('p', { class: 'muted small' }, [tt('ex.pathsHelp')])].concat(rows)
-        .concat(locked ? [] : [h('div', {}, [button(`+ ${tt('ex.addPath')}`, () => { setAns(addPath(m.ans.paths.length ? m.ans : addPath(m.ans))); draw(); focus(`exPath${(m.ans.paths.length || 1) - 1}`); }, { attrs: { id: 'exAddPath' } })])]));
+        .concat(locked ? [] : [h('div', {}, [button(`+ ${tt('ex.addPath')}`, () => { pathFields = n + 1; draw(); focus(`exPath${n}`); }, { attrs: { id: 'exAddPath' } })])]));
     }
 
     function answersCard() {
@@ -540,7 +550,8 @@
         side.push(h('div', { class: 'ex-confirm', role: 'alertdialog', 'aria-labelledby': 'exConfirmText' }, [h('p', { id: 'exConfirmText' }, [tt('ex.confirm', { n: blanks(m, m.ans, m.ask) })]),
           h('div', { class: 'ex-btns' }, [button(tt('ex.confirmYes'), deliver, { primary: true, attrs: { id: 'exConfirmYes' } }), button(tt('ex.confirmNo'), () => { confirmOpen = false; draw(); focus('exDeliver'); }, { attrs: { id: 'exConfirmNo' } })])]));
       }
-      if (!v.locked && !g) side.push(h('p', { class: 'muted small' }, [tt('ex.enterHint')]));
+      // Mientras se confirma la entrega, la pista de Intro se quita para que todo quepa a 1280×720 (T016).
+      if (!v.locked && !g && !confirmOpen) side.push(h('p', { class: 'muted small' }, [tt('ex.enterHint')]));
       const actions = [];
       if (v.check) actions.push(button(tt('ex.check'), check, { primary: true, attrs: { id: 'exCheck' } }));
       if (v.deliver) actions.push(button(tt('ex.deliver'), () => { confirmOpen = true; draw(); focus('exConfirmYes'); }, { primary: true, attrs: { id: 'exDeliver' } }));
@@ -579,7 +590,7 @@
       const k = keyOf(state());
       if (k !== exKey) {
         // Otro ejercicio: lo que solo vivía en la página se olvida.
-        exKey = k; checked = null; stale = false; selKey = null; selAct = null; confirmOpen = false; arcs = false; pending = null;
+        exKey = k; checked = null; stale = false; selKey = null; selAct = null; confirmOpen = false; arcs = false; pending = null; pathFields = 1;
         if (state().lv !== 'custom') draft = null;
       }
       if (opts && opts.fromEx) return;
