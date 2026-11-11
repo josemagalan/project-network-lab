@@ -51,7 +51,15 @@ Proyecto hermano de / Sister project of [Genetic Algorithms Lab](https://josemag
 - **Solución paso a paso:** «Ver la solución paso a paso» abre la ruta guiada (o el cálculo de los sucesos en la red PERT) con la misma tabla, y «Atrás» vuelve al ejercicio.
 - **Tabla al azar** en el taller: pone una tabla generada del nivel elegido, que se resuelve como cualquier otra (en M1–M4, la red PERT, el comparador y el reto); «Atrás» recupera la tabla anterior.
 
-La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M0 (del enunciado a la tabla, con la ruta paso a paso y el enunciado propio), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos), el taller y los ejercicios generados; los bancos de Moodle y la parte estocástica llegarán en las fases siguientes.
+### Fase 3b: bancos de preguntas para Moodle
+
+- **Exportador** (la tarjeta «Banco de Moodle» de la portada y el «Aprende más» de «Ejercicios»): [`cpm.html#v=moodle`](https://josemagalan.github.io/project-network-lab/cpm.html#v=moodle). Genera en el navegador un banco de preguntas de cálculo y lo descarga en formato Moodle XML, que se importa en cualquier Moodle sin plugins (Banco de preguntas → Importar → «Moodle XML»).
+- **Por etapas.** Cada pregunta da como datos los resultados correctos de la etapa anterior, así que un error no se arrastra de una pregunta a otra: 1, tiempos tempranos; 2, tiempos tardíos; 3, holguras (con la de seguridad, si se quiere); 4a, actividades críticas (Sí/No); 4b, caminos críticos (opción múltiple); 5, tiempos tempranos de suceso, y 6, tiempos tardíos y holguras de suceso, con la red PERT de las reglas dada por sus arcos. La corrección con error consecuente completa queda en «Ejercicios».
+- **Niveles y ejemplares.** Los niveles son los de «Ejercicios» (fácil, media y difícil). Se elige cuántos ejemplares hay por categoría (de 1 a 50), y hay una categoría por etapa y nivel, para montar un cuestionario con una pregunta aleatoria de cada una. El banco sale en el idioma de la página y con la notación elegida.
+- **Soluciones del núcleo.** Cada pregunta se construye con el mismo cálculo que el laboratorio y su retroalimentación enlaza con ese ejercicio en «Ejercicios» y con la solución paso a paso. El nombre de cada pregunta, que el alumnado no ve, lleva su semilla para reproducirla; la semilla del banco es nueva en cada descarga.
+- **Vista previa e instrucciones:** la vista enseña una pregunta como la verá el alumnado y explica cómo importar el banco y montar el cuestionario.
+
+La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M0 (del enunciado a la tabla, con la ruta paso a paso y el enunciado propio), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos), el taller, los ejercicios generados y los bancos de Moodle; la parte estocástica llegará en las fases siguientes.
 
 ### Usarlo sin conexión
 
@@ -113,7 +121,15 @@ Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx 
 - **Step-by-step solution:** “See the solution step by step” opens the guided tour (or the event times on the activity-on-arrow network) with the same table, and “Back” returns to the exercise.
 - **Random table** in the workshop: it puts in a generated table of the chosen level, which is solved like any other (in M1–M4, the activity-on-arrow network, the method comparison and the dummy challenge); “Back” brings back the previous table.
 
-The home page (`index.html`) presents the eight modules of the learning path. M0 (from statement to table, with the step-by-step tour and your own statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths), the workshop and the generated exercises are available today; the Moodle banks and the stochastic part will follow in later phases.
+### Phase 3b: question banks for Moodle
+
+- **Exporter** (the “Moodle question bank” card on the home page and “Learn more” in “Exercises”): [`cpm.html#v=moodle`](https://josemagalan.github.io/project-network-lab/cpm.html#v=moodle&lang=en). It generates a bank of calculation questions in the browser and downloads it in Moodle XML format, which any Moodle imports without plugins (Question bank → Import → “Moodle XML”).
+- **In stages.** Each question gives the correct results of the previous stage as data, so a mistake is not carried from one question to the next: 1, early times; 2, late times; 3, floats (with the safety float, if wanted); 4a, critical activities (Yes/No); 4b, critical paths (multiple choice); 5, earliest event times; and 6, latest event times and event slack, with the activity-on-arrow network from the set rules given by its arcs. Full marking with carried errors stays in “Exercises”.
+- **Levels and instances.** The levels are those of “Exercises” (easy, medium and hard). You choose how many instances there are per category (from 1 to 50), with one category per stage and level, to build a quiz with a random question from each. The bank comes out in the page language and with the chosen notation.
+- **Solutions from the core.** Each question is built with the same calculation as the lab, and its feedback links to that exercise in “Exercises” and to the step-by-step solution. Each question’s name, hidden from students, includes its seed to reproduce it; the bank seed is new with every download.
+- **Preview and instructions:** the view shows a question as students will see it and explains how to import the bank and build the quiz.
+
+The home page (`index.html`) presents the eight modules of the learning path. M0 (from statement to table, with the step-by-step tour and your own statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths), the workshop, the generated exercises and the Moodle banks are available today; the stochastic part will follow in later phases.
 
 ### Offline use
 
