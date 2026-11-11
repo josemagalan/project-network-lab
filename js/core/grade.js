@@ -154,8 +154,8 @@
       // escribe, los de la solución suman y los erróneos restan (T018, decisión del autor; AC5).
       pathTotal = paths.expect.length || good;
       // Tope (T020, decisión del autor): el apartado vale lo deducible de sus marcas; los caminos de la solución que
-      // escriba de más no suman, así que la nota nunca pasa del total.
-      pathPoints = Math.min(pathTotal, Math.max(0, good - extra));
+      // escriba de más no suman (la nota nunca pasa del total), y cada camino erróneo o no válido resta 1 (ronda 2).
+      pathPoints = Math.max(0, Math.min(pathTotal, good) - extra);
     }
 
     const list = Object.values(cells);

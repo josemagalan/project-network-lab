@@ -277,3 +277,37 @@ test('T020: la confirmación de «Entregar» cuenta solo las vacías, no las que
   ans.act.B.IF = ''; ans.act.C.FF = 'x'; ans.act.D.TF = '?';
   assert.equal(X.blanks(m, ans, U.DEFAULT_ASK), 1);
 });
+
+// ---------- Revisión de cierre (T020, ronda 2) ----------
+
+test('T020 r2: el texto de las fórmulas con varios operandos (máx de varios arcos, de varias predecesoras)', () => {
+  const m = X.model(exState(), 'es');
+  const ask = ['times', 'events', 'floats', 'sf'];
+  const ans = boardStudent(m, { 'I.IF': 9, 'I.SF': 9, 'e2.TE': 50 }, ask);
+  const g = GR.grade(m.sol, ans, ask);
+  const c = (key, lang, nota) => X.explain(m, ans, g, key, lang, nota).split(': ').slice(1).join(': ').split('. No coincide')[0].split('. It differs')[0];
+  assert.equal(c('I.IF', 'es', 'en'), 'IF de I = máx(0, duración del proyecto = 18 − máx(LF de D = 13, LF de H = 13) − 5) = 0.');
+  assert.equal(c('I.SF', 'en', 'en'), 'SF of I = LF of I = 18 − max(LF of D = 13, LF of H = 13) − 5 = 0.');
+  assert.equal(c('e6.TE', 'es', 'es'), 'temprano del suceso 6 = máx(tᵢ(5) + d(D), tᵢ(2) + d(H)) = máx(11 + 1, 50 + 2) = 52');
+  assert.equal(c('e8.TE', 'en', 'en'), 'earliest time of event 8 = max(TE(4) + d(F), TE(3) + d(G), TE(6) + d(I), TE(7) + d(J)) = max(11 + 4, 8 + 10, 52 + 5, 53 + 8) = 61');
+});
+
+test('T020 r2: «0 ficticias» con un rango de 0 a 0; los campos de camino vacíos del final no van al enlace', () => {
+  const prm = { n: [9, 10], pred: 1.6, dummies: [0, 0], critical: [1, 2], dmax: 9 };
+  assert.match(X.levelSummary(prm, 'es'), / · 0 ficticias · /);
+  let a = X.addPath(X.addPath(X.empty()));
+  a = X.setPath(a, 1, 'A'); a = X.setPath(a, 1, '');
+  assert.equal(X.forUrl(a), null, 'solo campos vacíos: no hay nada escrito');
+  a = X.setPath(X.setPath(a, 0, 'A-B'), 1, '  ');
+  assert.deepEqual(X.forUrl(a).paths, ['A-B']);
+  a = X.setPath(X.setPath(a, 0, ''), 1, 'A-B');
+  assert.deepEqual(X.forUrl(a).paths, ['', 'A-B'], 'un vacío delante de un camino se queda (su campo no se mueve)');
+});
+
+test('T020 r2: un camino que dura la duración del alumno a 2 decimales dice la actividad sin marcar', () => {
+  const m = X.model(exState({ sd: 1234, lv: 'easy' }), 'es');
+  const ask = ['times', 'critical'];
+  const ans = boardStudent(m, {}, ask, { dur: '12,004', crit: [], paths: ['A-B-C'] });
+  const g = GR.grade(m.sol, ans, ask);
+  assert.equal(X.pathExplain(m, ans, 0, g, 'es'), 'A-B-C pasa por A, que no has marcado como crítica.');
+});

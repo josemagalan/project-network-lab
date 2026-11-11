@@ -23,7 +23,7 @@ function num(v) {
 }
 
 // Separadores de un camino (plan P4: guiones, comas o espacios; también punto y coma, raya y flechas), sin expresión regular.
-const SEPS = [' ', '\t', ',', ';', '-', '–', '>', '→'];
+const SEPS = [' ', '\t', '\n', '\u00a0', ',', ';', '-', '–', '>', '→'];
 const splitPath = (w) => { let s = String(w); for (const c of SEPS) s = s.split(c).join(' '); return s.toUpperCase().split(' ').filter(Boolean); };
 
 // Orden topológico por definición (Kahn, desempate por posición en ids).

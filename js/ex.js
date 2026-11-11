@@ -128,7 +128,7 @@
     const out = copy(a);
     for (const f of Object.values(out.act)) for (const k of ACT_F) if (f[k] === undefined) f[k] = '';
     for (const f of Object.values(out.ev)) for (const k of EV_F) if (f[k] === undefined) f[k] = '';
-    out.paths = out.paths.filter((p, i, xs) => p.trim() || i < xs.length - 1);
+    while (out.paths.length && !out.paths[out.paths.length - 1].trim()) out.paths.pop();   // los vacíos del final, fuera
     // Se recorta a los límites del enlace (los mismos que el `maxlength` de los campos): nunca se anula todo (T020).
     const cut = (v) => String(v).slice(0, U.EX.value);
     for (const f of Object.values(out.act)) for (const k of ACT_F) f[k] = cut(f[k]);
@@ -285,7 +285,7 @@
     const len = acts.reduce((s, a) => s + d[a], 0);
     // Si dura lo que dice el alumno, falla porque pasa por una actividad que no marcó como crítica (T020).
     const unmarked = acts.find((a) => !(ans.crit || []).includes(a));
-    if (Math.abs(len - usedVal(m, ans, 'dur')) < 1e-9 && unmarked) return t(lang, 'ex.explain.pathNotMarked', { p: ps, a: unmarked });
+    if (Math.round(len * 100) === Math.round(usedVal(m, ans, 'dur') * 100) && unmarked) return t(lang, 'ex.explain.pathNotMarked', { p: ps, a: unmarked });
     return t(lang, 'ex.explain.pathLength', { p: ps, sum: acts.map((a) => fmt(lang, d[a])).join(' + '), len: fmt(lang, len), dur: fmt(lang, usedVal(m, ans, 'dur')) });
   }
 

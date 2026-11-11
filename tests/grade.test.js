@@ -338,3 +338,51 @@ test('T020: tolerancia de 2 decimales, separadores de los caminos y nada pedido'
   assert.deepEqual(K.grade(sol, a, []).score, { got: 0, total: 0, pct: 0 });
   assert.deepEqual(K.grade(sol, a, ['sf']).score, { got: 0, total: 0, pct: 0 });
 });
+
+// ---------- Revisión de cierre (T020, ronda 2) ----------
+
+test('T020 r2: igual que el oráculo con números y caminos escritos de muchas formas (el oráculo es independiente)', () => {
+  const r = R.mulberry32(777);
+  const NUMS = ['+3', '3.', '.5', '1e3', '3,5', '-0', '0x1', '３', ' 2 ', '2,', ',5', '--1', '1.2.3', '1,2,3', 'Infinity', 'NaN', '-', '.', '7,25', '-.5'];
+  const SEPS = ['\t', '\n', ' ', ' ', ',', ';', '-', '–', '>', '→', ' - ', ', ', '.', '/', '|', '_'];
+  for (let i = 0; i < 150; i++) {
+    const lv = ['easy', 'medium', 'hard'][i % 3];
+    const p = fromGen(1 + (i % 50), lv);
+    const sol = K.solve(p);
+    const t = O.fromProject(p);
+    const ans = O.answersFrom(t, sol.net, {}, ALL);
+    for (let k = R.int(r, 1, 4); k > 0; k--) { const a = t.ids[R.int(r, 0, t.ids.length - 1)]; ans.act[a][O.FIELDS[R.int(r, 0, 7)]] = NUMS[R.int(r, 0, NUMS.length - 1)]; }
+    if (r() < 0.3) ans.dur = NUMS[R.int(r, 0, NUMS.length - 1)];
+    const cp = sol.cpm.criticalPaths.map((x) => x.acts);
+    ans.paths = cp.map((acts) => acts.join(SEPS[R.int(r, 0, SEPS.length - 1)]));
+    const g = K.grade(sol, ans, ALL);
+    const o = O.classify(t, sol.net, ans, ALL);
+    for (const k of Object.keys(o.cells)) assert.equal(g.cells[k].state, o.cells[k], `caso ${i}, ${k}`);
+    assert.deepEqual(g.paths.written.map((w) => w.state), o.paths, `caso ${i}: caminos ${JSON.stringify(ans.paths)}`);
+  }
+});
+
+test('T020 r2: con el tope, un camino erróneo sigue restando aunque haya caminos de la solución de más', () => {
+  const ask = ['times', 'floats', 'critical'];
+  const p = fromGen(6, 'hard');
+  const sol = K.solve(p);
+  const ans = solutionAnswers(sol);
+  ans.act.H.TF = '3'; ans.crit = ans.crit.filter((x) => x !== 'H');
+  const cells = Object.keys(K.grade(sol, ans, ask).cells).length;
+  const right = ans.paths.slice();
+  for (const [extra, lost] of [[[], 1], [['A-B'], 2], [['A-B', 'A-Z'], 2]]) {     // H.TF y, como mucho, el punto del camino (sin bajar de 0)
+    ans.paths = right.concat(extra);
+    const g = K.grade(sol, ans, ask);
+    assert.deepEqual([g.score.got, g.score.total], [cells + 1 - lost, cells + 1], JSON.stringify(extra));
+  }
+});
+
+test('T020 r2: la vía de la holgura total se decide a 2 decimales, también con decimales', () => {
+  const sol = K.solve(fromEx('ej6'));
+  const a = solutionAnswers(sol);
+  const T = sol.cpm.times.A;
+  a.act.A.ES = '0.7'; a.act.A.EF = String(T.EF + 0.7); a.act.A.TF = String(Math.round((T.LS - 0.7) * 100) / 100);
+  const g = K.grade(sol, a, ['times', 'floats']);
+  assert.equal(g.cells['A.TF'].state, 'carried');
+  assert.deepEqual(g.cells['A.TF'].uses, ['A.LS', 'A.ES']);
+});
