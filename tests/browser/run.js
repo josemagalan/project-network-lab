@@ -3855,6 +3855,20 @@ check('F3b AC12 · axe sin violaciones en claro y oscuro, ES y EN; sin desplazam
   }
 });
 
+check('F3b · «Cómo usarlo en Moodle» y la nota de la semilla, plegados bajo el formulario (ES y EN)', async () => {
+  for (const [lang, title, first] of [['es', 'Cómo usarlo en Moodle', 'En el curso: Banco de preguntas'], ['en', 'How to use it in Moodle', 'In the course: Question bank']]) {
+    const page = await mqOpen(lang);
+    assert.equal(await page.locator('.mq-how summary').textContent(), title);
+    assert.equal(await page.locator('.mq-how ol li').first().isVisible(), false);
+    await page.locator('.mq-how summary').click();
+    assert.equal(await page.locator('.mq-how ol li').count(), 4);
+    assert.ok((await page.locator('.mq-how ol li').first().textContent()).startsWith(first));
+    assert.ok(/semilla|seed/.test(await page.locator('.mq-how p').textContent()));
+    await axe(page, `F3b · «Cómo usarlo en Moodle» abierto (${lang})`);
+    await close(page);
+  }
+});
+
 check('F3b AC8 · cambiar la notación rehace la vista previa y conserva la selección', async () => {
   const page = await mqOpen('es');
   await mqSelect(page, ['3 ·'], ['Difícil'], 7);

@@ -643,6 +643,9 @@ select.mq-hole { width: auto; }
 .mq-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .mq-feedback { border-top: 1px solid var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 .mq-feedback summary { font-weight: 600; cursor: pointer; }
+.mq-how { font-size: 14px; }
+.mq-how summary { font-weight: 700; cursor: pointer; }
+.mq-how ol { margin: 6px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
 @media (max-width: 900px) {
   .mq-layout { grid-template-columns: minmax(0, 1fr); }
   .mq-preview { max-height: none; }

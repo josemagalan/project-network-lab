@@ -185,6 +185,11 @@
           h('div', { class: 'mq-box' }, [actions()]),
           stages,
           h('div', { class: 'mq-two' }, [levels, size]),
+          h('details', { class: 'mq-how' }, [
+            h('summary', {}, [t('howTitle')]),
+            h('ol', {}, ['how1', 'how2', 'how3', 'how4'].map((k) => h('li', {}, [t(k)]))),
+            h('p', { class: 'mq-hint' }, [t('seedNote')]),
+          ]),
         ]),
         h('div', { class: 'mq-side' }, [h('h2', {}, [t('previewTitle')]), h('p', { class: 'mq-hint' }, [t('previewHint')]), preview]),
       ]));
