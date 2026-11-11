@@ -9,6 +9,9 @@ const P = require('../js/core/project.js');
 const C = require('../js/core/cpm.js');
 const M = require('../js/core/mindummy.js');
 const G = require('../js/core/generator.js');
+// Las medidas de tiempo solo se comprueban sin cobertura: `npm run coverage` instrumenta el código y corre los archivos en
+// paralelo, y con 2 CPU el peor caso pasaba de vez en cuando del límite (CI 56 y 59). `npm test` las sigue comprobando.
+const TIMED = !process.env.NODE_V8_COVERAGE;
 
 const parse = (rows) => P.parse(rows, 'pred');
 const links = (r) => String(r.links).split(/[\s,;]+/).filter(Boolean).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
@@ -94,7 +97,7 @@ test('AC2 y AC3: 1000 semillas por nivel cumplen el nivel; el peor caso del dif�
         assert.equal(md.value, g.info.dummies, msg);
       }
     }
-    if (lv === 'hard') assert.ok(worst < 1000, `peor caso del difícil: ${worst.toFixed(0)} ms`);
+    if (lv === 'hard' && TIMED) assert.ok(worst < 1000, `peor caso del difícil: ${worst.toFixed(0)} ms`);
   }
 });
 
@@ -143,5 +146,5 @@ test('AC14: con check imposible no se genera; sin tabla en 500 intentos, notFoun
   assert.equal(nf.reason, 'notFound');
   assert.equal(nf.worst, 'critical');
   assert.equal(nf.tries, 500);
-  assert.ok(Date.now() - t0 < 2000);
+  if (TIMED) assert.ok(Date.now() - t0 < 2000);
 });

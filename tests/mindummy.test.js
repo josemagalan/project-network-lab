@@ -7,6 +7,9 @@ const E = require('../js/core/examples.js');
 const A = require('../js/core/aoa.js');
 const M = require('../js/core/mindummy.js');
 const O = require('./oracle-mindummy.js');
+// Las medidas de tiempo solo se comprueban sin cobertura: `npm run coverage` instrumenta el código y corre los archivos en
+// paralelo, y con 2 CPU el peor caso pasaba de vez en cuando del límite (CI 56 y 59). `npm test` las sigue comprobando.
+const TIMED = !process.env.NODE_V8_COVERAGE;
 
 const load = (rows, mode = 'succ', opts) => {
   const { project, report } = P.parse(rows, mode, opts);
@@ -56,7 +59,7 @@ test('AC4: los seis ejercicios del autor, exactos y en menos de 2 s cada uno', (
   for (const [id, v] of Object.entries(want)) {
     const t0 = Date.now();
     const r = M.solve(loadEx(id));
-    assert.ok(Date.now() - t0 < 2000, `${id}: ${Date.now() - t0} ms`);
+    if (TIMED) assert.ok(Date.now() - t0 < 2000, `${id}: ${Date.now() - t0} ms`);
     assert.deepEqual([r.value, r.exact], [v, true], id);
   }
 });
