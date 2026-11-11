@@ -17,6 +17,7 @@
   const G = isNode ? require('./generator.js') : root.PNL.generator;
   const GR = isNode ? require('./grade.js') : root.PNL.grade;
   const U = isNode ? require('./urlstate.js') : root.PNL.urlstate;
+  const R = isNode ? require('./rng.js') : root.PNL.rng;
 
   const STAGES = ['early', 'late', 'floats', 'critAct', 'critPath', 'evEarly', 'evLate'];
   const LEVELS = ['easy', 'medium', 'hard'];
@@ -28,6 +29,10 @@
   const FRACTIONS = { 1: '100', 2: '50', 3: '33.33333', 4: '25' };
   const ASK = { early: ['times'], late: ['times'], floats: ['floats'], critAct: ['critical'], critPath: ['critical'], evEarly: ['events'], evLate: ['events'] };
   const PATH_SEP = ' – ';
+  const MAX_COUNT = 50;
+  const DEFAULT_COUNT = 10;
+  const TRIES_PER = 20;       // intentos por ejemplar pedido en cada categoría (plan P3)
+  const SEED_MAX = 999999;    // las semillas que admite sd
 
   function fraction(k) {
     if (!FRACTIONS[k]) throw new RangeError(`fraction: k = ${k} fuera de 1–4`);
@@ -157,7 +162,124 @@
     return q;
   }
 
-  const api = { STAGES, LEVELS, APP, FRACTIONS, MIN_DISTRACTORS, MAX_DISTRACTORS, fraction, exercise, fromRows, links, question };
+  // ---------- Ejecutor por pasos (plan P2 y P3) ----------
+
+  /**
+   * opts: { lang, nota, sf, labels, stages[], levels[], count, seed (semilla del banco, entero de 32 bits),
+   *         triesPer?, seedMax? (solo pruebas) }.
+   * Recorre las categorías en orden fijo (nivel y después etapa, en el orden de LEVELS y STAGES). Cada nivel tiene
+   * su secuencia de semillas, mulberry32(seed + índice del nivel en LEVELS), así que no depende de qué otros niveles
+   * se marcan; una semilla ya usada en el nivel se salta. step(n) hace como mucho n intentos: el resultado no
+   * depende del reparto de los pasos.
+   */
+  function runner(opts, tr) {
+    const ctx = { lang: opts.lang, nota: opts.nota, sf: !!opts.sf, labels: opts.labels };
+    const asked = Number(opts.count);
+    const count = Number.isFinite(asked) && opts.count !== null ? Math.max(1, Math.min(MAX_COUNT, Math.round(asked))) : DEFAULT_COUNT;
+    const triesPer = opts.triesPer || TRIES_PER;
+    const seedMax = opts.seedMax || SEED_MAX;
+    const levels = LEVELS.filter((lv) => (opts.levels || []).includes(lv));
+    const stages = STAGES.filter((st) => (opts.stages || []).includes(st));
+    const cats = levels.flatMap((level) => stages.map((stage) => ({ level, stage })));
+    const total = cats.length * count;
+    const rngs = {}; const used = {};
+    for (const lv of levels) { rngs[lv] = R.mulberry32((opts.seed + LEVELS.indexOf(lv)) >>> 0); used[lv] = new Set(); }
+    const questions = []; const missing = [];
+    let c = 0; let made = 0; let tries = 0;
+    const closeCat = () => {
+      if (made < count) missing.push({ stage: cats[c].stage, level: cats[c].level, made, wanted: count });
+      c++; made = 0; tries = 0;
+    };
+    function step(n) {
+      for (let k = 0; k < n && c < cats.length; k++) {
+        const { level, stage } = cats[c];
+        tries++;
+        const sd = R.int(rngs[level], 1, seedMax);
+        if (!used[level].has(sd)) {
+          used[level].add(sd);
+          const q = question(stage, exercise(level, sd), ctx, tr);
+          if (q) { questions.push(q); made++; }
+        }
+        if (made >= count || tries >= triesPer * count) closeCat();
+      }
+      return { done: c >= cats.length, made: questions.length, total };
+    }
+    return { step, result: () => ({ seed: opts.seed, lang: opts.lang, nota: opts.nota, questions: questions.slice(), missing: missing.slice() }) };
+  }
+
+  function generate(opts, tr) {
+    const r = runner(opts, tr);
+    while (!r.step(1000).done);
+    return r.result();
+  }
+
+  // ---------- Moodle XML (plan P4) ----------
+
+  const escText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escAttr = (s) => escText(s).replace(/"/g, '&quot;');
+  const cdata = (s) => `<![CDATA[${String(s).replace(/\]\]>/g, ']]]]><![CDATA[>')}]]>`;
+  // Caracteres reservados del cloze dentro de una respuesta: } # ~ / " y la barra invertida.
+  const escCloze = (s) => String(s).replace(/[\\}#~/"]/g, (m) => `\\${m}`);
+
+  function cellHtml(c, tr) {
+    if (c && typeof c === 'object' && 'num' in c) return `{1:NUMERICAL:=${c.num}:0}`;
+    if (c && typeof c === 'object' && 'yesNo' in c) {
+      const yes = escText(escCloze(tr('yes'))); const no = escText(escCloze(tr('no')));
+      return `{1:MULTICHOICE:${c.yesNo ? '=' : ''}${yes}~${c.yesNo ? '' : '='}${no}}`;
+    }
+    return escText(c);
+  }
+
+  function blocksHtml(blocks, tr) {
+    return blocks.map((b) => {
+      if (b.table) {
+        const head = b.table.head.map((h) => `<th scope="col">${escText(h)}</th>`).join('');
+        const rows = b.table.rows.map((r) => `<tr>${r.map((c, i) => (i === 0 ? `<th scope="row">${cellHtml(c, tr)}</th>` : `<td>${cellHtml(c, tr)}</td>`)).join('')}</tr>`).join('');
+        return `<table class="table table-sm table-bordered" style="width:auto"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+      }
+      if (b.links) {
+        const a = (href, key) => `<a href="${escAttr(href)}" target="_blank" rel="noopener">${escText(tr(key))}</a>`;
+        return `<p>${[b.links.ex ? a(b.links.ex, 'link.ex') : null, a(b.links.step, 'link.step')].filter(Boolean).join(' · ')}</p>`;
+      }
+      if (b.strong) return `<p><strong>${escText(b.strong)}</strong></p>`;
+      return `<p>${escText(b.p)}${b.hole ? ` ${cellHtml(b.hole, tr)}` : ''}</p>`;
+    }).join('');
+  }
+
+  // En el nombre de una categoría, «/» separa niveles: una barra del texto se escribe doble.
+  const catPath = (parts) => parts.map((x) => String(x).replace(/\//g, '//')).join('/');
+
+  function toXml(bank, tr) {
+    const out = [];
+    let last = null;
+    for (const q of bank.questions) {
+      const cat = catPath(q.category);
+      if (cat !== last) {
+        out.push(`  <question type="category">\n    <category><text>$course$/top/${escText(cat)}</text></category>\n  </question>`);
+        last = cat;
+      }
+      let body = '';
+      if (q.qtype === 'multichoice') {
+        body = '    <single>false</single>\n    <shuffleanswers>1</shuffleanswers>\n    <answernumbering>abc</answernumbering>\n'
+          + '    <showstandardinstruction>0</showstandardinstruction>\n'
+          + '    <correctfeedback format="html"><text></text></correctfeedback>\n'
+          + '    <partiallycorrectfeedback format="html"><text></text></partiallycorrectfeedback>\n'
+          + '    <incorrectfeedback format="html"><text></text></incorrectfeedback>\n'
+          + q.options.map((o) => `    <answer fraction="${o.fraction}" format="html">\n      <text>${cdata(escText(o.path))}</text>\n`
+            + `      <feedback format="html"><text>${cdata(escText(o.feedback))}</text></feedback>\n    </answer>`).join('\n') + '\n';
+      }
+      out.push(`  <question type="${q.qtype}">\n    <name><text>${escText(q.name)}</text></name>\n`
+        + `    <questiontext format="html"><text>${cdata(blocksHtml(q.text, tr))}</text></questiontext>\n`
+        + `    <generalfeedback format="html"><text>${cdata(blocksHtml(q.general, tr))}</text></generalfeedback>\n`
+        + '    <defaultgrade>1</defaultgrade>\n    <penalty>0</penalty>\n    <hidden>0</hidden>\n    <idnumber></idnumber>\n'
+        + body
+        + `    <tags>${q.tags.map((t) => `<tag><text>${escText(t)}</text></tag>`).join('')}</tags>\n  </question>`);
+    }
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<!-- Project Network Lab · s=${bank.seed} · ${APP} -->\n<quiz>\n${out.join('\n')}\n</quiz>\n`;
+  }
+
+  const api = { STAGES, LEVELS, APP, FRACTIONS, MIN_DISTRACTORS, MAX_DISTRACTORS, MAX_COUNT, DEFAULT_COUNT, TRIES_PER,
+    fraction, exercise, fromRows, links, question, runner, generate, toXml, cdata };
   root.PNL = root.PNL || {};
   root.PNL.moodle = api;
   if (isNode) module.exports = api;

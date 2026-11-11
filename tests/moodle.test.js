@@ -244,3 +244,131 @@ test('el núcleo de Moodle no usa Math.random ni el DOM', () => {
   assert.ok(!/Math\.random/.test(src));
   assert.ok(!/document\.|innerHTML/.test(src));
 });
+
+// ---------- T004: ejecutor por pasos y XML (AC1, AC6, AC8, AC10) ----------
+const { spawnSync } = require('node:child_process');
+const X = require('./xml-check.js');
+const OPTS = (extra) => Object.assign({ lang: 'es', nota: 'en', sf: false, labels: LABELS, stages: M.STAGES.slice(), levels: M.LEVELS.slice(), count: 2, seed: 20261111 }, extra || {});
+const CLOZE = /\{1:([A-Z]+):([^}]*)\}/g;
+
+test('comprobador de XML: acepta lo bien formado y rechaza lo que no lo está', () => {
+  assert.ok(X.check('<?xml version="1.0"?>\n<!-- c --><a x="1"><b>t &amp; u</b><c/><![CDATA[<x> & ]]></a>').ok);
+  for (const bad of ['<a><b></a></b>', '<a>&</a>', '<a x="1" x="2"/>', '<a><![CDATA[x</a>', '<a/><b/>', '<a>', '<a x=1/>', '<!-- a -- b --><a/>']) {
+    assert.equal(X.check(bad).ok, false, bad);
+  }
+});
+
+test('AC1: misma semilla y selección → el mismo banco, con cualquier reparto de pasos', () => {
+  const a = M.toXml(M.generate(OPTS(), tr), tr);
+  const r = M.runner(OPTS(), tr);
+  let s; let steps = 0;
+  do { s = r.step(1); steps++; } while (!s.done);
+  assert.ok(steps > 20);
+  assert.equal(M.toXml(r.result(), tr), a);
+  const r2 = M.runner(OPTS(), tr);
+  while (!r2.step(7).done);
+  assert.equal(M.toXml(r2.result(), tr), a);
+  assert.notEqual(M.toXml(M.generate(OPTS({ seed: 20261112 }), tr), tr), a);
+});
+
+test('AC1: el mismo banco en otro proceso de Node', () => {
+  const code = `const M=require('./js/core/moodle.js');const tr=(k,p)=>(p?k+JSON.stringify(p):k);
+    const o=${JSON.stringify(OPTS())};process.stdout.write(M.toXml(M.generate(o,tr),tr));`;
+  const out = spawnSync(process.execPath, ['-e', code], { cwd: require('node:path').join(__dirname, '..'), encoding: 'utf8' });
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout, M.toXml(M.generate(OPTS(), tr), tr));
+});
+
+test('AC1 y P3: el progreso y el número de ejemplares (1–50, 10 por defecto)', () => {
+  const r = M.runner(OPTS({ stages: ['early', 'late'], levels: ['easy'], count: 3 }), tr);
+  const first = r.step(1);
+  assert.deepEqual([first.total, first.done], [6, false]);
+  assert.ok(first.made <= 1);
+  while (!r.step(5).done);
+  assert.equal(r.result().questions.length, 6);
+  assert.equal(M.runner(OPTS({ count: 0, stages: ['early'], levels: ['easy'] }), tr).step(1).total, 1);
+  assert.equal(M.runner(OPTS({ count: 999, stages: ['early'], levels: ['easy'] }), tr).step(1).total, M.MAX_COUNT);
+  assert.equal(M.runner(OPTS({ count: undefined, stages: ['early'], levels: ['easy'] }), tr).step(1).total, M.DEFAULT_COUNT);
+  assert.equal(M.DEFAULT_COUNT, 10); assert.equal(M.MAX_COUNT, 50);
+});
+
+test('P3 y AC10: semillas sin repetir dentro de un nivel; lo que falta se dice', () => {
+  // Con solo 60 semillas posibles y 100 preguntas pedidas, faltan: ninguna semilla se repite en el nivel.
+  const bank = M.generate(OPTS({ stages: ['early', 'late'], levels: ['medium'], count: 50, seedMax: 60 }), tr);
+  const seeds = bank.questions.map((q) => q.seed);
+  assert.equal(new Set(seeds).size, seeds.length);
+  assert.ok(seeds.every((s) => s >= 1 && s <= 60));
+  const made = bank.missing.reduce((n, m) => n + m.made, 0) + (2 - bank.missing.length) * 50;
+  assert.equal(made, bank.questions.length);
+  assert.ok(bank.missing.length >= 1);
+  for (const m of bank.missing) assert.deepEqual(Object.keys(m).sort(), ['level', 'made', 'stage', 'wanted']);
+  // Pocos intentos: la 4b del fácil se queda corta y el banco sale con lo que hay.
+  const short = M.generate(OPTS({ stages: ['critPath'], levels: ['easy'], count: 50, triesPer: 1 }), tr);
+  assert.equal(short.missing.length, 1);
+  assert.equal(short.missing[0].made, short.questions.length);
+  assert.ok(short.questions.length < 50);
+  // Las semillas de un nivel no dependen de qué otros niveles se marcan.
+  const one = M.generate(OPTS({ levels: ['hard'], stages: ['early'] }), tr).questions.map((q) => q.seed);
+  const all = M.generate(OPTS({ stages: ['early'] }), tr).questions.filter((q) => q.level === 'hard').map((q) => q.seed);
+  assert.deepEqual(one, all);
+});
+
+test('AC6: XML bien formado, una categoría por pregunta de etapa y nivel, valor 1, nombre y semilla', () => {
+  const bank = M.generate(OPTS({ sf: true }), tr);
+  assert.equal(bank.questions.length, 7 * 3 * 2);
+  const xml = M.toXml(bank, tr);
+  assert.deepEqual(X.check(xml), { ok: true });
+  const py = spawnSync('python3', ['-c', 'import sys,xml.dom.minidom; xml.dom.minidom.parseString(sys.stdin.buffer.read())'], { input: xml });
+  if (!py.error) assert.equal(py.status, 0, String(py.stderr));
+  assert.ok(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<!-- '));
+  assert.ok(xml.split('\n')[1].includes(`s=${bank.seed}`) && xml.split('\n')[1].includes(M.APP));
+  const cats = [...xml.matchAll(/<category><text>([^<]*)<\/text><\/category>/g)].map((m) => m[1]);
+  const want = M.LEVELS.flatMap((lv) => M.STAGES.map((st) => `$course$/top/root/stage.${st}/level.${lv}`));
+  assert.deepEqual(cats, want);
+  assert.equal((xml.match(/<question type="(cloze|multichoice)">/g) || []).length, bank.questions.length);
+  assert.equal((xml.match(/<defaultgrade>1<\/defaultgrade>/g) || []).length, bank.questions.length);
+  assert.equal((xml.match(/<penalty>0<\/penalty>/g) || []).length, bank.questions.length);
+  for (const q of bank.questions) {
+    assert.ok(xml.includes(`<name><text>${q.name}</text></name>`));
+    assert.match(q.name, new RegExp(`s=${q.seed} · gv=${G.VERSION}$`));
+  }
+  assert.equal((xml.match(/<question type="multichoice">/g) || []).length, 3 * 2);
+  assert.ok(/<single>false<\/single>/.test(xml) && /<shuffleanswers>1<\/shuffleanswers>/.test(xml));
+  for (const f of xml.matchAll(/<answer fraction="([^"]*)"/g)) assert.ok(FRACTIONS.includes(f[1]), f[1]);
+  assert.ok(/<tag><text>pnl-early<\/text><\/tag>/.test(xml));
+});
+
+test('AC6: los huecos del XML son los del modelo, sin caracteres reservados del cloze', () => {
+  const bank = M.generate(OPTS(), tr);
+  const xml = M.toXml(bank, tr);
+  const body = (q) => xml.slice(xml.indexOf(`<name><text>${q.name}</text></name>`)).split('</question>')[0];
+  for (const q of bank.questions) {
+    const text = body(q).split('<generalfeedback')[0];
+    const got = [...text.matchAll(CLOZE)];
+    const want = Object.values(q.answers);
+    assert.equal(got.length, want.length, q.name);
+    got.forEach((m, i) => {
+      if (m[1] === 'NUMERICAL') assert.equal(m[2], `=${want[i]}:0`);
+      else {
+        assert.equal(m[1], 'MULTICHOICE');
+        assert.equal(m[2], want[i] === 'yes' ? '=yes~no' : 'yes~=no');
+      }
+    });
+    assert.ok(!/\{1:[A-Z]+:[^}]*\}/.test(body(q).split('<generalfeedback')[1]), 'la retroalimentación no lleva huecos');
+  }
+  // Un texto con caracteres reservados del cloze o del XML queda escapado.
+  const nasty = (k, p) => (k === 'yes' ? 'S}í#~/"\\' : k === 'stem.early' ? 'a ]]> b <c> & d' : tr(k, p));
+  const one = M.toXml(M.generate(OPTS({ stages: ['early', 'critAct'], levels: ['easy'], count: 1 }), nasty), nasty);
+  assert.deepEqual(X.check(one), { ok: true });
+  assert.ok(one.includes('S\\}í\\#\\~\\/\\"\\\\'), 'el cloze escapa } # ~ / " \\');
+  assert.ok(one.includes('a ]]&gt; b &lt;c&gt; &amp; d'));
+  assert.equal(M.cdata('x ]]> y'), '<![CDATA[x ]]]]><![CDATA[> y]]>');
+});
+
+test('AC6: tablas ligeras con th y scope (P4)', () => {
+  const xml = M.toXml(M.generate(OPTS({ stages: ['late'], levels: ['easy'], count: 1 }), tr), tr);
+  assert.ok(xml.includes('<table class="table table-sm table-bordered" style="width:auto">'));
+  assert.ok(xml.includes('<th scope="col">') && xml.includes('<th scope="row">'));
+  assert.ok(!/<td style=/.test(xml));
+  assert.ok(/<a href="[^"]*" target="_blank" rel="noopener">link.step<\/a>/.test(xml));
+});
