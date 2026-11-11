@@ -1103,3 +1103,21 @@ test('T027 · AC10: en la ruta de M0 con predicción, las frases (de dependencia
     }
   }
 });
+
+test('F3a T014 · AC7: «Aprende más» de los ejercicios: error consecuente, cómo se corrige cada casilla, por qué el Examen no oculta la solución y qué es cada parámetro', () => {
+  const want = {
+    es: [/error consecuente/, /tus datos|datos del alumno/, /vacía/, /holgura total/, /camino crítico/, /suceso/, /autoevaluación/, /semilla/, /no oculta|no esconde/,
+      /Moodle/, /actividades/, /predecesoras/, /ficticias/, /caminos críticos/, /duraciones/, /Personalizar/],
+    en: [/carried error/, /your (own )?data/, /empty/, /total float/, /critical path/, /event/, /self-assessment/, /seed/, /does not hide/,
+      /Moodle/, /activities/, /predecessors/, /dummies/, /critical paths/, /durations/, /Customise/],
+  };
+  for (const lang of ['es', 'en']) {
+    const ps = LR0.topics.ex[lang];
+    assert.ok(Array.isArray(ps) && ps.length >= 5, `${lang}: al menos cinco párrafos`);
+    const text = ps.join(' ');
+    for (const re of want[lang]) assert.match(text, re, `${lang}: ${re}`);
+    assert.doesNotMatch(text, /\{|\}|undefined/);
+  }
+  assert.equal(LR0.topics.ex.es.length, LR0.topics.ex.en.length);
+  for (const lang of ['es', 'en']) assert.ok(require('../js/i18n.js').t(lang, 'ex.learnTitle').length > 10);
+});

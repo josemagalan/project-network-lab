@@ -830,10 +830,13 @@
   }
 
   // «Aprende más» de M0 (F2c, T018): precedencias inmediatas, transitivas y redundantes, depurar y leer el texto.
-  function openM0Learn() {
+  function openM0Learn() { openTopicLearn('m0Narr.learnTitle', 'm0'); }
+  // «Aprende más» de «Ejercicios» (F3a, T015): el mismo diálogo, con su tema.
+  function openExLearn() { openTopicLearn('ex.learnTitle', 'ex'); }
+  function openTopicLearn(titleKey, topic) {
     const body = clear($('learnBody'));
-    $('learnTitle').textContent = t('m0Narr.learnTitle');
-    LR.topics.m0[lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
+    $('learnTitle').textContent = t(titleKey);
+    LR.topics[topic][lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
     body.appendChild(h('h3', {}, [t('learn.refs')]));
     body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
     const dlg = $('learnDialog');
@@ -978,6 +981,7 @@
         // «Ver la solución paso a paso» (AC12): la ruta (o los sucesos) con la misma tabla, con entrada en el historial.
         open: (s) => { stopPlay(); dispatch({ type: 'open', v: s.v, graph: s.graph, rows: s.rows, mode: s.mode }, { push: true }); window.scrollTo(0, 0); },
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
+        learn: openExLearn,
       });
       G.ex.state = () => exc.debug();
     }

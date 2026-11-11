@@ -992,6 +992,7 @@
     advice: { critical: 'Prueba a pedir menos caminos críticos o menos predecesoras por actividad.', dummies: 'Prueba a ampliar el rango de ficticias.', exact: 'Prueba con menos actividades.' },
     lose: 'Tienes respuestas escritas: el ejercicio nuevo las borra.', loseYes: 'Sí, ejercicio nuevo', loseNo: 'Cancelar',
     oldVersion: 'Este enlace se hizo con otra versión del generador: se ha abierto el ejercicio de la versión actual.',
+    learnTitle: 'Ejercicios: el error consecuente y cómo se corrige',
   };
   dict.en.ex = {
     region: 'Exercises', level: 'Level', seed: 'Seed', another: 'New exercise', mode: 'Mode', practice: 'Practice', exam: 'Exam',
@@ -1046,6 +1047,7 @@
     advice: { critical: 'Try asking for fewer critical paths or fewer predecessors per activity.', dummies: 'Try widening the range of dummies.', exact: 'Try with fewer activities.' },
     lose: 'You have answers written: the new exercise clears them.', loseYes: 'Yes, new exercise', loseNo: 'Cancel',
     oldVersion: 'This link was made with another version of the generator: the exercise of the current version has been opened.',
+    learnTitle: 'Exercises: carried errors and how cells are marked',
   };
 
   const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne'];

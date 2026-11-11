@@ -546,6 +546,7 @@
       if (v.deliver) actions.push(button(tt('ex.deliver'), () => { confirmOpen = true; draw(); focus('exConfirmYes'); }, { primary: true, attrs: { id: 'exDeliver' } }));
       if (v.step) actions.push(button(tt('ex.step'), () => hooks.open(stepState(state(), m, view)), { primary: v.locked, attrs: { id: 'exStep' } }));
       if (v.locked) actions.push(button(tt('ex.another'), another, { attrs: { id: 'exAnother2' } }));
+      if (hooks.learn) actions.push(button(tt('learn.button'), () => hooks.learn(), { attrs: { id: 'exLearn' } }));
       const note = m.mode === 'exam' ? h('p', { class: 'muted small ex-note' }, [m.delivered ? tt('ex.delivered') : tt('ex.examNote')]) : null;
       return h('section', { class: 'card ex-answers', 'aria-label': tt('ex.answers') }, [
         h('div', { class: 'ex-head' }, head), note,
