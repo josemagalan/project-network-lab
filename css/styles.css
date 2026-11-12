@@ -550,10 +550,9 @@ table.data.ex-ans tr.sel th[scope="row"] { box-shadow: inset 3px 0 0 var(--selec
 .ex-showtable summary { font-weight: 600; cursor: pointer; }
 .ex-showtable .ex-given-card { border: 0; padding: 6px 0 0; box-shadow: none; }
 /* F3c (T014): la casilla del enunciado, en la primera fila (el resumen del nivel se parte en dos líneas si hace falta). */
-.ex-textctl { display: flex; flex-direction: column; gap: 2px; max-width: 22em; }
-.ex-textctl label { font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.ex-textctl { font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
 .ex-textctl input { margin: 0; }
-.ex-textctl p { margin: 0; }
+.ex-textoff { margin: 0; }
 .ex-score { margin: 0; padding: 3px 10px; border-radius: 8px; background: var(--soft); border: 1px solid var(--line); }
 .ex-note { margin: 0; }
 .ex-body { display: flex; gap: 14px; align-items: stretch; min-width: 0; }
