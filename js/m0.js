@@ -847,8 +847,11 @@
       genOld.hidden = !(g && g.oldVersion);
       genOld.textContent = t('m0.gen.oldVersion');
       // Con «Enunciado al azar», el selector sube a la fila del enunciado (tablero 57); si no, va en la barra, en una línea.
+      // Mover el nodo le quita el foco: si lo tenía (se ha elegido con el teclado), se le devuelve (T014).
+      const hadFocus = selSt.ownerDocument && selSt.ownerDocument.activeElement === selSt;
       if (g && labSt.parentNode !== genRow) genRow.insertBefore(labSt, genRow.firstChild);
       if (!g && labSt.parentNode !== bar) bar.insertBefore(labSt, bar.firstChild);
+      if (hadFocus && selSt.ownerDocument.activeElement !== selSt) selSt.focus();
       loseBox.hidden = !pendingGen;
       loseMsg.textContent = t('m0.gen.lose'); loseYes.textContent = t('m0.gen.loseYes'); loseNo.textContent = t('m0.gen.loseNo');
       if (!g) { pendingGen = null; loseBox.hidden = true; return; }

@@ -433,7 +433,8 @@
     }
 
     function toggleText(on) {
-      const go = () => hooks.dispatch({ type: 'exText', value: on ? 1 : 0 }, { push: true });
+      // La barra se redibuja: el foco vuelve a la casilla (T014, teclado).
+      const go = () => { hooks.dispatch({ type: 'exText', value: on ? 1 : 0 }, { push: true }); focus('exText'); };
       if (on && hooks.need) hooks.need('sg').then(go); else go();
     }
 

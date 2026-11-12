@@ -4394,6 +4394,111 @@ check('F3c AC12 · el exportador con la etapa 0: axe sin violaciones en claro y 
   }
 });
 
+// ---------- F3c, T014: teclado, accesibilidad y pantalla de lo publicado (spec f3c-enunciados, AC7, AC9, AC10, AC12 y AC13) ----------
+
+const notBody = (page) => page.evaluate(() => document.activeElement && document.activeElement !== document.body);
+
+check('F3c T014 AC12 · M0 con el teclado: «Enunciado al azar» en el selector, nivel, contexto y «Otro enunciado», sin perder el foco', async () => {
+  const p = await m0Lab();
+  await tabTo(p, 'm0St');
+  await p.keyboard.press('End');
+  await p.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  assert.equal((await state(p)).st, 'gen');
+  assert.ok(await notBody(p), 'el foco tras elegir el enunciado');
+  await tabTo(p, 'm0Lv-hard');
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => PNL.app.state().lv === 'hard');
+  assert.equal(await activeId(p), 'm0Lv-hard', 'el foco sigue en el nivel');
+  assert.equal(await p.locator('#m0Lv-hard').getAttribute('aria-pressed'), 'true');
+  await tabTo(p, 'm0Cx');
+  await p.keyboard.press('ArrowDown');
+  await p.waitForFunction(() => !!PNL.app.state().cx);
+  assert.equal(await activeId(p), 'm0Cx', 'el foco sigue en el contexto');
+  const key = (await m0st(p)).stKey;
+  await tabTo(p, 'm0Another');
+  await p.keyboard.press('Enter');
+  await p.waitForFunction((k) => PNL.m0.state().stKey !== k, key);
+  assert.equal(await activeId(p), 'm0Another', 'el foco sigue en «Otro enunciado»');
+  await close(p);
+});
+
+check('F3c T014 AC12 · «Ejercicios» con el teclado: Espacio en la casilla pone el enunciado y Enter en «Ver la tabla» la abre', async () => {
+  const p = await exLab({ sd: 14844, lv: 'medium' });
+  await tabTo(p, 'exText');
+  await p.keyboard.press('Space');
+  await p.waitForFunction(() => PNL.app.state().xt === 1);
+  await exText(p);
+  assert.equal(await activeId(p), 'exText', 'el foco sigue en la casilla');
+  const summary = p.locator('#exView .ex-showtable summary');
+  await summary.focus();
+  await p.keyboard.press('Enter');
+  assert.equal(await p.locator('#exView .ex-showtable').evaluate((d) => d.open), true);
+  assert.ok(await p.locator('#exView .ex-showtable .ex-given-card').isVisible());
+  await close(p);
+});
+
+check('F3c T014 AC12 · exportador con el teclado: Espacio en la etapa 0 la desmarca y la vista previa pasa a la etapa 1', async () => {
+  const p = await mqOpen('es');
+  const box = p.locator('#mqView .mq-stages .mq-check input').first();
+  await box.focus();
+  await p.keyboard.press('Space');
+  assert.equal(await box.isChecked(), false);
+  assert.ok(await box.evaluate((el) => el === document.activeElement), 'el foco sigue en la casilla');
+  assert.equal(await p.locator('.mq-summary').textContent(), 'Se generarán 70 preguntas en 7 categorías.');
+  assert.equal((await mq(p)).preview.stage, 'early');
+  await p.keyboard.press('Space');
+  assert.equal((await mq(p)).preview.stage, 'stmt');
+  await close(p);
+});
+
+check('F3c T014 AC12 · axe sin violaciones en las combinaciones que faltaban: M0 al azar con «Comprobar», ruta y «Aprende más»; «Ejercicios» con enunciado en Examen', async () => {
+  for (const [lang, scheme] of [['es', 'dark'], ['en', 'light']]) {
+    const probe = await open(genUrl({ lang, lv: 'hard', sd: 22 }));
+    await probe.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+    const def = await genDef(probe);
+    await close(probe);
+    // Una tabla con un error: el diagnóstico a la vista.
+    const t = def.ref.rows.map((r) => ({ id: r.id, name: r.name[lang], duration: r.duration, links: r.links }));
+    t[t.length - 1] = Object.assign({}, t[t.length - 1], { links: '' });
+    const p = await open(genUrl({ lang, lv: 'hard', sd: 22, t }), { scheme });
+    await p.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+    await m0Check(p);
+    await axe(p, `F3c · M0 al azar con el diagnóstico (${lang}, ${scheme})`);
+    await p.locator('#m0Learn').click();
+    await p.locator('#learnDialog').waitFor();
+    await axe(p, `F3c · «Aprende más» de M0 (${lang}, ${scheme})`);
+    await close(p);
+    const r = await open(genUrl({ lang, lv: 'medium', sd: 15, mm: 'route', step: 4 }), { scheme });
+    await r.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+    await axe(r, `F3c · ruta de un enunciado al azar (${lang}, ${scheme})`);
+    await close(r);
+    const x = await exLab({ sd: 92846, lv: 'hard', xt: 1, xm: 'exam', lang }, { scheme });
+    await exText(x);
+    await axe(x, `F3c · «Ejercicios» con enunciado en Examen (${lang}, ${scheme})`);
+    await close(x);
+  }
+});
+
+check('F3c T014 AC12 · a 1280×720 y a 360 px, sin desplazamiento horizontal con lo más largo: M0 y «Ejercicios» difíciles con enunciado y la vista previa difícil del exportador', async () => {
+  for (const [width, height] of [[1280, 720], [360, 800]]) {
+    const m = await open(genUrl({ lv: 'hard', sd: 22, cx: 'lab' }), { width, height });
+    await m.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+    assert.ok(await noHScroll(m), `M0 ${width}`);
+    await close(m);
+    const x = await exLab({ sd: 92846, lv: 'hard', xt: 1 }, { width, height });
+    await exText(x);
+    await x.locator('#exView .ex-showtable summary').click();
+    assert.ok(await noHScroll(x), `Ejercicios ${width}`);
+    await close(x);
+    const q = await mqOpen('en', { width, height });
+    await mqSelect(q, ['0 ·'], ['Hard']);
+    await q.waitForFunction(() => PNL.moodlePage.state().preview.level === 'hard');
+    await q.locator('.mq-feedback summary').click();
+    assert.ok(await noHScroll(q), `exportador ${width}`);
+    await close(q);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
@@ -4414,6 +4519,9 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     console.log(`    ${url}: ${(bytes / 1024).toFixed(0)} KB`);
     // F3b (plan P5 y P7): solo la vista del exportador carga el banco de Moodle y sus textos.
     if (!url.includes('v=moodle')) assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /moodle/.test(e.name))), false, `${url} carga Moodle`);
+    // F3c (P5): el generador de enunciados, solo con un enunciado al azar, con el enunciado en «Ejercicios» y en el exportador.
+    const gen = /st=gen|xt=1|v=moodle/.test(url);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /stmtgen\.js|contexts\.js/.test(e.name))), gen, `${url}: generador de enunciados`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);
     await ctx.close();
   }
