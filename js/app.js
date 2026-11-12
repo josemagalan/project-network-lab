@@ -258,6 +258,7 @@
     $('mqView').hidden = !mqOn;
     // La caja del nodo no tiene sentido en el exportador (bocetos de la F3b).
     $('selBox').closest('label').hidden = mqOn;
+    if (!mqOn && mqc) mqc.leave();
     if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
     if (exOn) { $('workshop').hidden = true; $('stage').hidden = true; exc.render(model, opts); return; }
     if (mqOn) { $('workshop').hidden = true; $('stage').hidden = true; mqc.render(model, opts); return; }

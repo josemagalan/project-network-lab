@@ -6,7 +6,10 @@
  * un Blob. La semilla del banco la elige la interfaz (crypto.getRandomValues), nunca el núcleo. La vista previa es
  * una pregunta de la primera etapa y el primer nivel marcados, con semilla fija 1 (views/question-view).
  * La selección vive en la página (no en la URL) y se conserva al cambiar de idioma o de notación; un cambio de
- * idioma o de notación mientras se genera cancela la generación.
+ * idioma o de notación mientras se genera cancela la generación, y también salir de la vista (leave).
+ * Marcar una casilla o cambiar los ejemplares no redibuja el formulario: solo el resumen, el botón y la vista previa,
+ * para que el foco y el clic siguiente se queden donde estaban (revisión T016). El estado (descarga o cancelación) se
+ * guarda como clave y parámetros y se escribe en el idioma de la página.
  * La parte sin DOM (summary, fileName, missingText) se prueba en Node; PNL.moodlePage.state() da la selección, el
  * progreso y el último banco para las pruebas de navegador.
  */
@@ -51,7 +54,7 @@
     const t = (k, p) => pt(lang(), k, p);
     const sel = { stages: new Set(M.STAGES), sf: false, levels: new Set(['medium']), count: M.DEFAULT_COUNT };
     let run = null;          // { runner, seed, lang, nota, made, total, timer }
-    let status = '';         // último mensaje del estado (descarga, cancelación)
+    let status = null;       // último estado: { key: 'done' | 'doneOne' | 'cancelled', file, q, seed, missing }
     let last = null;         // { seed, file, questions, missing } del último banco descargado
     let drawn = null;        // idioma y notación de lo dibujado (para cancelar si cambian)
     let focusAfter = null;
@@ -67,7 +70,7 @@
       const seed = newSeed();
       const runner = M.runner({ lang: L, nota: N, sf: sel.sf, labels: IM.labels(N), stages: [...sel.stages], levels: [...sel.levels], count: sel.count, seed }, IM.tr(L));
       run = { runner, seed, lang: L, nota: N, made: 0, total: summary(sel).questions, timer: null };
-      status = '';
+      status = null;
       focusAfter = 'cancel';
       draw();
       run.timer = setTimeout(tick, 0);
@@ -91,21 +94,32 @@
       const file = fileName(r.lang, new Date().toISOString().slice(0, 10), r.seed);
       download(file, xml);
       last = { seed: r.seed, file, questions: bank.questions.length, missing: bank.missing, bytes: xml.length };
-      status = [bank.questions.length === 1 ? pt(r.lang, 'doneOne', { file, seed: r.seed }) : pt(r.lang, 'done', { file, q: bank.questions.length, seed: r.seed }), missingText(r.lang, bank.missing)].filter(Boolean).join(' ');
+      status = { key: bank.questions.length === 1 ? 'doneOne' : 'done', file, q: bank.questions.length, seed: r.seed, missing: bank.missing };
       focusAfter = 'download';
       draw();
-      hooks.announce(status);
+      hooks.announce(statusText());
     }
 
     function cancel() {
       if (!run) return;
-      clearTimeout(run.timer);
-      const L = run.lang;
-      run = null;
-      status = pt(L, 'cancelled');
+      stop();
       focusAfter = 'download';
       draw();
-      hooks.announce(status);
+      hooks.announce(statusText());
+    }
+
+    /** Detiene la generación sin descargar nada. */
+    function stop() {
+      clearTimeout(run.timer);
+      run = null;
+      status = { key: 'cancelled' };
+    }
+
+    /** El estado en el idioma de la página (el nombre del archivo es el del banco descargado). */
+    function statusText() {
+      if (!status) return '';
+      if (status.key === 'cancelled') return t('cancelled');
+      return [t(status.key, { file: status.file, q: status.q, seed: status.seed }), missingText(lang(), status.missing)].filter(Boolean).join(' ');
     }
 
     function download(name, content) {
@@ -125,6 +139,15 @@
       progressText.textContent = t('progress', { made: run.made, total: run.total });
     }
 
+    let summaryEl = null; let downloadEl = null; let previewEl = null;
+    /** Tras marcar una casilla o cambiar los ejemplares: el resumen, el botón y la vista previa, sin redibujar. */
+    function refresh() {
+      const s = summary(sel);
+      if (summaryEl) summaryEl.textContent = summaryText(lang(), s);
+      if (downloadEl) downloadEl.disabled = !s.categories;
+      if (previewEl) drawPreview(previewEl);
+    }
+
     const check = (label, on, onChange, o) => h('label', { class: 'mq-check' }, [
       h('input', { type: 'checkbox', checked: on, disabled: !!run, onchange: (e) => onChange(e.target.checked) }),
       h('span', {}, o && o.hint ? [label, h('span', { class: 'mq-hint' }, [o.hint])] : [label]),
@@ -142,12 +165,11 @@
       }
       progressEl = null;
       const s = summary(sel);
+      summaryEl = h('p', { class: 'mq-summary' }, [summaryText(lang(), s)]);
+      downloadEl = h('button', { type: 'button', id: 'mqDownload', class: 'ghost primary', disabled: !s.categories, onclick: start }, [t('download')]);
       return h('div', { class: 'mq-actions' }, [
-        h('div', { class: 'mq-row' }, [
-          h('p', { class: 'mq-summary' }, [summaryText(lang(), s)]),
-          h('button', { type: 'button', id: 'mqDownload', class: 'ghost primary', disabled: !s.categories, onclick: start }, [t('download')]),
-        ]),
-        h('p', { class: 'mq-status', role: 'status' }, [status]),
+        h('div', { class: 'mq-row' }, [summaryEl, downloadEl]),
+        h('p', { class: 'mq-status', role: 'status' }, [statusText()]),
       ]);
     }
 
@@ -161,22 +183,34 @@
       return null;
     }
 
+    function drawPreview(el) {
+      const q = previewQuestion();
+      if (q) QV.render(el, q, IM.tr(lang()), { holeLabel: t('hole'), feedbackLabel: t('previewFeedback') });
+      else clear(el);
+    }
+
     function draw() {
       const tr = IM.tr(lang());
       drawn = { lang: lang(), nota: nota() };
+      summaryEl = null; downloadEl = null;
       container.setAttribute('aria-label', t('title'));
       const stages = fieldset(t('stagesTitle'), [
         h('p', { class: 'mq-hint' }, [t('stagesHint')]),
-        h('div', { class: 'mq-stages' }, M.STAGES.map((s) => check(tr(`stage.${s}`), sel.stages.has(s), (on) => { if (on) sel.stages.add(s); else sel.stages.delete(s); draw(); }))),
-        check(t('sf'), sel.sf, (on) => { sel.sf = on; draw(); }),
+        h('div', { class: 'mq-stages' }, M.STAGES.map((s) => check(tr(`stage.${s}`), sel.stages.has(s), (on) => { if (on) sel.stages.add(s); else sel.stages.delete(s); refresh(); }))),
+        check(t('sf'), sel.sf, (on) => { sel.sf = on; refresh(); }),
       ]);
-      const levels = fieldset(t('levelsTitle'), M.LEVELS.map((l) => check(tr(`level.${l}`), sel.levels.has(l), (on) => { if (on) sel.levels.add(l); else sel.levels.delete(l); draw(); }, { hint: t(`levelHint.${l}`) })));
+      const levels = fieldset(t('levelsTitle'), M.LEVELS.map((l) => check(tr(`level.${l}`), sel.levels.has(l), (on) => { if (on) sel.levels.add(l); else sel.levels.delete(l); refresh(); }, { hint: t(`levelHint.${l}`) })));
       const count = h('input', { type: 'number', id: 'mqCount', min: 1, max: M.MAX_COUNT, step: 1, value: String(sel.count), disabled: !!run,
-        onchange: (e) => { const v = Math.round(Number(e.target.value)); sel.count = Number.isFinite(v) && e.target.value !== '' ? Math.max(1, Math.min(M.MAX_COUNT, v)) : sel.count; draw(); } });
+        onchange: (e) => {
+          const v = Math.round(Number(e.target.value));
+          sel.count = Number.isFinite(v) && e.target.value !== '' ? Math.max(1, Math.min(M.MAX_COUNT, v)) : sel.count;
+          e.target.value = String(sel.count);
+          refresh();
+        } });
       const size = fieldset(t('sizeTitle'), [h('label', { for: 'mqCount', class: 'mq-count' }, [t('count')]), count, h('span', { class: 'mq-hint' }, [t('countHint')])], 'mq-size');
       const preview = h('section', { class: 'mq-preview card', 'aria-label': t('previewTitle') });
-      const q = previewQuestion();
-      if (q) QV.render(preview, q, tr, { holeLabel: t('hole'), feedbackLabel: t('previewFeedback') });
+      previewEl = preview;
+      drawPreview(preview);
       clear(container);
       container.appendChild(h('div', { class: 'mq-layout' }, [
         h('div', { class: 'mq-form' }, [
@@ -198,13 +232,18 @@
 
     function render() {
       // Un cambio de idioma o de notación mientras se genera cancela la generación (el banco sería de otro idioma).
-      if (run && drawn && (drawn.lang !== lang() || drawn.nota !== nota())) { clearTimeout(run.timer); run = null; status = t('cancelled'); }
+      if (run && drawn && (drawn.lang !== lang() || drawn.nota !== nota())) stop();
       draw();
     }
 
+    /** Al salir de la vista: la generación en marcha se cancela (no se descarga nada desde otra vista). */
+    function leave() {
+      if (run) stop();
+    }
+
     const debug = () => ({ sel: { stages: [...sel.stages], sf: sel.sf, levels: [...sel.levels], count: sel.count },
-      running: !!run, made: run ? run.made : null, total: run ? run.total : null, status, last, preview: previewQuestion() });
-    return { render, debug };
+      running: !!run, made: run ? run.made : null, total: run ? run.total : null, status: statusText(), last, preview: previewQuestion() });
+    return { render, leave, debug };
   }
 
   const api = { summary, summaryText, fileName, missingText, create, CHUNK_MS };

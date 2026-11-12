@@ -3909,6 +3909,166 @@ check('F3b AC8 · cambiar la notación rehace la vista previa y conserva la sele
   await close(page);
 });
 
+// ---------- F3b · revisión de nivel 2 (T016) ----------
+
+const mqDownload = async (page) => {
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), page.locator('#mqDownload').click()]);
+  return { name: dl.suggestedFilename(), xml: fs.readFileSync(await dl.path(), 'utf8') };
+};
+
+check('F3b T016 · tras editar los ejemplares, el primer clic en «Descargar» descarga; marcar una casilla no pierde el foco', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['1 ·'], ['Fácil']);
+  // Sin salir del campo: el clic (con su mousedown y mouseup) es lo que dispara el cambio.
+  await page.locator('#mqCount').fill('2');
+  const box = await page.locator('#mqDownload').boundingBox();
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }),
+    page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)]);
+  assert.match(dl.suggestedFilename(), /^banco-redes-/);
+  assert.equal((await mq(page)).last.questions, 2);
+  // Teclado: Espacio en una casilla deja el foco en ella y Tab sigue el orden del formulario.
+  const first = page.locator('#mqView .mq-check input').first();
+  await first.focus();
+  await page.keyboard.press('Space');
+  assert.equal(await first.isChecked(), false);
+  assert.ok(await first.evaluate((el) => el === document.activeElement), 'el foco sigue en la casilla');
+  await page.keyboard.press('Tab');
+  assert.ok(await page.locator('#mqView .mq-check input').nth(1).evaluate((el) => el === document.activeElement), 'Tab va a la casilla siguiente');
+  await page.locator('#mqCount').fill('3');
+  await page.keyboard.press('Tab');
+  assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
+  assert.equal(await page.locator('#mqCount').inputValue(), '3');
+  await close(page);
+});
+
+check('F3b T016 · ejemplares acotados de 1 a 50 y botón desactivado sin selección', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['1 ·'], ['Fácil']);
+  for (const [typed, want] of [['500', '50'], ['0', '1'], ['', '1'], ['7.6', '8']]) {
+    await page.locator('#mqCount').fill(typed);
+    await page.locator('#mqCount').press('Tab');
+    assert.equal(await page.locator('#mqCount').inputValue(), want, typed);
+    assert.equal((await mq(page)).sel.count, Number(want));
+  }
+  assert.equal(await page.locator('.mq-summary').textContent(), 'Se generarán 8 preguntas en una categoría.');
+  await page.locator('#mqView .mq-check input').first().click();
+  assert.equal(await page.locator('.mq-summary').textContent(), 'Elige al menos una etapa y un nivel.');
+  assert.equal(await page.locator('#mqDownload').isDisabled(), true);
+  await close(page);
+});
+
+check('F3b T016 AC3 y AC8 · el banco descargado va en el idioma y la notación de la página, con la holgura de seguridad marcada', async () => {
+  const page = await mqOpen('en');
+  await page.locator('#selNota').selectOption('es');
+  await mqSelect(page, ['3 ·'], ['Easy'], 1);
+  await page.locator('#mqView .mq-check', { hasText: 'safety float' }).locator('input').check();
+  assert.ok((await mq(page)).sel.sf);
+  assert.ok(await page.locator('.mq-preview th', { hasText: /^HS$/ }).count() > 0, 'vista previa con la holgura de seguridad');
+  const { name, xml } = await mqDownload(page);
+  assert.match(name, /^network-bank-/);
+  assert.ok(xml.includes('$course$/top/Project networks/3 · Floats/Easy'));
+  assert.ok(xml.includes('safety float') && !xml.includes('Holgura'));
+  assert.ok(xml.includes('>Open this exercise in the lab</a>') && !xml.includes('Abrir este ejercicio'));
+  for (const h of ['tᵢ', 'fᵢ', 'tᵢ*', 'fᵢ*', 'HT', 'HL', 'HI', 'HS']) assert.ok(xml.includes(`<th scope="col">${h}</th>`), h);
+  const n = Number(/ · n=(\d+) · /.exec(xml)[1]);
+  assert.equal((xml.match(/\{1:NUMERICAL:/g) || []).length, 4 * n);
+  await close(page);
+});
+
+check('F3b T016 · cada descarga usa una semilla nueva, la misma en el archivo, el XML y el estado', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['1 ·'], ['Fácil'], 1);
+  const seeds = [];
+  for (let i = 0; i < 2; i++) {
+    const { name, xml } = await mqDownload(page);
+    const seed = Number(/-s(\d+)\.xml$/.exec(name)[1]);
+    assert.equal((await mq(page)).last.seed, seed);
+    assert.ok(xml.split('\n')[1].includes(`s=${seed} `));
+    await page.waitForFunction((s) => document.querySelector('.mq-status').textContent.includes(`semilla del banco ${s}`), seed);
+    seeds.push(seed);
+  }
+  assert.notEqual(seeds[0], seeds[1]);
+  await close(page);
+});
+
+check('F3b T016 AC10 · el estado dice qué categorías se quedan cortas y sigue el idioma de la página', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['1 ·'], ['Fácil', 'Media'], 5);
+  // Solo tres semillas posibles por nivel: cada categoría se queda en 3 de 5 (como un descarte real, sin esperar a él).
+  await page.evaluate(() => { const orig = PNL.moodle.runner; PNL.moodle.runner = (o, tr) => orig(Object.assign({}, o, { seedMax: 3 }), tr); });
+  const { xml } = await mqDownload(page);
+  assert.equal((xml.match(/<question type="cloze">/g) || []).length, 6);
+  await page.waitForFunction(() => /^Descargado/.test(document.querySelector('.mq-status').textContent));
+  assert.match(await page.locator('.mq-status').textContent(),
+    /: 6 preguntas, semilla del banco \d+\. No se han encontrado bastantes ejemplares distintos para: 1 · Tiempos tempranos, Fácil \(3 de 5\); 1 · Tiempos tempranos, Media \(3 de 5\)\.$/);
+  await page.locator('#selLang').selectOption('en');
+  await page.waitForFunction(() => /^Downloaded banco-redes-/.test(document.querySelector('.mq-status').textContent));
+  assert.match(await page.locator('.mq-status').textContent(),
+    /: 6 questions, bank seed \d+\. Not enough distinct instances were found for: 1 · Early times, Easy \(3 of 5\); 1 · Early times, Medium \(3 of 5\)\.$/);
+  await close(page);
+});
+
+// Un banco grande en marcha (1050 preguntas), con la barra ya avanzando.
+async function mqBig(page, levels) {
+  await mqSelect(page, ['1 ·', '2 ·', '3 ·', '4a ·', '4b ·', '5 ·', '6 ·'], levels, 50);
+  await page.locator('#mqDownload').click();
+  await page.waitForFunction(() => { const p = document.querySelector('#mqProgress'); return p && p.value > 0; });
+}
+
+check('F3b T016 AC9 · mientras genera, la página atiende en menos de medio segundo', async () => {
+  const page = await mqOpen('es');
+  await mqBig(page, ['Fácil', 'Media', 'Difícil']);
+  const worst = await page.evaluate(async () => {
+    let max = 0;
+    for (let i = 0; i < 20; i++) {
+      const t0 = performance.now();
+      await new Promise((r) => setTimeout(r, 0));
+      max = Math.max(max, performance.now() - t0);
+    }
+    return max;
+  });
+  assert.ok((await mq(page)).running, 'sigue generando');
+  assert.ok(worst < 500, `espera máxima ${worst.toFixed(0)} ms`);
+  await page.locator('#mqCancel').click();
+  await close(page);
+});
+
+check('F3b T016 · cambiar de idioma o salir de la vista mientras se genera la cancela, sin descargar', async () => {
+  const page = await mqOpen('es');
+  let downloaded = false; page.on('download', () => { downloaded = true; });
+  await mqBig(page, ['Fácil', 'Media', 'Difícil']);
+  await page.locator('#selLang').selectOption('en');
+  await page.waitForFunction(() => document.querySelector('.mq-status').textContent === 'Generation cancelled: nothing was downloaded.');
+  assert.equal((await mq(page)).running, false);
+  // Salir a la ruta guiada con un banco en marcha: la vista se oculta, la caja del nodo vuelve y nada se descarga.
+  await mqBig(page, ['Easy', 'Medium', 'Hard']);
+  await page.locator('#navRoute').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'route');
+  assert.equal(await page.locator('#mqView').isVisible(), false);
+  assert.equal(await page.locator('#selBox').isVisible(), true);
+  assert.equal((await mq(page)).running, false);
+  await page.waitForTimeout(1500);
+  assert.equal(downloaded, false);
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().v === 'moodle');
+  assert.equal(await page.locator('.mq-status').textContent(), 'Generation cancelled: nothing was downloaded.');
+  assert.ok(await page.locator('#mqDownload').isEnabled());
+  await close(page);
+});
+
+check('F3b T016 AC13 · el «Aprende más» de «Ejercicios» en inglés abre el exportador en inglés y con la notación elegida', async () => {
+  const page = await lab(exUrl({ sd: 14844, lang: 'en' }).replace('cpm.html#', ''));
+  await page.locator('#selNota').selectOption('es');
+  await page.locator('#exLearn').click();
+  await page.locator('#exLearnMoodle').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'moodle' && PNL.moodlePage && PNL.moodlePage.state);
+  const s = await state(page);
+  assert.equal(s.lang, 'en'); assert.equal(s.nota, 'es');
+  assert.equal(await page.locator('#mqView h1').textContent(), 'Question banks for Moodle');
+  assert.ok(await page.locator('.mq-preview th', { hasText: /^tᵢ$/ }).count() > 0);
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
