@@ -8,7 +8,11 @@ function check(xml) {
   const stack = [];
   let roots = 0;
   const NAME = /^[A-Za-z_:][\w.:-]*/;
-  const textOk = (s) => !/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/.test(s) && !s.includes('<');
+  // Caracteres de XML 1.0: tabulador, saltos de línea y de #x20 en adelante, sin sustitutos sueltos ni FFFE/FFFF.
+  const charOk = (c) => c === 0x9 || c === 0xA || c === 0xD || (c >= 0x20 && c <= 0xD7FF) || (c >= 0xE000 && c <= 0xFFFD) || (c >= 0x10000 && c <= 0x10FFFF);
+  const refsOk = (s) => [...s.matchAll(/&#(x[0-9a-fA-F]+|\d+);/g)].every((m) => charOk(m[1][0] === 'x' ? parseInt(m[1].slice(1), 16) : Number(m[1])));
+  const textOk = (s) => !/&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/.test(s) && !s.includes('<') && refsOk(s);
+  for (const ch of xml) if (!charOk(ch.codePointAt(0))) return fail('carácter no permitido en XML 1.0', xml.indexOf(ch));
   if (xml.startsWith('<?xml')) {
     const e = xml.indexOf('?>');
     if (e < 0) return fail('prólogo sin cerrar', 0);
@@ -18,13 +22,15 @@ function check(xml) {
     const lt = xml.indexOf('<', i);
     const text = lt < 0 ? xml.slice(i) : xml.slice(i, lt);
     if (!textOk(text)) return fail('texto con & o < sin escapar', i);
+    if (text.includes(']]>')) return fail('«]]>» en el texto', i);
     if (text.trim() && !stack.length) return fail('texto fuera del elemento raíz', i);
     if (lt < 0) break;
     i = lt;
     if (xml.startsWith('<!--', i)) {
       const e = xml.indexOf('-->', i + 4);
       if (e < 0) return fail('comentario sin cerrar', i);
-      if (xml.slice(i + 4, e).includes('--')) return fail('«--» dentro de un comentario', i);
+      const body = xml.slice(i + 4, e);
+      if (body.includes('--') || body.endsWith('-')) return fail('«--» dentro de un comentario', i);
       i = e + 3;
     } else if (xml.startsWith('<![CDATA[', i)) {
       if (!stack.length) return fail('CDATA fuera del elemento raíz', i);

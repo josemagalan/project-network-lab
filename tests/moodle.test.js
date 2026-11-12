@@ -197,6 +197,7 @@ test('AC6 (modelo): nombre, categoría, etiquetas y valor', () => {
   assert.deepEqual(q.category, ['root', 'stage.late', 'level.hard']);
   assert.ok(q.name.includes('stage.late') && q.name.includes(`n=${ex.rows.length}`) && q.name.includes('s=99') && q.name.includes(`gv=${G.VERSION}`));
   assert.deepEqual(q.tags, ['pnl-late', 'level-hard', 'lang-es', `gv-${G.VERSION}`]);
+  assert.deepEqual(M.question('late', ex, ctx({ lang: 'en' }), tr).tags, ['pnl-late', 'level-hard', 'lang-en', `gv-${G.VERSION}`]);
   assert.equal(q.qtype, 'cloze');
   assert.equal(q.stage, 'late'); assert.equal(q.level, 'hard'); assert.equal(q.seed, 99); assert.equal(q.n, ex.rows.length);
 });
@@ -219,8 +220,11 @@ test('AC7: enlaces al ejercicio y a la solución paso a paso', () => {
       assert.equal(b.state.graph, st.startsWith('ev') ? 'aoa' : 'aon');
       assert.deepEqual(P.parse(b.state.t, 'pred').project, P.parse(ex.rows, 'pred').project);
     }
-    const sf = U.decode(M.links(ex, 'floats', ctx({ sf: true })).ex.slice(M.APP.length));
-    assert.deepEqual(sf.state.ask, ['floats', 'sf']);
+    // Con la holgura de seguridad marcada, solo la etapa 3 la pide en «Ejercicios».
+    for (const st of M.STAGES) {
+      const sf = U.decode(M.links(ex, st, ctx({ sf: true })).ex.slice(M.APP.length));
+      assert.deepEqual(sf.state.ask, st === 'floats' ? ['floats', 'sf'] : ASK[st], st);
+    }
   }
   // La pregunta lleva los mismos enlaces en su modelo y en la retroalimentación.
   const ex = M.exercise('easy', 5);
@@ -253,7 +257,9 @@ const CLOZE = /\{1:([A-Z]+):([^}]*)\}/g;
 
 test('comprobador de XML: acepta lo bien formado y rechaza lo que no lo está', () => {
   assert.ok(X.check('<?xml version="1.0"?>\n<!-- c --><a x="1"><b>t &amp; u</b><c/><![CDATA[<x> & ]]></a>').ok);
-  for (const bad of ['<a><b></a></b>', '<a>&</a>', '<a x="1" x="2"/>', '<a><![CDATA[x</a>', '<a/><b/>', '<a>', '<a x=1/>', '<!-- a -- b --><a/>']) {
+  assert.ok(X.check('<a y="&#233;">\t&#xE9; &#x10000; ]] > <!-- - --></a>').ok);
+  for (const bad of ['<a><b></a></b>', '<a>&</a>', '<a x="1" x="2"/>', '<a><![CDATA[x</a>', '<a/><b/>', '<a>', '<a x=1/>', '<!-- a -- b --><a/>',
+    '<a>x ]]> y</a>', '<a>\u0001</a>', '<a>&#0;</a>', '<a>&#xFFFE;</a>', '<a x="&#1;"/>', '<a><!-- x ---></a>', '<a><![CDATA[\u0002]]></a>']) {
     assert.equal(X.check(bad).ok, false, bad);
   }
 });
@@ -396,4 +402,164 @@ test('AC8: banco inglés sin español y banco español sin inglés, con los text
   assert.deepEqual(X.check(enXml), { ok: true });
   // Ningún texto se queda en su clave (mq.…) ni con un parámetro sin sustituir.
   for (const xml of [enXml, esXml]) assert.ok(!/(^|[^\w])(stem|col|sol|fb|link|stage|level)\.[a-z]/i.test(words(xml).replace(/<name>.*?<\/name>/g, '')) && !/\{(dur|acts|paths|len|name)\}/.test(xml));
+});
+
+// ---------- T016: revisión de nivel 2 (lo que las pruebas aún no fijaban) ----------
+// Tablas de un bloque de la retroalimentación general: la que tiene el encabezado h.
+const solCol = (q, h) => {
+  const t = q.general.filter((b) => b.table).find((b) => b.table.head.includes(h));
+  if (!t) return null;
+  const i = t.table.head.indexOf(h);
+  return Object.fromEntries(t.table.rows.map((r) => [String(r[0]), r[i]]));
+};
+const paras = (blocks) => blocks.filter((b) => 'p' in b).map((b) => b.p);
+
+for (const lv of M.LEVELS) {
+  test(`T016: datos, enunciado y solución de cada etapa · ${lv}`, () => {
+    for (let sd = 1; sd <= 12; sd++) {
+      const ex = M.exercise(lv, sd);
+      const { cpm, events, net, project } = ex.sol;
+      const T = cpm.times; const F = cpm.floats; const D = cpm.duration; const A = ids(ex.sol);
+      const N = net.events.map((e) => e.n);
+      const byAct = (f) => Object.fromEntries(A.map((id) => [id, f(id)]));
+      const byEv = (f) => Object.fromEntries(N.map((e) => [String(e), f(e)]));
+      const dur = byAct((id) => project.activities.find((a) => a.id === id).d);
+      const preds = byAct((id) => (project.preds[id].length ? project.preds[id].join(', ') : 'none'));
+      const q = Object.fromEntries(M.STAGES.map((st) => [st, M.question(st, ex, ctx(), tr)]));
+      const qsf = M.question('floats', ex, ctx({ sf: true }), tr);
+      // Tabla de precedencias (duración y predecesoras) en las etapas 1–4.
+      for (const st of ['early', 'late', 'floats', 'critAct', 'critPath']) {
+        if (!q[st]) continue;
+        assert.deepEqual(column(q[st], 'col.dur'), dur, `${st}: duración`);
+        assert.deepEqual(column(q[st], 'col.preds'), preds, `${st}: predecesoras`);
+      }
+      // Enunciados, con la duración del proyecto donde la da (etapas 2, 4a y 4b).
+      assert.equal(q.early.text[0].p, tr('stem.early'));
+      assert.equal(q.late.text[0].p, tr('stem.late', { dur: D }));
+      assert.equal(q.floats.text[0].p, tr('stem.floats'));
+      assert.equal(qsf.text[0].p, tr('stem.floatsSf'));
+      assert.equal(q.critAct.text[0].p, tr('stem.critAct', { dur: D }));
+      if (q.critPath) assert.equal(q.critPath.text[0].p, tr('stem.critPath', { dur: D }));
+      assert.equal(q.evEarly.text[0].p, tr('stem.evEarly'));
+      assert.equal(q.evLate.text[0].p, tr('stem.evLate'));
+      // Tabla de arcos: etiqueta, sucesos de origen y destino y duración, por orden de origen y destino.
+      const want = [...net.arcs.map((a) => [a.act, a.from, a.to, dur[a.act]]), ...net.dummies.map((d) => [tr('dummy', { name: d.name }), d.from, d.to, 0])]
+        .sort((x, y) => x[1] - y[1] || x[2] - y[2]);
+      for (const st of ['evEarly', 'evLate']) {
+        const rows = q[st].text.find((b) => b.table && b.table.arcs).table.rows;
+        assert.deepEqual(rows.map((r) => r.join('|')).sort(), want.map((r) => r.join('|')).sort(), `${st}: arcos`);
+        rows.forEach((r, i) => i && assert.ok(rows[i - 1][1] < r[1] || (rows[i - 1][1] === r[1] && rows[i - 1][2] <= r[2])));
+        assert.deepEqual(q[st].text[1].table.head, ['col.arc', 'col.from', 'col.to', 'col.dur']);
+      }
+      // Solución de la retroalimentación general, etapa por etapa.
+      for (const st of M.STAGES) if (q[st]) assert.equal(q[st].general[0].strong, 'sol.title');
+      assert.deepEqual(solCol(q.early, 'ES'), byAct((id) => T[id].ES));
+      assert.deepEqual(solCol(q.early, 'EF'), byAct((id) => T[id].EF));
+      assert.deepEqual(paras(q.early.general), [`projectDur ${D}`]);
+      assert.deepEqual(solCol(q.late, 'LS'), byAct((id) => T[id].LS));
+      assert.deepEqual(solCol(q.late, 'LF'), byAct((id) => T[id].LF));
+      for (const f of ['TF', 'FF', 'IF']) assert.deepEqual(solCol(q.floats, f), byAct((id) => F[id][f]), f);
+      assert.equal(solCol(q.floats, 'SF'), null);
+      for (const f of ['TF', 'FF', 'IF', 'SF']) assert.deepEqual(solCol(qsf, f), byAct((id) => F[id][f]), `sf ${f}`);
+      const critTexts = [tr('sol.critical', { acts: cpm.critical.join(', ') }),
+        tr('sol.paths', { paths: cpm.criticalPaths.map((p) => p.acts.join(' – ')).join('; '), dur: D })];
+      assert.deepEqual(paras(q.critAct.general), critTexts);
+      if (q.critPath) assert.deepEqual(paras(q.critPath.general), critTexts);
+      assert.ok(cpm.critical.length > 0 && cpm.criticalPaths.length > 0);
+      assert.deepEqual(solCol(q.evEarly, 'TE'), byEv((e) => events.TE[e]));
+      assert.deepEqual(solCol(q.evLate, 'TL'), byEv((e) => events.TL[e]));
+      assert.deepEqual(solCol(q.evLate, 'col.slack'), byEv((e) => events.slack[e]));
+      assert.equal(solCol(q.evLate, 'TE'), null);
+    }
+  });
+}
+
+test('T016: los distractores de la 4b son los caminos no críticos más largos, hasta cuatro, con su retroalimentación', () => {
+  let four = 0;
+  for (const lv of M.LEVELS) {
+    for (let sd = 1; sd <= 40; sd++) {
+      const ex = M.exercise(lv, sd);
+      const q = M.question('critPath', ex, ctx(), tr);
+      if (!q) continue;
+      const non = ex.paths.filter((p) => !p.critical)
+        .sort((x, y) => y.length - x.length || x.acts.join(' ').localeCompare(y.acts.join(' ')));
+      const k = Math.min(4, non.length);
+      const bad = q.options.filter((o) => o.fraction.startsWith('-'));
+      const good = q.options.filter((o) => !o.fraction.startsWith('-'));
+      assert.deepEqual(bad.map((o) => o.path), non.slice(0, k).map((p) => p.acts.join(' – ')), `${lv} ${sd}`);
+      bad.forEach((o, i) => assert.equal(o.feedback, tr('fb.pathNot', { len: non[i].length })));
+      good.forEach((o) => assert.equal(o.feedback, tr('fb.pathCrit')));
+      if (k === 4) four++;
+    }
+  }
+  assert.ok(four > 30, `4 distractores en ${four} preguntas`);
+});
+
+test('T016: el XML lleva el texto y la retroalimentación de cada opción de la 4b', () => {
+  const nasty = (k, p) => (k === 'fb.pathCrit' ? 'crit <b> & ]]>' : tr(k, p));
+  const bank = M.generate(OPTS({ stages: ['critPath'], count: 3 }), nasty);
+  const xml = M.toXml(bank, nasty);
+  assert.deepEqual(X.check(xml), { ok: true });
+  const un = (s) => s.replace(/^<!\[CDATA\[|\]\]>$/g, '').replace(/\]\]\]\]><!\[CDATA\[>/g, ']]>')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  const blocks = xml.split('<question type="multichoice">').slice(1);
+  assert.equal(blocks.length, bank.questions.length);
+  blocks.forEach((b, i) => {
+    const got = [...b.matchAll(/<answer fraction="([^"]*)" format="html">\s*<text>(.*?)<\/text>\s*<feedback format="html"><text>(.*?)<\/text><\/feedback>\s*<\/answer>/gs)]
+      .map((m) => ({ fraction: m[1], path: un(m[2]), feedback: un(m[3]) }));
+    assert.deepEqual(got, bank.questions[i].options);
+  });
+});
+
+test('T016: el tope de intentos es triesPer × ejemplares por categoría (P3)', () => {
+  // Con una sola semilla posible, la categoría hace 1 pregunta y se cierra tras triesPer × count intentos.
+  const r = M.runner(OPTS({ stages: ['early'], levels: ['easy'], count: 5, triesPer: 3, seedMax: 1 }), tr);
+  let steps = 0;
+  while (!r.step(1).done) steps++;
+  assert.equal(steps + 1, 15);
+  assert.deepEqual(r.result().missing, [{ stage: 'early', level: 'easy', made: 1, wanted: 5 }]);
+  // Con el tope por defecto (20 × 50), la 4b del fácil llega a los 50 ejemplares.
+  const bank = M.generate(OPTS({ stages: ['critPath', 'early'], levels: ['easy'], count: 50, seed: 7 }), tr);
+  assert.equal(M.TRIES_PER, 20);
+  assert.equal(bank.questions.length, 100);
+  assert.deepEqual(bank.missing, []);
+});
+
+test('T016: en una categoría no hay dos preguntas con la misma tabla', () => {
+  const bank = M.generate(OPTS({ stages: ['early'], count: 50, seed: 4242 }), tr);
+  for (const lv of M.LEVELS) {
+    const rows = bank.questions.filter((q) => q.level === lv).map((q) => JSON.stringify(M.exercise(lv, q.seed).rows));
+    assert.equal(rows.length, 50);
+    assert.equal(new Set(rows).size, rows.length, lv);
+  }
+});
+
+test('T016: textos del banco (i18n-moodle) aprobados en T006', () => {
+  const IM = require('../js/i18n-moodle.js');
+  const es = IM.tr('es'); const en = IM.tr('en');
+  assert.deepEqual([es('yes'), es('no'), en('yes'), en('no')], ['Sí', 'No', 'Yes', 'No']);
+  assert.deepEqual(M.LEVELS.map((l) => es(`level.${l}`)), ['Fácil', 'Media', 'Difícil']);
+  assert.deepEqual(M.LEVELS.map((l) => en(`level.${l}`)), ['Easy', 'Medium', 'Hard']);
+  assert.deepEqual(M.STAGES.map((s) => es(`stage.${s}`)), ['1 · Tiempos tempranos', '2 · Tiempos tardíos', '3 · Holguras',
+    '4a · Actividades críticas', '4b · Caminos críticos', '5 · Sucesos: tiempos tempranos', '6 · Sucesos: tiempos tardíos y holguras']);
+  assert.deepEqual(M.STAGES.map((s) => en(`stage.${s}`)), ['1 · Early times', '2 · Late times', '3 · Floats',
+    '4a · Critical activities', '4b · Critical paths', '5 · Events: early times', '6 · Events: late times and slack']);
+  assert.deepEqual([es('col.from'), es('col.to'), en('col.from'), en('col.to')], ['Suceso de origen', 'Suceso de destino', 'Start event', 'End event']);
+  // Cada enunciado habla de lo que pide su etapa.
+  const asks = { early: [/tempran/, /early/], late: [/tardío/, /late/], floats: [/holgura/, /float/], critAct: [/crítica/, /critical/],
+    critPath: [/caminos críticos/, /critical paths/], evEarly: [/temprano de cada suceso/, /earliest time/], evLate: [/tardío y la holgura/, /latest time/] };
+  for (const [st, [rEs, rEn]] of Object.entries(asks)) { assert.match(es(`stem.${st}`), rEs, st); assert.match(en(`stem.${st}`), rEn, st); }
+  assert.doesNotMatch(es('stem.early'), /tardí/); assert.doesNotMatch(en('stem.early'), /late/);
+  // Los parámetros de cada texto, los mismos en los dos idiomas y los que pasa core/moodle.
+  const params = { 'stem.late': ['dur'], 'stem.critAct': ['dur'], 'stem.critPath': ['dur'], 'sol.critical': ['acts'],
+    'sol.paths': ['dur', 'paths'], 'fb.pathNot': ['len'], dummy: ['name'] };
+  const I = require('../js/i18n.js');
+  const walk = (o, pre, out) => { for (const [k, v] of Object.entries(o)) { if (k === 'page') continue; if (typeof v === 'string') out[pre + k] = v; else walk(v, `${pre}${k}.`, out); } return out; };
+  const keysOf = (s) => [...new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].sort();
+  for (const lang of ['es', 'en']) {
+    const all = walk(I.dict[lang].mq, '', {});
+    for (const [k, s] of Object.entries(all)) assert.deepEqual(keysOf(s), params[k] || [], `${lang} ${k}`);
+  }
+  assert.equal(es('stem.late', { dur: 13 }), 'Con esta tabla y sus tiempos tempranos (la duración del proyecto es 13), calcula el comienzo tardío y el fin tardío de cada actividad.');
+  assert.equal(en('fb.pathNot', { len: 33 }), 'It is not critical: it lasts 33.');
 });
