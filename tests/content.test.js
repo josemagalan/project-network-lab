@@ -1121,3 +1121,26 @@ test('F3a T014 · AC7: «Aprende más» de los ejercicios: error consecuente, c�
   assert.equal(LR0.topics.ex.es.length, LR0.topics.ex.en.length);
   for (const lang of ['es', 'en']) assert.ok(require('../js/i18n.js').t(lang, 'ex.learnTitle').length > 10);
 });
+
+// ── F3c T013: publicación del generador de enunciados y su «Aprende más» ─────────────
+test('F3c T013 · publicado: «Enunciado al azar» en el selector de M0, la casilla de «Ejercicios» y la etapa 0 del exportador', () => {
+  const M0 = require('../js/m0.js');
+  assert.ok(M0.statementOptions('ej5', 'es').some((o) => o.value === 'gen'));
+  assert.equal(require('../js/ex.js').textPublic, true);
+  assert.equal(require('../js/moodle-page.js').stmtPublic, true);
+});
+
+test('F3c T013 · «Aprende más» de M0 explica el enunciado al azar y el de «Ejercicios», el proyecto como enunciado, con los nombres de la interfaz', () => {
+  const I = require('../js/i18n.js');
+  const X = require('../js/core/contexts.js');
+  for (const lang of ['es', 'en']) {
+    const m0 = LR0.topics.m0[lang].find((p) => p.startsWith(I.t(lang, 'm0.gen.random')));
+    assert.ok(m0, `${lang}: párrafo del enunciado al azar`);
+    for (const c of Object.values(X.CONTEXTS)) assert.ok(m0.toLowerCase().includes(c.title[lang].toLowerCase()), `${lang}: ${c.title[lang]}`);
+    assert.match(m0, lang === 'es' ? /semilla/ : /seed/);
+    const ex = LR0.topics.ex[lang].find((p) => p.startsWith(I.t(lang, 'ex.text.asText')));
+    assert.ok(ex, `${lang}: párrafo del proyecto como enunciado`);
+    for (const key of ['ex.text.showTable', 'm0.gen.random']) assert.ok(ex.includes(I.t(lang, key)), `${lang}: ${key}`);
+    assert.match(ex, lang === 'es' ? /Personalizar/ : /Customise/);
+  }
+});

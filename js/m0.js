@@ -26,7 +26,7 @@
   const SG = () => (isNode ? require('./core/stmtgen.js') : root.PNL.stmtgen);
   const X = () => (isNode ? require('./core/contexts.js') : root.PNL.contexts);
   const GEN_LEVELS = ['easy', 'medium', 'hard'];
-  const GEN_PUBLIC = false;   // F3c, T013: «Enunciado al azar» aparece en el selector (hasta entonces, solo si es el abierto)
+  const GEN_PUBLIC = true;    // F3c, T013: «Enunciado al azar» aparece en el selector (publicado)
   const PC = req('./core/precheck.js', 'precheck');
   const U = req('./core/urlstate.js', 'urlstate');
   const Store = req('./store.js', 'store');

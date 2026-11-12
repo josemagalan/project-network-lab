@@ -418,8 +418,8 @@
         seg([[tt('ex.practice'), s.xm !== 'exam', () => { if (s.xm === 'exam') newExercise({ xm: 'practice' }); }, 'exPractice'], [tt('ex.exam'), s.xm === 'exam', () => { if (s.xm !== 'exam') newExercise({ xm: 'exam' }); }, 'exExam']], tt('ex.mode')),
         h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), asks,
       ]);
-      // F3c (T010, tableros 60 y 61): dar el proyecto como enunciado; con «Personalizar», desactivado con su nota. Hasta la
-      // publicación (T013) solo aparece si el enlace ya lo pide.
+      // F3c (T010, tableros 60 y 61): dar el proyecto como enunciado; con «Personalizar», desactivado con su nota. Publicado
+      // en T013 (textPublic); sin publicar, solo aparecería si el enlace ya lo pide.
       let row3 = null;
       if (api.textPublic || s.xt) {
         const custom = s.lv === 'custom';
@@ -667,7 +667,7 @@
     return { render, debug };
   }
 
-  const api = { textPublic: false, ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
+  const api = { textPublic: true, ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
     forUrl, hasAnswers, seedFrom, visibility, stepState, blanks, counts, scoreText, countText, usedVal, keyLabel, origin, explain, pathExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.ex = api;

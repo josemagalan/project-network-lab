@@ -2513,7 +2513,9 @@ check('F2c T020 · AC11: los once enunciados están en el selector, y los nuevos
   for (const lang of ['es', 'en']) {
     const page = await m0Lab({ lang });
     const opts = await page.locator('#m0St option').allInnerTexts();
-    assert.equal(opts.length, 11);
+    // F3c (T013): tras los once, «Enunciado al azar».
+    assert.equal(opts.length, 12);
+    assert.equal(opts[11], lang === 'es' ? 'Enunciado al azar' : 'Random statement');
     assert.ok(opts.includes(lang === 'es' ? 'Reforma de la cocina' : 'Kitchen refit'), opts.join(' | '));
     await page.selectOption('#m0St', 'lanzamiento');
     await page.waitForFunction(() => PNL.m0.state().st === 'lanzamiento');
@@ -3798,6 +3800,8 @@ check('F3b AC8 · v=moodle: título, resumen y vista previa igual al modelo del 
   for (const [lang, sum, h1] of [['es', 'Se generarán 70 preguntas en 7 categorías.', 'Bancos de preguntas para Moodle'], ['en', '70 questions will be generated in 7 categories.', 'Question banks for Moodle']]) {
     const page = await mqOpen(lang);
     assert.equal(await page.locator('#mqView h1').textContent(), h1);
+    // F3c (T013): la etapa 0 va marcada al abrir; sin ella, las siete etapas de la F3b como antes.
+    await page.locator('#mqView .mq-stages .mq-check input').first().click();
     assert.equal(await page.locator('.mq-summary').textContent(), sum);
     const st = await mq(page);
     assert.equal(st.preview.stage, 'early'); assert.equal(st.preview.level, 'medium'); assert.equal(st.preview.seed, 1);
@@ -3926,14 +3930,15 @@ check('F3b T016 · tras editar los ejemplares, el primer clic en «Descargar» d
     page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)]);
   assert.match(dl.suggestedFilename(), /^banco-redes-/);
   assert.equal((await mq(page)).last.questions, 2);
-  // Teclado: Espacio en una casilla deja el foco en ella y Tab sigue el orden del formulario.
-  const first = page.locator('#mqView .mq-check input').first();
+  // Teclado: Espacio en una casilla deja el foco en ella y Tab sigue el orden del formulario (F3c, T013: la de la etapa 1
+  // es la segunda, tras la de la etapa 0).
+  const first = page.locator('#mqView .mq-check input').nth(1);
   await first.focus();
   await page.keyboard.press('Space');
   assert.equal(await first.isChecked(), false);
   assert.ok(await first.evaluate((el) => el === document.activeElement), 'el foco sigue en la casilla');
   await page.keyboard.press('Tab');
-  assert.ok(await page.locator('#mqView .mq-check input').nth(1).evaluate((el) => el === document.activeElement), 'Tab va a la casilla siguiente');
+  assert.ok(await page.locator('#mqView .mq-check input').nth(2).evaluate((el) => el === document.activeElement), 'Tab va a la casilla siguiente');
   await page.locator('#mqCount').fill('3');
   await page.keyboard.press('Tab');
   assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
@@ -3951,7 +3956,7 @@ check('F3b T016 · ejemplares acotados de 1 a 50 y botón desactivado sin selecc
     assert.equal((await mq(page)).sel.count, Number(want));
   }
   assert.equal(await page.locator('.mq-summary').textContent(), 'Se generarán 8 preguntas en una categoría.');
-  await page.locator('#mqView .mq-check input').first().click();
+  await page.locator('#mqView .mq-check input').nth(1).click();
   assert.equal(await page.locator('.mq-summary').textContent(), 'Elige al menos una etapa y un nivel.');
   assert.equal(await page.locator('#mqDownload').isDisabled(), true);
   await close(page);
@@ -4065,6 +4070,8 @@ check('F3b T016 AC13 · el «Aprende más» de «Ejercicios» en inglés abre el
   const s = await state(page);
   assert.equal(s.lang, 'en'); assert.equal(s.nota, 'es');
   assert.equal(await page.locator('#mqView h1').textContent(), 'Question banks for Moodle');
+  // F3c (T013): la vista previa es la de la etapa 0; sin ella, la de la etapa 1 con la notación española.
+  await page.locator('#mqView .mq-stages .mq-check input').first().click();
   assert.ok(await page.locator('.mq-preview th', { hasText: /^tᵢ$/ }).count() > 0);
   await close(page);
 });
@@ -4188,7 +4195,7 @@ check('F3c AC8 · el enlace de un enunciado al azar se abre igual en otra págin
   await close(none);
 });
 
-check('F3c P12 · M0 con un enunciado al azar no carga statements.js, ni con uno de la lista stmtgen.js; el selector no ofrece aún «Enunciado al azar»', async () => {
+check('F3c P12 y T013 · M0 con un enunciado al azar no carga statements.js, ni con uno de la lista stmtgen.js; el selector ofrece «Enunciado al azar»', async () => {
   const g = await open(genUrl());
   await g.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
   assert.equal(await loaded(g, /statements\.js/), false, 'statements.js con st=gen');
@@ -4201,7 +4208,13 @@ check('F3c P12 · M0 con un enunciado al azar no carga statements.js, ni con uno
   await close(g);
   const e = await m0Lab();
   assert.equal(await loaded(e, /stmtgen\.js|contexts\.js/), false, 'el generador con st=ej5');
-  assert.deepEqual(await e.locator('#m0St option').evaluateAll((os) => os.filter((o) => o.value === 'gen').length), 0);
+  assert.deepEqual(await e.locator('#m0St option').evaluateAll((os) => os.filter((o) => o.value === 'gen').map((o) => o.textContent)), ['Enunciado al azar']);
+  // Elegirlo abre un enunciado al azar de nivel medio y pide el generador.
+  await e.selectOption('#m0St', 'gen');
+  await e.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  const s = await state(e);
+  assert.deepEqual([s.st, s.lv, s.sv], ['gen', 'medium', 1]);
+  assert.equal(await loaded(e, /stmtgen\.js/), true);
   await close(e);
 });
 
@@ -4244,22 +4257,25 @@ check('F3c AC9 · «Ejercicios» con el proyecto como enunciado: el texto de esa
     }
     // Quitar el enunciado: vuelve la tabla y las respuestas siguen.
     const before = (await exSt(p)).ans;
-    // (Hasta la publicación, sin enunciado la casilla desaparece: se pulsa en lugar de desmarcarla.)
-    await p.locator('#exText').click();
+    await p.locator('#exText').uncheck();
     await p.waitForFunction(() => PNL.app.state().xt === 0);
     assert.deepEqual((await exSt(p)).ans, before);
     assert.ok(await p.locator('#exView .ex-given-card').first().isVisible());
     assert.ok(await p.locator('#exView .ex-text-card').count() === 0);
+    assert.equal(await p.locator('#exText').isChecked(), false, 'la casilla sigue, desmarcada (T013)');
     await close(p);
   }
 });
 
-check('F3c P8 · antes de publicar, «Ejercicios» no ofrece el enunciado; con «Personalizar», la casilla está desactivada y lleva su nota', async () => {
+check('F3c P8 y T013 · «Ejercicios» ofrece el enunciado (marcarlo lo pone); con «Personalizar», la casilla está desactivada y lleva su nota', async () => {
   const p = await exLab({ sd: 14844, lv: 'medium' });
-  assert.equal(await p.locator('#exText').count(), 0);
+  assert.equal(await p.locator('#exText').isChecked(), false);
+  await p.locator('#exText').check();
+  await p.waitForFunction(() => PNL.app.state().xt === 1);
+  await exText(p);
+  assert.equal(await loaded(p, /stmtgen\.js/), true);
   await close(p);
   const c = await exLab({ sd: 14844, lv: 'custom', gp: { n: [12, 16], pred: 2, dummies: [3, 5], critical: [2, 3], dmax: 15 } });
-  await c.evaluate(() => { PNL.ex.textPublic = true; });
   await c.selectOption('#selLang', 'en');
   await c.waitForFunction(() => document.getElementById('exText'));
   assert.equal(await c.locator('#exText').isDisabled(), true);
@@ -4288,18 +4304,19 @@ check('F3c P5 · «Ejercicios» solo carga el generador de enunciados con el enu
 
 // ---------- F3c, T011: la etapa «0 · Enunciado → tabla» en el exportador (spec f3c-enunciados, AC10, AC12 y AC13; plan §4, P5 y P6; tablero 62) ----------
 
-// Hasta la publicación (T013) la etapa se enseña con PNL.moodlePage.stmtPublic = true y un redibujo (cambio de idioma).
+// Publicada en T013: la etapa 0 es la primera marcada al abrir, y su pregunta, la de la vista previa.
 async function mqStmt(lang, opts) {
-  const p = await mqOpen(lang === 'es' ? 'en' : 'es', opts);
-  await p.evaluate(() => { PNL.moodlePage.stmtPublic = true; });
-  await p.selectOption('#selLang', lang);
+  const p = await mqOpen(lang, opts);
   await p.waitForFunction(() => { const q = PNL.moodlePage.state().preview; return q && q.stage === 'stmt'; });
   return p;
 }
 const xmlOf = async (dl) => fs.readFileSync(await dl.path(), 'utf8');
 
-check('F3c P6 · antes de publicar, el exportador no ofrece la etapa 0 ni la mete en el banco; el banco ya carga el generador de enunciados', async () => {
-  const p = await mqOpen('es');
+check('F3c P6 · sin publicar (stmtPublic falso), el exportador no ofrece la etapa 0 ni la mete en el banco; el banco carga el generador de enunciados', async () => {
+  const p = await mqOpen('en');
+  await p.evaluate(() => { PNL.moodlePage.stmtPublic = false; });
+  await p.selectOption('#selLang', 'es');
+  await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'early');
   const labels = await p.$$eval('#mqView .mq-stages .mq-check', (ls) => ls.map((l) => l.textContent));
   assert.equal(labels.length, 7);
   assert.ok(labels[0].startsWith('1 ·'));

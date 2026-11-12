@@ -44,7 +44,7 @@
     // ---------- Vista del exportador ----------
     page: {
       title: 'Bancos de preguntas para Moodle',
-      lead: 'Genera preguntas de cálculo con el mismo núcleo que el laboratorio y descárgalas en formato Moodle XML para importarlas en el banco de preguntas de tu curso. Las preguntas van por etapas: cada una da como datos los resultados correctos de la anterior, así que un error no se arrastra de una pregunta a otra. En la retroalimentación, cada pregunta enlaza con su ejercicio en el laboratorio y con la solución paso a paso.',
+      lead: 'Genera preguntas con el mismo núcleo que el laboratorio y descárgalas en formato Moodle XML para importarlas en el banco de preguntas de tu curso. Las preguntas van por etapas: la 0 pide pasar un enunciado a la tabla y, en las de cálculo, cada una da como datos los resultados correctos de la anterior, así que un error no se arrastra de una pregunta a otra. En la retroalimentación, cada pregunta enlaza con su ejercicio o su enunciado en el laboratorio y con la solución paso a paso.',
       stagesTitle: 'Etapas',
       stagesHint: 'Una categoría por etapa y nivel. Las preguntas 4a y 4b dan los cuatro tiempos de cada actividad, sin las holguras.',
       sf: 'Pedir también la holgura de seguridad en la etapa 3',
@@ -117,7 +117,7 @@
     link: { ex: 'Open this exercise in the lab', step: 'See the step-by-step solution', stmt: 'Open this statement in the lab', stmtRoute: 'See the step-by-step route of the statement' },
     page: {
       title: 'Question banks for Moodle',
-      lead: 'Generate calculation questions with the same core as the lab and download them in Moodle XML format to import them into your course question bank. The questions go in stages: each one gives the correct results of the previous one as data, so a mistake is not carried from one question to the next. In the feedback, each question links to its exercise in the lab and to the step-by-step solution.',
+      lead: 'Generate questions with the same core as the lab and download them in Moodle XML format to import them into your course question bank. The questions go in stages: stage 0 asks students to turn a statement into the table and, in the calculation stages, each one gives the correct results of the previous one as data, so a mistake is not carried from one question to the next. In the feedback, each question links to its exercise or statement in the lab and to the step-by-step solution.',
       stagesTitle: 'Stages',
       stagesHint: 'One category per stage and level. Questions 4a and 4b give the four times of each activity, without the floats.',
       sf: 'Also ask for the safety float in stage 3',

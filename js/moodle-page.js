@@ -13,8 +13,8 @@
  * La parte sin DOM (summary, fileName, missingText) se prueba en Node; PNL.moodlePage.state() da la selección, el
  * progreso y el último banco para las pruebas de navegador.
  * F3c (spec f3c-enunciados, plan §4 y P6; tablero 62): la etapa «0 · Enunciado → tabla» va la primera de la lista y
- * marcada al abrir, pero solo se ofrece con stmtPublic (falso hasta la publicación, T013); mientras no se ofrece, no
- * entra en el resumen, en la vista previa ni en el banco. En el núcleo sigue al final de STAGES_ALL.
+ * marcada al abrir, y se ofrece con stmtPublic (publicada en T013); si no se ofreciera, no entraría en el resumen, en la
+ * vista previa ni en el banco. En el núcleo sigue al final de STAGES_ALL.
  */
 (function (root) {
   'use strict';
@@ -253,7 +253,7 @@
     return { render, leave, debug };
   }
 
-  const api = { stmtPublic: false, stagesOf, summary, summaryText, fileName, missingText, create, CHUNK_MS };
+  const api = { stmtPublic: true, stagesOf, summary, summaryText, fileName, missingText, create, CHUNK_MS };
   root.PNL = root.PNL || {};
   root.PNL.moodlePage = api;
   if (isNode) module.exports = api;
