@@ -5,6 +5,9 @@
  * (views/question-view). Etapas: early (ES, EF y duración), late (LS y LF), floats (TF, FF, IF y, con sf, SF),
  * critAct (¿crítica?), critPath (caminos), evEarly (TE) y evLate (TL y holgura de suceso). Cada una da como datos
  * la solución de la anterior; critAct y critPath dan los de late (los cuatro tiempos, sin holguras).
+ * F3c (spec f3c-enunciados, plan P6): stmt («0 · Enunciado → tabla») da un enunciado de core/stmtgen y pide las
+ * predecesoras inmediatas con una fila de casillas por actividad (MULTIRESPONSE_H): inmediata +100/c, redundante 0,
+ * falsa −100/c. Va al final de STAGES_ALL para no mover las semillas de las siete etapas de la F3b.
  * Los textos llegan con tr(key, params) (catálogo i18n-moodle) y los encabezados con ctx.labels (la notación).
  * Sin DOM ni azar.
  */
@@ -20,6 +23,9 @@
   const R = isNode ? require('./rng.js') : root.PNL.rng;
 
   const STAGES = ['early', 'late', 'floats', 'critAct', 'critPath', 'evEarly', 'evLate'];
+  const STAGES_ALL = [...STAGES, 'stmt'];
+  // core/stmtgen se carga con el grupo sg (plan P5); en Node, al pedirlo.
+  const SG = () => (isNode ? require('./stmtgen.js') : root.PNL.stmtgen);
   const LEVELS = ['easy', 'medium', 'hard'];
   const APP = 'https://josemagalan.github.io/project-network-lab/cpm.html';
   const PATH_LIMIT = 100000;
@@ -27,6 +33,8 @@
   const MIN_DISTRACTORS = 2;
   // Fracciones de la lista de Moodle (100/k con k = 1…4); otra cualquiera no se importa.
   const FRACTIONS = { 1: '100', 2: '50', 3: '33.33333', 4: '25' };
+  // Casillas de la etapa stmt: 100/c con c = 1…8 (más predecesoras inmediatas que 8 descartan el ejemplar).
+  const MR_FRACTIONS = { 1: '100', 2: '50', 3: '33.33333', 4: '25', 5: '20', 6: '16.66667', 7: '14.28571', 8: '12.5' };
   const ASK = { early: ['times'], late: ['times'], floats: ['floats'], critAct: ['critical'], critPath: ['critical'], evEarly: ['events'], evLate: ['events'] };
   const PATH_SEP = ' – ';
   const MAX_COUNT = 50;
@@ -86,11 +94,39 @@
     const times = (id) => [T[id].ES, T[id].EF, T[id].LS, T[id].LF];
     const timeHead = [L.ES, L.EF, L.LS, L.LF];
     const answers = {};
-    const hole = (c) => { answers[c.key] = 'num' in c ? c.num : (c.yesNo ? 'yes' : 'no'); return c; };
+    const hole = (c) => { answers[c.key] = 'num' in c ? c.num : 'mr' in c ? c.answer : (c.yesNo ? 'yes' : 'no'); return c; };
     const table = (head, rows, extra) => ({ table: Object.assign({ head, rows }, extra || {}) });
     let text; let sol; let options = null;
+    let l = null; let sv = null;
 
-    if (stage === 'early') {
+    if (stage === 'stmt') {
+      const G3 = SG();
+      const level = ex.level || 'medium';
+      const seed = ex.seed == null ? 1 : ex.seed;
+      const cx = G3.contextOf(seed, level);
+      const made = G3.compose(ex.rows, level, cx, seed);
+      if (!made.ok || acts.some((id) => preds[id].length > 8)) return null;
+      const lang = ctx.lang === 'en' ? 'en' : 'es';
+      const name = Object.fromEntries(made.def.ref.rows.map((r) => [r.id, r.name[lang]]));
+      const anc = {};
+      for (const id of acts) { anc[id] = new Set(); const go = (x) => preds[x].forEach((p) => { if (!anc[id].has(p)) { anc[id].add(p); go(p); } }); go(id); }
+      const none = tr('noneOpt');
+      const mr = (id) => {
+        const P = preds[id];
+        const fr = MR_FRACTIONS[P.length];
+        const opts = acts.filter((x) => x !== id).map((x) => ({ label: x, fraction: P.includes(x) ? fr : anc[id].has(x) ? '0' : P.length ? `-${fr}` : '-100' }));
+        opts.push({ label: none, fraction: P.length ? '-100' : '100' });
+        return { mr: opts, key: `${id}.preds`, answer: [...P].sort() };
+      };
+      text = [{ p: tr('stem.stmt') }, { quote: G3.render(made.def, lang).split('\n').filter(Boolean) },
+        table([tr('col.act'), tr('col.name'), tr('col.immPreds')], acts.map((id) => [id, name[id], hole(mr(id))]))];
+      sol = [table([tr('col.act'), tr('col.name'), tr('col.preds')], acts.map((id) => [id, name[id], preds[id].length ? preds[id].join(', ') : tr('none')]))];
+      sv = G3.VERSION;
+      if (ex.seed != null) {
+        const m0 = { v: 'm0', st: 'gen', sd: ex.seed, lv: level, cx, sv, lang: ctx.lang, nota: ctx.nota };
+        l = { ex: APP + U.encode(m0), step: APP + U.encode(Object.assign({}, m0, { mm: 'route' })), exKey: 'link.stmt', stepKey: 'link.stmtRoute' };
+      } else l = links(ex, 'early', ctx);
+    } else if (stage === 'early') {
       text = [{ p: tr('stem.early') }, table(precHead, acts.map(prec)),
         table([tr('col.act'), L.ES, L.EF], acts.map((id) => [id, hole(num(T[id].ES, `${id}.ES`)), hole(num(T[id].EF, `${id}.EF`))])),
         { p: tr('projectDur'), hole: hole(num(D, 'dur')) }];
@@ -139,7 +175,7 @@
       }
     }
 
-    const l = links(ex, stage, ctx);
+    l = l || links(ex, stage, ctx);
     const stageName = tr(`stage.${stage}`);
     const levelName = ex.level ? tr(`level.${ex.level}`) : null;
     const nameParts = [stageName];
@@ -147,11 +183,12 @@
     nameParts.push(`n=${acts.length}`);
     if (ex.seed != null) nameParts.push(`s=${ex.seed}`);
     nameParts.push(`gv=${ex.gv}`);
+    if (sv) nameParts.push(`sv=${sv}`);
     const q = {
       stage, level: ex.level, seed: ex.seed, gv: ex.gv, n: acts.length,
       category: [tr('root'), stageName].concat(levelName ? [levelName] : []),
       name: nameParts.join(' · '),
-      tags: [`pnl-${stage}`, `level-${ex.level || 'example'}`, `lang-${ctx.lang}`, `gv-${ex.gv}`],
+      tags: [`pnl-${stage}`, `level-${ex.level || 'example'}`, `lang-${ctx.lang}`, `gv-${ex.gv}`].concat(sv ? [`sv-${sv}`] : []),
       qtype: options ? 'multichoice' : 'cloze',
       text,
       general: [{ strong: tr('sol.title') }, ...sol, { links: l }],
@@ -179,7 +216,7 @@
     const triesPer = opts.triesPer || TRIES_PER;
     const seedMax = opts.seedMax || SEED_MAX;
     const levels = LEVELS.filter((lv) => (opts.levels || []).includes(lv));
-    const stages = STAGES.filter((st) => (opts.stages || []).includes(st));
+    const stages = STAGES_ALL.filter((st) => (opts.stages || []).includes(st));
     const cats = levels.flatMap((level) => stages.map((stage) => ({ level, stage })));
     const total = cats.length * count;
     const rngs = {}; const used = {};
@@ -223,6 +260,7 @@
 
   function cellHtml(c, tr) {
     if (c && typeof c === 'object' && 'num' in c) return `{1:NUMERICAL:=${c.num}:0}`;
+    if (c && typeof c === 'object' && 'mr' in c) return `{1:MULTIRESPONSE_H:${c.mr.map((o) => `%${o.fraction}%${escText(escCloze(o.label))}`).join('~')}}`;
     if (c && typeof c === 'object' && 'yesNo' in c) {
       const yes = escText(escCloze(tr('yes'))); const no = escText(escCloze(tr('no')));
       return `{1:MULTICHOICE:${c.yesNo ? '=' : ''}${yes}~${c.yesNo ? '' : '='}${no}}`;
@@ -239,8 +277,9 @@
       }
       if (b.links) {
         const a = (href, key) => `<a href="${escAttr(href)}" target="_blank" rel="noopener">${escText(tr(key))}</a>`;
-        return `<p>${[b.links.ex ? a(b.links.ex, 'link.ex') : null, a(b.links.step, 'link.step')].filter(Boolean).join(' · ')}</p>`;
+        return `<p>${[b.links.ex ? a(b.links.ex, b.links.exKey || 'link.ex') : null, a(b.links.step, b.links.stepKey || 'link.step')].filter(Boolean).join(' · ')}</p>`;
       }
+      if (b.quote) return `<blockquote>${b.quote.map((x) => `<p>${escText(x)}</p>`).join('')}</blockquote>`;
       if (b.strong) return `<p><strong>${escText(b.strong)}</strong></p>`;
       return `<p>${escText(b.p)}${b.hole ? ` ${cellHtml(b.hole, tr)}` : ''}</p>`;
     }).join('');
@@ -278,7 +317,7 @@
     return `<?xml version="1.0" encoding="UTF-8"?>\n<!-- Project Network Lab · s=${bank.seed} · ${APP} -->\n<quiz>\n${out.join('\n')}\n</quiz>\n`;
   }
 
-  const api = { STAGES, LEVELS, APP, FRACTIONS, MIN_DISTRACTORS, MAX_DISTRACTORS, MAX_COUNT, DEFAULT_COUNT, TRIES_PER,
+  const api = { STAGES, STAGES_ALL, LEVELS, APP, FRACTIONS, MR_FRACTIONS, MIN_DISTRACTORS, MAX_DISTRACTORS, MAX_COUNT, DEFAULT_COUNT, TRIES_PER,
     fraction, exercise, fromRows, links, question, runner, generate, toXml, cdata };
   root.PNL = root.PNL || {};
   root.PNL.moodle = api;

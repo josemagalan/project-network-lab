@@ -58,6 +58,7 @@ test('sin contexto, el contexto sale de la semilla y da lo mismo que pedirlo', (
     assert.ok(X.KEYS.includes(r.ctx));
     seen.add(r.ctx);
     assert.deepEqual(SG.make(sd, 'easy', { ctx: r.ctx }).def, r.def);
+    assert.equal(SG.contextOf(sd, 'easy'), r.ctx);
   }
   assert.equal(seen.size, 4);
 });

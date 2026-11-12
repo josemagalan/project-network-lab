@@ -15,6 +15,7 @@
     stage: {
       early: '1 · Tiempos tempranos', late: '2 · Tiempos tardíos', floats: '3 · Holguras', critAct: '4a · Actividades críticas',
       critPath: '4b · Caminos críticos', evEarly: '5 · Sucesos: tiempos tempranos', evLate: '6 · Sucesos: tiempos tardíos y holguras',
+      stmt: '0 · Enunciado → tabla',
     },
     level: { easy: 'Fácil', medium: 'Media', hard: 'Difícil' },
     stem: {
@@ -26,18 +27,20 @@
       critPath: 'Con esta tabla y sus tiempos (la duración del proyecto es {dur}), marca todos los caminos críticos.',
       evEarly: 'Esta es la red PERT del proyecto (actividades en los arcos), dada por sus arcos; las ficticias duran 0. Calcula el tiempo temprano de cada suceso.',
       evLate: 'Esta es la red PERT del proyecto, dada por sus arcos, con el tiempo temprano de cada suceso. Calcula el tiempo tardío y la holgura de cada suceso.',
+      stmt: 'Lee el enunciado y marca las predecesoras inmediatas de cada actividad (o «ninguna» si no tiene). Una precedencia que ya se deduce de otras (redundante) no suma ni resta; una que el enunciado no da, resta.',
     },
     col: {
       act: 'Actividad', dur: 'Duración', preds: 'Predecesoras', crit: '¿Es crítica?', arc: 'Arco', from: 'Suceso de origen',
-      to: 'Suceso de destino', event: 'Suceso', slack: 'Holgura',
+      to: 'Suceso de destino', event: 'Suceso', slack: 'Holgura', name: 'Nombre', immPreds: 'Predecesoras inmediatas',
     },
     projectDur: 'Duración del proyecto:',
     none: '—',
+    noneOpt: 'ninguna',
     dummy: '{name} (ficticia)',
     yes: 'Sí', no: 'No',
     sol: { title: 'Solución', critical: 'Actividades críticas: {acts}.', paths: 'Caminos críticos: {paths} (duración {dur}).' },
     fb: { pathCrit: 'Es un camino crítico.', pathNot: 'No es crítico: dura {len}.' },
-    link: { ex: 'Abrir este ejercicio en el laboratorio', step: 'Ver la solución paso a paso' },
+    link: { ex: 'Abrir este ejercicio en el laboratorio', step: 'Ver la solución paso a paso', stmt: 'Abrir este enunciado en el laboratorio', stmtRoute: 'Ver la ruta paso a paso del enunciado' },
     // ---------- Vista del exportador ----------
     page: {
       title: 'Bancos de preguntas para Moodle',
@@ -86,6 +89,7 @@
     stage: {
       early: '1 · Early times', late: '2 · Late times', floats: '3 · Floats', critAct: '4a · Critical activities',
       critPath: '4b · Critical paths', evEarly: '5 · Events: early times', evLate: '6 · Events: late times and slack',
+      stmt: '0 · Statement → table',
     },
     level: { easy: 'Easy', medium: 'Medium', hard: 'Hard' },
     stem: {
@@ -97,18 +101,20 @@
       critPath: 'With this table and its times (the project duration is {dur}), tick all the critical paths.',
       evEarly: 'This is the AOA network of the project (activities on the arcs), given by its arcs; dummies last 0. Compute the earliest time of each event.',
       evLate: 'This is the AOA network of the project, given by its arcs, with the earliest time of each event. Compute the latest time and the slack of each event.',
+      stmt: 'Read the statement and tick the immediate predecessors of each activity (or "none" if it has none). A precedence that already follows from others (redundant) neither adds nor subtracts; one that the statement does not give subtracts.',
     },
     col: {
       act: 'Activity', dur: 'Duration', preds: 'Predecessors', crit: 'Critical?', arc: 'Arc', from: 'Start event',
-      to: 'End event', event: 'Event', slack: 'Slack',
+      to: 'End event', event: 'Event', slack: 'Slack', name: 'Name', immPreds: 'Immediate predecessors',
     },
     projectDur: 'Project duration:',
     none: '—',
+    noneOpt: 'none',
     dummy: '{name} (dummy)',
     yes: 'Yes', no: 'No',
     sol: { title: 'Solution', critical: 'Critical activities: {acts}.', paths: 'Critical paths: {paths} (duration {dur}).' },
     fb: { pathCrit: 'It is a critical path.', pathNot: 'It is not critical: it lasts {len}.' },
-    link: { ex: 'Open this exercise in the lab', step: 'See the step-by-step solution' },
+    link: { ex: 'Open this exercise in the lab', step: 'See the step-by-step solution', stmt: 'Open this statement in the lab', stmtRoute: 'See the step-by-step route of the statement' },
     page: {
       title: 'Question banks for Moodle',
       lead: 'Generate calculation questions with the same core as the lab and download them in Moodle XML format to import them into your course question bank. The questions go in stages: each one gives the correct results of the previous one as data, so a mistake is not carried from one question to the next. In the feedback, each question links to its exercise in the lab and to the step-by-step solution.',

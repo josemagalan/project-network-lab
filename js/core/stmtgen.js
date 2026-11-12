@@ -294,11 +294,14 @@
     return { ok: true, def, feat };
   }
 
+  /** El contexto de una semilla y un nivel cuando no se pide (el de «Al azar»; lo usa también core/moodle). */
+  const contextOf = (sd, lv) => X.KEYS[R.int(R.mulberry32(ctxSeed(sd, lv)), 0, X.KEYS.length - 1)];
+
   function make(sd, lv, opts) {
     const o = opts || {};
     if (o.version !== undefined && o.version !== VERSION) return { ok: false, reason: 'version' };
     if (!LEVELS.includes(lv)) return { ok: false, reason: 'level' };
-    const ctx = o.ctx || X.KEYS[R.int(R.mulberry32(ctxSeed(sd, lv)), 0, X.KEYS.length - 1)];
+    const ctx = o.ctx || contextOf(sd, lv);
     if (!X.CONTEXTS[ctx]) return { ok: false, reason: 'context' };
     const gen = GEN.generate(sd, GEN.LEVELS[lv]);
     if (!gen.ok) return { ok: false, reason: 'table' };
@@ -308,7 +311,7 @@
 
   const render = (def, L) => def.text[LANGS.includes(L) ? L : 'es'].map((s) => (Array.isArray(s) ? s[1] : s)).join('');
 
-  const api = { VERSION, LEVELS, make, compose, assign, render, table };
+  const api = { VERSION, LEVELS, make, compose, contextOf, assign, render, table };
   root.PNL = root.PNL || {};
   root.PNL.stmtgen = api;
   if (isNode) module.exports = api;

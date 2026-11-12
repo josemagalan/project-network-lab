@@ -563,3 +563,92 @@ test('T016: textos del banco (i18n-moodle) aprobados en T006', () => {
   assert.equal(es('stem.late', { dur: 13 }), 'Con esta tabla y sus tiempos tempranos (la duración del proyecto es 13), calcula el comienzo tardío y el fin tardío de cada actividad.');
   assert.equal(en('fb.pathNot', { len: 33 }), 'It is not critical: it lasts 33.');
 });
+
+// ---------- F3c, T007: etapa «Enunciado → tabla» (spec f3c-enunciados, AC10; plan §3, P6) ----------
+const SG = require('../js/core/stmtgen.js');
+const MR_OK = ['100', '50', '33.33333', '25', '20', '16.66667', '14.28571', '12.5'];
+
+test('F3c: las siete etapas de la F3b dan el mismo XML que antes de la F3c (huella)', () => {
+  const IM = require('../js/i18n-moodle.js');
+  const crypto = require('crypto');
+  const HUELLA = {   // calculadas sobre 8795bb2, antes de tocar core/moodle
+    '1|es|en': '0da0c9473af1bbd9c14e4aa99ead2e51b9efddd95ab94d71199ffbd9f6e7a97a',
+    '123456789|en|es': 'b0d17bde6ed0360f88b71e11785348c28b53a3d4e7663f3bb6bcd3ce0b47023e',
+    '4242|es|es': '17b1f6e0dfce114d5e98f947acad3932efdffee8e002c50c09fc1fe4c8f8efc3',
+  };
+  assert.deepEqual(M.STAGES, ['early', 'late', 'floats', 'critAct', 'critPath', 'evEarly', 'evLate']);
+  for (const [k, h] of Object.entries(HUELLA)) {
+    const [seed, lang, nota] = k.split('|');
+    const bank = M.generate({ lang, nota, sf: true, labels: IM.labels(nota), stages: M.STAGES, levels: M.LEVELS, count: 2, seed: Number(seed) }, IM.tr(lang));
+    assert.equal(crypto.createHash('sha256').update(M.toXml(bank, IM.tr(lang))).digest('hex'), h, k);
+  }
+});
+
+test('F3c: la etapa stmt va al final y no mueve las semillas de las demás', () => {
+  assert.deepEqual(M.STAGES_ALL, [...M.STAGES, 'stmt']);
+  const o = { lang: 'es', nota: 'en', sf: false, labels: LABELS, levels: M.LEVELS, count: 2, seed: 77 };
+  const seven = M.generate(Object.assign({}, o, { stages: M.STAGES }), tr).questions;
+  const eight = M.generate(Object.assign({}, o, { stages: M.STAGES_ALL }), tr).questions;
+  assert.deepEqual(eight.filter((q) => q.stage !== 'stmt').map((q) => q.name), seven.map((q) => q.name));
+  assert.equal(eight.filter((q) => q.stage === 'stmt').length, 6);
+});
+
+const mrCells = (q) => q.text.filter((b) => b.table).flatMap((b) => b.table.rows.map((r) => r.find((c) => c && typeof c === 'object' && 'mr' in c)).filter(Boolean));
+
+test('F3c: la pregunta stmt da el enunciado de stmtgen, una fila de casillas por actividad y la tabla de referencia como solución', () => {
+  for (const lv of M.LEVELS) for (const sd of [3, 11, 40]) {
+    const ex = M.exercise(lv, sd);
+    const q = M.question('stmt', ex, ctx(), tr);
+    const made = SG.make(sd, lv);
+    assert.ok(q && made.ok);
+    assert.deepEqual(q.category, [tr('root'), tr('stage.stmt'), tr(`level.${lv}`)]);
+    assert.equal(q.qtype, 'cloze');
+    assert.match(q.name, new RegExp(`s=${sd} · gv=${G.VERSION} · sv=${SG.VERSION}$`));
+    const quote = q.text.find((b) => b.quote);
+    assert.deepEqual(quote.quote, SG.render(made.def, 'es').split('\n').filter(Boolean));
+    const preds = ex.sol.project.preds;
+    const acts = ex.sol.project.activities.map((a) => a.id);
+    const anc = (id) => { const s = new Set(); const go = (x) => preds[x].forEach((p) => { if (!s.has(p)) { s.add(p); go(p); } }); go(id); return s; };
+    const cells = mrCells(q);
+    assert.equal(cells.length, acts.length);
+    cells.forEach((c, i) => {
+      const id = acts[i];
+      const P = preds[id];
+      assert.deepEqual(c.mr.map((o) => o.label), [...acts.filter((x) => x !== id), tr('noneOpt')]);
+      for (const o of c.mr) {
+        const fr = o.label === tr('noneOpt') ? (P.length ? '-100' : '100')
+          : P.includes(o.label) ? MR_OK[P.length - 1] : anc(id).has(o.label) ? '0' : P.length ? `-${MR_OK[P.length - 1]}` : '-100';
+        assert.equal(o.fraction, fr, `${lv}/${sd}/${id}/${o.label}`);
+        assert.ok(['0', ...MR_OK, ...MR_OK.map((f) => `-${f}`)].includes(o.fraction));
+      }
+      assert.deepEqual(q.answers[c.key], [...P].sort());
+    });
+    // Enlaces: el mismo enunciado en M0 y su ruta paso a paso.
+    for (const [href, mm] of [[q.links.ex, 'practice'], [q.links.step, 'route']]) {
+      const s = U.decode(href.slice(href.indexOf('#'))).state;
+      assert.deepEqual([s.v, s.st, s.sd, s.lv, s.cx, s.sv, s.mm], ['m0', 'gen', sd, lv, made.ctx, SG.VERSION, mm]);
+    }
+    assert.deepEqual([q.links.exKey, q.links.stepKey], ['link.stmt', 'link.stmtRoute']);
+  }
+});
+
+test('F3c: un ejemplar sin enunciado posible se descarta; el XML lleva MULTIRESPONSE_H y está bien formado', () => {
+  const many = Array.from({ length: 25 }, (_, i) => ({ id: `T${i}`, duration: '1', links: i ? `T${i - 1}` : '' }));
+  assert.equal(M.question('stmt', M.fromRows(many), ctx(), tr), null);
+  const IM = require('../js/i18n-moodle.js');
+  for (const [lang, nota] of [['es', 'en'], ['en', 'es']]) {
+    const t = IM.tr(lang);
+    const xml = M.toXml(M.generate({ lang, nota, sf: false, labels: IM.labels(nota), stages: ['stmt'], levels: M.LEVELS, count: 1, seed: 5 }, t), t);
+    assert.deepEqual(X.check(xml), { ok: true });
+    assert.ok(/\{1:MULTIRESPONSE_H:%[-\d.]+%[A-Z0-9]+(~%[-\d.]+%[^~}]+)+\}/.test(xml));
+    assert.ok(xml.includes('<blockquote>'));
+    if (lang === 'en') {
+      assert.ok(xml.includes('$course$/top/Project networks/0 · Statement → table/Medium'));
+      assert.ok(!xml.includes('ninguna') && xml.includes('%none}'));
+      assert.ok(!/Hay que|Cuando terminen|Desde el primer día/.test(xml));
+    } else {
+      assert.ok(xml.includes('$course$/top/Redes de proyectos/0 · Enunciado → tabla/Media'));
+      assert.ok(xml.includes('%ninguna}'));
+    }
+  }
+});
