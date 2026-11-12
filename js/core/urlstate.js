@@ -21,9 +21,10 @@
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
     tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: ['0', '1'],
     lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
+    cx: ['home', 'product', 'congress', 'lab'], xt: ['0', '1'],   // F3c: contexto del enunciado al azar y enunciado en «Ejercicios»
   };
-  const NUMERIC = ['pred', 'min', 'sol', 'xd'];
-  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt'];
+  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -49,7 +50,8 @@
   function defaults() {
     return { v: 'route', ex: 'ej6', t: null, step: 0, view: 'net', lang: null, nota: 'en', box: '7', mode: 'pred', pred: 0, wi: null, graph: 'aon', min: 0, m: 'rules', ms: DEFAULT_MS.slice(), pair: null, sn: null,
       st: null, own: null, mk: null, tv: 'list', mm: 'practice', sol: 0,
-      sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null };
+      sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null,
+      cx: null, sv: null, xt: 0 };
   }
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -219,6 +221,7 @@
 
   // ---------- F3a: «Ejercicios» ----------
   const seedOk = (x) => Number.isInteger(x) && x >= 1 && x <= EX.seed;
+  const verOk = (x) => Number.isInteger(x) && x >= 1 && x <= 999;   // F3c: sv, versión del generador de enunciados
   const pairIn = (x, lo, hi) => Array.isArray(x) && x.length === 2 && x.every(Number.isInteger) && x[0] >= lo && x[0] <= x[1] && x[1] <= hi;
   // Parámetros de «Personalizar»: solo los límites de la forma (generator.check dice lo que es imposible).
   function cleanGp(gp) {
@@ -333,6 +336,13 @@
     // F2c: M0, solo lo que no vale lo de siempre.
     if (m0) {
       q.set('st', s.st || DEFAULT_ST);
+      // F3c: el enunciado al azar se guarda por su semilla, nivel, contexto y versión del generador (plan P7).
+      if (s.st === 'gen') {
+        if (seedOk(s.sd)) q.set('sd', String(s.sd));
+        if (s.lv === 'easy' || s.lv === 'hard') q.set('lv', s.lv);
+        if (ENUMS.cx.includes(s.cx)) q.set('cx', s.cx);
+        if (verOk(s.sv)) q.set('sv', String(s.sv));
+      }
       if (own) q.set('own', packOwn(s));
       else if (s.mk && s.mk.length) q.set('mk', encodeMarks(s.mk));
       if (s.tv !== 'list') q.set('tv', s.tv);
@@ -352,6 +362,7 @@
       if (ans) q.set('ans', packAns(ans));
       if (s.xd) q.set('xd', '1');
       if (Number.isInteger(s.gv) && s.gv >= 1) q.set('gv', String(s.gv));
+      if (s.xt && s.lv !== 'custom') q.set('xt', '1');
     }
     return '#' + q.toString();
   }
@@ -434,13 +445,22 @@
         else if (!q.has('own') && state.mm === 'prepare') { state.st = 'own'; state.own = { lang: state.lang || 'es', text: '', frags: [], ref: null }; }
         else { state.st = DEFAULT_ST; malformed = true; }
       } else if (st === null) state.st = DEFAULT_ST;
-      else if (STATEMENTS.includes(st)) state.st = st;
+      else if (st === 'gen') {
+        state.st = 'gen';
+        if (q.has('sd')) { const n = /^\d{1,6}$/.test(q.get('sd')) ? Number(q.get('sd')) : NaN; if (seedOk(n)) state.sd = n; else malformed = true; }
+        if (state.lv === 'custom') { state.lv = 'medium'; malformed = true; }
+        if (q.has('sv')) { const v = q.get('sv'); if (/^\d{1,3}$/.test(v) && verOk(Number(v))) state.sv = Number(v); else malformed = true; }
+      } else if (STATEMENTS.includes(st)) state.st = st;
       else { state.st = DEFAULT_ST; malformed = true; }
       if (state.st !== 'own' && q.has('mk')) {
         const mk = decodeMarks(q.get('mk'));
         if (mk === null) malformed = true; else state.mk = mk.length ? mk : null;
       }
     }
+    // F3c: el contexto solo cuenta con el enunciado al azar, y el enunciado de «Ejercicios» solo con los tres niveles.
+    if (!(state.v === 'm0' && state.st === 'gen')) state.cx = null;
+    if (state.v !== 'ex') state.xt = 0;
+    else if (state.xt && state.lv === 'custom') { state.xt = 0; malformed = true; }
     // F3b: el exportador de Moodle no tiene tabla ni ejemplo.
     if (state.v === 'moodle') { state.ex = null; state.t = null; }
     // F3a: «Ejercicios» (la tabla sale de la semilla: t y ex no se leen).

@@ -481,3 +481,63 @@ test('F3b: decode de v=moodle, sin tabla ni ejemplo, y de ida y vuelta', () => {
   assert.equal(U.decode(U.encode(r.state)).state.v, 'moodle');
   assert.equal(U.decode('#v=moodles').warning, 'malformed');
 });
+
+// ---------- F3c: enunciado al azar en M0 y enunciado en «Ejercicios» (spec f3c-enunciados, AC8–AC9; plan §3, P7) ----------
+
+test('F3c: los parámetros nuevos valen lo de siempre y los enlaces de antes no los escriben', () => {
+  const d = U.defaults();
+  assert.deepEqual([d.cx, d.sv, d.xt], [null, null, 0]);
+  for (const s of [{ v: 'm0', st: 'ej5' }, { v: 'ex', ex: null, sd: 7 }, { v: 'route' }]) {
+    const q = new URLSearchParams(U.encode(Object.assign(U.defaults(), s)).slice(1));
+    for (const k of ['cx', 'sv', 'xt']) assert.ok(!q.has(k), `${s.v}: ${k}`);
+    if (s.v === 'm0') for (const k of ['sd', 'lv']) assert.ok(!q.has(k), `m0: ${k}`);
+  }
+});
+
+test('F3c: ida y vuelta de st=gen con sd, lv, cx, sv y subrayados', () => {
+  const s = Object.assign(U.defaults(), { v: 'm0', ex: null, st: 'gen', sd: 31337, lv: 'hard', cx: 'lab', sv: 1, lang: 'en',
+    mk: [{ from: 3, to: 5, kind: 'activity', act: 'A' }] });
+  const h = U.encode(s);
+  const q = new URLSearchParams(h.slice(1));
+  assert.deepEqual([q.get('st'), q.get('sd'), q.get('lv'), q.get('cx'), q.get('sv')], ['gen', '31337', 'hard', 'lab', '1']);
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  for (const k of ['v', 'st', 'sd', 'lv', 'cx', 'sv', 'lang']) assert.deepEqual(back.state[k], s[k], k);
+  assert.equal(back.state.mk.length, 1);
+  // Nivel medio y contexto al azar: no se escriben.
+  const q2 = new URLSearchParams(U.encode(Object.assign({}, s, { lv: 'medium', cx: null, mk: null })).slice(1));
+  assert.ok(!q2.has('lv') && !q2.has('cx') && q2.has('sd') && q2.has('sv'));
+  // Sin semilla (la elige la interfaz al abrir).
+  const back3 = U.decode('#v=m0&st=gen');
+  assert.equal(back3.warning, undefined);
+  assert.deepEqual([back3.state.st, back3.state.sd, back3.state.lv, back3.state.cx], ['gen', null, 'medium', null]);
+});
+
+test('F3c: st=gen con un nivel, contexto, versión o semilla imposibles es malformado', () => {
+  for (const [h, k, v] of [['#v=m0&st=gen&sd=5&lv=custom', 'lv', 'medium'], ['#v=m0&st=gen&sd=5&cx=moon', 'cx', null],
+    ['#v=m0&st=gen&sd=5&sv=x', 'sv', null], ['#v=m0&st=gen&sd=5&sv=0', 'sv', null], ['#v=m0&st=gen&sd=0', 'sd', null]]) {
+    const back = U.decode(h);
+    assert.equal(back.warning, 'malformed', h);
+    assert.equal(back.state.st, 'gen', h);
+    assert.equal(back.state[k], v, h);
+  }
+  // Con otro enunciado, sd, lv, cx y sv no cuentan.
+  const other = U.decode('#v=m0&st=ej5&sd=5&cx=lab&sv=1');
+  assert.equal(other.state.st, 'ej5');
+  assert.deepEqual([other.state.sd, other.state.cx, other.state.sv], [null, null, null]);
+});
+
+test('F3c: xt=1 en «Ejercicios» solo con los tres niveles', () => {
+  const s = Object.assign(U.defaults(), { v: 'ex', ex: null, sd: 99, lv: 'easy', xt: 1 });
+  const h = U.encode(s);
+  assert.equal(new URLSearchParams(h.slice(1)).get('xt'), '1');
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  assert.equal(back.state.xt, 1);
+  const gp = { n: [12, 16], pred: 2.5, dummies: [3, 5], critical: [2, 3], dmax: 20 };
+  assert.ok(!new URLSearchParams(U.encode(Object.assign({}, s, { lv: 'custom', gp })).slice(1)).has('xt'));
+  const bad = U.decode('#v=ex&sd=99&lv=custom&gp=n12-16.p25.f3-5.c2-3.d20&xt=1');
+  assert.equal(bad.warning, 'malformed');
+  assert.equal(bad.state.xt, 0);
+  assert.equal(U.decode('#v=ex&sd=99&xt=2').warning, 'malformed');
+});
