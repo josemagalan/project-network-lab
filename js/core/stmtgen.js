@@ -12,8 +12,8 @@
  *            recurso, una redundancia escrita y «lo primero» o «lo último» solo con una única actividad inicial o
  *            final (si no, «desde el primer día»).
  * El texto usa su propia secuencia de rng (mix de la semilla y el nivel), así que la tabla es siempre la de la F3a;
- * el contexto sin pedir sale de otra secuencia, así que pedirlo da lo mismo que dejarlo al azar. Sin DOM ni
- * Math.random. Contenido (catálogos y formas de frase) en core/contexts.
+ * el contexto sin pedir sale de otra secuencia, así que pedirlo da lo mismo que dejarlo al azar. Sin DOM ni el azar del
+ * navegador. Contenido (catálogos y formas de frase) en core/contexts.
  */
 (function (root) {
   'use strict';
