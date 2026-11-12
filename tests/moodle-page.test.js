@@ -33,3 +33,17 @@ test('resumen en singular con una categoría o una pregunta', () => {
   assert.equal(s([], ['hard'], 1), 'Elige al menos una etapa y un nivel.');
   assert.equal(MP.summaryText('en', MP.summary({ stages: new Set(['early']), levels: new Set(['easy']), count: 3 })), '3 questions will be generated in one category.');
 });
+
+// F3c (T011; plan §4, P6): la etapa «0 · Enunciado → tabla» va la primera en la interfaz y solo cuando está publicada.
+test('etapas que ofrece el exportador: sin publicar, las siete de la F3b; publicada, la 0 la primera', () => {
+  assert.deepEqual(MP.stagesOf(false), M.STAGES);
+  assert.deepEqual(MP.stagesOf(true), ['stmt', ...M.STAGES]);
+  assert.equal(MP.stmtPublic, false, 'oculta hasta la publicación (T013)');
+});
+
+test('resumen con la etapa 0: cuenta solo las etapas que se ofrecen', () => {
+  const sel = { stages: new Set(M.STAGES_ALL), levels: new Set(['medium']), count: 10 };
+  assert.deepEqual(MP.summary(sel), { categories: 8, questions: 80 });
+  assert.deepEqual(MP.summary(sel, MP.stagesOf(false)), { categories: 7, questions: 70 });
+  assert.deepEqual(MP.summary(sel, MP.stagesOf(true)), { categories: 8, questions: 80 });
+});

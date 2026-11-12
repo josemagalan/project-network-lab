@@ -4286,6 +4286,97 @@ check('F3c P5 · «Ejercicios» solo carga el generador de enunciados con el enu
   await close(m);
 });
 
+// ---------- F3c, T011: la etapa «0 · Enunciado → tabla» en el exportador (spec f3c-enunciados, AC10, AC12 y AC13; plan §4, P5 y P6; tablero 62) ----------
+
+// Hasta la publicación (T013) la etapa se enseña con PNL.moodlePage.stmtPublic = true y un redibujo (cambio de idioma).
+async function mqStmt(lang, opts) {
+  const p = await mqOpen(lang === 'es' ? 'en' : 'es', opts);
+  await p.evaluate(() => { PNL.moodlePage.stmtPublic = true; });
+  await p.selectOption('#selLang', lang);
+  await p.waitForFunction(() => { const q = PNL.moodlePage.state().preview; return q && q.stage === 'stmt'; });
+  return p;
+}
+const xmlOf = async (dl) => fs.readFileSync(await dl.path(), 'utf8');
+
+check('F3c P6 · antes de publicar, el exportador no ofrece la etapa 0 ni la mete en el banco; el banco ya carga el generador de enunciados', async () => {
+  const p = await mqOpen('es');
+  const labels = await p.$$eval('#mqView .mq-stages .mq-check', (ls) => ls.map((l) => l.textContent));
+  assert.equal(labels.length, 7);
+  assert.ok(labels[0].startsWith('1 ·'));
+  const st = await mq(p);
+  assert.deepEqual(st.sel.stages, ['early', 'late', 'floats', 'critAct', 'critPath', 'evEarly', 'evLate']);
+  assert.equal(st.preview.stage, 'early');
+  assert.equal(await loaded(p, /stmtgen\.js/), true);
+  await p.locator('#mqCount').fill('1'); await p.locator('#mqCount').press('Tab');
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#mqDownload').click()]);
+  const xml = await xmlOf(dl);
+  assert.equal((xml.match(/<question type="cloze">/g) || []).length + (xml.match(/<question type="multichoice">/g) || []).length, 7);
+  assert.ok(!xml.includes('MULTIRESPONSE_H') && !xml.includes('Enunciado → tabla'));
+  await close(p);
+});
+
+check('F3c AC10 · con la etapa 0 publicada: la primera y marcada; la vista previa es su pregunta, con la cita del enunciado y las casillas desactivadas (ES y EN)', async () => {
+  for (const [lang, first, sum, none, links] of [
+    ['es', '0 · Enunciado → tabla', 'Se generarán 80 preguntas en 8 categorías.', 'ninguna', ['Abrir este enunciado en el laboratorio', 'Ver la ruta paso a paso del enunciado']],
+    ['en', '0 · Statement → table', '80 questions will be generated in 8 categories.', 'none', ['Open this statement in the lab', 'See the step-by-step route of the statement']]]) {
+    const p = await mqStmt(lang);
+    const box = p.locator('#mqView .mq-stages .mq-check').first();
+    assert.equal(await box.textContent(), first);
+    assert.equal(await box.locator('input').isChecked(), true);
+    assert.equal(await p.locator('.mq-summary').textContent(), sum);
+    const q = (await mq(p)).preview;
+    assert.deepEqual([q.stage, q.level, q.seed], ['stmt', 'medium', 1]);
+    assert.equal(await p.locator('.mq-qname').textContent(), q.name);
+    assert.deepEqual(await p.$$eval('.mq-preview blockquote p', (ps) => ps.map((x) => x.textContent)), q.text.find((b) => b.quote).quote);
+    // Una fila de casillas por actividad: las demás actividades y «ninguna», todas desactivadas.
+    assert.equal(await p.locator('.mq-preview .mq-mr').count(), q.n);
+    assert.equal(await p.locator('.mq-preview .mq-mr input[type="checkbox"]').count(), q.n * q.n);
+    assert.equal(await p.locator('.mq-preview .mq-mr input:not([disabled])').count(), 0);
+    assert.deepEqual(await p.$$eval('.mq-preview .mq-mr', (ms) => ms.map((m) => m.lastElementChild.textContent.trim())), Array(q.n).fill(none));
+    // Los enlaces de la retroalimentación son los del modelo: el enunciado en M0 y su ruta.
+    assert.deepEqual(await p.$$eval('.mq-feedback a', (as) => as.map((a) => [a.getAttribute('href'), a.textContent])), [[q.links.ex, links[0]], [q.links.step, links[1]]]);
+    await close(p);
+  }
+});
+
+check('F3c AC10 · el enlace de la vista previa abre en M0 el mismo enunciado de la pregunta', async () => {
+  const p = await mqStmt('es');
+  const q = (await mq(p)).preview;
+  await close(p);
+  const quote = q.text.find((b) => b.quote).quote;
+  const m = await open(q.links.ex.replace(/^https:\/\/josemagalan\.github\.io\/project-network-lab\//, ''));
+  await m.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  const s = await state(m);
+  assert.deepEqual([s.st, s.sd, s.lv, s.sv], ['gen', 1, 'medium', 1]);
+  assert.deepEqual(await m.evaluate(() => { const st = PNL.app.state(); return PNL.stmtgen.render(PNL.stmtgen.make(st.sd, st.lv, { ctx: st.cx }).def, 'es').split('\n').filter(Boolean); }), quote);
+  assert.ok((await m.locator('#m0View .m0-textbody').innerText()).includes(quote[0]));
+  await close(m);
+});
+
+check('F3c AC10 · descarga con la etapa 0: su categoría con MULTIRESPONSE_H, bien formada, en ES y EN', async () => {
+  for (const [lang, cat, level] of [['es', 'Redes de proyectos/0 · Enunciado → tabla/Fácil', 'Fácil'], ['en', 'Project networks/0 · Statement → table/Easy', 'Easy']]) {
+    const p = await mqStmt(lang);
+    await mqSelect(p, ['0 ·'], [level], 2);
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#mqDownload').click()]);
+    const xml = await xmlOf(dl);
+    assert.equal((xml.match(/<question type="cloze">/g) || []).length, 2);
+    assert.ok(xml.includes(`$course$/top/${cat}`), cat);
+    assert.ok(xml.includes('MULTIRESPONSE_H'));
+    assert.deepEqual(require('../xml-check.js').check(xml), { ok: true });
+    await close(p);
+  }
+});
+
+check('F3c AC12 · el exportador con la etapa 0: axe sin violaciones en claro y oscuro, ES y EN; a 360 px sin desplazamiento horizontal', async () => {
+  for (const [lang, scheme, width] of [['es', 'light', 1280], ['en', 'dark', 1280], ['es', 'dark', 360], ['en', 'light', 360]]) {
+    const p = await mqStmt(lang, { scheme, width, height: width === 360 ? 800 : 720 });
+    await p.locator('.mq-feedback summary').click();
+    await axe(p, `F3c · exportador con la etapa 0 (${lang}, ${scheme}, ${width} px)`);
+    assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${lang} ${width}`);
+    await close(p);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
