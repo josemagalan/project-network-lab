@@ -23,7 +23,9 @@
   const GEN = isNode ? require('./generator.js') : root.PNL.generator;
   const X = isNode ? require('./contexts.js') : root.PNL.contexts;
 
-  const VERSION = 1;
+  // 2 (revisión de la F3c): al menos una frase de varias precedencias en media y, en prosa, ninguna actividad nombrada
+  // antes de presentarla. Los enlaces con sv=1 avisan de que se hicieron con otra versión.
+  const VERSION = 2;
   const LEVELS = ['easy', 'medium', 'hard'];
   const STAGES = 6;
   const BUDGET = 20000;            // pasos de la vuelta atrás del reparto (no se ha acercado en 3600 tablas)
@@ -135,6 +137,23 @@
         back = new Set(withPreds.filter(() => r() < 0.5));
         if (back.size === withPreds.length && withPreds.length > 1) back.delete(withPreds[withPreds.length - 1]);
         if (back.size === 0 && withPreds.length > 1) back.add(withPreds[0]);
+        // Revisión (F2): si el sorteo no deja ninguna frase de varias precedencias y la tabla la admite, se fuerza una, sin
+        // perder los dos sentidos y sin gastar más números del generador (los demás enunciados no cambian).
+        const multiBack = () => withPreds.some((s) => back.has(s) && t.preds[s].length > 1);
+        const multiFwd = () => t.ids.some((p) => withPreds.filter((s) => !back.has(s) && t.preds[s].includes(p)).length > 1);
+        if (!multiBack() && !multiFwd()) {
+          const s2 = withPreds.find((s) => t.preds[s].length > 1);
+          if (s2) {
+            back.add(s2);
+            if (back.size === withPreds.length) back.delete(withPreds.find((x) => x !== s2));
+          } else {
+            const p2 = t.ids.find((p) => withPreds.filter((s) => t.preds[s].includes(p)).length > 1);
+            if (p2) {
+              for (const s of withPreds) if (t.preds[s].includes(p2)) back.delete(s);
+              if (!back.size) { const o = withPreds.find((s) => !t.preds[s].includes(p2)); if (o) back.add(o); }
+            }
+          }
+        }
       }
       const sentences = [];
       for (const s of withPreds.filter((x) => back.has(x))) {
@@ -175,7 +194,10 @@
       // Orden de presentación: etapa y después el orden topológico (es topológico: etapa(p) ≤ etapa(s)).
       const order = t.ids.slice().sort((x, y) => A[x].stage - A[y].stage || t.ids.indexOf(x) - t.ids.indexOf(y));
       const pos = (id) => order.indexOf(id);
-      const lastOf = (ids) => ids.reduce((a, b) => (pos(a) > pos(b) ? a : b));
+      // Una actividad de una frase común se presenta con la primera del grupo (revisión, F6): una frase que nombra
+      // varias actividades va detrás de la que se presenta la última; a igualdad, la de la posición mayor.
+      let shown = pos;
+      const lastOf = (ids) => ids.reduce((a, b) => (shown(a) > shown(b) || (shown(a) === shown(b) && pos(a) > pos(b)) ? a : b));
       const byPos = (ids) => ids.slice().sort((x, y) => pos(x) - pos(y));
       const sources = t.ids.filter((id) => !t.preds[id].length);
       const sinks = t.ids.filter((id) => !t.succs[id].length);
@@ -192,6 +214,7 @@
         const g = groups.find((x) => x.key === key);
         if (g) { g.ids.push(id); groupOf[id] = g; } else { groupOf[id] = { key, ids: [id] }; groups.push(groupOf[id]); }
       }
+      shown = (id) => (inClause[id] ? pos(groupOf[id].ids[0]) : pos(id));
       const fwd = {};
       for (const s of t.ids) {
         if (inClause[s] || s === endId) continue;

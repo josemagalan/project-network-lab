@@ -127,7 +127,7 @@ test('media: lista, frases en los dos sentidos, alguna con varias precedencias y
     assert.ok(x.res.feat.back > 0 && x.res.feat.fwd > 0, `${x.sd}/${x.ctx}`);
     if (x.res.feat.multi > 0) multi++;
   }
-  assert.ok(multi / ALL.filter((y) => y.lv === 'medium').length > 0.85);
+  assert.ok(multi / ALL.filter((y) => y.lv === 'medium').length > 0.95);
 });
 
 test('difícil: prosa sin lista, «a la vez», recurso, redundancia escrita y «lo primero»/«lo último» solo con inicio o final único', () => {
@@ -181,4 +181,95 @@ test('sin reparto posible: presupuesto agotado o más actividades que el catálo
   assert.deepEqual(SG.compose([{ id: 'A', duration: '1', links: 'Z' }], 'easy', 'home', 1), { ok: false, reason: 'table' });
   assert.equal(SG.compose(rows, 'custom', 'home', 1).reason, 'level');
   assert.equal(SG.compose(rows, 'easy', 'moon', 1).reason, 'context');
+});
+
+// ── Revisión de la F3c (T017): el texto que lee el alumno, comprobado contra lo que dan sus fragmentos ─────────────
+// Oráculo: cada fragmento de precedencia o «sin precedencia» tiene que ser una de las formas aprobadas (contexts.FORMS)
+// aplicada a lo que el fragmento dice dar, con las actividades del catálogo; una frase «a la vez» o de recurso, entre dos
+// actividades que no dependen una de otra; «desde el primer día», exactamente las actividades iniciales; la redundancia,
+// explicada con un camino real de la tabla. Y, en prosa, ninguna actividad se nombra antes de presentarla.
+const F = X.FORMS;
+const perms = (xs) => (xs.length <= 1 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p])));
+const uniq = (xs) => [...new Set(xs)];
+function textProblems(x) {
+  const def = x.res.def;
+  const cat = X.CONTEXTS[x.ctx];
+  const P = predsOf(def.ref.rows);
+  const ids = def.ref.rows.map((r) => r.id);
+  const A = Object.fromEntries(def.ref.rows.map((r) => {
+    const a = cat.acts.find((c) => c[1] === r.name.es.charAt(0).toLowerCase() + r.name.es.slice(1));
+    return [r.id, { es: a[1], en: a[2], g: a[3] }];
+  }));
+  const anc = (y) => { const s = new Set(); const go = (z) => P[z].forEach((p) => { if (!s.has(p)) { s.add(p); go(p); } }); go(y); return s; };
+  const indep = (a, b) => a !== b && !anc(a).has(b) && !anc(b).has(a);
+  const paths = (a, b) => (a === b ? [[b]] : ids.filter((s) => P[s].includes(a) && (s === b || anc(b).has(s))).flatMap((s) => paths(s, b).map((p) => [a, ...p])));
+  const prose = x.lv === 'hard';
+  const sourcesIds = ids.filter((id) => !P[id].length);
+  const out = [];
+  for (const L of ['es', 'en']) {
+    const seen = new Set();
+    const segs = def.text[L].filter(Array.isArray);
+    for (const [fid, text] of segs) {
+      const f = def.frags[fid];
+      const bad = (msg) => out.push(`${x.lv}/${x.sd}/${x.ctx}/${L}/${fid}: ${msg} «${text}»`);
+      let names = [];
+      if (f.kind === 'activity') { seen.add(f.act); continue; }
+      if (f.kind === 'duration' || f.kind === 'start' || f.kind === 'end') continue;
+      if (f.kind === 'precedence' && fid === 'r1') {
+        const [[a, b]] = f.gives;
+        names = [a, b];
+        if (text !== F.red[L](A[a], A[b])) bad('redundancia con otra forma o al revés');
+        const why = paths(a, b).filter((p) => p.length > 2).map((p) => F.red.why[L](p.map((id) => A[id])));
+        if (!why.includes(f.why[L])) bad('la redundancia no se explica con un camino de la tabla');
+      } else if (f.kind === 'precedence') {
+        const ps = uniq(f.gives.map((e) => e[0])); const ss = uniq(f.gives.map((e) => e[1]));
+        const cand = [];
+        if (!prose) {
+          if (ss.length === 1) for (const fm of F.back) for (const pp of perms(ps)) cand.push(fm[L](ss[0], pp));
+          if (ps.length === 1) for (const fm of F.fwd) for (const qq of perms(ss)) cand.push(fm[L](ps[0], qq));
+        } else {
+          for (const fm of F.pBack) for (const pp of perms(ps)) cand.push(fm[L](pp.map((id) => A[id])));
+          if (ps.length === 1) for (const fm of F.pFwd) for (const qq of perms(ss)) cand.push(X.cap(fm[L](A[ps[0]], qq.map((id) => A[id]))));
+        }
+        if (!cand.includes(text)) bad(`no es una forma aprobada de ${JSON.stringify(f.gives)}`);
+        // En prosa, una cláusula hacia atrás presenta después a sus sucesoras; las demás frases nombran todo lo ya presentado.
+        names = prose && F.pBack.some((fm) => perms(ps).some((pp) => fm[L](pp.map((id) => A[id])) === text)) ? ps : [...ps, ...ss];
+      } else if (f.kind === 'none') {
+        const pairs = [];
+        for (const a of ids) for (const b of ids) if (a !== b) pairs.push([a, b]);
+        let hit = null;
+        for (const [a, b] of pairs) {
+          const forms = prose ? [F.parProse[L](A[a], A[b]), F.res[L](A[a], A[b], cat.resource[L])] : [F.par[L](a, b)];
+          if (forms.includes(text)) { hit = [a, b]; break; }
+        }
+        if (hit) {
+          names = hit;
+          if (!indep(hit[0], hit[1])) bad('«a la vez» o recurso entre actividades que dependen una de otra');
+          if (!prose && f.why[L] !== F.par.why[L](hit[0], hit[1])) bad('explicación de otro par');
+        } else if (prose && perms(sourcesIds).some((pp) => F.day1[L](pp.map((id) => A[id])) === text)) {
+          names = sourcesIds;
+        } else bad('frase sin precedencia que no es una forma aprobada (o «primer día» con actividades que no son iniciales)');
+      }
+      if (prose) for (const id of names) if (!seen.has(id)) bad(`nombra ${id} antes de presentarla`);
+    }
+    if (prose && /(^|\s)[A-Z]\) /.test(SG.render(def, L))) out.push(`${x.lv}/${x.sd}/${x.ctx}/${L}: letras en la prosa`);
+  }
+  return out;
+}
+
+test('revisión: el texto de cada fragmento es una forma aprobada de lo que da, en ES y EN (también la redundancia y su camino)', () => {
+  const problems = ALL.flatMap(textProblems);
+  assert.deepEqual(problems.slice(0, 5), []);
+});
+
+test('revisión: en media, una frase de varias precedencias siempre que la tabla la admita; en difícil, recurso siempre y frase común a menudo', () => {
+  for (const x of ALL.filter((y) => y.lv === 'medium')) {
+    const pr = predsOf(x.rows);
+    const ids = Object.keys(pr);
+    const allows = ids.some((s) => pr[s].length > 1) || ids.some((p) => ids.filter((s) => pr[s].includes(p)).length > 1);
+    if (allows) assert.ok(x.res.feat.multi > 0, `${x.sd}/${x.ctx}`);
+  }
+  const hard = ALL.filter((y) => y.lv === 'hard');
+  for (const x of hard) assert.equal(x.res.feat.res, 1, `${x.sd}/${x.ctx}`);
+  assert.ok(hard.filter((x) => x.res.feat.same > 0).length / hard.length > 0.2);
 });

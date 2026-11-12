@@ -616,19 +616,39 @@ test('F3c: la pregunta stmt da el enunciado de stmtgen, una fila de casillas por
       const P = preds[id];
       assert.deepEqual(c.mr.map((o) => o.label), [...acts.filter((x) => x !== id), tr('noneOpt')]);
       for (const o of c.mr) {
-        const fr = o.label === tr('noneOpt') ? (P.length ? '-100' : '100')
+        // «ninguna» con predecesoras es una casilla falsa más, −100/c (plan §3; revisión de la F3c, F1).
+        const fr = o.label === tr('noneOpt') ? (P.length ? `-${MR_OK[P.length - 1]}` : '100')
           : P.includes(o.label) ? MR_OK[P.length - 1] : anc(id).has(o.label) ? '0' : P.length ? `-${MR_OK[P.length - 1]}` : '-100';
         assert.equal(o.fraction, fr, `${lv}/${sd}/${id}/${o.label}`);
         assert.ok(['0', ...MR_OK, ...MR_OK.map((f) => `-${f}`)].includes(o.fraction));
       }
       assert.deepEqual(q.answers[c.key], [...P].sort());
     });
+    // La solución de la retroalimentación y la columna de nombres son las de la tabla de referencia (revisión, F3).
+    const refRows = made.def.ref.rows;
+    const linksOf = (r) => (r.links ? r.links.split(',').map((x) => x.trim()).join(', ') : tr('none'));
+    assert.deepEqual(q.general.find((b) => b.table).table.rows, refRows.map((r) => [r.id, r.name.es, linksOf(r)]));
+    assert.deepEqual(q.text.find((b) => b.table).table.rows.map((r) => r.slice(0, 2)), refRows.map((r) => [r.id, r.name.es]));
     // Enlaces: el mismo enunciado en M0 y su ruta paso a paso.
     for (const [href, mm] of [[q.links.ex, 'practice'], [q.links.step, 'route']]) {
       const s = U.decode(href.slice(href.indexOf('#'))).state;
       assert.deepEqual([s.v, s.st, s.sd, s.lv, s.cx, s.sv, s.mm], ['m0', 'gen', sd, lv, made.ctx, SG.VERSION, mm]);
     }
     assert.deepEqual([q.links.exKey, q.links.stepKey], ['link.stmt', 'link.stmtRoute']);
+  }
+});
+
+test('F3c (revisión, F3): en inglés, la cita, la columna de nombres y la solución van con los nombres en inglés', () => {
+  const IM = require('../js/i18n-moodle.js');
+  const t = IM.tr('en');
+  for (const lv of M.LEVELS) {
+    const q = M.question('stmt', M.exercise(lv, 11), { lang: 'en', nota: 'en', sf: false, labels: IM.labels('en') }, t);
+    const made = SG.make(11, lv);
+    assert.deepEqual(q.text.find((b) => b.quote).quote, SG.render(made.def, 'en').split('\n').filter(Boolean));
+    const names = made.def.ref.rows.map((r) => [r.id, r.name.en]);
+    assert.deepEqual(q.text.find((b) => b.table).table.rows.map((r) => r.slice(0, 2)), names);
+    assert.deepEqual(q.general.find((b) => b.table).table.rows.map((r) => r.slice(0, 2)), names);
+    assert.ok(made.def.ref.rows.every((r) => r.name.en !== r.name.es));
   }
 });
 

@@ -84,7 +84,9 @@
   function groupsOf(hash) {
     const q = new URLSearchParams(String(hash || '').replace(/^#/, ''));
     const v = q.get('v');
-    if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : st === 'own' ? null : 'st']; }
+    // Con st=own también se pide statements.js: un enunciado propio dañado o sin paquete pasa a Electrona (ej5), que sí lo
+    // necesita (revisión de la F3c, F1).
+    if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
     if (v === 'ex' && q.get('xt') === '1') return ['ex', 'sg'];
     return [groupOf(v)];
   }
@@ -192,7 +194,8 @@
   }
   function toM0() {
     stopPlay();
-    if (!G.m0 || (state.st === 'gen' ? !G.stmtgen : state.st !== 'own' && !G.statements)) { needAll(['m0', state.st === 'gen' ? 'sg' : 'st']).then(toM0); return; }
+    // La acción m0 sin paquete propio pasa a ej5: con st=own también hace falta statements.js (revisión de la F3c, F2).
+    if (!G.m0 || (state.st === 'gen' ? !G.stmtgen : !G.statements)) { needAll(['m0', state.st === 'gen' ? 'sg' : 'st']).then(toM0); return; }
     // Ya en M0: de la ruta paso a paso vuelve a practicar sin perder la tabla.
     if (state.v === 'm0') { if (state.mm !== 'practice') { dispatch({ type: 'set', key: 'mm', value: 'practice' }); dispatch({ type: 'first' }); } return; }
     dispatch({ type: 'm0', st: state.st, mm: 'practice' });
@@ -1004,6 +1007,8 @@
     if (state.v === 'm0' && state.st === 'gen' && !state.sd && G.stmtgen) {
       state = Object.assign({}, state, { sd: G.m0.genSeed(newSeed(), state.lv, state.cx), sv: G.stmtgen.VERSION });
     }
+    // Y si la semilla del enlace no da enunciado, la siguiente que lo dé (spec, Behaviour; revisión de la F3c, F7).
+    if (state.v === 'm0' && state.st === 'gen' && state.sd && G.stmtgen) state = G.m0.genFix(state);
     compute();
     fitGraph();
     state = S.reduce(state, { type: 'go', n: state.step }, total());

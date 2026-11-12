@@ -65,6 +65,11 @@
     }
     return sd;
   }
+  // Un enlace cuya semilla no da enunciado pasa a la siguiente que lo dé (spec, Behaviour; revisión de la F3c, F7).
+  function genFix(state) {
+    if (!state || state.st !== 'gen' || !Number.isInteger(state.sd) || genMade(state)) return state;
+    return Object.assign({}, state, { sd: genSeed(state.sd, state.lv, state.cx) });
+  }
   // Opciones del selector: los enunciados visibles, el abierto si está oculto, «Enunciado al azar» y el propio.
   function statementOptions(cur, lang, pub) {
     const visible = STI.list();
@@ -488,7 +493,8 @@
     // «Otro enunciado»; cambiar de enunciado con trabajo hecho pide confirmación, como «Ejercicios».
     let pendingGen = null;
     const lblLv = h('span', { class: 'small muted' });
-    const lvBtns = GEN_LEVELS.map((lv) => h('button', { type: 'button', id: `m0Lv-${lv}`, onclick: () => askGen({ lv }) }));
+    // El nivel que ya está elegido no hace nada (revisión de la F3c, F6: pedía confirmación y borraba el trabajo).
+    const lvBtns = GEN_LEVELS.map((lv) => h('button', { type: 'button', id: `m0Lv-${lv}`, onclick: () => { if (!(m && m.gen && m.gen.lv === lv)) askGen({ lv }); } }));
     const segLv = h('div', { class: 'seg', role: 'group' }, lvBtns);
     const lblCx = h('span', {});
     const selCx = h('select', { id: 'm0Cx', onchange: (e) => askGen({ cx: e.target.value || null }) });
@@ -1148,7 +1154,7 @@
     return { cands: null, ids, label };
   }
 
-  const api = { genSeed, statementOptions, GEN_LEVELS, routeTable, routeOptions, ownDef, toPrepare, openSolution, acceptText, share, shareUrl, markProblem, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
+  const api = { genSeed, genFix, statementOptions, GEN_LEVELS, routeTable, routeOptions, ownDef, toPrepare, openSolution, acceptText, share, shareUrl, markProblem, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
   root.PNL = root.PNL || {};
   root.PNL.m0 = api;
   if (isNode) module.exports = api;

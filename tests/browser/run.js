@@ -4078,7 +4078,7 @@ check('F3b T016 AC13 · el «Aprende más» de «Ejercicios» en inglés abre el
 
 // ---------- F3c, T009: enunciado al azar en M0 (spec f3c-enunciados, AC7, AC8, AC12 y AC13; plan §4, P5 y P12) ----------
 
-const genUrl = (s) => m0Url(Object.assign({ st: 'gen', sd: 15, lv: 'medium', sv: 1 }, s));
+const genUrl = (s) => m0Url(Object.assign({ st: 'gen', sd: 15, lv: 'medium', sv: 2 }, s));
 // El enunciado y su referencia, del núcleo cargado en la página.
 const genDef = (page) => page.evaluate(() => { const s = PNL.app.state(); return PNL.stmtgen.make(s.sd, s.lv, s.cx ? { ctx: s.cx } : {}).def; });
 const genFrags = (page, lang) => page.evaluate((l) => { const s = PNL.app.state(); const d = PNL.stmtgen.make(s.sd, s.lv, s.cx ? { ctx: s.cx } : {}).def; return Object.fromEntries(PNL.statement.build(d, l).frags.map((f) => [f.id, { from: f.from, to: f.to }])); }, lang);
@@ -4099,7 +4099,7 @@ check('F3c AC7 · M0 con un enunciado al azar: el texto es el de stmtgen; nivel,
   await p.locator('#m0Lv-hard').click();
   await p.waitForFunction(() => PNL.app.state().lv === 'hard');
   let s = await state(p);
-  assert.deepEqual([s.st, s.sd, s.lv, s.sv], ['gen', 15, 'hard', 1]);
+  assert.deepEqual([s.st, s.sd, s.lv, s.sv], ['gen', 15, 'hard', 2]);
   assert.match(await p.evaluate(() => location.hash), /lv=hard/);
   // Contexto elegido: deja de decir lo que ha salido.
   await p.selectOption('#m0Cx', 'lab');
@@ -4182,7 +4182,7 @@ check('F3c AC8 · el enlace de un enunciado al azar se abre igual en otra págin
   assert.equal(await b.locator('#m0View .m0-textbody').innerText(), ta);
   assert.ok(await b.locator('#m0GenOld').isHidden());
   await close(b);
-  const old = await open(genUrl({ sv: 2 }));
+  const old = await open(genUrl({ sv: 1 }));
   await old.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
   assert.ok(await old.locator('#m0GenOld').isVisible());
   assert.match(await old.locator('#m0GenOld').innerText(), /otra versión del generador de enunciados/);
@@ -4190,8 +4190,8 @@ check('F3c AC8 · el enlace de un enunciado al azar se abre igual en otra págin
   const none = await lab('v=m0&st=gen&lang=es');
   await none.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
   const s = await state(none);
-  assert.ok(Number.isInteger(s.sd) && s.sd >= 1 && s.sv === 1);
-  assert.match(await none.evaluate(() => location.hash), /sd=\d+.*sv=1/);
+  assert.ok(Number.isInteger(s.sd) && s.sd >= 1 && s.sv === 2);
+  assert.match(await none.evaluate(() => location.hash), /sd=\d+.*sv=2/);
   await close(none);
 });
 
@@ -4213,7 +4213,7 @@ check('F3c P12 y T013 · M0 con un enunciado al azar no carga statements.js, ni 
   await e.selectOption('#m0St', 'gen');
   await e.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
   const s = await state(e);
-  assert.deepEqual([s.st, s.lv, s.sv], ['gen', 'medium', 1]);
+  assert.deepEqual([s.st, s.lv, s.sv], ['gen', 'medium', 2]);
   assert.equal(await loaded(e, /stmtgen\.js/), true);
   await close(e);
 });
@@ -4364,7 +4364,7 @@ check('F3c AC10 · el enlace de la vista previa abre en M0 el mismo enunciado de
   const m = await open(q.links.ex.replace(/^https:\/\/josemagalan\.github\.io\/project-network-lab\//, ''));
   await m.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
   const s = await state(m);
-  assert.deepEqual([s.st, s.sd, s.lv, s.sv], ['gen', 1, 'medium', 1]);
+  assert.deepEqual([s.st, s.sd, s.lv, s.sv], ['gen', 1, 'medium', 2]);
   assert.deepEqual(await m.evaluate(() => { const st = PNL.app.state(); return PNL.stmtgen.render(PNL.stmtgen.make(st.sd, st.lv, { ctx: st.cx }).def, 'es').split('\n').filter(Boolean); }), quote);
   assert.ok((await m.locator('#m0View .m0-textbody').innerText()).includes(quote[0]));
   await close(m);
@@ -4499,12 +4499,111 @@ check('F3c T014 AC12 · a 1280×720 y a 360 px, sin desplazamiento horizontal co
   }
 });
 
+// ---------- F3c, T017: correcciones de la revisión de nivel 2 (reviews/f3c-enunciados.md) ----------
+
+check('F3c revisión F1 · un enlace de enunciado propio sin paquete abre Electrona con el aviso, sin errores', async () => {
+  const p = await lab('v=m0&st=own&lang=es');
+  await p.waitForFunction(() => window.PNL && PNL.app && PNL.m0 && PNL.m0.state);
+  assert.equal((await state(p)).st, 'ej5');
+  assert.ok(await p.locator('#m0View').isVisible());
+  assert.ok(await p.locator('#urlWarning').isVisible());
+  await close(p);
+});
+
+check('F3c revisión F2 · con un enunciado propio, ir a otra pestaña y volver a «Del enunciado a la tabla» no rompe M0', async () => {
+  const p = await m0Lab(ownPrep('es'));
+  for (const tab of ['#navRoute', '#navWork']) {
+    await p.locator(tab).click();
+    await p.waitForFunction(() => PNL.app.state().v !== 'm0');
+    await p.locator('#navM0').click();
+    await p.waitForFunction(() => PNL.app.state().v === 'm0' && !document.getElementById('m0View').hidden);
+    assert.ok(await p.locator('#m0View').isVisible(), tab);
+  }
+  await close(p);
+});
+
+check('F3c revisión F3 · confirmación con tabla o con subrayados, vuelta a «Al azar» y nivel medio al elegir «Enunciado al azar»', async () => {
+  // Solo una fila en la tabla (sin subrayados): «Otro enunciado» pide confirmación.
+  const a = await open(genUrl({ t: [R('A', '', '')] }));
+  await a.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  assert.equal((await m0st(a)).marks.length, 0);
+  await a.locator('#m0Another').click();
+  assert.ok(await a.locator('#m0LoseYes').isVisible(), 'confirmación con solo la tabla');
+  await close(a);
+  // Solo subrayados (sin filas): también.
+  const probe = await open(genUrl());
+  await probe.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  const fr = await genFrags(probe, 'es');
+  await close(probe);
+  const b = await open(genUrl({ mk: [{ from: fr.p1.from, to: fr.p1.to, kind: 'none' }] }));
+  await b.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  assert.deepEqual([(await m0st(b)).rows.length, (await m0st(b)).marks.length], [0, 1]);
+  await b.locator('#m0Another').click();
+  assert.ok(await b.locator('#m0LoseYes').isVisible(), 'confirmación con solo subrayados');
+  await close(b);
+  // Contexto elegido y vuelta a «Al azar».
+  const c = await open(genUrl({ cx: 'lab' }));
+  await c.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  await c.selectOption('#m0Cx', '');
+  await c.waitForFunction(() => PNL.app.state().cx === null);
+  assert.ok(await c.locator('#m0Drawn').isVisible());
+  await close(c);
+  // Con el nivel difícil en el estado (de «Ejercicios»), elegir «Enunciado al azar» abre uno de nivel medio.
+  const d = await exLab({ lv: 'hard', sd: 92846 });
+  await d.locator('#navM0').click();
+  await d.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0 && PNL.m0.state);
+  assert.equal((await state(d)).lv, 'hard');
+  await d.selectOption('#m0St', 'gen');
+  await d.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  assert.equal((await state(d)).lv, 'medium');
+  await close(d);
+});
+
+check('F3c revisión F4 y F6 · el diagnóstico caduca al cambiar de enunciado; el nivel ya elegido no hace nada', async () => {
+  const p = await open(genUrl());
+  await p.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  await m0Check(p);
+  assert.ok((await m0st(p)).diag);
+  await p.locator('#m0Lv-hard').click();
+  await p.waitForFunction(() => PNL.app.state().lv === 'hard');
+  assert.equal((await m0st(p)).diag, null, 'tras cambiar de nivel');
+  await m0Check(p);
+  const key = (await m0st(p)).stKey;
+  await p.locator('#m0Another').click();
+  await p.waitForFunction((k) => PNL.m0.state().stKey !== k, key);
+  assert.equal((await m0st(p)).diag, null, 'tras «Otro enunciado»');
+  await close(p);
+  // Con trabajo hecho, pulsar el nivel que ya está elegido no pide confirmación ni borra nada.
+  const q = await open(genUrl({ t: [R('A', '', '')] }));
+  await q.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+  const before = await q.evaluate(() => history.length);
+  await q.locator('#m0Lv-medium').click();
+  assert.ok(await q.locator('#m0LoseYes').isHidden());
+  assert.equal((await m0st(q)).rows.length, 1);
+  assert.equal(await q.evaluate(() => history.length), before);
+  await close(q);
+});
+
+check('F3c revisión F5 · «Ejercicios» con enunciado conserva la red desplegada y «Ver la tabla» abierto al cambiar de idioma', async () => {
+  const p = await exLab({ sd: 14844, lv: 'medium', xt: 1 });
+  await exText(p);
+  await p.locator('#exFold').click();
+  await p.waitForFunction(() => document.getElementById('exFold').getAttribute('aria-expanded') === 'true');
+  await p.locator('#exView .ex-showtable summary').click();
+  await p.waitForFunction(() => document.querySelector('#exView .ex-showtable').open);
+  await p.selectOption('#selLang', 'en');
+  await p.waitForFunction(() => document.querySelector('#exView .ex-showtable summary').textContent === 'Show the table');
+  assert.equal(await p.locator('#exFold').getAttribute('aria-expanded'), 'true', 'la red, desplegada');
+  assert.equal(await p.locator('#exView .ex-showtable').evaluate((d) => d.open), true, '«Ver la tabla», abierto');
+  await close(p);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
-    `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=1&lang=es',
+    `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
     exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();

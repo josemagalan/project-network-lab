@@ -601,3 +601,16 @@ test('F3c: los subrayados de un enunciado al azar pasan al otro idioma por sus f
   const fe = frag(S.build(M0.model(s, 'en').def, 'en'), 'aA');
   assert.deepEqual([moved.dropped, moved.marks[0].from, moved.marks[0].to], [0, fe.from, fe.to]);
 });
+
+// F3c, revisión F7: un enlace cuya semilla no da enunciado pasa a la siguiente que lo dé (spec, Behaviour).
+test('F3c revisión F7: genFix deja la semilla si da enunciado y, si no, pasa a la siguiente', () => {
+  const SGm = require('../js/core/stmtgen.js');
+  const s = { v: 'm0', st: 'gen', sd: 424242, lv: 'medium', cx: null };
+  assert.equal(M0.genFix(s), s);
+  assert.equal(M0.genFix(Object.assign({}, s, { st: 'ej5' })).sd, 424242);
+  const make = SGm.make;
+  try {
+    SGm.make = (sd, lv, o) => (sd === 515151 ? { ok: false, reason: 'table' } : make(sd, lv, o));
+    assert.equal(M0.genFix(Object.assign({}, s, { sd: 515151 })).sd, 515152);
+  } finally { SGm.make = make; }
+});

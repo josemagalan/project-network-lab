@@ -115,7 +115,8 @@
         const P = preds[id];
         const fr = MR_FRACTIONS[P.length];
         const opts = acts.filter((x) => x !== id).map((x) => ({ label: x, fraction: P.includes(x) ? fr : anc[id].has(x) ? '0' : P.length ? `-${fr}` : '-100' }));
-        opts.push({ label: none, fraction: P.length ? '-100' : '100' });
+        // «ninguna» en una fila con predecesoras es una casilla falsa más: −100/c (plan §3; revisión de la F3c, F1).
+        opts.push({ label: none, fraction: P.length ? `-${fr}` : '100' });
         return { mr: opts, key: `${id}.preds`, answer: [...P].sort() };
       };
       text = [{ p: tr('stem.stmt') }, { quote: G3.render(made.def, lang).split('\n').filter(Boolean) },

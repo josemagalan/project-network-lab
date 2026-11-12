@@ -656,6 +656,10 @@
       }
       // Con el enunciado, la red y la tabla empiezan plegadas: las dos dejan ver las precedencias (decisión del autor, T008).
       const on = !!(m && m.text);
+      // El evento toggle de <details> llega después: si se redibuja antes (p. ej. un cambio de idioma justo después de
+      // abrir «Ver la tabla»), se lee el estado del que está en la página (revisión de la F3c, F5).
+      const shownTable = container.querySelector('.ex-showtable');
+      if (shownTable) tableOpen = shownTable.open;
       if (on && !textOn) { folded = true; tableOpen = false; }
       textOn = on;
       if (opts && opts.fromEx) return;
