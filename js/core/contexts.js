@@ -6,7 +6,8 @@
  * generador, las pruebas y el banco de Moodle usen exactamente el mismo texto en Node y en el navegador. Cada
  * actividad del catálogo es [etapa, infinitivo ES, infinitivo EN, gerundio EN]. La etapa (1–6) es la del proceso:
  * el generador reparte los nombres de modo que ninguna precedencia vaya de una etapa a otra anterior (orden
- * verosímil). Los nombres van en minúscula; el generador pone la mayúscula donde toca. Sin DOM ni azar.
+ * verosímil). Los nombres van en minúscula; el generador pone la mayúscula donde toca. FORMS son las formas de
+ * frase de cada nivel (spec, «Niveles de redacción»), en ES y EN. Sin DOM ni azar.
  */
 (function (root) {
   'use strict';
@@ -139,7 +140,90 @@
     },
   };
 
-  const api = { KEYS: Object.keys(CONTEXTS), CONTEXTS };
+  // ── Formas de frase (T003) ───────────────────────────────────────────────────────────────────────────────
+  // list(items, lang) une con comas y «y»/«and»; en español, «y» pasa a «e» ante i- e hi- (no ante hie-, hia-…).
+  const yE = (next) => (/^h?i(?![aeoáéó])/i.test(next) ? 'e' : 'y');
+  function list(items, lang) {
+    if (items.length <= 1) return items.join('');
+    const last = items[items.length - 1];
+    return `${items.slice(0, -1).join(', ')} ${lang === 'es' ? yE(last) : 'and'} ${last}`;
+  }
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  // «de X, de Y y de Z» (el primer «de» lo pone la forma).
+  const deList = (xs) => list(xs.map((x, i) => (i ? `de ${x}` : x)), 'es');
+  const es = (acts) => acts.map((a) => a.es);
+  const en = (acts) => acts.map((a) => a.en);
+  const ger = (acts) => acts.map((a) => a.g);
+
+  const FORMS = {
+    // Con letras (fácil y media). back: la sucesora s y sus predecesoras P; fwd: la predecesora p y sus sucesoras Q.
+    back: [
+      { es: (s, P) => `${s} empieza cuando ${P.length > 1 ? 'terminan' : 'termina'} ${list(P, 'es')}`,
+        en: (s, P) => `${s} starts when ${list(P, 'en')} ${P.length > 1 ? 'finish' : 'finishes'}` },
+      { es: (s, P) => `${s} no puede empezar hasta que ${P.length > 1 ? 'acaben' : 'acabe'} ${list(P, 'es')}`,
+        en: (s, P) => `${s} cannot start until ${list(P, 'en')} ${P.length > 1 ? 'have' : 'has'} finished` },
+      { es: (s, P) => `${s} necesita que antes ${P.length > 1 ? 'terminen' : 'termine'} ${list(P, 'es')}`,
+        en: (s, P) => `${s} needs ${list(P, 'en')} to be finished first` },
+    ],
+    fwd: [
+      { es: (p, Q) => `Cuando termina ${p}, ${Q.length > 1 ? 'pueden' : 'puede'} empezar ${list(Q, 'es')}`,
+        en: (p, Q) => `When ${p} finishes, ${list(Q, 'en')} can start` },
+      { es: (p, Q) => `${p} tiene que acabar antes de que ${Q.length > 1 ? 'empiecen' : 'empiece'} ${list(Q, 'es')}`,
+        en: (p, Q) => `${p} must finish before ${list(Q, 'en')} ${Q.length > 1 ? 'start' : 'starts'}` },
+      { es: (p, Q) => `Tras ${p} ${Q.length > 1 ? 'van' : 'va'} ${list(Q, 'es')}`,
+        en: (p, Q) => `${list(Q, 'en')} ${Q.length > 1 ? 'come' : 'comes'} after ${p}` },
+    ],
+    par: {
+      es: (x, y) => `${list([x, y], 'es')} pueden hacerse a la vez`,
+      en: (x, y) => `${x} and ${y} can be done at the same time`,
+      why: { es: (x, y) => `Ir a la vez no es una precedencia: ${list([x, y], 'es')} no dependen una de otra.`,
+        en: (x, y) => `Being done at the same time is not a precedence: ${x} and ${y} do not depend on each other.` },
+    },
+    // En prosa (difícil). Las actividades son { es, en, g } (infinitivo ES, infinitivo EN, gerundio EN).
+    // pBack: cláusula con las predecesoras, unión y después la actividad (o actividades) que presentan.
+    pBack: [
+      { es: (P) => `Cuando terminen de ${deList(es(P))}`, en: (P) => `Once they have finished ${list(ger(P), 'en')}`,
+        joinEs: ', se puede ', joinEn: ', they can ' },
+      { es: (P) => `Una vez que hayan terminado de ${deList(es(P))}`, en: (P) => `When they finish ${list(ger(P), 'en')}`,
+        joinEs: ', hay que ', joinEn: ', someone has to ' },
+    ],
+    pFwd: [
+      { es: (p, Q) => `En cuanto terminen de ${p.es}, ya se puede ${list(es(Q), 'es')}`,
+        en: (p, Q) => `As soon as they have finished ${p.g}, they can ${list(en(Q), 'en')}` },
+      { es: (p, Q) => `Antes de ${deList(es(Q))} hay que ${p.es}`,
+        en: (p, Q) => `Before ${list(ger(Q), 'en')}, they have to ${p.en}` },
+    ],
+    // Presentación de una actividad sin cláusula; la primera del texto usa siempre la primera forma.
+    plain: [['Hay que ', 'Someone has to '], ['También hay que ', 'They also have to '], ['Otra tarea es ', 'Another task is to ']],
+    start: { es: 'Lo primero es', en: 'The first thing to do is to' },
+    end: { lead: { es: 'Por último, hay que ', en: 'Finally, someone has to ' }, frag: { es: 'es lo último que se hace', en: 'it is the very last task' } },
+    parProse: {
+      es: (x, y) => `Se puede ${list([x.es, y.es], 'es')} a la vez`,
+      en: (x, y) => `${cap(list([x.g, y.g], 'en'))} can go on at the same time`,
+      why: { es: 'Ir a la vez no es una precedencia: estas dos actividades no dependen una de otra.',
+        en: 'Being done at the same time is not a precedence: these two activities do not depend on each other.' },
+    },
+    res: {
+      es: (x, y, r) => `Para ${list([x.es, y.es], 'es')} hace falta ${r}, pero se organizan sin problema`,
+      en: (x, y, r) => `${cap(list([x.g, y.g], 'en'))} both need ${r}, but they manage without any trouble`,
+      why: { es: 'Compartir un recurso no es una precedencia; aquí, además, se organizan sin problema.',
+        en: 'Sharing a resource is not a precedence; besides, here they manage without any trouble.' },
+    },
+    red: {
+      es: (x, y) => `No se puede empezar a ${y.es} hasta terminar de ${x.es}`,
+      en: (x, y) => `Nobody can start ${y.g} until they have finished ${x.g}`,
+      why: { es: (path) => `Ya lo implica el camino: ${path.map((a) => a.es).join(' → ')}.`,
+        en: (path) => `Already implied by the path: ${path.map((a) => a.en).join(' → ')}.` },
+    },
+    day1: {
+      es: (acts) => `Desde el primer día se puede ${list(es(acts), 'es')}`,
+      en: (acts) => `From day one they can ${list(en(acts), 'en')}`,
+      why: { es: 'Que se puedan hacer desde el primer día no da precedencias: dice que no esperan a ninguna otra actividad.',
+        en: 'Being possible from day one gives no precedence: it says they do not wait for any other activity.' },
+    },
+  };
+
+  const api = { KEYS: Object.keys(CONTEXTS), CONTEXTS, FORMS, list, cap };
   root.PNL = root.PNL || {};
   root.PNL.contexts = api;
   if (isNode) module.exports = api;
