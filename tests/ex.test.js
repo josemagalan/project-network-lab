@@ -311,3 +311,36 @@ test('T020 r2: un camino que dura la duración del alumno a 2 decimales dice la 
   const g = GR.grade(m.sol, ans, ask);
   assert.equal(X.pathExplain(m, ans, 0, g, 'es'), 'A-B-C pasa por A, que no has marcado como crítica.');
 });
+
+// ---------- F3c, T010: el proyecto como enunciado (spec f3c-enunciados, AC9; plan §4, P8) ----------
+const SG = require('../js/core/stmtgen.js');
+const Store = require('../js/store.js');
+
+test('F3c: con xt=1, el modelo trae el enunciado de stmtgen de esa misma tabla (contexto de la semilla), y la corrección no cambia', () => {
+  for (const [sd, lv] of [[14844, 'medium'], [39595, 'easy'], [92846, 'hard']]) {
+    const m = X.model(exState({ sd, lv, xt: 1 }), 'es');
+    const r = SG.make(sd, lv);
+    assert.deepEqual(m.text.def, r.def);
+    assert.equal(m.text.ctx, r.ctx);
+    assert.deepEqual(m.text.def.ref.rows.map((x) => [x.id, x.links]), m.rows.map((x) => [x.id, x.links || '']));
+    const plain = X.model(exState({ sd, lv }), 'es');
+    assert.equal(plain.text, null);
+    assert.deepEqual(m.sol, plain.sol);
+  }
+  // Con «Personalizar» no hay enunciado (P8).
+  const gp = { n: [6, 7], pred: 1.2, dummies: null, critical: [1, 1], dmax: 9 };
+  assert.equal(X.model(exState({ lv: 'custom', gp, xt: 1 }), 'es').text, null);
+});
+
+test('F3c: el store pone y quita el enunciado sin borrar las respuestas, y nunca con «Personalizar»', () => {
+  const ans = { act: { A: { ES: '0' } }, dur: '', ev: {}, crit: [], paths: [] };
+  const s0 = Object.assign(exState(), { ans });
+  const s1 = Store.reduce(s0, { type: 'exText', value: 1 }, 1);
+  assert.equal(s1.xt, 1);
+  assert.deepEqual(s1.ans, ans);
+  assert.equal(Store.reduce(s1, { type: 'exText', value: 0 }, 1).xt, 0);
+  assert.equal(Store.reduce(exState({ lv: 'custom', gp: { n: [6, 7], pred: 1.2, dummies: null, critical: [1, 1], dmax: 9 } }), { type: 'exText', value: 1 }, 1).xt, 0);
+  // Pasar a «Personalizar» quita el enunciado.
+  assert.equal(Store.reduce(s1, { type: 'ex', lv: 'custom', gp: { n: [6, 7], pred: 1.2, dummies: null, critical: [1, 1], dmax: 9 } }, 1).xt, 0);
+  assert.equal(Store.reduce(s1, { type: 'ex', lv: 'hard' }, 1).xt, 1);
+});

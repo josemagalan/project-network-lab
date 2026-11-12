@@ -85,6 +85,7 @@
     const q = new URLSearchParams(String(hash || '').replace(/^#/, ''));
     const v = q.get('v');
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : st === 'own' ? null : 'st']; }
+    if (v === 'ex' && q.get('xt') === '1') return ['ex', 'sg'];
     return [groupOf(v)];
   }
   const needAll = (groups) => Promise.all(groups.filter(Boolean).map((g) => need(g)));
@@ -1023,7 +1024,7 @@
     if (G.m0 && !m0) createM0();
     if (G.ex && !exc) {
       exc = G.ex.create($('exView'), {
-        state: () => state, lang, dispatch, newSeed,
+        state: () => state, lang, dispatch, newSeed, need,
         // «Ver la solución paso a paso» (AC12): la ruta (o los sucesos) con la misma tabla, con entrada en el historial.
         open: (s) => { stopPlay(); dispatch({ type: 'open', v: s.v, graph: s.graph, rows: s.rows, mode: s.mode }, { push: true }); window.scrollTo(0, 0); },
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },

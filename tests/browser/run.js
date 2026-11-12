@@ -4218,13 +4218,81 @@ check('F3c AC12 · M0 con un enunciado al azar: axe sin violaciones en claro y o
   await close(m);
 });
 
+// ---------- F3c, T010: el proyecto como enunciado en «Ejercicios» (spec f3c-enunciados, AC9, AC12 y AC13; plan §4, P5 y P8) ----------
+
+const exText = (page) => page.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state().text);
+
+check('F3c AC9 · «Ejercicios» con el proyecto como enunciado: el texto de esa tabla, «Ver la tabla» y la red plegadas, la misma corrección; quitarlo no borra nada', async () => {
+  for (const xm of ['practice', 'exam']) {
+    const s = { sd: 14844, lv: 'medium', xt: 1, xm, ans: exStudent({ sd: 14844, lv: 'medium' }, { 'D.ES': 8 }) };
+    const p = await exLab(s);
+    await exText(p);
+    const def = await p.evaluate(() => PNL.stmtgen.make(14844, 'medium').def);
+    assert.match(await p.locator('#exTextHead').innerText(), new RegExp(def.title.es));
+    assert.ok((await p.locator('#exView .ex-text-body').innerText()).includes(def.text.es[0]));
+    assert.equal(await p.locator('#exView .ex-showtable').evaluate((d) => d.open), false, 'la tabla, plegada');
+    assert.ok(await p.locator('#exView .ex-showtable .ex-given-card').isHidden());
+    assert.equal(await p.locator('#exFold').getAttribute('aria-expanded'), 'false', 'la red, plegada');
+    // «Ver la tabla» la abre en la página (no va al enlace).
+    await p.locator('#exView .ex-showtable summary').click();
+    assert.ok(await p.locator('#exView .ex-showtable .ex-given-card').isVisible());
+    if (xm === 'practice') {
+      await p.locator('#exCheck').click();
+      const g = (await exSt(p)).grading;
+      const ref = await p.evaluate(() => { const st = PNL.app.state(); const m = PNL.ex.model(Object.assign({}, st, { xt: 0 }), 'es'); return PNL.grade.grade(m.sol, m.ans, m.ask).score; });
+      assert.deepEqual(g.score, ref, 'la corrección no cambia');
+    }
+    // Quitar el enunciado: vuelve la tabla y las respuestas siguen.
+    const before = (await exSt(p)).ans;
+    // (Hasta la publicación, sin enunciado la casilla desaparece: se pulsa en lugar de desmarcarla.)
+    await p.locator('#exText').click();
+    await p.waitForFunction(() => PNL.app.state().xt === 0);
+    assert.deepEqual((await exSt(p)).ans, before);
+    assert.ok(await p.locator('#exView .ex-given-card').first().isVisible());
+    assert.ok(await p.locator('#exView .ex-text-card').count() === 0);
+    await close(p);
+  }
+});
+
+check('F3c P8 · antes de publicar, «Ejercicios» no ofrece el enunciado; con «Personalizar», la casilla está desactivada y lleva su nota', async () => {
+  const p = await exLab({ sd: 14844, lv: 'medium' });
+  assert.equal(await p.locator('#exText').count(), 0);
+  await close(p);
+  const c = await exLab({ sd: 14844, lv: 'custom', gp: { n: [12, 16], pred: 2, dummies: [3, 5], critical: [2, 3], dmax: 15 } });
+  await c.evaluate(() => { PNL.ex.textPublic = true; });
+  await c.selectOption('#selLang', 'en');
+  await c.waitForFunction(() => document.getElementById('exText'));
+  assert.equal(await c.locator('#exText').isDisabled(), true);
+  assert.match(await c.locator('#exTextOff').innerText(), /Customise/);
+  assert.equal(await c.locator('#exText').getAttribute('aria-describedby'), 'exTextOff');
+  await close(c);
+});
+
+check('F3c P5 · «Ejercicios» solo carga el generador de enunciados con el enunciado; axe sin violaciones en claro y oscuro; a 360 px sin desplazamiento horizontal', async () => {
+  const plain = await exLab({ sd: 14844, lv: 'medium' });
+  assert.equal(await loaded(plain, /stmtgen\.js|contexts\.js/), false);
+  await close(plain);
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const p = await exLab({ sd: 92846, lv: 'hard', xt: 1, lang }, { scheme });
+    await exText(p);
+    assert.equal(await loaded(p, /stmtgen\.js/), true);
+    await p.locator('#exView .ex-showtable summary').click();
+    await axe(p, `Ejercicios con enunciado (${lang}, ${scheme})`);
+    await close(p);
+  }
+  const m = await exLab({ sd: 39595, lv: 'easy', xt: 1 }, { width: 360, height: 800 });
+  await exText(m);
+  assert.ok(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'sin desbordar a 360 px');
+  await close(m);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=1&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), 'cpm.html#v=moodle&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });

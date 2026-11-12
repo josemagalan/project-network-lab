@@ -121,8 +121,11 @@
         else if (action.lv === 'custom') { const gp = U.cleanGp(action.gp); if (gp) { s.lv = 'custom'; s.gp = gp; } }
         if (action.ask !== undefined) { const ask = U.cleanAsk(action.ask); if (ask) s.ask = ask; }
         if (['practice', 'exam'].includes(action.xm)) s.xm = action.xm;
+        if (s.lv === 'custom') s.xt = 0;   // F3c (P8): con «Personalizar» no hay enunciado
         break;
       }
+      // F3c (T010): dar el proyecto como enunciado; no cambia el ejercicio ni las respuestas.
+      case 'exText': s.xt = action.value && s.lv !== 'custom' ? 1 : 0; break;
       case 'exAnswer':
         if (s.xd) break;
         if (action.ans === null) { s.ans = null; break; }

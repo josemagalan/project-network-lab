@@ -1068,6 +1068,18 @@
     lose: 'Change the statement? Your underlining and your table will be lost.', loseYes: 'Yes, change it', loseNo: 'Cancel',
   };
 
+  // ---------- F3c · el proyecto como enunciado en «Ejercicios» (T010) ----------
+  dict.es.ex.text = {
+    asText: 'Dar el proyecto como enunciado', statement: 'Enunciado del proyecto', showTable: 'Ver la tabla',
+    customOff: 'Con «Personalizar» no hay enunciado: los enunciados van ligados a los tres niveles.',
+    none: 'Esta tabla no tiene enunciado: el proyecto se da como tabla.',
+  };
+  dict.en.ex.text = {
+    asText: 'Give the project as a statement', statement: 'Project statement', showTable: 'Show the table',
+    customOff: 'With “Customise” there is no statement: statements go with the three levels.',
+    none: 'This table has no statement: the project is given as a table.',
+  };
+
   const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne'];
 
   function lookup(lang, key) {

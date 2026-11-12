@@ -22,6 +22,8 @@
   const GR = req('./core/grade.js', 'grade');
   const U = req('./core/urlstate.js', 'urlstate');
   const NR = req('./narrate.js', 'narrate');
+  // F3c (plan P5): core/stmtgen llega con el grupo sg, solo con el proyecto como enunciado.
+  const SG = () => (isNode ? require('./core/stmtgen.js') : root.PNL.stmtgen);
 
   const ACT_F = ['ES', 'EF', 'LS', 'LF', 'TF', 'FF', 'IF', 'SF'];
   const EV_F = ['TE', 'TL', 'slack'];
@@ -61,11 +63,22 @@
     const ask = U.cleanAsk(state.ask) || U.DEFAULT_ASK.slice();
     const base = { params: prm, issues: chk.issues, notFound: null, rows: null, project: null, sol: null, ask, ans: answersOf(state),
       mode: state.xm === 'exam' ? 'exam' : 'practice', delivered: state.xm === 'exam' && !!state.xd, seed: state.sd, lang,
-      oldVersion: state.gv != null && state.gv !== GEN.VERSION, grading: null };
+      oldVersion: state.gv != null && state.gv !== GEN.VERSION, grading: null, text: null, textPending: false };
     if (!chk.ok || !state.sd) return base;
     const gen = generated(state.sd, prm);
     if (!gen.g.ok) return Object.assign(base, { notFound: gen.g });
-    const m = Object.assign(base, { rows: gen.rows, project: gen.project, sol: gen.sol, info: gen.g.info });
+    const m = Object.assign(base, { rows: gen.rows, project: gen.project, sol: gen.sol, info: gen.g.info, text: null, textPending: false });
+    // F3c (T010, AC9): el enunciado de esta misma tabla, con el contexto de la semilla (como stmtgen.make).
+    if (state.xt && state.lv !== 'custom') {
+      const G3 = SG();
+      if (!G3) m.textPending = true;
+      else {
+        const ctx = G3.contextOf(state.sd, state.lv);
+        const r = G3.compose(gen.rows, state.lv, ctx, state.sd);
+        m.text = r.ok ? { def: r.def, ctx } : null;
+        m.textFailed = !r.ok;
+      }
+    }
     if (m.delivered) m.grading = GR.grade(m.sol, m.ans, ask);
     return m;
   }
@@ -311,6 +324,8 @@
     let pending = null;           // acción que borraría las respuestas, a la espera de confirmación
     let confirmOpen = false;      // Examen: confirmación de «Entregar»
     let lay = { key: null, roy: null, pert: null };
+    // F3c (T010): «Ver la tabla» abierta o cerrada (solo en la página) y si el enunciado ya estaba puesto.
+    let tableOpen = false; let textOn = false;
 
     const state = () => hooks.state();
     const nota = () => state().nota;
@@ -403,8 +418,34 @@
         seg([[tt('ex.practice'), s.xm !== 'exam', () => { if (s.xm === 'exam') newExercise({ xm: 'practice' }); }, 'exPractice'], [tt('ex.exam'), s.xm === 'exam', () => { if (s.xm !== 'exam') newExercise({ xm: 'exam' }); }, 'exExam']], tt('ex.mode')),
         h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), asks,
       ]);
+      // F3c (T010, tableros 60 y 61): dar el proyecto como enunciado; con «Personalizar», desactivado con su nota. Hasta la
+      // publicación (T013) solo aparece si el enlace ya lo pide.
+      let row3 = null;
+      if (api.textPublic || s.xt) {
+        const custom = s.lv === 'custom';
+        row3 = h('div', { class: 'ex-row ex-textrow' }, [
+          h('label', { class: custom ? 'muted' : '' }, [h('input', { type: 'checkbox', id: 'exText', checked: !!s.xt && !custom, disabled: custom,
+            'aria-describedby': custom ? 'exTextOff' : null, onchange: (e) => toggleText(e.target.checked) }), ' ', tt('ex.text.asText')]),
+          custom ? h('p', { class: 'muted small', id: 'exTextOff' }, [tt('ex.text.customOff')]) : null]);
+      }
       // Sin nombre propio: la vista entera ya es la región «Ejercicios» (axe, landmark-unique; T016).
-      return h('section', { class: 'card ex-bar' }, [row1, row2, customOpen ? customPanel() : null]);
+      return h('section', { class: 'card ex-bar' }, [row1, row2, row3, customOpen ? customPanel() : null]);
+    }
+
+    function toggleText(on) {
+      const go = () => hooks.dispatch({ type: 'exText', value: on ? 1 : 0 }, { push: true });
+      if (on && hooks.need) hooks.need('sg').then(go); else go();
+    }
+
+    // F3c (T010): el enunciado de la tabla, con la tabla plegada en «Ver la tabla» (tablero 60).
+    function textCard() {
+      const def = m.text.def;
+      const paras = SG().render(def, lang()).split('\n').filter(Boolean).map((x) => h('p', {}, [x]));
+      const details = h('details', { class: 'ex-showtable', open: tableOpen || null, ontoggle: (e) => { tableOpen = e.target.open; } },
+        [h('summary', {}, [tt('ex.text.showTable')]), givenCard()]);
+      return h('section', { class: 'card ex-text-card', 'aria-labelledby': 'exTextHead' }, [
+        h('h2', { id: 'exTextHead' }, [`${tt('ex.text.statement')} · ${def.title[lang()]}`]),
+        h('div', { class: 'ex-text-body', tabindex: '0' }, paras), details]);
     }
 
     function customPanel() {
@@ -594,7 +635,10 @@
         if (text) container.appendChild(h('p', { class: 'banner', role: 'status' }, [text]));
         return;
       }
-      container.appendChild(h('div', { class: 'ex-grid' }, [h('div', { class: 'ex-left' }, [givenCard(), netCard()]), answersCard()]));
+      if (m.textPending && hooks.need) hooks.need('sg').then(() => hooks.dispatch({ type: 'exText', value: 1 }));
+      if (m.textFailed) container.appendChild(h('p', { class: 'banner', role: 'status' }, [tt('ex.text.none')]));
+      const first = m.text ? textCard() : givenCard();
+      container.appendChild(h('div', { class: 'ex-grid' }, [h('div', { class: 'ex-left' }, [first, netCard()]), answersCard()]));
       drawNet();
       drawExplain();
     }
@@ -607,18 +651,23 @@
         exKey = k; checked = null; stale = false; selKey = null; selAct = null; confirmOpen = false; arcs = false; pending = null; pathFields = 1;
         if (state().lv !== 'custom') draft = null;
       }
+      // Con el enunciado, la red y la tabla empiezan plegadas: las dos dejan ver las precedencias (decisión del autor, T008).
+      const on = !!(m && m.text);
+      if (on && !textOn) { folded = true; tableOpen = false; }
+      textOn = on;
       if (opts && opts.fromEx) return;
       draw();
     }
 
     function debug() {
-      return { seed: m && m.seed, rows: m && m.rows, params: m && m.params, ask: m && m.ask, ans: m && m.ans, grading: grading(), marks: marksOn(), stale, view, folded, selKey };
+      return { seed: m && m.seed, rows: m && m.rows, params: m && m.params, ask: m && m.ask, ans: m && m.ans, grading: grading(), marks: marksOn(), stale, view, folded, selKey,
+        text: !!(m && m.text), ctx: m && m.text ? m.text.ctx : null, tableOpen };
     }
 
     return { render, debug };
   }
 
-  const api = { ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
+  const api = { textPublic: false, ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
     forUrl, hasAnswers, seedFrom, visibility, stepState, blanks, counts, scoreText, countText, usedVal, keyLabel, origin, explain, pathExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.ex = api;
