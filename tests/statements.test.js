@@ -146,3 +146,13 @@ test('duraciones y caminos críticos de los enunciados nuevos con duraciones', (
   assert.deepEqual(dur('lanzamiento').critical, ['A', 'B', 'E', 'F']);
   assert.equal(S.build(ST.get('congreso'), 'es').structureOnly, true);
 });
+
+// ---------- F3c, P12: índice de títulos que M0 carga sin statements.js (puerta T001) ----------
+test('F3c P12: statements-index coincide con statements (ids, títulos ES y EN y ocultos), en el mismo orden', () => {
+  const IX = require('../js/core/statements-index.js');
+  const all = ST.list({ all: true });
+  assert.deepEqual(IX.list({ all: true }).map((s) => [s.id, s.title.es, s.title.en, !!s.hidden]), all.map((s) => [s.id, s.title.es, s.title.en, !!s.hidden]));
+  assert.deepEqual(IX.list().map((s) => s.id), ST.list().map((s) => s.id));
+  assert.equal(IX.get('ej5').title.es, ST.get('ej5').title.es);
+  assert.equal(IX.get('nada'), null);
+});

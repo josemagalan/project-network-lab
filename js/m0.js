@@ -19,7 +19,14 @@
   const I = req('./i18n.js', 'i18n');
   const P = req('./core/project.js', 'project');
   const S = req('./core/statement.js', 'statement');
-  const ST = req('./core/statements.js', 'statements');
+  const STI = req('./core/statements-index.js', 'statementsIndex');
+  // core/statements (el texto de los once enunciados) y core/stmtgen (con core/contexts) se cargan aparte, cuando hacen
+  // falta (F3c, plan P5 y P12): en el navegador se leen de PNL en el momento de usarlos.
+  const ST = () => (isNode ? require('./core/statements.js') : root.PNL.statements);
+  const SG = () => (isNode ? require('./core/stmtgen.js') : root.PNL.stmtgen);
+  const X = () => (isNode ? require('./core/contexts.js') : root.PNL.contexts);
+  const GEN_LEVELS = ['easy', 'medium', 'hard'];
+  const GEN_PUBLIC = false;   // F3c, T013: «Enunciado al azar» aparece en el selector (hasta entonces, solo si es el abierto)
   const PC = req('./core/precheck.js', 'precheck');
   const U = req('./core/urlstate.js', 'urlstate');
   const Store = req('./store.js', 'store');
@@ -34,9 +41,45 @@
 
   // ---------- Lógica sin DOM ----------
 
+  // ---------- F3c: enunciado al azar (plan §4) ----------
+  const genLv = (lv) => (GEN_LEVELS.includes(lv) ? lv : 'medium');
+  const genCache = new Map();
+  function genMade(state) {
+    if (!Number.isInteger(state.sd)) return null;
+    const lv = genLv(state.lv);
+    const key = `${state.sd}|${lv}|${state.cx || ''}`;
+    if (!genCache.has(key)) {
+      const r = SG().make(state.sd, lv, state.cx ? { ctx: state.cx } : {});
+      genCache.set(key, r.ok ? r : null);
+      if (genCache.size > 40) genCache.delete(genCache.keys().next().value);
+    }
+    return genCache.get(key);
+  }
+  // La semilla misma si da enunciado; si no, la siguiente que lo dé (spec, Behaviour; 0 de 3600 en el prototipo).
+  function genSeed(sd, lv, cx, gen) {
+    const g = gen || SG();
+    let x = sd;
+    for (let k = 0; k < 1000; k++) {
+      if (g.make(x, genLv(lv), cx ? { ctx: cx } : {}).ok) return x;
+      x = x >= U.EX.seed ? 1 : x + 1;
+    }
+    return sd;
+  }
+  // Opciones del selector: los enunciados visibles, el abierto si está oculto, «Enunciado al azar» y el propio.
+  function statementOptions(cur, lang, pub) {
+    const visible = STI.list();
+    const opts = visible.map((s) => ({ value: s.id, label: s.title[lang] }));
+    if (!visible.some((s) => s.id === cur) && STI.get(cur)) opts.push({ value: cur, label: STI.get(cur).title[lang] });
+    if ((pub === undefined ? GEN_PUBLIC : pub) || cur === 'gen') opts.push({ value: 'gen', label: I.t(lang, 'm0.gen.random') });
+    if (cur === 'own') opts.push({ value: 'own', label: I.t(lang, 'm0.own') });
+    return opts;
+  }
+
   function defOf(state) {
     if (state.st === 'own' && state.own) return state.own;
-    return ST.get(state.st) || ST.get(U.DEFAULT_ST);
+    if (state.st === 'gen') { const r = genMade(state); if (r) return r.def; }
+    const st = ST();
+    return st.get(state.st) || st.get(U.DEFAULT_ST);
   }
 
   // El enunciado construido en el idioma, la tabla del alumno validada y lo que se explica sin mirar la referencia.
@@ -49,8 +92,12 @@
     const structureOnly = !!st.structureOnly || P.blankDurations(rows);
     const parsed = P.parse(rows, mode, { structureOnly });
     const marks = state.mk || [];
+    const gm = state.st === 'gen' && def.id === 'gen' ? genMade(state) : null;
     return { def, st, route: S.route(st), rows, mode, parsed, project: parsed.project, report: parsed.report, explain: PC.explain(parsed),
-      warnings: S.markWarnings(st, marks, parsed.project, rows.map((r) => norm(r.id)).filter(Boolean)), structureOnly, marks, lang };
+      warnings: S.markWarnings(st, marks, parsed.project, rows.map((r) => norm(r.id)).filter(Boolean)), structureOnly, marks, lang,
+      // stKey distingue dos enunciados al azar (el id es «gen» en todos); gen, lo que enseña la barra.
+      stKey: gm ? `gen:${state.sd}:${genLv(state.lv)}:${state.cx || ''}` : st.id,
+      gen: gm ? { ctx: gm.ctx, lv: genLv(state.lv), oldVersion: state.sv != null && state.sv !== SG().VERSION, title: gm.def.title[lang] } : null };
   }
 
   function fragText(st, from, to) {
@@ -402,7 +449,12 @@
     let copied = null;          // preparar: { which, hash, url, ok } del último enlace copiado
 
     // Esqueleto: barra, texto (izquierda) y tabla, validación, corrección y salida (derecha).
-    const selSt = h('select', { id: 'm0St', onchange: (e) => { closePanel(); hooks.dispatch({ type: 'm0', st: e.target.value, mm: 'practice' }, { push: true }); } });
+    const selSt = h('select', { id: 'm0St', onchange: (e) => {
+      const v = e.target.value;
+      closePanel();
+      if (v === 'gen') { hooks.need('sg').then(() => goGen({ sd: hooks.newSeed(), lv: 'medium', cx: null })); return; }
+      hooks.need('st').then(() => hooks.dispatch({ type: 'm0', st: v, mm: 'practice' }, { push: true }));
+    } });
     const btnList = h('button', { type: 'button', onclick: () => hooks.dispatch({ type: 'set', key: 'tv', value: 'list' }) });
     const btnMatrix = h('button', { type: 'button', onclick: () => hooks.dispatch({ type: 'set', key: 'tv', value: 'matrix' }) });
     const btnUl = h('button', { type: 'button', class: 'ghost', id: 'm0Ul', onclick: () => { ul = !ul; sel = null; draw({ focusText: ul }); } });
@@ -430,7 +482,38 @@
     const btnPrepare = h('button', { type: 'button', id: 'm0Prepare', onclick: () => setMode('prepare') });
     const segMode = h('div', { class: 'seg', role: 'group' }, [btnPractice, btnRoute, btnPrepare]);
     const btnLearn = h('button', { type: 'button', class: 'ghost', id: 'm0Learn', onclick: () => hooks.learn() });
-    const bar = h('div', { class: 'card m0-bar' }, [h('label', { class: 'small' }, [lblSt, ' ', selSt]), segMode, segTv, h('div', { class: 'row-wrap push' }, [btnUl, btnCheck, btnLearn])]);
+    const labSt = h('label', { class: 'small' }, [lblSt, ' ', selSt]);
+    const bar = h('div', { class: 'm0-bar' }, [labSt, segMode, segTv, h('div', { class: 'row-wrap push' }, [btnUl, btnCheck, btnLearn])]);
+    // F3c (T009, tablero 57): con «Enunciado al azar», una fila más arriba con el selector, el nivel, el contexto y
+    // «Otro enunciado»; cambiar de enunciado con trabajo hecho pide confirmación, como «Ejercicios».
+    let pendingGen = null;
+    const lblLv = h('span', { class: 'small muted' });
+    const lvBtns = GEN_LEVELS.map((lv) => h('button', { type: 'button', id: `m0Lv-${lv}`, onclick: () => askGen({ lv }) }));
+    const segLv = h('div', { class: 'seg', role: 'group' }, lvBtns);
+    const lblCx = h('span', {});
+    const selCx = h('select', { id: 'm0Cx', onchange: (e) => askGen({ cx: e.target.value || null }) });
+    const drawnSpan = h('span', { class: 'small muted', id: 'm0Drawn' });
+    const btnAnother = h('button', { type: 'button', class: 'ghost', id: 'm0Another', onclick: () => askGen({ sd: hooks.newSeed() }) });
+    const genRow = h('div', { class: 'm0-gen', hidden: true }, [h('span', { class: 'row-wrap m0-genlv' }, [lblLv, segLv]),
+      h('label', { class: 'small' }, [lblCx, ' ', selCx]), drawnSpan, btnAnother]);
+    const loseMsg = h('span', {});
+    const loseYes = h('button', { type: 'button', class: 'primary', id: 'm0LoseYes', onclick: () => { const p = pendingGen; pendingGen = null; goGen(p); } });
+    const loseNo = h('button', { type: 'button', class: 'ghost', id: 'm0LoseNo', onclick: () => { pendingGen = null; drawBar(); selSt.focus(); } });
+    const loseBox = h('div', { class: 'banner row-wrap m0-lose', role: 'alert', hidden: true }, [loseMsg, loseYes, loseNo]);
+    const genOld = h('p', { class: 'banner', role: 'status', id: 'm0GenOld', hidden: true });
+    const barCard = h('div', { class: 'card m0-barcard' }, [genRow, loseBox, bar]);
+    function goGen(patch) {
+      const s = hooks.state();
+      const lv = genLv(patch.lv || s.lv);
+      const cx = patch.cx !== undefined ? patch.cx : s.cx;
+      const sd = genSeed(patch.sd || s.sd || hooks.newSeed(), lv, cx);
+      closePanel(); ul = false; sel = null;
+      hooks.dispatch({ type: 'm0', st: 'gen', sd, lv, cx, sv: SG().VERSION, mm: 'practice' }, { push: true });
+    }
+    function askGen(patch) {
+      if (m && (m.rows.length || m.marks.length)) { pendingGen = patch; drawBar(); loseYes.focus(); return; }
+      goGen(patch);
+    }
     const textHead = h('h2', { id: 'm0TextHead' });
     const textSrc = h('p', { class: 'muted small m0-src' });
     const textHint = h('p', { class: 'small m0-hint', id: 'm0Hint' });
@@ -482,7 +565,8 @@
       h('div', { class: 'm0-player-info' }, [h('span', { class: 'muted small' }, [rCounter]), rBar, h('label', { class: 'check' }, [rPred, ' ', rPredLbl])]), rKeys]);
     const right = h('div', { class: 'm0-right' }, [panelBox, tableCard, valCard, diagCard, openBox, shareCard, rStep, rPlayer, rTable]);
     clear(container);
-    container.appendChild(bar);
+    container.appendChild(genOld);
+    container.appendChild(barCard);
     container.appendChild(h('div', { class: 'm0-grid' }, [textCard, right]));
 
     const editor = Ed.create(listBox, { compact: true, radioName: 'pnlModeM0', state: hooks.state, lang, dispatch: hooks.dispatch,
@@ -494,7 +578,7 @@
         hooks.dispatch({ type: 'table', rows });
       } });
 
-    const diagKey = () => JSON.stringify([m.st.id, m.rows, m.mode, m.marks]);
+    const diagKey = () => JSON.stringify([m.stKey, m.rows, m.mode, m.marks]);
     const curDiag = () => (diag && m && diag.key === diagKey() ? diag.res : null);
 
     function check() {
@@ -659,7 +743,7 @@
     }
 
     function drawText(o) {
-      textHead.textContent = t(ul ? 'm0.textUnderline' : 'm0.text');
+      textHead.textContent = t(ul ? 'm0.textUnderline' : 'm0.text') + (m.gen ? ` · ${m.gen.title}` : '');
       textSrc.textContent = m.def.source ? t('m0.source', { src: m.def.source[lang()] }) : '';
       textSrc.hidden = !m.def.source;
       textNotice.hidden = !notice;
@@ -738,13 +822,11 @@
 
     function drawBar() {
       lblSt.textContent = t('m0.statement');
-      const visible = ST.list();
       const cur = m.st.id;
-      const opts = visible.concat(visible.some((s) => s.id === cur) || cur === 'own' ? [] : [ST.get(cur)]).filter(Boolean);
       clear(selSt);
-      for (const s of opts) selSt.appendChild(h('option', { value: s.id, selected: s.id === cur }, [s.title[lang()]]));
-      if (cur === 'own') selSt.appendChild(h('option', { value: 'own', selected: true }, [t('m0.own')]));
+      for (const o of statementOptions(cur, lang())) selSt.appendChild(h('option', { value: o.value, selected: o.value === cur }, [o.label]));
       selSt.value = cur;
+      drawGen();
       segTv.setAttribute('aria-label', t('m0.tableView'));
       btnList.textContent = t('m0.list'); btnMatrix.textContent = t('m0.matrixView');
       const tv = hooks.state().tv;
@@ -756,6 +838,32 @@
       btnCheck.hidden = hooks.state().mm === 'prepare';
       btnCheck.disabled = !m.st.ref;
       btnCheck.title = m.st.ref ? '' : t('m0.diag.noRef');
+    }
+
+    // F3c: la fila del enunciado al azar, el aviso de otra versión y la confirmación.
+    function drawGen() {
+      const g = m.gen;
+      genRow.hidden = !g;
+      genOld.hidden = !(g && g.oldVersion);
+      genOld.textContent = t('m0.gen.oldVersion');
+      // Con «Enunciado al azar», el selector sube a la fila del enunciado (tablero 57); si no, va en la barra, en una línea.
+      if (g && labSt.parentNode !== genRow) genRow.insertBefore(labSt, genRow.firstChild);
+      if (!g && labSt.parentNode !== bar) bar.insertBefore(labSt, bar.firstChild);
+      loseBox.hidden = !pendingGen;
+      loseMsg.textContent = t('m0.gen.lose'); loseYes.textContent = t('m0.gen.loseYes'); loseNo.textContent = t('m0.gen.loseNo');
+      if (!g) { pendingGen = null; loseBox.hidden = true; return; }
+      lblLv.textContent = t('ex.level');
+      segLv.setAttribute('aria-label', t('m0.gen.levels'));
+      lvBtns.forEach((b, i) => { b.textContent = t(`ex.levels.${GEN_LEVELS[i]}`); b.setAttribute('aria-pressed', String(GEN_LEVELS[i] === g.lv)); });
+      lblCx.textContent = t('m0.gen.context');
+      const s = hooks.state();
+      clear(selCx);
+      selCx.appendChild(h('option', { value: '', selected: !s.cx }, [t('m0.gen.any')]));
+      for (const k of X().KEYS) selCx.appendChild(h('option', { value: k, selected: s.cx === k }, [X().CONTEXTS[k].title[lang()]]));
+      selCx.value = s.cx || '';
+      drawnSpan.hidden = !!s.cx;
+      drawnSpan.textContent = t('m0.gen.drawn', { ctx: g.title });
+      btnAnother.textContent = t('m0.gen.another');
     }
 
     // ---------- Preparar un enunciado propio (T022) ----------
@@ -888,7 +996,7 @@
       textSrc.textContent = m.def.source ? t('m0.source', { src: m.def.source[lang()] }) : '';
       textNotice.hidden = true; textHint.hidden = true; marksBox.hidden = true;
       root.PNL.statementView.render(textBody, { st: m.st, marks: [], label: () => ({ badge: '' }), underline: false, hl: f ? { from: f.from, to: f.to } : null });
-      const key = `${m.st.id}|${lang()}|${k}`;
+      const key = `${m.stKey}|${lang()}|${k}`;
       if (key !== lastStep) {
         lastStep = key;
         const hl = textBody.querySelector('.hl');
@@ -1003,17 +1111,17 @@
       render(model, opts) {
         const before = m;
         m = model;
-        if (before && (before.st.id !== m.st.id || before.lang !== m.lang)) { panel = null; sel = null; focusWord = 0; }
+        if (before && (before.stKey !== m.stKey || before.lang !== m.lang)) { panel = null; sel = null; focusWord = 0; }
         // El aviso del cambio de idioma dura hasta la siguiente edición o el siguiente enunciado.
-        const edited = before && before.st.id === m.st.id && before.lang === m.lang && JSON.stringify([before.rows, before.marks]) !== JSON.stringify([m.rows, m.marks]);
-        if (before && before.st.id !== m.st.id) notice = null;
+        const edited = before && before.stKey === m.stKey && before.lang === m.lang && JSON.stringify([before.rows, before.marks]) !== JSON.stringify([m.rows, m.marks]);
+        if (before && before.stKey !== m.stKey) { notice = null; pendingGen = null; }
         else if (edited && keepNotice) keepNotice = false;
         else if (edited) notice = null;
         draw(opts);
       },
       // Lo llama app al cambiar de idioma, entre el cambio de idioma y el de los subrayados (que no debe quitarlo).
       langNotice(dropped) { notice = dropped ? (dropped === 1 ? t('m0.langMovedOne') : t('m0.langMoved', { n: dropped })) : null; keepNotice = !!dropped; },
-      debug: () => ({ st: m && m.st.id, rows: m && m.rows, marks: m && m.marks, underline: ul, sel, panel: panel ? { from: panel.from, to: panel.to, kind: panel.kind, edit: panel.edit } : null,
+      debug: () => ({ st: m && m.st.id, stKey: m && m.stKey, gen: m && m.gen, pendingGen, rows: m && m.rows, marks: m && m.marks, underline: ul, sel, panel: panel ? { from: panel.from, to: panel.to, kind: panel.kind, edit: panel.edit } : null,
         diag: curDiag(), validation: m ? validation(lang(), m) : null }),
     };
   }
@@ -1037,7 +1145,7 @@
     return { cands: null, ids, label };
   }
 
-  const api = { routeTable, routeOptions, ownDef, toPrepare, openSolution, acceptText, share, shareUrl, markProblem, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
+  const api = { genSeed, statementOptions, GEN_LEVELS, routeTable, routeOptions, ownDef, toPrepare, openSolution, acceptText, share, shareUrl, markProblem, model, fragText, proposal, applyMark, putMark, removeMark, cleanRows, openState, validation, diagnosis, markLabel, switchLang, create };
   root.PNL = root.PNL || {};
   root.PNL.m0 = api;
   if (isNode) module.exports = api;

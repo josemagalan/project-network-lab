@@ -51,12 +51,15 @@
   // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al
   // entrar en su vista. async = false los ejecuta en orden; la promesa se cumple con el último.
   const LAZY = {
-    m0: ['js/core/precheck.js', 'js/core/statement.js', 'js/core/statements.js', 'js/views/prec-matrix.js', 'js/views/statement-view.js', 'js/m0.js'],
+    // F3c (plan P12): M0 lleva el índice de títulos; el texto de los once enunciados (st) y el generador (sg) van aparte.
+    m0: ['js/core/precheck.js', 'js/core/statement.js', 'js/core/statements-index.js', 'js/views/prec-matrix.js', 'js/views/statement-view.js', 'js/m0.js'],
+    st: ['js/core/statements.js'],
+    sg: ['js/core/contexts.js', 'js/core/stmtgen.js'],
     ex: ['js/core/grade.js', 'js/views/answer-table.js', 'js/ex.js'],
     // F3b (plan P5 y P7): el banco de Moodle, sus textos y su vista.
     mq: ['js/core/grade.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/question-view.js', 'js/moodle-page.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
@@ -77,7 +80,14 @@
     return loading[group];
   }
   const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : null);
-  const hashView = (hash) => new URLSearchParams(String(hash || '').replace(/^#/, '')).get('v');
+  // Grupos que pide un enlace (F3c, P5 y P12): M0 con el texto de su enunciado (st) o con el generador (sg).
+  function groupsOf(hash) {
+    const q = new URLSearchParams(String(hash || '').replace(/^#/, ''));
+    const v = q.get('v');
+    if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : st === 'own' ? null : 'st']; }
+    return [groupOf(v)];
+  }
+  const needAll = (groups) => Promise.all(groups.filter(Boolean).map((g) => need(g)));
 
   const lang = () => state.lang || 'es';
   const t = (k, p) => I.t(lang(), k, p);
@@ -181,7 +191,7 @@
   }
   function toM0() {
     stopPlay();
-    if (!G.m0) { need('m0').then(toM0); return; }
+    if (!G.m0 || (state.st === 'gen' ? !G.stmtgen : state.st !== 'own' && !G.statements)) { needAll(['m0', state.st === 'gen' ? 'sg' : 'st']).then(toM0); return; }
     // Ya en M0: de la ruta paso a paso vuelve a practicar sin perder la tabla.
     if (state.v === 'm0') { if (state.mm !== 'practice') { dispatch({ type: 'set', key: 'mm', value: 'practice' }); dispatch({ type: 'first' }); } return; }
     dispatch({ type: 'm0', st: state.st, mm: 'practice' });
@@ -191,7 +201,7 @@
   function dispatch(action, opts) {
     const before = state;
     state = S.reduce(state, action, total());
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -971,8 +981,8 @@
     });
     window.addEventListener('hashchange', () => {
       if (location.hash === U.encode(state)) return;
-      const group = groupOf(hashView(location.hash));
-      if (group && !READY[group]()) { need(group).then(() => window.dispatchEvent(new Event('hashchange'))); return; }
+      const groups = groupsOf(location.hash).filter((g) => g && !READY[g]());
+      if (groups.length) { needAll(groups).then(() => window.dispatchEvent(new Event('hashchange'))); return; }
       // Otro ejemplo u otra tabla: la selección era de la red anterior (revisión de cierre, F4).
       const before = state;
       load();
@@ -989,6 +999,10 @@
     state = G.m0 ? G.m0.openSolution(s) : s;
     // «Ejercicios» sin semilla: la interfaz elige una (nunca el núcleo, plan §0) y se escribe con replaceState.
     if (state.v === 'ex' && !state.sd) state = Object.assign({}, state, { sd: newSeed() });
+    // F3c: un enunciado al azar sin semilla también la recibe de la interfaz, con la versión actual del generador.
+    if (state.v === 'm0' && state.st === 'gen' && !state.sd && G.stmtgen) {
+      state = Object.assign({}, state, { sd: G.m0.genSeed(newSeed(), state.lv, state.cx), sv: G.stmtgen.VERSION });
+    }
     compute();
     fitGraph();
     state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -1028,7 +1042,7 @@
 
   function createM0() {
     m0 = G.m0.create($('m0View'), {
-      state: () => state, lang, dispatch,
+      state: () => state, lang, dispatch, newSeed, need,
       // La tabla depurada se abre en M1, M2 o el taller con una entrada nueva en el historial: «Atrás» vuelve a M0.
       open: (where, rows, mode) => { stopPlay(); const s = G.m0.openState(state, where, rows, mode); dispatch({ type: 'open', v: s.v, graph: s.graph, rows, mode }); window.scrollTo(0, 0); },
       // Ruta paso a paso (T018): el reproductor y la predicción son los de la página.
@@ -1085,5 +1099,5 @@
     G.app = { state: () => Object.assign({ sel: selected }, state), step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model,
       reto: () => (reto ? { net: reto.st.net, result: reto.st.result, solution: retoSol } : null) };
   }
-  need(groupOf(hashView(location.hash))).then(start, start);
+  needAll(groupsOf(location.hash)).then(start, start);
 })();

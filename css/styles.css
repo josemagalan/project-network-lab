@@ -373,6 +373,14 @@ button.small-btn { font-size: 13px; padding: 3px 8px; min-height: 28px; }
 .m0 { display: flex; flex-direction: column; gap: 12px; }
 .m0 h2 { margin: 0; font-size: 15px; }
 .m0-bar { padding: 8px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.m0-barcard { padding: 8px 14px; display: flex; flex-direction: column; gap: 8px; }
+.m0-barcard .m0-bar { padding: 0; }
+.m0-gen, .m0-lose { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.m0-gen[hidden], .m0-lose[hidden] { display: none; }
+.m0-gen label { display: flex; align-items: center; gap: 6px; }
+.m0-gen select { padding: 4px; width: 220px; max-width: 100%; }
+.m0-gen .seg button, .m0-gen button.ghost { min-height: 36px; }
+.m0-gen .seg button { padding: 6px 12px; }
 .m0-bar label { display: flex; align-items: center; gap: 6px; }
 .m0-bar select { padding: 4px; width: 220px; max-width: 100%; }
 .m0-bar .seg button, .m0-bar button.ghost { min-height: 36px; }

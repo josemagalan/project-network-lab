@@ -65,12 +65,21 @@
         s.v = 'm0'; s.ex = null; s.step = 0; s.t = null; s.mk = null; s.wi = null; s.sol = 0;
         // Con un enunciado propio pueden llegar su tabla, sus subrayados y su forma (preparar; abrir con la solución).
         if (own) {
-          s.st = 'own'; s.own = action.own;
+          s.st = 'own'; s.own = action.own; s.cx = null; s.sv = null;
           if (Array.isArray(action.rows) && action.rows.length) s.t = action.rows.map((r) => Object.assign({}, r));
           if (Array.isArray(action.marks) && action.marks.length) s.mk = U.cleanMarks(action.marks);
           if (SETTABLE.mode.includes(action.mode)) s.mode = action.mode;
+        } else if (action.st === 'gen') {
+          // F3c (plan §4, P7): el enunciado al azar, por su semilla, nivel (uno de los tres), contexto y versión.
+          s.own = null; s.st = 'gen';
+          if (Number.isInteger(action.sd) && action.sd >= 1 && action.sd <= U.EX.seed) s.sd = action.sd;
+          // Lo que no llega (la entrada desde la pestaña) se conserva; el nivel, siempre uno de los tres.
+          const lv = action.lv !== undefined ? action.lv : s.lv;
+          s.lv = ['easy', 'medium', 'hard'].includes(lv) ? lv : 'medium';
+          if (action.cx !== undefined) s.cx = ['home', 'product', 'congress', 'lab'].includes(action.cx) ? action.cx : null;
+          if (action.sv !== undefined) s.sv = Number.isInteger(action.sv) && action.sv >= 1 ? action.sv : null;
         } else {
-          s.own = null;
+          s.own = null; s.cx = null; s.sv = null;
           if (U.STATEMENTS.includes(action.st)) s.st = action.st; else if (!U.STATEMENTS.includes(s.st)) s.st = U.DEFAULT_ST;
         }
         s.mm = SETTABLE.mm.includes(action.mm) ? action.mm : 'practice';

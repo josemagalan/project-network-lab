@@ -1056,6 +1056,18 @@
     learnTitle: 'Exercises: carried errors and how cells are marked',
   };
 
+  // ---------- F3c · enunciado al azar en M0 (T009) ----------
+  dict.es.m0.gen = {
+    random: 'Enunciado al azar', levels: 'Nivel del enunciado', context: 'Contexto', any: 'Al azar', drawn: 'Ha salido: {ctx}',
+    another: 'Otro enunciado', oldVersion: 'Este enlace se hizo con otra versión del generador de enunciados: el texto puede no ser el mismo.',
+    lose: '¿Cambiar de enunciado? Se pierden los subrayados y la tabla.', loseYes: 'Sí, cambiar', loseNo: 'Cancelar',
+  };
+  dict.en.m0.gen = {
+    random: 'Random statement', levels: 'Statement level', context: 'Context', any: 'Any', drawn: 'Drawn: {ctx}',
+    another: 'Another statement', oldVersion: 'This link was made with another version of the statement generator: the text may not be the same.',
+    lose: 'Change the statement? Your underlining and your table will be lost.', loseYes: 'Yes, change it', loseNo: 'Cancel',
+  };
+
   const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne'];
 
   function lookup(lang, key) {

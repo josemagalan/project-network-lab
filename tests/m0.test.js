@@ -536,3 +536,68 @@ test('T027 (ronda 2, F9) · un subrayado con más de 60 precedencias se dice en 
   assert.equal(M0.markProblem([], { from: 0, to: 1, kind: 'precedence', gives: gives(60) }), null);
   assert.equal(M0.markProblem([], { from: 0, to: 1, kind: 'precedence', gives: gives(61) }), 'tooManyEdges');
 });
+
+// ---------- F3c, T009: enunciado al azar (spec f3c-enunciados, AC7–AC8; plan §4, P5, P7 y P12) ----------
+const SG = require('../js/core/stmtgen.js');
+const Store = require('../js/store.js');
+const gen = (extra) => m0State(Object.assign({ st: 'gen', sd: 15, lv: 'medium', sv: SG.VERSION }, extra || {}));
+
+test('F3c: el modelo de un enunciado al azar es el de stmtgen.make con la semilla, el nivel y el contexto', () => {
+  for (const [extra, ctx] of [[{}, undefined], [{ cx: 'lab', lv: 'hard', sd: 22 }, 'lab'], [{ lv: 'easy', sd: 4, cx: 'home' }, 'home']]) {
+    const s = gen(extra);
+    const r = SG.make(s.sd, s.lv, ctx ? { ctx } : {});
+    for (const lang of ['es', 'en']) {
+      const m = M0.model(s, lang);
+      assert.deepEqual(m.def, r.def);
+      assert.equal(m.st.id, 'gen');
+      assert.deepEqual(m.gen, { ctx: r.ctx, lv: s.lv, oldVersion: false, title: r.def.title[lang] });
+      assert.deepEqual(m.rows, []);
+    }
+  }
+  // Un nivel que no es de los tres se lee como medio; la clave del enunciado cambia con la semilla, el nivel y el contexto.
+  assert.deepEqual(M0.model(gen({ lv: 'custom' }), 'es').def, SG.make(15, 'medium').def);
+  assert.notEqual(M0.model(gen(), 'es').stKey, M0.model(gen({ sd: 16 }), 'es').stKey);
+  assert.equal(M0.model(m0State(), 'es').stKey, 'ej5');
+});
+
+test('F3c: otra versión del generador en el enlace se avisa y se abre con la actual', () => {
+  assert.equal(M0.model(gen({ sv: SG.VERSION + 1 }), 'es').gen.oldVersion, true);
+  assert.equal(M0.model(gen({ sv: null }), 'es').gen.oldVersion, false);
+  assert.deepEqual(M0.model(gen({ sv: SG.VERSION + 1 }), 'es').def, M0.model(gen(), 'es').def);
+});
+
+test('F3c: genSeed da la semilla misma si tiene enunciado, y si no la siguiente que lo tenga', () => {
+  assert.equal(M0.genSeed(15, 'medium', null), 15);
+  assert.equal(M0.genSeed(999999, 'hard', 'lab'), 999999);
+  const fake = { make: (sd) => (sd < 20 ? { ok: false, reason: 'assign' } : { ok: true }) };
+  assert.equal(M0.genSeed(17, 'easy', null, fake), 20);
+  assert.equal(M0.genSeed(999999, 'easy', null, { make: (sd) => ({ ok: sd === 2 }) }), 2);
+});
+
+test('F3c: las opciones del selector llevan «Enunciado al azar» solo si es el abierto (hasta la publicación, T013)', () => {
+  const ids = (cur) => M0.statementOptions(cur, 'es', false).map((o) => o.value);
+  assert.ok(!ids('ej5').includes('gen'));
+  assert.ok(ids('gen').includes('gen'));
+  assert.deepEqual(ids('ej5').slice(0, 7), ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7']);
+  assert.ok(M0.statementOptions('ej5', 'es', true).some((o) => o.value === 'gen'));
+  assert.equal(M0.statementOptions('gen', 'en', true).find((o) => o.value === 'gen').label, 'Random statement');
+});
+
+test('F3c: el store abre un enunciado al azar con su semilla, nivel, contexto y versión, y los acota', () => {
+  const s = Store.reduce(m0State({ t: [row('A', 1)] }), { type: 'm0', st: 'gen', sd: 31, lv: 'hard', cx: 'product', sv: SG.VERSION, mm: 'practice' }, 1);
+  assert.deepEqual([s.st, s.sd, s.lv, s.cx, s.sv, s.t, s.mk], ['gen', 31, 'hard', 'product', SG.VERSION, null, null]);
+  const bad = Store.reduce(m0State(), { type: 'm0', st: 'gen', sd: 0, lv: 'custom', cx: 'moon', sv: 'x' }, 1);
+  assert.deepEqual([bad.st, bad.lv, bad.cx, bad.sv], ['gen', 'medium', null, null]);
+  // Volver a un enunciado de la lista quita el contexto y la versión.
+  const back = Store.reduce(s, { type: 'm0', st: 'ej2', mm: 'practice' }, 1);
+  assert.deepEqual([back.st, back.cx, back.sv], ['ej2', null, null]);
+});
+
+test('F3c: los subrayados de un enunciado al azar pasan al otro idioma por sus fragmentos', () => {
+  const s = gen();
+  const st = S.build(M0.model(s, 'es').def, 'es');
+  const f = frag(st, 'aA');
+  const moved = M0.switchLang(Object.assign({}, s, { mk: [{ from: f.from, to: f.to, kind: 'activity', act: 'A' }] }), 'es', 'en');
+  const fe = frag(S.build(M0.model(s, 'en').def, 'en'), 'aA');
+  assert.deepEqual([moved.dropped, moved.marks[0].from, moved.marks[0].to], [0, fe.from, fe.to]);
+});
