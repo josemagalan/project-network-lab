@@ -1,8 +1,8 @@
 # Project Network Lab · PERT · CPM · ROY
 
-**ES** · Laboratorio interactivo y bilingüe para enseñar redes de proyectos: de la tabla de precedencias a las redes ROY (actividad en nodo) y PERT (actividad en arco), tiempos, holguras, caminos críticos, el TCL y sus trampas, y el análisis de riesgo con Montecarlo. Incluye ejercicios generados con corrección automática y error consecuente; los bancos de preguntas para Moodle llegarán después.
+**ES** · Laboratorio interactivo y bilingüe para enseñar redes de proyectos: de la tabla de precedencias a las redes ROY (actividad en nodo) y PERT (actividad en arco), tiempos, holguras, caminos críticos, el TCL y sus trampas, y el análisis de riesgo con Montecarlo. Incluye ejercicios y enunciados generados, con corrección automática y error consecuente, y bancos de preguntas para Moodle.
 
-**EN** · Interactive bilingual lab for teaching project networks: from precedence tables to activity-on-node (ROY) and activity-on-arrow (PERT) networks, scheduling, slack, critical paths, the pitfalls of the central limit theorem, and Monte Carlo risk analysis. It includes generated exercises with automatic marking that carries errors forward; Moodle question banks will follow.
+**EN** · Interactive bilingual lab for teaching project networks: from precedence tables to activity-on-node (ROY) and activity-on-arrow (PERT) networks, scheduling, slack, critical paths, the pitfalls of the central limit theorem, and Monte Carlo risk analysis. It includes generated exercises and problem statements, with automatic marking that carries errors forward, and Moodle question banks.
 
 **Abrir el laboratorio / Open the lab:** https://josemagalan.github.io/project-network-lab/
 
@@ -59,7 +59,15 @@ Proyecto hermano de / Sister project of [Genetic Algorithms Lab](https://josemag
 - **Soluciones del núcleo.** Cada pregunta se construye con el mismo cálculo que el laboratorio y su retroalimentación enlaza con ese ejercicio en «Ejercicios» y con la solución paso a paso. El nombre de cada pregunta, que el alumnado no ve, lleva su semilla para reproducirla; la semilla del banco es nueva en cada descarga.
 - **Vista previa e instrucciones:** la vista enseña una pregunta como la verá el alumnado y explica cómo importar el banco y montar el cuestionario.
 
-La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M0 (del enunciado a la tabla, con la ruta paso a paso y el enunciado propio), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos), el taller, los ejercicios generados y los bancos de Moodle; la parte estocástica llegará en las fases siguientes.
+### Fase 3c: generador de enunciados
+
+- **Enunciado al azar** en M0 (la última opción del selector de enunciados): [`cpm.html#v=m0&st=gen`](https://josemagalan.github.io/project-network-lab/cpm.html#v=m0&st=gen). El laboratorio escribe un enunciado nuevo, en español y en inglés, a partir de una tabla de «Ejercicios» y de su semilla, con uno de cuatro contextos (reformar una vivienda, lanzar un producto, organizar un congreso o mudar un laboratorio) y con las actividades en el orden de su proceso. Se elige el nivel, el contexto (o «Al azar») y «Otro enunciado», y se trabaja como cualquier otro: subrayado, tabla o matriz, «Comprobar» y ruta paso a paso.
+- **La redacción sigue el nivel.** Fácil: lista de actividades y una frase por actividad, siempre en el mismo sentido. Media: frases en los dos sentidos, frases con varias precedencias y alguna «a la vez» que no da ninguna. Difícil: prosa sin letras, con un recurso compartido, una precedencia redundante escrita y «lo primero» o «lo último» solo cuando hay una única actividad inicial o final.
+- **El proyecto como enunciado** en «Ejercicios» («Dar el proyecto como enunciado»): el ejercicio da el texto en lugar de la tabla, que queda plegada bajo «Ver la tabla»; la corrección de los tiempos no cambia. Con «Personalizar» no hay enunciado.
+- **Etapa «0 · Enunciado → tabla»** en el exportador de Moodle: cada pregunta da un enunciado y pide las predecesoras inmediatas de cada actividad con una fila de casillas; una redundante no suma ni resta y una falsa resta. La retroalimentación enlaza con ese enunciado en M0 y con su ruta paso a paso.
+- **Qué no hace:** no interpreta texto (cada frase sabe qué precedencias da), no escribe precedencias implícitas ni trampas de lectura con ciclos (siguen en los enunciados escritos a mano) y el enlace guarda la semilla, el nivel, el contexto y la versión del generador, no el texto.
+
+La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M0 (del enunciado a la tabla, con la ruta paso a paso, el enunciado propio y el enunciado al azar), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos), el taller, los ejercicios generados y los bancos de Moodle; la parte estocástica llegará en las fases siguientes.
 
 ### Usarlo sin conexión
 
@@ -129,7 +137,15 @@ Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx 
 - **Solutions from the core.** Each question is built with the same calculation as the lab, and its feedback links to that exercise in “Exercises” and to the step-by-step solution. Each question’s name, hidden from students, includes its seed to reproduce it; the bank seed is new with every download.
 - **Preview and instructions:** the view shows a question as students will see it and explains how to import the bank and build the quiz.
 
-The home page (`index.html`) presents the eight modules of the learning path. M0 (from statement to table, with the step-by-step tour and your own statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths), the workshop, the generated exercises and the Moodle banks are available today; the stochastic part will follow in later phases.
+### Phase 3c: statement generator
+
+- **Random statement** in M0 (the last option in the statement selector): [`cpm.html#v=m0&st=gen`](https://josemagalan.github.io/project-network-lab/cpm.html#v=m0&st=gen&lang=en). The lab writes a new statement, in Spanish and English, from an “Exercises” table and its seed, with one of four contexts (refurbishing a flat, launching a product, organising a conference or moving a laboratory) and with the activities in the order of their process. You choose the level, the context (or “Any”) and “Another statement”, and it works like any other: underlining, list or matrix, “Check” and the step-by-step tour.
+- **The wording follows the level.** Easy: a list of activities and one sentence per activity, always in the same direction. Medium: sentences in both directions, sentences with several precedences and some “at the same time” that gives none. Hard: prose without letters, with a shared resource, a redundant precedence written in the text and “first” or “last” only when there is a single start or end activity.
+- **The project as a statement** in “Exercises” (“Give the project as a statement”): the exercise gives the text instead of the table, which stays folded under “Show the table”; the marking of the times does not change. With “Customise” there is no statement.
+- **Stage “0 · Statement → table”** in the Moodle exporter: each question gives a statement and asks for the immediate predecessors of each activity with a row of checkboxes; a redundant one neither adds nor subtracts and a false one subtracts. The feedback links to that statement in M0 and to its step-by-step tour.
+- **What it does not do:** it does not interpret text (each sentence knows which precedences it gives), it does not write implicit precedences or reading traps with cycles (they stay in the hand-written statements), and the link keeps the seed, the level, the context and the generator version, not the text.
+
+The home page (`index.html`) presents the eight modules of the learning path. M0 (from statement to table, with the step-by-step tour, your own statement and the random statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths), the workshop, the generated exercises and the Moodle banks are available today; the stochastic part will follow in later phases.
 
 ### Offline use
 
