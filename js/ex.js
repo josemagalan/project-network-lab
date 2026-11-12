@@ -401,9 +401,21 @@
       levels.querySelector('#exLv-custom').setAttribute('aria-controls', 'exCustom');
       const seedIn = h('input', { id: 'exSeed', type: 'text', inputmode: 'numeric', autocomplete: 'off', value: String(s.sd || ''), size: '7',
         onchange: (e) => { const v = Number(String(e.target.value).trim()); if (Number.isInteger(v) && v >= 1 && v <= SEED_MAX) newExercise({ sd: v }); else e.target.value = String(s.sd || ''); } });
+      // F3c (T010, tableros 60 y 61): dar el proyecto como enunciado; con «Personalizar», desactivado con su nota. Publicado
+      // en T013 (textPublic); sin publicar, solo aparecería si el enlace ya lo pide. Va en la primera fila, antes de la
+      // semilla (T014): en una fila propia, «Ejercicios» dejaba de caber en 1280×720 (F3a, AC16).
+      let textCtl = null;
+      if (api.textPublic || s.xt) {
+        const custom = s.lv === 'custom';
+        textCtl = h('div', { class: 'ex-textctl' }, [
+          h('label', { class: custom ? 'muted' : '' }, [h('input', { type: 'checkbox', id: 'exText', checked: !!s.xt && !custom, disabled: custom,
+            'aria-describedby': custom ? 'exTextOff' : null, onchange: (e) => toggleText(e.target.checked) }), ' ', tt('ex.text.asText')]),
+          custom ? h('p', { class: 'muted small', id: 'exTextOff' }, [tt('ex.text.customOff')]) : null]);
+      }
       const row1 = h('div', { class: 'ex-row' }, [
         h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
         h('span', { class: 'muted small ex-sum' }, [levelSummary(prm, lang())]),
+        textCtl,
         h('label', { class: 'ex-seed' }, [tt('ex.seed'), seedIn]),
         button(tt('ex.another'), another, { attrs: { id: 'exAnother' } }),
       ]);
@@ -418,18 +430,8 @@
         seg([[tt('ex.practice'), s.xm !== 'exam', () => { if (s.xm === 'exam') newExercise({ xm: 'practice' }); }, 'exPractice'], [tt('ex.exam'), s.xm === 'exam', () => { if (s.xm !== 'exam') newExercise({ xm: 'exam' }); }, 'exExam']], tt('ex.mode')),
         h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), asks,
       ]);
-      // F3c (T010, tableros 60 y 61): dar el proyecto como enunciado; con «Personalizar», desactivado con su nota. Publicado
-      // en T013 (textPublic); sin publicar, solo aparecería si el enlace ya lo pide.
-      let row3 = null;
-      if (api.textPublic || s.xt) {
-        const custom = s.lv === 'custom';
-        row3 = h('div', { class: 'ex-row ex-textrow' }, [
-          h('label', { class: custom ? 'muted' : '' }, [h('input', { type: 'checkbox', id: 'exText', checked: !!s.xt && !custom, disabled: custom,
-            'aria-describedby': custom ? 'exTextOff' : null, onchange: (e) => toggleText(e.target.checked) }), ' ', tt('ex.text.asText')]),
-          custom ? h('p', { class: 'muted small', id: 'exTextOff' }, [tt('ex.text.customOff')]) : null]);
-      }
       // Sin nombre propio: la vista entera ya es la región «Ejercicios» (axe, landmark-unique; T016).
-      return h('section', { class: 'card ex-bar' }, [row1, row2, row3, customOpen ? customPanel() : null]);
+      return h('section', { class: 'card ex-bar' }, [row1, row2, customOpen ? customPanel() : null]);
     }
 
     function toggleText(on) {
