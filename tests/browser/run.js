@@ -4993,6 +4993,116 @@ check('F4a T010 · M6 en inglés con la notación española, dos rutas y paralel
   await close(m);
 });
 
+// ---------- F4a, T011: paso a paso con predicción en M5 y M6 ----------
+
+const predict = async (page, value, how = 'click') => {
+  await page.locator('#uncPredIn').fill(value);
+  if (how === 'enter') await page.locator('#uncPredIn').press('Enter'); else await page.locator('#uncPredCheck').click();
+  await page.waitForFunction(() => document.getElementById('uncPredFb'));
+  return page.locator('#uncPredFb').innerText();
+};
+const walkStep = (page) => page.evaluate(() => PNL.app.state().step);
+
+check('F4a T011 · M5 paso a paso con predicción: oculto hasta comprobar, acierto, fallo con pista y «Mostrar la solución»', async () => {
+  const p = await uncLab('ue=hl&lang=en');
+  await p.locator('#uncWalk').click();
+  await p.waitForFunction(() => PNL.app.state().uw === 1);
+  assert.equal(await p.locator('#uncPredIn').count(), 0, 'sin predicción, sin casilla');
+  assert.match(await p.locator('#uncWalkHead').innerText(), /^Step 1 of 28 · Activity A/);
+  assert.match((await p.locator('#uncSteps li').allInnerTexts())[0], /\(a \+ 4m \+ b\)\/6 = /);
+  await p.locator('#uncPred').check();
+  await p.waitForFunction(() => PNL.app.state().pred === 1 && document.getElementById('uncPredIn'));
+  assert.equal(await hashGet(p, 'uw'), '1');
+  // Oculto: ni el valor, ni la línea de la media, ni «Next», ni la flecha del teclado.
+  assert.match((await p.locator('#uncSteps li').allInnerTexts())[0], /Your prediction/);
+  assert.equal(await p.locator('#uncChart line.v-mean').count(), 0);
+  assert.equal(await p.locator('#uncNext').isDisabled(), true);
+  await p.locator('#uncWalkHead').click();
+  await p.keyboard.press('ArrowRight');
+  assert.equal(await walkStep(p), 0);
+  // Media de A de Hillier (1, 2, 3): la de la triangular también es 2, así que se prueba un fallo sin pista.
+  const ok = await predict(p, '2', 'enter');
+  assert.match(ok, /^Right\./);
+  assert.equal(await p.locator('#uncChart line.v-mean').count(), 1);
+  assert.equal(await activeId(p), 'uncPredFb');
+  await p.keyboard.press('ArrowRight');
+  await p.waitForFunction(() => PNL.app.state().step === 1);
+  assert.match(await p.locator('#live').innerText(), /Step 2 of 28\. Variance of A\. The next step stays hidden/);
+  const bad = await predict(p, '0,33');
+  assert.match(bad, /^Not quite\. The value is 0\.11\. 0,33 is the standard deviation/);
+  // «Show the answers» sin escribir nada; un «Check» vacío no revela.
+  await p.locator('#uncNext').click();
+  await p.waitForFunction(() => PNL.app.state().step === 2);
+  await p.locator('#uncPredCheck').click();
+  assert.equal(await p.locator('#uncPredEmpty').isVisible(), true);
+  assert.equal(await p.locator('#uncNext').isDisabled(), true);
+  await p.locator('#uncPredShow').click();
+  await p.waitForFunction(() => !document.getElementById('uncPredIn'));
+  assert.equal(await p.locator('#uncNext').isDisabled(), false);
+  // Actividad C de Hillier (6, 9, 18): la varianza de la curva beta-PERT es la pista del boceto 67.
+  await go(p, 5);
+  await p.waitForFunction(() => document.getElementById('uncPredIn'));
+  assert.match(await predict(p, '4,57'), /Not quite\. The value is 4\.00\. 4,57 is the variance of the beta-PERT curve drawn here \(4\.57\)/);
+  await go(p, 4);
+  await p.waitForFunction(() => document.getElementById('uncPredIn'));
+  assert.match(await predict(p, '11'), /11 is the mean of the triangular/);
+  await axe(p, 'F4a · M5 · paso a paso con predicción');
+  await close(p);
+  const d = await uncLab('ue=kl&uw=1&pred=1&step=1&lang=es&nota=es', { scheme: 'dark' });
+  assert.match(await d.locator('#uncPredIn').evaluate((el) => el.labels[0].textContent), /σ² de A =/);
+  await axe(d, 'F4a · M5 · paso a paso, tema oscuro');
+  await d.locator('#uncWalk').click();
+  await d.waitForFunction(() => PNL.app.state().uw === 0 && document.getElementById('uncActCard'));
+  assert.equal(await walkStep(d), 0);
+  await close(d);
+});
+
+check('F4a T011 · M6 paso a paso: camino, μ, σ², z y P con la tabla o la exacta; pistas; las cifras del gráfico salen con su paso', async () => {
+  const p = await uncLab('um=m6&uw=1&pred=1&lang=es');
+  assert.match(await p.locator('#uncExamHead').innerText(), /paso 1 de 5/);
+  assert.equal(await p.locator('#uncPredIn').count(), 0, 'el camino no se predice');
+  assert.match(await p.locator('#uncNormalHead').innerText(), /^Normal del camino crítico$/);
+  assert.equal(await p.locator('#uncExamResult').count(), 0);
+  await p.locator('#uncNext').click();
+  await p.waitForFunction(() => document.getElementById('uncPredIn'));
+  assert.match(await predict(p, '23,83'), /^Bien\./);
+  await p.locator('#uncNext').click();
+  await p.waitForFunction(() => document.getElementById('uncPredIn'));
+  assert.match(await predict(p, '5,17'), /Has sumado las desviaciones/);
+  assert.match(await p.locator('#uncNormalHead').innerText(), /N\(23,83; 8,25\)/);
+  await p.locator('#uncNext').click();
+  await p.waitForFunction(() => document.getElementById('uncPredIn'));
+  assert.match(await predict(p, '0,14'), /Has dividido entre σ²/);
+  await p.locator('#uncNext').click();
+  await p.waitForFunction(() => document.getElementById('uncPredIn'));
+  assert.equal(await p.locator('#uncExamResult').count(), 0);
+  assert.match(await predict(p, '0,6591'), /^Bien\./);
+  assert.equal(await p.locator('#uncExamResult').count(), 1);
+  await go(p, 3);
+  await go(p, 4);
+  await p.waitForFunction(() => document.getElementById('uncPredIn'));
+  assert.match(await predict(p, '0,34'), /Con la tabla, 0,6591; sin redondear, 0,6577\. Esa es la probabilidad de pasarse del plazo/);
+  await close(p);
+  // Al revés: el plazo de tabla (z = 1,64) y el exacto valen los dos.
+  for (const v of ['28,54', '28,56']) {
+    const q = await uncLab('um=m6&uw=1&pred=1&up=0.95&step=4&lang=es');
+    assert.match(await predict(q, v), /^Bien\./, v);
+    await close(q);
+  }
+  // σ² = 0 (desde el taller): el paso explica que no hay normal ni z, y no se predice.
+  const z = await uncLab('um=m6&lang=es');
+  await z.locator('#uncFromWork').click();
+  await z.waitForFunction(() => PNL.unc.state().src.kind === 'own');
+  await z.locator('#uncWalk').click();
+  await z.waitForFunction(() => PNL.app.state().uw === 1);
+  await go(z, 3);
+  await z.waitForFunction(() => document.querySelectorAll('#uncSteps li').length === 4);
+  assert.match((await z.locator('#uncSteps li').allInnerTexts())[3], /σ² = 0: sin incertidumbre/);
+  assert.equal(await z.locator('#uncNext').isDisabled(), true, 'último paso');
+  await axe(z, 'F4a · M6 · paso a paso con σ² = 0');
+  await close(z);
+});
+
 // ---------- Contador de la portada (constitución v2.1.0) ----------
 
 const COUNT_FAKE = '12,345';

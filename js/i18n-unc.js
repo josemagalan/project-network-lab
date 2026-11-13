@@ -34,6 +34,26 @@
     issues: '{n} errores que corregir', issuesOne: '1 error que corregir',
     invalid: 'Hasta corregir la tabla no hay medias, red ni probabilidades.',
     empty: 'La tabla está vacía: añade una fila o pega una tabla.',
+    // Paso a paso (T011, bloque 4)
+    walk: {
+      toggle: 'Paso a paso', head: 'Paso {i} de {n} · Actividad {id}', headName: 'Paso {i} de {n} · Actividad {id} · {name}',
+      terna: '({a} = {va}, {m} = {vm}, {b} = {vb})', nextAct: 'Siguiente actividad: {id}', last: 'Última actividad',
+      mean: 'Media de {id}', meanText: '({a} + 4{m} + {b})/6 = ({va} + 4·{vm} + {vb})/6 = {v}',
+      var: 'Varianza de {id}', varText: '(({b} − {a})/6)² = (({vb} − {va})/6)² = {v}',
+      yours: 'Tu predicción', chartTitle: 'Actividad {id} · beta-PERT y triangular',
+      note: 'Con la predicción activa, cada valor queda oculto hasta que lo escribes.',
+      examHead: 'Cálculo de examen · paso {i} de {n}',
+      field: { mean: '{mean} de {id} =', var: 'σ² de {id} =', mu: 'μ =', var2: 'σ² =', z: 'z =', p: 'P =', T: 'Plazo =' },
+      ok: 'Bien.', wrong: 'No es eso.', answer: 'El valor es {v}.', answerAlt: 'Con la tabla, {t}; sin redondear, {v}.', empty: 'Escribe un número para comprobarlo.',
+      hint: {
+        sd: '{x} es la desviación típica, ({b} − {a})/6; la varianza es su cuadrado.',
+        pertVar: '{x} es la varianza de la curva beta-PERT que se dibuja ({v}): se parece, pero no es la fórmula del examen, (({b} − {a})/6)².',
+        triMean: '{x} es la media de la triangular, ({a} + {m} + {b})/3; la del examen cuenta {m} cuatro veces.',
+        sumSd: 'Has sumado las desviaciones; se suman las varianzas (las actividades son independientes).',
+        divVar: 'Has dividido entre σ²; hay que dividir entre σ = √σ².',
+        otherTail: 'Esa es la probabilidad de pasarse del plazo, 1 − P.',
+      },
+    },
     // M6 (T010, bloque 3)
     cases: { label: 'Caso', exam: 'Cálculo de examen', merge: 'Fusión de caminos', few: 'Pocas actividades', skew: 'Asimetría', corr: 'Correlación', proj: 'El proyecto entero' },
     synthetic: 'Proyecto: caso sintético',
@@ -122,6 +142,26 @@
     issues: '{n} errors to fix', issuesOne: '1 error to fix',
     invalid: 'Until the table is fixed there are no means, network or probabilities.',
     empty: 'The table is empty: add a row or paste a table.',
+    // Step by step (T011, block 4)
+    walk: {
+      toggle: 'Step by step', head: 'Step {i} of {n} · Activity {id}', headName: 'Step {i} of {n} · Activity {id} · {name}',
+      terna: '({a} = {va}, {m} = {vm}, {b} = {vb})', nextAct: 'Next activity: {id}', last: 'Last activity',
+      mean: 'Mean of {id}', meanText: '({a} + 4{m} + {b})/6 = ({va} + 4·{vm} + {vb})/6 = {v}',
+      var: 'Variance of {id}', varText: '(({b} − {a})/6)² = (({vb} − {va})/6)² = {v}',
+      yours: 'Your prediction', chartTitle: 'Activity {id} · beta-PERT and triangular',
+      note: 'With prediction on, each value stays hidden until you write it.',
+      examHead: 'Exam calculation · step {i} of {n}',
+      field: { mean: '{mean} of {id} =', var: 'σ² of {id} =', mu: 'μ =', var2: 'σ² =', z: 'z =', p: 'P =', T: 'Deadline =' },
+      ok: 'Right.', wrong: 'Not quite.', answer: 'The value is {v}.', answerAlt: 'With the table, {t}; without rounding, {v}.', empty: 'Type a number to check it.',
+      hint: {
+        sd: '{x} is the standard deviation, ({b} − {a})/6; the variance is its square.',
+        pertVar: '{x} is the variance of the beta-PERT curve drawn here ({v}): close, but it is not the exam formula, (({b} − {a})/6)².',
+        triMean: '{x} is the mean of the triangular, ({a} + {m} + {b})/3; the exam formula counts {m} four times.',
+        sumSd: 'You added the standard deviations; it is the variances that add up (the activities are independent).',
+        divVar: 'You divided by σ²; divide by σ = √σ².',
+        otherTail: 'That is the probability of missing the deadline, 1 − P.',
+      },
+    },
     // M6 (T010, block 3)
     cases: { label: 'Case', exam: 'Exam calculation', merge: 'Merging paths', few: 'Few activities', skew: 'Skewness', corr: 'Correlation', proj: 'The whole project' },
     synthetic: 'Project: synthetic case',

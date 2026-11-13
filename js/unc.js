@@ -209,6 +209,54 @@
     return { n: su.n, mean: su.mean, sd: su.sd, min: su.min, max: su.max, ps: su.pLE(T), pn, hist: su.hist(BINS), ks: sd > 0 ? su.ks(spec.normal.mu, sd) : null };
   }
 
+  // ---------- Paso a paso con predicción (T011) ----------
+
+  /**
+   * Los pasos que recorre el reproductor de app con «uw» (P10): en M5, la media y la varianza de examen de cada
+   * actividad, en el orden de la tabla; en M6, el cálculo de examen (core/tcl.trace). Cada valor va en «reveals», con
+   * su actividad (en M6, «P», el camino), para la predicción de siempre (predict.check), y la alternativa de tabla en «alt».
+   * Sin «uw», sin tabla o en un caso simulado de M6: null.
+   */
+  function trace(state, m) {
+    if (!state.uw || !m || !m.model) return null;
+    if (state.um === 'm6') {
+      if (state.ux !== 'exam') return null;
+      const e = examOf(state, m);
+      return L.trace(m.model, e.inverse ? { prob: e.prob } : { deadline: e.deadline }).map((st) => Object.assign({}, st, {
+        res: e, reveals: st.values.map((v) => Object.assign({ act: 'P', field: v.field, value: v.value }, v.alt != null ? { alt: v.alt } : {})) }));
+    }
+    return [].concat(...m.acts.filter((a) => a.stats).map((a) => T.trace(a.dist).map((st) => Object.assign({}, st, {
+      act: a.id, reveals: st.values.map((v) => ({ act: a.id, field: v.field, value: v.value })) }))));
+  }
+
+  // Igual que la pantalla y predict: dos decimales.
+  const same2 = (x, y) => Math.abs(Math.round(x * 100) - Math.round(y * 100)) < 0.5;
+  /**
+   * Pista para un valor equivocado del paso a paso: el error típico que explica el número escrito, o null.
+   * sd (la desviación en lugar de la varianza), pertVar (la varianza de la curva beta-PERT, no la fórmula), triMean (la
+   * media de la triangular), sumSd (la suma de las desviaciones), divVar (dividir por σ² en lugar de σ), otherTail (la
+   * otra cola: 1 − P).
+   */
+  function hint(step, answer, m) {
+    const p = parseNum(answer);
+    if (p.error || !step || !step.reveals || !step.reveals.length) return null;
+    const x = p.value; const rv = step.reveals[0];
+    if (same2(x, rv.value) || (rv.alt != null && same2(x, rv.alt))) return null;
+    if (step.kind === 'unc.mean' || step.kind === 'unc.var') {
+      const a = m.acts.find((q) => q.id === step.act);
+      if (!a || !a.stats) return null;
+      if (step.kind === 'unc.mean') return same2(x, a.stats.tri.mean) ? 'triMean' : null;
+      if (same2(x, Math.sqrt(a.stats.exam.var))) return 'sd';
+      return same2(x, a.stats.pert.var) ? 'pertVar' : null;
+    }
+    const e = step.res;
+    if (!e) return null;
+    if (step.kind === 'tcl.var') return same2(x, e.terms.reduce((t, q) => t + Math.sqrt(q.var), 0)) ? 'sumSd' : null;
+    if (step.kind === 'tcl.z' && e.var > 0) return same2(x, (e.deadline - e.mu) / e.var) ? 'divVar' : null;
+    if (step.kind === 'tcl.p') return same2(x, 1 - e.exact) || same2(x, 1 - e.table.p4) ? 'otherTail' : null;
+    return null;
+  }
+
   // ---------- Vista ----------
 
   function create(container, hooks) {
@@ -247,9 +295,19 @@
         sections,
         synthetic ? h('span', { class: 'unc-field muted', id: 'uncSynthetic' }, [tu('synthetic')]) : h('label', { class: 'unc-field' }, [tu('project'), ' ', sel]),
         button(tu('fromWork'), fromWork, { id: 'uncFromWork' }),
-      ])];
+      ].concat(walkControls()))];
       if (s.um === 'm6') rows.push(m6Controls());
       return h('div', { class: 'card unc-bar' }, rows);
+    }
+    // «Paso a paso» (T011): en M5 y en el cálculo de examen de M6, con la casilla de la predicción.
+    function walkControls() {
+      const s = state();
+      if (!m || !m.model || (s.um === 'm6' && s.ux !== 'exam')) return [];
+      const on = !!s.uw;
+      const out = [h('span', { class: 'unc-push' }), seg([[tu('walk.toggle'), on, () => { go({ uw: on ? 0 : 1 }); focus('uncWalk'); }, 'uncWalk']], tu('walk.toggle'))];
+      if (on) out.push(h('label', { class: 'unc-check' }, [h('input', { type: 'checkbox', id: 'uncPred', checked: !!s.pred,
+        onchange: (e) => { hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }); focus('uncPred'); } }), ' ', t('predict.toggle')]));
+      return out;
     }
     function pickProject(id) {
       if (id === 'own' && !state().ut) { hooks.dispatch({ type: 'uncTable', mode: 'pred', rows: [{ id: 'A', name: '', a: '', m: '', b: '', links: '' }] }, { push: true }); focus('uncT-0-a'); return; }
@@ -306,7 +364,8 @@
       return h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [item('k-pert', tu('legend.pert')), item('k-tri', tu('legend.tri'))]
         .concat(uc ? [item('k-classic', tu('legend.classic', L5))] : []).concat([item('k-mean', tu('legend.mean')), item('k-sd', tu('legend.sd'))]));
     }
-    function drawCurves(holder, act, uc) {
+    function drawCurves(holder, act, uc, show) {
+      const sh = show || { mean: true, sd: true };
       const d = act.dist; const st = act.stats; const L5 = lab();
       const fixed = !(d.b > d.a);
       const pad = fixed ? Math.max(1, d.a * 0.2) : (d.b - d.a) * 0.06;
@@ -314,11 +373,11 @@
       const kinds = fixed ? [] : ['pert', 'tri'].concat(uc ? ['classic'] : []);
       const curves = kinds.map((k) => ({ pts: curvePts(k, d, k === 'tri' ? 2 : 160), cls: `c-${k}`, dash: k === 'tri' ? '6 4' : k === 'classic' ? '2 3' : null }));
       const ymax = fixed ? 1 : Math.max(...curves.map((c) => Math.max(...c.pts.map((p) => p[1])))) * 1.12;
-      const vlines = [{ x: st.exam.mean, cls: 'v-mean', label: `${L5.mean} ${num(st.exam.mean)}` }];
-      if (!fixed) { const sd = Math.sqrt(st.pert.var); vlines.push({ x: st.pert.mean - sd, cls: 'v-sd', dash: '3 3' }, { x: st.pert.mean + sd, cls: 'v-sd', dash: '3 3' }); }
+      const vlines = sh.mean ? [{ x: st.exam.mean, cls: 'v-mean', label: `${L5.mean} ${num(st.exam.mean)}` }] : [];
+      if (!fixed && sh.sd) { const sd = Math.sqrt(st.pert.var); vlines.push({ x: st.pert.mean - sd, cls: 'v-sd', dash: '3 3' }, { x: st.pert.mean + sd, cls: 'v-sd', dash: '3 3' }); }
       const list = kinds.map((k) => tu(`legend.${k}`)).join(', ');
       DC.render(holder, { w: 600, h: 240, x: [lo, hi], ymax, ticks: niceTicks(lo, hi, 6), fmt: num, curves, vlines,
-        label: tu('chartLabel', { id: act.id, a: num(d.a), b: num(d.b), list: list || '—', mean: num(st.exam.mean) }) });
+        label: tu('chartLabel', { id: act.id, a: num(d.a), b: num(d.b), list: list || '—', mean: sh.mean ? num(st.exam.mean) : '…' }) });
     }
     function cmpTable(act, uc) {
       const st = act.stats;
@@ -524,7 +583,7 @@
     }
 
     // Cálculo de examen: los pasos (la predicción llega con T011) y la normal del camino crítico.
-    function examCard(e) {
+    function examSteps(e) {
       const unit = unitOf();
       const steps = [];
       const near = e.near && !e.ties.length ? ` ${tu('exam.near', { path: pathText(e.near.acts), mu: num(e.near.mu) })}` : '';
@@ -541,21 +600,136 @@
         steps.push([tu('exam.z'), tu('exam.zText', { T: num(e.deadline), mu: fx(e.mu, 2), var: fx(e.var, 2), z: fx(e.z, 4), z2: fx(e.table.z2, 2) })]);
         steps.push([tu('exam.p', { T: num(e.deadline) }), tu('exam.pText', { z2: fx(e.table.z2, 2), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) })]);
       }
-      return h('section', { class: 'card unc-examcard', 'aria-labelledby': 'uncExamHead' }, [h('h2', { id: 'uncExamHead' }, [tu('exam.title')]),
-        h('ol', { class: 'unc-steps', id: 'uncSteps' }, steps.map(([title, text]) => h('li', {}, [h('strong', {}, [title]), h('span', {}, [text])])))]);
+      return steps;
+    }
+    function examCard(e) {
+      const steps = examSteps(e);
+      const tr = m.trace;
+      if (!tr) {
+        return h('section', { class: 'card unc-examcard', 'aria-labelledby': 'uncExamHead' }, [h('h2', { id: 'uncExamHead' }, [tu('exam.title')]),
+          h('ol', { class: 'unc-steps', id: 'uncSteps' }, steps.map(([title, text]) => h('li', {}, [h('strong', {}, [title]), h('span', {}, [text])])))]);
+      }
+      // Paso a paso (T011): los pasos hasta el actual; el actual, oculto mientras se predice.
+      const k = Math.min(state().step, tr.length - 1);
+      const items = steps.slice(0, k + 1).map(([title, text], i) => {
+        const cur = i === k;
+        const hide = cur && hooks.predicting(tr[i]);
+        return h('li', { class: cur ? 'cur' : '', 'aria-current': cur ? 'step' : null }, [h('strong', {}, [title]),
+          h('span', { class: hide ? 'muted' : '' }, [hide ? tu('walk.yours') : text]), cur ? predictBox(tr[i]) : null]);
+      });
+      return h('section', { class: 'card unc-examcard', 'aria-labelledby': 'uncExamHead' }, [h('h2', { id: 'uncExamHead' }, [tu('walk.examHead', { i: k + 1, n: tr.length })]),
+        h('ol', { class: 'unc-steps', id: 'uncSteps' }, items), walkNav(tr, k)]);
+    }
+
+    // ---------- Paso a paso (T011) ----------
+    const PRm = () => root.PNL.predict;
+    let lastWalk = null;
+    function stepTitleText(step) {
+      if (step.kind === 'unc.mean' || step.kind === 'unc.var') {
+        const a = m.acts.find((q) => q.id === step.act); const d = a.dist; const L5 = lab();
+        const p = Object.assign({ id: a.id, va: num(d.a), vm: num(d.m), vb: num(d.b), v: fx(step.reveals[0].value, 2) }, L5);
+        return step.kind === 'unc.mean' ? [tu('walk.mean', p), tu('walk.meanText', p)] : [tu('walk.var', p), tu('walk.varText', p)];
+      }
+      const steps = examSteps(step.res);
+      return steps[m.trace.indexOf(step)] || ['', ''];
+    }
+    // La casilla de predicción del paso actual, o lo que dijo la comprobación.
+    function predictBox(step) {
+      if (!step.reveals || !step.reveals.length || !state().pred) return null;
+      const pred = hooks.pred(); const rv = step.reveals[0]; const key = PRm().key(rv);
+      const hide = hooks.predicting(step);
+      const checked = pred.done && pred.step === state().step;
+      const field = rv.field.slice(4);
+      const label = tu(`walk.field.${field}`, Object.assign({ id: step.act }, lab()));
+      if (hide) {
+        const msg = h('p', { class: 'small unc-err', id: 'uncPredEmpty', hidden: true }, [tu('walk.empty')]);
+        const check = () => {
+          const v = String(pred.answers.get(key) || '').trim();
+          if (!v) { msg.hidden = false; focus('uncPredIn'); return; }
+          hooks.predCheck(step);
+          focus('uncPredFb');
+        };
+        const input = h('input', { id: 'uncPredIn', value: pred.answers.get(key) || '', size: '7', inputmode: 'decimal', 'aria-describedby': 'uncPredEmpty',
+          oninput: (e) => { pred.answers.set(key, e.target.value); },
+          onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); check(); } } });
+        return h('div', { class: 'unc-predict' }, [h('div', { class: 'unc-row' }, [h('label', { for: 'uncPredIn' }, [label]), input,
+          h('button', { type: 'button', class: 'primary', id: 'uncPredCheck', onclick: check }, [t('predict.check')]),
+          button(t('predict.show'), () => { hooks.predShow(); focus('uncNext'); }, { id: 'uncPredShow' })]), msg]);
+      }
+      if (!checked || !pred.result) return null;
+      const res = pred.result.get(key);
+      const given = pred.answers.get(key);
+      const parts = [h('strong', {}, [tu(res === 'ok' ? 'walk.ok' : 'walk.wrong')]), ' '];
+      if (res !== 'ok') {
+        parts.push(rv.alt != null ? tu('walk.answerAlt', { t: fx(rv.alt, rv.field === 'unc.p' ? 4 : 2), v: fx(rv.value, rv.field === 'unc.p' ? 4 : 2) }) : tu('walk.answer', { v: fx(rv.value, 2) }), ' ');
+        const hk = hint(step, given, m);
+        if (hk) {
+          const a = m.acts.find((q) => q.id === step.act);
+          parts.push(tu(`walk.hint.${hk}`, Object.assign({ x: String(given).trim(), v: a && a.stats ? fx(a.stats.pert.var, 2) : '' }, lab())));
+        }
+      }
+      return h('p', { class: `unc-fb ${res === 'ok' ? 'ok' : 'wrong'}`, id: 'uncPredFb', tabindex: '-1', role: 'status' }, parts);
+    }
+    function walkNav(tr, k) {
+      const hide = hooks.predicting(tr[k]);
+      const step = tr[k]; const [title, text] = stepTitleText(step);
+      const wkey = `${m.src.id}|${lang()}|${k}|${tr.length}|${hide}`;
+      if (wkey !== lastWalk) { lastWalk = wkey; if (hooks.announce) hooks.announce(`${t('player.counter', { i: k + 1, n: tr.length })}. ${title}. ${hide ? t('predict.hidden') : text}`); }
+      return h('div', { class: 'unc-row unc-walknav' }, [
+        h('button', { type: 'button', class: 'ghost', id: 'uncPrev', disabled: k === 0, onclick: () => { hooks.dispatch({ type: 'prev' }); focus('uncPrev'); } }, [`← ${t('player.prev')}`]),
+        h('button', { type: 'button', class: 'ghost', id: 'uncNext', disabled: k >= tr.length - 1 || hide, onclick: () => { hooks.dispatch({ type: 'next' }); focus(hooks.predicting(m.trace[Math.min(state().step, m.trace.length - 1)]) ? 'uncPredIn' : 'uncNext'); } }, [`${t('player.next')} →`]),
+        hide ? h('span', { class: 'muted small' }, [t('predict.hidden')]) : null]);
+    }
+    // M5 paso a paso: la actividad del paso, con su media y su varianza, y su curva al lado.
+    function walkCard() {
+      const tr = m.trace; const k = Math.min(state().step, tr.length - 1); const step = tr[k];
+      const a = m.acts.find((q) => q.id === step.act); const d = a.dist; const L5 = lab();
+      const iMean = tr.findIndex((x) => x.act === a.id && x.kind === 'unc.mean'); const iVar = iMean + 1;
+      const shown = (i) => i < k || (i === k && !hooks.predicting(tr[i]));
+      const item = (i) => {
+        const [title, text] = stepTitleText(tr[i]);
+        const cur = i === k;
+        if (i > k) return h('li', { class: 'later muted' }, [h('strong', {}, [title])]);
+        return h('li', { class: cur ? 'cur' : '', 'aria-current': cur ? 'step' : null }, [h('strong', {}, [title]),
+          h('span', { class: shown(i) ? '' : 'muted' }, [shown(i) ? text : tu('walk.yours')]), cur ? predictBox(tr[i]) : null]);
+      };
+      const next = tr[iVar + 1];
+      const head = tu(a.name ? 'walk.headName' : 'walk.head', { i: k + 1, n: tr.length, id: a.id, name: a.name });
+      const terna = tu('walk.terna', Object.assign({ va: num(d.a), vm: num(d.m), vb: num(d.b) }, L5));
+      const list = h('ol', { class: 'unc-steps', id: 'uncSteps' }, [item(iMean), item(iVar)]);
+      const card = h('section', { class: 'card unc-examcard unc-walk', 'aria-labelledby': 'uncWalkHead' }, [h('h2', { id: 'uncWalkHead' }, [`${head} ${terna}`]), list,
+        h('p', { class: 'muted small' }, [next ? tu('walk.nextAct', { id: next.act }) : tu('walk.last')]), walkNav(tr, k)]);
+      const holder = h('div', { class: 'unc-chart', id: 'uncChart' });
+      const chart = h('section', { class: 'card unc-act', 'aria-labelledby': 'uncWalkChartHead' }, [h('h2', { id: 'uncWalkChartHead' }, [tu('walk.chartTitle', { id: a.id })]), holder,
+        legend(false), state().pred ? h('p', { class: 'muted small' }, [tu('walk.note')]) : null]);
+      drawCurves(holder, a, false, { mean: shown(iMean), sd: shown(iVar) });
+      return [card, chart];
     }
     function examChartCard(e) {
+      // Paso a paso con predicción: las cifras del gráfico salen cuando su paso está a la vista (T011).
+      const tr = m.trace; const k = tr ? Math.min(state().step, tr.length - 1) : 0;
+      const seen = (i) => !tr || !state().pred || i < k || (i === k && !hooks.predicting(tr[k]));
+      const all = seen(tr ? tr.length - 1 : 0);
       const holder = h('div', { class: 'unc-chart', id: 'uncNormal' });
-      const parts = [h('h2', { id: 'uncNormalHead' }, [tu('exam.chartTitle', { mu: fx(e.mu, 2), var: fx(e.var, 2) })]), holder];
+      const parts = [h('h2', { id: 'uncNormalHead' }, [seen(2) ? tu('exam.chartTitle', { mu: fx(e.mu, 2), var: fx(e.var, 2) }) : tu('sim.legendNormal')]), holder];
       const T = e.deadline;
+      if (!all && e.inverse) {
+        if (!e.degenerate) {
+          const lo = Math.max(0, e.mu - 4 * e.sd); const hi = e.mu + 4 * e.sd; const pts = normalPts(e.mu, e.var, lo, hi, 160);
+          DC.render(holder, { w: 600, h: 260, x: [lo, hi], ymax: Math.max(...pts.map((q) => q[1])) * 1.12, ticks: niceTicks(lo, hi, 8), fmt: num,
+            curves: [{ pts, cls: 'c-normal' }], vlines: [], label: tu('sim.legendNormal') });
+        }
+        return h('section', { class: 'card unc-normalcard', 'aria-labelledby': 'uncNormalHead' }, parts);
+      }
       if (!e.degenerate) {
         const lo = Math.max(0, e.mu - 4 * e.sd); const hi = e.mu + 4 * e.sd;
         const pts = normalPts(e.mu, e.var, lo, hi, 160);
         DC.render(holder, { w: 600, h: 260, x: [lo, hi], ymax: Math.max(...pts.map((q) => q[1])) * 1.12, ticks: niceTicks(lo, hi, 8), fmt: num,
           curves: [{ pts, cls: 'c-normal' }], shade: { pts, to: T }, vlines: [{ x: e.mu, cls: 'v-sd', dash: '3 3' }, { x: T, cls: 'v-deadline', label: tu('exam.deadline', { T: num(T) }) }],
-          label: tu('exam.chartLabel', { mu: fx(e.mu, 2), var: fx(e.var, 2), T: num(T) }) });
-        parts.push(h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [key('k-normal', tu('exam.legendNormal')), key('k-sd', tu('exam.legendMu', { mu: fx(e.mu, 2) }))]));
+          label: seen(2) ? tu('exam.chartLabel', { mu: fx(e.mu, 2), var: fx(e.var, 2), T: num(T) }) : tu('sim.legendNormal') });
+        parts.push(h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [key('k-normal', tu('exam.legendNormal'))].concat(seen(1) ? [key('k-sd', tu('exam.legendMu', { mu: fx(e.mu, 2) }))] : [])));
       }
+      if (!all) return h('section', { class: 'card unc-normalcard', 'aria-labelledby': 'uncNormalHead' }, parts);
       const res = e.degenerate ? (e.inverse ? tu('exam.degT', { mu: num(e.mu) }) : tu('exam.degP', { mu: num(e.mu), T: num(T), p: num(e.exact) }))
         : e.inverse ? tu('exam.resultT', { p: num(e.prob), Tt: fx(e.table.deadline, 2), T: fx(e.deadline, 2) })
           : tu('exam.result', { T: num(T), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) });
@@ -672,6 +846,7 @@
 
     // A la izquierda, la actividad (o los errores de la tabla); a la derecha, la tabla del proyecto y la red.
     let left = null; let side = null; let proj = null;
+    const walking = () => state().um === 'm5' && !!m.trace;
     function fill() {
       clear(left);
       left.appendChild(m.model ? actCard() : issuesCard());
@@ -697,6 +872,12 @@
         return;
       }
       cancelSim();
+      if (walking()) {
+        const [card, chart] = walkCard();
+        container.appendChild(h('div', { class: 'unc-main' }, [h('div', { class: 'unc-left' }, [card]), h('div', { class: 'unc-side' }, [chart])]));
+        left = null; side = null; proj = null;
+        return;
+      }
       left = h('div', { class: 'unc-left' }); proj = projectCard(); side = h('div', { class: 'unc-side' }, [proj]);
       container.appendChild(h('div', { class: 'unc-main' }, [left, side]));
       fill();
@@ -722,7 +903,7 @@
   }
 
   const api = { M6_READY, SECTION_EXAMPLES, LABELS, labels, source, parseNum, validate, model, pasteRows, withValue, curvePts, niceTicks,
-    UK_DEFAULT, SLIDERS, SEED_DEFAULT, BINS, CASES, SYNTHETIC, ukOf, seedOf, deadlineOf, examOf, simSpec, simSummary, create };
+    UK_DEFAULT, SLIDERS, SEED_DEFAULT, BINS, CASES, SYNTHETIC, ukOf, seedOf, deadlineOf, examOf, simSpec, simSummary, trace, hint, create };
   root.PNL = root.PNL || {};
   root.PNL.unc = api;
   if (isNode) module.exports = api;

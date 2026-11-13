@@ -90,3 +90,14 @@ table.data.unc-table tr.strong { font-weight: 700; }
 table.data.unc-table tr.k-normal-row th { color: var(--critical-text); }
 .unc-bins { max-height: 280px; overflow: auto; }
 table.data.unc-table thead td { border-top: 0; }
+/* Paso a paso (T011) */
+.unc-push { flex: 1 1 auto; }
+.unc-steps li.cur { border-color: var(--accent); background: var(--accent-soft); }
+.unc-steps li.later { border-style: dashed; }
+.unc-predict { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.unc-predict .unc-row { gap: 6px 10px; }
+.unc-predict input { width: 7em; height: 32px; padding: 0 6px; }
+.unc-fb { margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; border: 1.5px solid var(--ok); background: var(--ok-soft); font-size: 14px; }
+.unc-fb.wrong { border-color: var(--critical); background: var(--critical-soft); }
+.unc-walknav { margin-top: 4px; }
+.unc-fb strong { display: inline; }

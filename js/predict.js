@@ -11,6 +11,8 @@
  * En los fragmentos de la ruta paso a paso de M0 (F2c, AC10), qué precedencias da (M0_GIVES, un conjunto de «A>D»,
  * «none» y «redundant»): el conjunto exacto de step.answer.edges; «ninguna» si no da; «redundante» (con o sin sus
  * precedencias) si ya las implican las que hay.
+ * En el paso a paso de la F4a (P10), un valor puede llevar alternativa (rv.alt: la P, la z o el plazo «de tabla»): vale
+ * cualquiera de las dos, con el mismo redondeo.
  */
 (function (root) {
   'use strict';
@@ -91,7 +93,9 @@
     }
     for (const rv of step.reveals) {
       const a = parseAnswer(answers.get(key(rv)));
-      out.set(key(rv), a === null ? 'empty' : (Number.isFinite(a) && r2(a) === r2(rv.value) ? 'ok' : 'wrong'));
+      // F4a (P10): con alternativa (P, z o plazo «de tabla»), vale cualquiera de las dos.
+      const hit = Number.isFinite(a) && (r2(a) === r2(rv.value) || (rv.alt != null && r2(a) === r2(rv.alt)));
+      out.set(key(rv), a === null ? 'empty' : (hit ? 'ok' : 'wrong'));
     }
     return out;
   }

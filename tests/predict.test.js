@@ -213,3 +213,20 @@ test('T017 · AC10: «ninguna» y «redundante con las que ya hay»', () => {
   assert.equal(Pr.check(stepOf('ej5', 'aD'), giv('redundant')).get(Pr.M0_GIVES), 'wrong');
   assert.deepEqual(Pr.summary(Pr.check(red, giv('redundant'))), { ok: 1, wrong: 0, empty: 0 });
 });
+
+test('F4a T011 (P10): un valor con alternativa (P de tabla y exacta, z o plazo de tabla) vale si coincide con cualquiera, a dos decimales', () => {
+  const step = { kind: 'tcl.p', reveals: [{ act: 'P', field: 'unc.p', value: 0.6577, alt: 0.6591 }] };
+  const k = Pr.key(step.reveals[0]);
+  const chk = (v) => Pr.check(step, new Map([[k, v]])).get(k);
+  assert.equal(chk('0,66'), 'ok');
+  assert.equal(chk('0.6591'), 'ok');
+  assert.equal(chk('0.6577'), 'ok');
+  assert.equal(chk('0.65'), 'wrong');
+  assert.equal(chk(''), 'empty');
+  const z = { kind: 'tcl.zFor', reveals: [{ act: 'P', field: 'unc.z', value: 1.6448536, alt: 1.64 }] };
+  assert.equal(Pr.check(z, new Map([[Pr.key(z.reveals[0]), '1,64']])).get(Pr.key(z.reveals[0])), 'ok');
+  assert.equal(Pr.check(z, new Map([[Pr.key(z.reveals[0]), '1,65']])).get(Pr.key(z.reveals[0])), 'wrong');
+  // El plazo de tabla (z = 1,64) y el exacto difieren en el segundo decimal: valen los dos.
+  const T = { kind: 'tcl.deadline', reveals: [{ act: 'P', field: 'unc.T', value: 28.5578, alt: 28.5439 }] };
+  for (const [v, want] of [['28,54', 'ok'], ['28.56', 'ok'], ['28,55', 'wrong']]) assert.equal(Pr.check(T, new Map([[Pr.key(T.reveals[0]), v]])).get(Pr.key(T.reveals[0])), want, v);
+});

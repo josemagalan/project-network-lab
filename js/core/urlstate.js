@@ -23,11 +23,11 @@
     lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
     cx: ['home', 'product', 'congress', 'lab'], xt: ['0', '1'],   // F3c: contexto del enunciado al azar y enunciado en «Ejercicios»
     // F4a: pestaña de tres tiempos y el TCL (plan f4a-tres-tiempos-tcl, §3): apartado, proyecto, curva clásica y caso de M6.
-    um: ['m5', 'm6'], ue: ['kl', 'hl', 'tr', 'pa', 'own'], uc: ['0', '1'], ux: ['exam', 'merge', 'few', 'skew', 'corr', 'proj'],
+    um: ['m5', 'm6'], ue: ['kl', 'hl', 'tr', 'pa', 'own'], uc: ['0', '1'], ux: ['exam', 'merge', 'few', 'skew', 'corr', 'proj'], uw: ['0', '1'],
   };
-  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
-    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us'];
+    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -55,7 +55,7 @@
       st: null, own: null, mk: null, tv: 'list', mm: 'practice', sol: 0,
       sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null,
       cx: null, sv: null, xt: 0,
-      um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null };
+      um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0 };
   }
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -309,7 +309,7 @@
   // ---------- F4a: la pestaña de tres tiempos y el TCL (v=unc) ----------
   // Los casos del Tema 6c con media y varianza solo existen en M6 (core/stochex, m6only).
   const UNC_M6_ONLY = ['tr', 'pa'];
-  const UNC_DEFAULTS = { um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null };
+  const UNC_DEFAULTS = { um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0 };
   // Deslizadores: n caminos (1–8), s holgura (0–20, en décimas), k actividades (1–30), w asimetría y r correlación (0–1, en
   // centésimas). En la URL, letra y entero separados por puntos: n3.s25.k4.w25.r90.
   const UK = { n: { lo: 1, hi: 8, scale: 1 }, s: { lo: 0, hi: 20, scale: 10 }, k: { lo: 1, hi: 30, scale: 1 }, w: { lo: 0, hi: 1, scale: 100 }, r: { lo: 0, hi: 1, scale: 100 } };
@@ -364,6 +364,7 @@
     if (own) q.set('ut', packUt(own));
     if (actOk(s.ua)) q.set('ua', s.ua);
     if (s.uc) q.set('uc', '1');
+    if (s.uw) q.set('uw', '1');
     if (s.ux !== 'exam') q.set('ux', s.ux);
     if (deadlineOk(s.ud)) q.set('ud', num4(s.ud));
     if (probOk(s.up)) q.set('up', num4(s.up));

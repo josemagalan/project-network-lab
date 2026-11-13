@@ -120,8 +120,8 @@
     if (state.v === 'ex') { model = Object.assign(G.ex.model(state, lang()), { exm: true }); return; }
     // El exportador de Moodle (F3b): sin tabla ni traza; la vista guarda su selección.
     if (state.v === 'moodle') { model = { mqm: true }; return; }
-    // «Duraciones inciertas» (F4a): su proyecto, medias y varianzas; sin traza en M5 (el paso a paso llega con T011).
-    if (state.v === 'unc') { model = Object.assign(G.unc.model(state, lang()), { uncm: true }); return; }
+    // «Duraciones inciertas» (F4a): su proyecto, medias y varianzas y, con «uw», la traza del paso a paso (T011).
+    if (state.v === 'unc') { model = Object.assign(G.unc.model(state, lang()), { uncm: true }); model.trace = G.unc.trace(state, model); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
@@ -179,7 +179,8 @@
   function trace() {
     if (!model) return null;
     if (model.m0) return state.mm === 'route' ? model.route : null;
-    if (model.exm || model.mqm || model.uncm) return null;
+    if (model.uncm) return model.trace || null;
+    if (model.exm || model.mqm) return null;
     if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -230,7 +231,7 @@
   function dispatch(action, opts) {
     const before = state;
     state = S.reduce(state, action, total());
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -1007,14 +1008,17 @@
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
       const m0Route = state.v === 'm0' && state.mm === 'route';
-      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route) || !$('cmpView').hidden || !$('retoView').hidden) return;
+      // F4a (T011): el paso a paso de «Duraciones inciertas» usa el reproductor de la página con su propia botonera.
+      const uncRoute = state.v === 'unc' && !!trace();
+      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route && !uncRoute) || !$('cmpView').hidden || !$('retoView').hidden) return;
       // El texto en modo «Subrayar» y la matriz de M0 usan las flechas para moverse (F2c, plan §0).
       if (e.target.closest && e.target.closest('[data-own-keys]')) return;
       if (tag === 'button' && (e.key === ' ' || e.key === 'Enter')) return;
-      if (e.key === 'ArrowRight' && !$('btnNext').disabled) { e.preventDefault(); dispatch({ type: 'next' }); }
+      const nextOff = uncRoute ? state.step >= total() - 1 || predicting(trace()[state.step]) : $('btnNext').disabled;
+      if (e.key === 'ArrowRight' && !nextOff) { e.preventDefault(); dispatch({ type: 'next' }); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); dispatch({ type: 'prev' }); }
       else if (e.key === 'Home') { e.preventDefault(); dispatch({ type: 'first' }); }
-      else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+      else if (e.key === ' ' && !uncRoute) { e.preventDefault(); togglePlay(); }
     });
     window.addEventListener('hashchange', () => {
       if (location.hash === U.encode(state)) return;
@@ -1080,6 +1084,10 @@
     if (G.unc && !uncc) {
       uncc = G.unc.create($('uncView'), {
         state: () => state, lang, dispatch, newSeed, need,
+        // Paso a paso (T011): la predicción de la página, como en la ruta de M0.
+        pred: () => pred, predicting,
+        predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
+        predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
         // «Partir del taller»: la tabla del taller (o el ejemplo que muestra) con su forma; a = m = b = la duración.
         workRows: () => {
           if (state.t) return { rows: workRows(state.t), mode: state.mode };

@@ -21,6 +21,12 @@
     return { mean: (d.a + 4 * d.m + d.b) / 6, var: ((d.b - d.a) / 6) ** 2 };
   }
 
+  /** Los pasos de una actividad para el paso a paso de M5 (A5): la media y la varianza de examen, con su campo de predicción. */
+  function trace(d) {
+    const e = exam(d);
+    return [{ kind: 'unc.mean', values: [{ field: 'unc.mean', value: e.mean }] }, { kind: 'unc.var', values: [{ field: 'unc.var', value: e.var }] }];
+  }
+
   // ---------- funciones especiales ----------
   const LANCZOS = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059,
     12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
@@ -186,7 +192,7 @@
     return { z2, p4: Math.round(phi(z2) * 1e4) / 1e4 };
   }
 
-  const api = { KINDS, exam, params, moments, pdf, cdf, quantile, invTable, phi, phiInv, tableP, ibeta };
+  const api = { KINDS, exam, trace, params, moments, pdf, cdf, quantile, invTable, phi, phiInv, tableP, ibeta };
   root.PNL = root.PNL || {};
   root.PNL.threept = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

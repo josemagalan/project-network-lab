@@ -143,7 +143,7 @@
       // apartado, proyecto, actividad, caso, plazo, probabilidad o deslizadores vuelve al paso 0. El ejemplo de la ruta y la
       // tabla del taller se conservan para volver a ellos.
       case 'unc': {
-        const before = [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk)].join('|');
+        const before = [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw].join('|');
         s.v = 'unc';
         const V = U.UNC;
         if (['m5', 'm6'].includes(action.um)) s.um = action.um;
@@ -151,12 +151,13 @@
         if (s.um === 'm5' && V.M6_ONLY.includes(s.ue)) s.ue = 'kl';
         if (action.ua === null || V.actOk(action.ua)) s.ua = action.ua;
         if (action.uc === 0 || action.uc === 1) s.uc = action.uc;
+        if (action.uw === 0 || action.uw === 1) s.uw = action.uw;   // T011: paso a paso
         if (['exam', 'merge', 'few', 'skew', 'corr', 'proj'].includes(action.ux)) s.ux = action.ux;
         if (action.ud === null || V.deadlineOk(action.ud)) s.ud = action.ud;
         if (action.up === null || V.probOk(action.up)) s.up = action.up;
         if (action.uk !== undefined) { const uk = V.cleanUk(action.uk); if (uk || action.uk === null) s.uk = uk; }
         if (V.seedOk(action.us)) s.us = action.us;
-        if ([s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk)].join('|') !== before) s.step = 0;
+        if ([s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw].join('|') !== before) s.step = 0;
         break;
       }
       // F4a (AC12): partir del taller copia la estructura con a = m = b = duración; el taller no cambia (A8: tal cual).

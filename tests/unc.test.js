@@ -177,3 +177,39 @@ test('M6: los recorridos de los deslizadores (bocetos) caben en la URL y los val
   }
   assert.deepEqual(U.ukOf(m6({ uk: { n: 2 } })), Object.assign({}, U.UK_DEFAULT, { n: 2 }));
 });
+
+// ---------- Paso a paso con predicción (T011) ----------
+test('T011: la traza de M5 son la media y la varianza de cada actividad, en el orden de la tabla, con su actividad', () => {
+  const tr = U.trace(Object.assign(base(), { uw: 1 }), U.model(Object.assign(base(), { uw: 1 }), 'es'));
+  assert.equal(tr.length, 12);
+  assert.deepEqual(tr.slice(0, 4).map((s) => [s.kind, s.act]), [['unc.mean', 'A'], ['unc.var', 'A'], ['unc.mean', 'B'], ['unc.var', 'B']]);
+  assert.deepEqual(tr[1].reveals, [{ act: 'A', field: 'unc.var', value: 4 }]);
+  near(tr[0].reveals[0].value, 20 / 3, 'media de A');
+  assert.equal(U.trace(base(), U.model(base(), 'es')), null, 'sin «uw» no hay traza');
+});
+
+test('T011: la traza de M6 es la del cálculo de examen (camino, μ, σ², z y P, o z y plazo), con la alternativa de tabla', () => {
+  const s = m6({ uw: 1 }); const tr = U.trace(s, U.model(s, 'es'));
+  assert.deepEqual(tr.map((x) => x.kind), ['tcl.path', 'tcl.mu', 'tcl.var', 'tcl.z', 'tcl.p']);
+  assert.deepEqual(tr[0].reveals, []);
+  assert.equal(tr[4].reveals[0].field, 'unc.p');
+  assert.equal(tr[4].reveals[0].alt, 0.6591);
+  const inv = m6({ uw: 1, up: 0.95 });
+  assert.deepEqual(U.trace(inv, U.model(inv, 'es')).map((x) => x.kind), ['tcl.path', 'tcl.mu', 'tcl.var', 'tcl.zFor', 'tcl.deadline']);
+  assert.equal(U.trace(m6({ uw: 1, ux: 'merge' }), U.model(m6(), 'es')), null, 'los casos simulados no tienen paso a paso');
+  const own = Object.assign(m6({ uw: 1 }), { ue: 'own', ut: { mode: 'pred', rows: [row('A', 2, 2, 2), row('B', 3, 3, 3, 'A')] } });
+  assert.deepEqual(U.trace(own, U.model(own, 'es')).map((x) => x.kind), ['tcl.path', 'tcl.mu', 'tcl.var', 'tcl.degenerate']);
+});
+
+test('T011: pistas para los errores típicos (desviación por varianza, la otra cola, σ² en lugar de σ, la media de la triangular)', () => {
+  const m = U.model(base(), 'es');
+  const tr = U.trace(Object.assign(base(), { uw: 1 }), m);
+  assert.equal(U.hint(tr[1], '2', m), 'sd');                    // σ de A = 2, su varianza 4
+  assert.equal(U.hint(tr[1], '4,89', m), 'pertVar');            // la de la curva beta-PERT
+  assert.equal(U.hint(tr[0], '7,33', m), 'triMean');            // (2 + 6 + 14)/3
+  assert.equal(U.hint(tr[1], '9', m), null);
+  const s = m6({ uw: 1 }); const mm = U.model(s, 'es'); const t6 = U.trace(s, mm);
+  assert.equal(U.hint(t6[4], '0,34', mm), 'otherTail');
+  assert.equal(U.hint(t6[3], '0,14', mm), 'divVar');            // (25 − 23,83)/8,25
+  assert.equal(U.hint(t6[2], '5,17', mm), 'sumSd');             // suma de las desviaciones: 2 + 1,83 + 0,67 + 0,67
+});

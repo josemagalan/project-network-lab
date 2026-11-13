@@ -335,3 +335,14 @@ test('F4a: editar la tabla propia (uncTable) guarda las filas como texto y pasa 
   rows[0].a = '5';
   assert.equal(s.ut.rows[0].a, '1');   // copia, no referencia
 });
+
+test('F4a T011: «uw» (paso a paso) es 0 o 1 y cambiarlo vuelve al paso 0; la URL lo guarda', () => {
+  let s = S.reduce(Object.assign(U.defaults(), { v: 'unc', step: 4 }), { type: 'unc', uw: 1 }, 10);
+  assert.deepEqual([s.uw, s.step], [1, 0]);
+  s = S.reduce(Object.assign({}, s, { step: 3 }), { type: 'unc', uw: 7 }, 10);
+  assert.deepEqual([s.uw, s.step], [1, 3]);
+  assert.match(U.encode(s), /[#&]uw=1(&|$)/);
+  assert.equal(U.decode(U.encode(s)).state.uw, 1);
+  assert.doesNotMatch(U.encode(Object.assign({}, s, { uw: 0 })), /uw=/);
+  assert.equal(U.decode('#v=unc&uw=2').warning, 'malformed');
+});

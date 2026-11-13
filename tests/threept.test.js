@@ -124,3 +124,11 @@ test('T003: probabilidad «de tabla»: z a dos decimales y Φ a cuatro (Klastori
   assert.deepEqual(T.tableP(-0.405), { z2: -0.41, p4: 0.3409 });   // simétrico en valor absoluto
   assert.deepEqual(T.tableP(2 / Math.sqrt(5)), { z2: 0.89, p4: 0.8133 });   // dos rutas, B–D, plazo 17
 });
+
+test('T011 (A5): traza de una actividad, media y varianza de examen con sus campos de predicción', () => {
+  const tr = T.trace({ a: 6, m: 9, b: 18 });
+  assert.deepEqual(tr.map((s) => s.kind), ['unc.mean', 'unc.var']);
+  assert.deepEqual(tr[0].values, [{ field: 'unc.mean', value: 10 }]);
+  assert.deepEqual(tr[1].values, [{ field: 'unc.var', value: 4 }]);
+  assert.deepEqual(T.trace({ a: 3, m: 3, b: 3 })[1].values[0].value, 0);
+});
