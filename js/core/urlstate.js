@@ -17,14 +17,17 @@
   // Ejemplos solo de estructura (sin duraciones): no tienen red ROY, así que se abren siempre en PERT.
   const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo'];
   const ENUMS = {
-    v: ['route', 'work', 'm0', 'ex', 'moodle'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
+    v: ['route', 'work', 'm0', 'ex', 'moodle', 'unc'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
     tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: ['0', '1'],
     lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
     cx: ['home', 'product', 'congress', 'lab'], xt: ['0', '1'],   // F3c: contexto del enunciado al azar y enunciado en «Ejercicios»
+    // F4a: pestaña de tres tiempos y el TCL (plan f4a-tres-tiempos-tcl, §3): apartado, proyecto, curva clásica y caso de M6.
+    um: ['m5', 'm6'], ue: ['kl', 'hl', 'tr', 'pa', 'own'], uc: ['0', '1'], ux: ['exam', 'merge', 'few', 'skew', 'corr', 'proj'],
   };
-  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt'];
-  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc'];
+  const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
+    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -51,7 +54,8 @@
     return { v: 'route', ex: 'ej6', t: null, step: 0, view: 'net', lang: null, nota: 'en', box: '7', mode: 'pred', pred: 0, wi: null, graph: 'aon', min: 0, m: 'rules', ms: DEFAULT_MS.slice(), pair: null, sn: null,
       st: null, own: null, mk: null, tv: 'list', mm: 'practice', sol: 0,
       sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null,
-      cx: null, sv: null, xt: 0 };
+      cx: null, sv: null, xt: 0,
+      um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null };
   }
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -302,6 +306,86 @@
       crit: a[4], paths: a[5] });
   }
 
+  // ---------- F4a: la pestaña de tres tiempos y el TCL (v=unc) ----------
+  // Los casos del Tema 6c con media y varianza solo existen en M6 (core/stochex, m6only).
+  const UNC_M6_ONLY = ['tr', 'pa'];
+  const UNC_DEFAULTS = { um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null };
+  // Deslizadores: n caminos (1–8), s holgura (0–20, en décimas), k actividades (1–30), w asimetría y r correlación (0–1, en
+  // centésimas). En la URL, letra y entero separados por puntos: n3.s25.k4.w25.r90.
+  const UK = { n: { lo: 1, hi: 8, scale: 1 }, s: { lo: 0, hi: 20, scale: 10 }, k: { lo: 1, hi: 30, scale: 1 }, w: { lo: 0, hi: 1, scale: 100 }, r: { lo: 0, hi: 1, scale: 100 } };
+  const onGrid = (x, scale) => Math.abs(x * scale - Math.round(x * scale)) < 1e-9;
+  function cleanUk(uk) {
+    if (!uk || typeof uk !== 'object') return null;
+    const out = {};
+    for (const [k, v] of Object.entries(uk)) {
+      const d = UK[k];
+      if (!d || typeof v !== 'number' || !(v >= d.lo && v <= d.hi) || !onGrid(v, d.scale)) return null;
+      out[k] = Math.round(v * d.scale) / d.scale;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+  const encodeUk = (uk) => Object.keys(UK).filter((k) => k in uk).map((k) => `${k}${Math.round(uk[k] * UK[k].scale)}`).join('.');
+  function decodeUk(text) {
+    const out = {};
+    for (const part of String(text).split('.')) {
+      const m = part.match(/^([a-z])(\d{1,4})$/);
+      if (!m || !UK[m[1]] || m[1] in out) return null;
+      out[m[1]] = Number(m[2]) / UK[m[1]].scale;
+    }
+    return cleanUk(out);
+  }
+  const deadlineOk = (x) => typeof x === 'number' && Number.isFinite(x) && x >= 0 && x <= 999999;
+  const probOk = (x) => typeof x === 'number' && x > 0 && x < 1;
+  const actOk = (x) => typeof x === 'string' && ID_RE.test(x);
+  const num4 = (x) => String(Number(x.toFixed(4)));
+  // Tabla propia: modo y filas como texto (id, a, m, b, precedencias, nombre), recortadas a los límites del taller.
+  const UT_ROW = (r) => [cut(r.id, LIMITS.id), cut(r.a, LIMITS.duration), cut(r.m, LIMITS.duration), cut(r.b, LIMITS.duration), cut(r.links, LIMITS.links), cut(r.name, LIMITS.name)];
+  const utRowOk = (a) => Array.isArray(a) && a.length === 6 && a.every((x) => typeof x === 'string')
+    && a[0].length <= LIMITS.id && [1, 2, 3].every((i) => a[i].length <= LIMITS.duration) && a[4].length <= LIMITS.links && a[5].length <= LIMITS.name;
+  function cleanUt(ut) {
+    if (!ut || !ENUMS.mode.includes(ut.mode) || !Array.isArray(ut.rows)) return null;
+    const rows = ut.rows.slice(0, LIMITS.rows).map((r) => UT_ROW(r || {}));
+    return { mode: ut.mode, rows: rows.map((a) => ({ id: a[0], name: a[5], a: a[1], m: a[2], b: a[3], links: a[4] })) };
+  }
+  const packUt = (ut) => textpack().compress(JSON.stringify([1, ut.mode, ut.rows.slice(0, LIMITS.rows).map(UT_ROW)]));
+  function unpackUt(packed) {
+    const tp = textpack();
+    const json = tp ? tp.decompress(packed, { max: EX.packed }) : null;
+    if (json === null) return null;
+    let a;
+    try { a = JSON.parse(json); } catch { return null; }
+    if (!Array.isArray(a) || a.length !== 3 || a[0] !== 1 || !ENUMS.mode.includes(a[1]) || !Array.isArray(a[2]) || a[2].length > LIMITS.rows || !a[2].every(utRowOk)) return null;
+    return { mode: a[1], rows: a[2].map((r) => ({ id: r[0], name: r[5], a: r[1], m: r[2], b: r[3], links: r[4] })) };
+  }
+  function encodeUnc(s, q) {
+    if (s.um !== 'm5') q.set('um', s.um);
+    const own = s.ue === 'own' && cleanUt(s.ut);
+    if (s.ue !== 'kl' && (s.ue !== 'own' || own)) q.set('ue', s.ue);
+    if (own) q.set('ut', packUt(own));
+    if (actOk(s.ua)) q.set('ua', s.ua);
+    if (s.uc) q.set('uc', '1');
+    if (s.ux !== 'exam') q.set('ux', s.ux);
+    if (deadlineOk(s.ud)) q.set('ud', num4(s.ud));
+    if (probOk(s.up)) q.set('up', num4(s.up));
+    const uk = cleanUk(s.uk);
+    if (uk) q.set('uk', encodeUk(uk));
+    if (seedOk(s.us)) q.set('us', String(s.us));
+  }
+  function decodeUnc(q, state) {
+    let bad = false;
+    state.ex = null; state.t = null;
+    if (q.has('ut')) { const ut = unpackUt(q.get('ut')); if (ut) state.ut = ut; else bad = true; }
+    if (state.ue === 'own' && !state.ut) { state.ue = 'kl'; bad = true; }
+    if (state.ue !== 'own') state.ut = null;
+    if (state.um === 'm5' && UNC_M6_ONLY.includes(state.ue)) { state.ue = 'kl'; bad = true; }
+    if (q.has('ua')) { if (actOk(q.get('ua'))) state.ua = q.get('ua'); else bad = true; }
+    if (q.has('ud')) { const v = q.get('ud'); const n = /^\d{1,6}(\.\d{1,4})?$/.test(v) ? Number(v) : NaN; if (deadlineOk(n)) state.ud = n; else bad = true; }
+    if (q.has('up')) { const v = q.get('up'); const n = /^0\.\d{1,4}$/.test(v) ? Number(v) : NaN; if (probOk(n)) state.up = n; else bad = true; }
+    if (q.has('uk')) { const uk = decodeUk(q.get('uk')); if (uk) state.uk = uk; else bad = true; }
+    if (q.has('us')) { const v = q.get('us'); const n = /^\d{1,6}$/.test(v) ? Number(v) : NaN; if (seedOk(n)) state.us = n; else bad = true; }
+    return bad;
+  }
+
   function encode(state) {
     const s = Object.assign(defaults(), state);
     const q = new URLSearchParams();
@@ -310,6 +394,16 @@
     if (s.v === 'moodle') {
       if (s.lang) q.set('lang', s.lang);
       q.set('nota', s.nota);
+      return '#' + q.toString();
+    }
+    // F4a: la pestaña de tres tiempos y el TCL no tiene tabla del taller ni ejemplo de la ruta (plan §3).
+    if (s.v === 'unc') {
+      if (s.graph === 'aoa') q.set('graph', 'aoa');
+      q.set('step', String(s.step));
+      if (s.lang) q.set('lang', s.lang);
+      q.set('nota', s.nota);
+      if (s.pred) q.set('pred', '1');
+      encodeUnc(s, q);
       return '#' + q.toString();
     }
     // graph y min solo se escriben si no valen lo de siempre: los enlaces de la fase 1 no cambian (F2a, P4).
@@ -465,6 +559,8 @@
     if (!(state.v === 'm0' && state.st === 'gen')) state.cx = null;
     if (state.v !== 'ex') state.xt = 0;
     else if (state.xt && state.lv === 'custom') { state.xt = 0; malformed = true; }
+    // F4a: las claves u* solo cuentan en la pestaña de tres tiempos y el TCL.
+    if (state.v === 'unc') { if (decodeUnc(q, state)) malformed = true; } else Object.assign(state, UNC_DEFAULTS);
     // F3b: el exportador de Moodle no tiene tabla ni ejemplo.
     if (state.v === 'moodle') { state.ex = null; state.t = null; }
     // F3a: «Ejercicios» (la tabla sale de la semilla: t y ex no se leen).
@@ -503,7 +599,8 @@
   }
 
   const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
-    ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns };
+    ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns,
+    UNC: { M6_ONLY: UNC_M6_ONLY, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk } };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

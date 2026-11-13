@@ -1,7 +1,7 @@
 /*
  * store — transiciones puras del estado de la página. El estado tiene la forma de core/urlstate
  * (v, ex, t, step, view, lang, nota, box, mode, pred, wi, graph, min y, en la F2b, m, ms, pair y sn; en la F2c, st, own, mk, tv,
- * mm y sol; en la F3a, sd, lv, gp, ask, xm, ans, xd y gv); app lo escribe en
+ * mm y sol; en la F3a, sd, lv, gp, ask, xm, ans, xd y gv; en la F4a, um, ue, ut, ua, uc, ux, ud, up, uk y us); app lo escribe en
  * la URL tras cada cambio.
  * reduce(state, action, total) nunca muta el estado recibido y solo acepta valores de la lista blanca.
  */
@@ -139,6 +139,39 @@
         { const a = U.cleanAns(action.ans); if (a || !action.ans) s.ans = a; }
         break;
       case 'exDeliver': if (s.xm === 'exam') s.xd = 1; break;
+      // F4a (plan f4a-tres-tiempos-tcl, §3): la pestaña de tres tiempos y el TCL. Solo se aceptan valores válidos; cambiar de
+      // apartado, proyecto, actividad, caso, plazo, probabilidad o deslizadores vuelve al paso 0. El ejemplo de la ruta y la
+      // tabla del taller se conservan para volver a ellos.
+      case 'unc': {
+        const before = [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk)].join('|');
+        s.v = 'unc';
+        const V = U.UNC;
+        if (['m5', 'm6'].includes(action.um)) s.um = action.um;
+        if (['kl', 'hl', 'tr', 'pa'].includes(action.ue) || (action.ue === 'own' && s.ut)) s.ue = action.ue;
+        if (s.um === 'm5' && V.M6_ONLY.includes(s.ue)) s.ue = 'kl';
+        if (action.ua === null || V.actOk(action.ua)) s.ua = action.ua;
+        if (action.uc === 0 || action.uc === 1) s.uc = action.uc;
+        if (['exam', 'merge', 'few', 'skew', 'corr', 'proj'].includes(action.ux)) s.ux = action.ux;
+        if (action.ud === null || V.deadlineOk(action.ud)) s.ud = action.ud;
+        if (action.up === null || V.probOk(action.up)) s.up = action.up;
+        if (action.uk !== undefined) { const uk = V.cleanUk(action.uk); if (uk || action.uk === null) s.uk = uk; }
+        if (V.seedOk(action.us)) s.us = action.us;
+        if ([s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk)].join('|') !== before) s.step = 0;
+        break;
+      }
+      // F4a (AC12): partir del taller copia la estructura con a = m = b = duración; el taller no cambia (A8: tal cual).
+      case 'uncFromWork': {
+        const ut = U.UNC.cleanUt({ mode: action.mode, rows: (action.rows || []).map((r) => ({ id: r.id, name: r.name || '',
+          a: r.duration, m: r.duration, b: r.duration, links: r.links })) });
+        if (!ut) break;
+        Object.assign(s, { v: 'unc', ue: 'own', ut, ua: null, step: 0 });
+        break;
+      }
+      case 'uncTable': {
+        const ut = U.UNC.cleanUt({ mode: action.mode, rows: action.rows });
+        if (ut) Object.assign(s, { ue: 'own', ut });
+        break;
+      }
       case 'whatif': {
         const others = (s.wi || []).filter(([id]) => id !== action.id);
         const d = Number(action.d);

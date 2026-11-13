@@ -292,3 +292,46 @@ test('F3a: «Tabla al azar» usa la acción work del taller con las filas genera
   assert.deepEqual(s.t, rows);
   assert.notEqual(s.t[0], rows[0]);
 });
+
+// ---------- F4a (T007): la pestaña de tres tiempos y el TCL ----------
+test('F4a: acción unc: abre la pestaña y solo acepta valores válidos; el cambio de proyecto o de caso vuelve al paso 0', () => {
+  let s = S.reduce(Object.assign(U.defaults(), { step: 5 }), { type: 'unc' }, 10);
+  assert.deepEqual([s.v, s.step], ['unc', 0]);
+  assert.equal(s.ex, 'ej6');   // el ejemplo de la ruta y la tabla del taller se conservan para volver a ellos
+  s = S.reduce(s, { type: 'unc', um: 'm6', ux: 'merge', uk: { n: 3, s: 1 }, us: 77, ud: 22 }, 10);
+  assert.deepEqual([s.um, s.ux, s.uk, s.us, s.ud], ['m6', 'merge', { n: 3, s: 1 }, 77, 22]);
+  const same = S.reduce(s, { type: 'unc', um: 'nada', ux: 'nada', uk: { n: 99 }, us: -1, ud: 'x', up: 3, ue: 'zz', uc: 5, ua: '??' }, 10);
+  for (const k of ['um', 'ux', 'uk', 'us', 'ud', 'up', 'ue', 'uc', 'ua']) assert.deepEqual(same[k], s[k], k);
+  s = S.reduce(Object.assign({}, s, { step: 3 }), { type: 'unc', ue: 'hl' }, 10);
+  assert.equal(s.step, 0);
+  s = S.reduce(Object.assign({}, s, { step: 3 }), { type: 'unc', up: 0.95, ud: null }, 10);
+  assert.deepEqual([s.up, s.ud, s.step], [0.95, null, 0]);
+  // Los casos del Tema 6c solo en M6: al volver a M5, el proyecto pasa a Klastorin.
+  s = S.reduce(Object.assign({}, s, { um: 'm6' }), { type: 'unc', ue: 'tr' }, 10);
+  assert.equal(s.ue, 'tr');
+  s = S.reduce(s, { type: 'unc', um: 'm5' }, 10);
+  assert.equal(s.ue, 'kl');
+});
+
+test('F4a: partir del taller copia ids, nombres y precedencias con a = m = b = duración; el taller no cambia (AC12)', () => {
+  const t = [{ id: 'A', name: 'Uno', duration: '3', links: '' }, { id: 'B', name: '', duration: '2.5', links: 'A' }];
+  const work = Object.assign(U.defaults(), { v: 'work', t, mode: 'pred' });
+  const s = S.reduce(work, { type: 'uncFromWork', rows: t, mode: 'pred' }, 10);
+  assert.deepEqual([s.v, s.ue, s.ua, s.step], ['unc', 'own', null, 0]);
+  assert.deepEqual(s.ut, { mode: 'pred', rows: [{ id: 'A', name: 'Uno', a: '3', m: '3', b: '3', links: '' },
+    { id: 'B', name: '', a: '2.5', m: '2.5', b: '2.5', links: 'A' }] });
+  assert.deepEqual(work.t, t);
+  assert.deepEqual(s.t, t);   // la tabla del taller sigue en el estado para volver a él
+  // Tabla solo de estructura o con errores: se copia tal cual (A8).
+  const raw = [{ id: 'A', duration: '', links: 'Z' }, { id: '', duration: 'x', links: '' }];
+  const r = S.reduce(work, { type: 'uncFromWork', rows: raw, mode: 'succ' }, 10);
+  assert.deepEqual(r.ut, { mode: 'succ', rows: [{ id: 'A', name: '', a: '', m: '', b: '', links: 'Z' }, { id: '', name: '', a: 'x', m: 'x', b: 'x', links: '' }] });
+});
+
+test('F4a: editar la tabla propia (uncTable) guarda las filas como texto y pasa a ue=own', () => {
+  const rows = [{ id: 'A', name: '', a: '1', m: '2', b: '9', links: '' }];
+  const s = S.reduce(Object.assign(U.defaults(), { v: 'unc' }), { type: 'uncTable', rows, mode: 'pred' }, 10);
+  assert.deepEqual([s.ue, s.ut], ['own', { mode: 'pred', rows }]);
+  rows[0].a = '5';
+  assert.equal(s.ut.rows[0].a, '1');   // copia, no referencia
+});

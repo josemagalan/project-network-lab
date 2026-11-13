@@ -565,3 +565,76 @@ test('F3c: xt=1 en «Ejercicios» solo con los tres niveles', () => {
   assert.equal(bad.state.xt, 0);
   assert.equal(U.decode('#v=ex&sd=99&xt=2').warning, 'malformed');
 });
+
+// ---------- F4a (T007): la pestaña de tres tiempos y el TCL, v=unc (plan f4a-tres-tiempos-tcl, §3) ----------
+const UNC_ROWS = [
+  { id: 'A', name: 'Análisis', a: '2', m: '6', b: '14', links: '' },
+  { id: 'B', name: '', a: '4', m: '7', b: '12', links: 'A' },
+  { id: 'C', name: 'Sin m', a: '1', m: '', b: '3', links: 'A, Z' },   // con errores: se guarda tal cual
+];
+
+test('F4a: v=unc por defecto: M5, ejemplo de Klastorin y nada más en el enlace', () => {
+  const s = Object.assign(U.defaults(), { v: 'unc', ex: 'ej6', t: [{ id: 'A', duration: '1', links: '' }], step: 0 });
+  const h = U.encode(s);
+  const q = new URLSearchParams(h.slice(1));
+  assert.equal(q.get('v'), 'unc');
+  for (const k of ['t', 'ex', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us']) assert.ok(!q.has(k), k);
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  assert.equal(back.state.v, 'unc');
+  assert.deepEqual([back.state.um, back.state.ue, back.state.ux, back.state.uc], ['m5', 'kl', 'exam', 0]);
+  assert.deepEqual([back.state.ex, back.state.t, back.state.ut, back.state.uk, back.state.us], [null, null, null, null, null]);
+});
+
+test('F4a: ida y vuelta con todas las claves de v=unc', () => {
+  const s = Object.assign(U.defaults(), { v: 'unc', ex: null, um: 'm6', ue: 'own', ut: { mode: 'pred', rows: UNC_ROWS }, ua: 'B', uc: 1,
+    ux: 'merge', ud: 25.5, up: 0.95, uk: { n: 3, s: 2.5, k: 4, w: 0.25, r: 0.9 }, us: 4242, step: 3, pred: 1, lang: 'en', nota: 'es' });
+  const back = U.decode(U.encode(s));
+  assert.equal(back.warning, undefined);
+  for (const k of ['v', 'um', 'ue', 'ua', 'uc', 'ux', 'ud', 'up', 'us', 'step', 'pred', 'lang', 'nota']) assert.deepEqual(back.state[k], s[k], k);
+  assert.deepEqual(back.state.ut, { mode: 'pred', rows: UNC_ROWS });
+  assert.deepEqual(back.state.uk, { n: 3, s: 2.5, k: 4, w: 0.25, r: 0.9 });
+  const succ = Object.assign({}, s, { ut: { mode: 'succ', rows: UNC_ROWS.slice(0, 2) } });
+  assert.deepEqual(U.decode(U.encode(succ)).state.ut, { mode: 'succ', rows: UNC_ROWS.slice(0, 2) });
+});
+
+test('F4a: la tabla propia admite 40 filas (P9) y se recorta a los límites de la tabla', () => {
+  const rows = Array.from({ length: 45 }, (_, i) => ({ id: `A${i}`, name: 'x'.repeat(100), a: '1', m: '2', b: '3', links: '' }));
+  const s = Object.assign(U.defaults(), { v: 'unc', ue: 'own', ut: { mode: 'pred', rows } });
+  const back = U.decode(U.encode(s)).state.ut;
+  assert.equal(back.rows.length, U.LIMITS.rows);
+  assert.equal(back.rows[0].name.length, U.LIMITS.name);
+  // Sin tabla propia, ue=own es malformado y vuelve a Klastorin.
+  const bad = U.decode('#v=unc&ue=own');
+  assert.equal(bad.warning, 'malformed'); assert.equal(bad.state.ue, 'kl'); assert.equal(bad.state.ut, null);
+});
+
+test('F4a: valores fuera de rango son malformados y vuelven al valor por defecto', () => {
+  const cases = [
+    ['#v=unc&um=m7', 'um', 'm5'], ['#v=unc&ue=zz', 'ue', 'kl'], ['#v=unc&ux=foo', 'ux', 'exam'], ['#v=unc&uc=2', 'uc', 0],
+    ['#v=unc&ua=A-1', 'ua', null], ['#v=unc&ud=-3', 'ud', null], ['#v=unc&ud=abc', 'ud', null], ['#v=unc&up=1', 'up', null],
+    ['#v=unc&up=0', 'up', null], ['#v=unc&up=1.5', 'up', null], ['#v=unc&us=0', 'us', null], ['#v=unc&us=1000000', 'us', null],
+    ['#v=unc&uk=n9', 'uk', null], ['#v=unc&uk=n2.n3', 'uk', null], ['#v=unc&uk=k0', 'uk', null], ['#v=unc&uk=r101', 'uk', null],
+    ['#v=unc&uk=s201', 'uk', null], ['#v=unc&uk=q1', 'uk', null], ['#v=unc&ue=own&ut=zzzz', 'ut', null],
+    // Los casos del Tema 6c (dos rutas, paralelización) solo existen en M6.
+    ['#v=unc&um=m5&ue=tr', 'ue', 'kl'],
+  ];
+  for (const [h, k, v] of cases) {
+    const r = U.decode(h);
+    assert.equal(r.warning, 'malformed', h);
+    assert.deepEqual(r.state[k], v, h);
+  }
+  assert.equal(U.decode('#v=unc&um=m6&ue=tr').warning, undefined);
+  assert.deepEqual(U.decode('#v=unc&uk=w50.r0').state.uk, { w: 0.5, r: 0 });
+  assert.deepEqual(U.decode('#v=unc&uk=s25').state.uk, { s: 2.5 });   // la holgura va en décimas
+});
+
+test('F4a: las claves u* solo cuentan en v=unc; los enlaces de las fases anteriores no cambian', () => {
+  const r = U.decode('#v=route&ex=ej6&um=m6&us=7&uk=n3');
+  assert.equal(r.state.um, 'm5'); assert.equal(r.state.us, null); assert.equal(r.state.uk, null);
+  for (const v of ['route', 'work', 'm0', 'ex', 'moodle']) {
+    const s = Object.assign(U.defaults(), { v, um: 'm6', us: 9, ux: 'merge' });
+    const q = new URLSearchParams(U.encode(s).slice(1));
+    for (const k of ['um', 'us', 'ux']) assert.ok(!q.has(k), `${v}: ${k}`);
+  }
+});
