@@ -469,6 +469,8 @@ check('F2a AC9 · con las reglas en el mínimo no hay botón; con el presupuesto
   await p2.locator('#btnMin').click();
   assert.deepEqual(await p2.locator('#netView .side-by-side h2').allInnerTexts(), ['Red de las reglas · 10 ficticias', 'Mejor red encontrada · 7 ficticias']);
   await p2.locator('#dummyCounter button', { hasText: /Aprende más/ }).click();
+  // F4a: «Aprende más» se carga al abrirlo (learn.js bajo demanda).
+  await p2.locator('#learnDialog[open]').waitFor();
   assert.equal(await p2.locator('#learnTitle').innerText(), 'Ficticias: las reglas y el mínimo');
   assert.match(await p2.locator('#learnBody').innerText(), /Krishnamoorthy/);
   await axe(p2, '«Aprende más» del contador');
@@ -993,6 +995,8 @@ check('AC14 · con el teclado se alcanza todo, el foco se ve y cada red tiene su
   assert.equal(rows, await page.evaluate(() => PNL.app.model().project.activities.length), 'la tabla alternativa tiene una fila por actividad');
   await page.locator('#btnLearn').focus();
   await page.keyboard.press('Enter');
+  // F4a: «Aprende más» se carga al abrirlo (learn.js bajo demanda).
+  await page.locator('#learnDialog[open]').waitFor();
   assert.ok(await page.evaluate(() => document.getElementById('learnDialog').open));
   await page.keyboard.press('Escape');
   assert.ok(!(await page.evaluate(() => document.getElementById('learnDialog').open)));
@@ -1183,6 +1187,8 @@ check('F2b AC4 y AC6 · Sysło (1981): Corneil-Gotlieb-Lee 9 y reglas 8; su tarj
   assert.ok(cards.cgl.notes.includes('Diferencia de estructura: ninguna ficticia sobra por sí sola'), cards.cgl.notes.join(' | '));
   assert.equal(cards.cgl.rm, 0, 'ninguna ficticia en rojo');
   await cmpCard(page, 'cgl').locator('button', { hasText: 'Aprende más' }).click();
+  // F4a: «Aprende más» se carga al abrirlo (learn.js bajo demanda).
+  await page.locator('#learnDialog[open]').waitFor();
   assert.ok(await page.locator('#learnDialog').evaluate((d) => d.open));
   assert.equal(await page.locator('#learnTitle').innerText(), 'Corneil, Gotlieb y Lee (1973)');
   assert.match(await page.locator('#learnBody').innerText(), /Sysło dio una tabla de 14 actividades/);
@@ -1193,6 +1199,7 @@ check('F2b AC4 y AC6 · Sysło (1981): Corneil-Gotlieb-Lee 9 y reglas 8; su tarj
   const all = await cmpLab(`ex=ej6&ms=${ALL_MS}&lang=en`);
   for (const m of ['prog', 'rules', 'cs', 'kim', 'spinrad', 'cgl', 'min']) {
     await cmpCard(all, m).locator('button', { hasText: 'Learn more' }).click();
+    await all.locator('#learnDialog[open]').waitFor();
     const title = await all.locator('#learnTitle').innerText();
     assert.ok(title.startsWith(await cmpCard(all, m).locator('h2').innerText()), `${m}: ${title}`);
     await all.locator('#btnLearnClose').click();
@@ -1305,6 +1312,7 @@ for (const lang of ['es', 'en']) {
     // Al final, los sucesos numerados y la tabla de arcos de la red del progresivo.
     assert.ok(await page.locator('#btnTable').isVisible());
     await page.locator('#btnLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
     assert.equal(await page.locator('#learnTitle').innerText(), lang === 'es' ? 'Dibujo progresivo' : 'Progressive drawing');
     await page.locator('#btnLearnClose').click();
     await page.locator('#methodLine button').nth(1).click();
@@ -5166,6 +5174,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     // F3c (P5): el generador de enunciados, solo con un enunciado al azar, con el enunciado en «Ejercicios» y en el exportador.
     const gen = /st=gen|xt=1|v=moodle/.test(url);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /stmtgen\.js|contexts\.js/.test(e.name))), gen, `${url}: generador de enunciados`);
+    // F4a (decisión del autor): «Aprende más» (learn.js) no se carga al abrir ninguna vista, solo al abrir su diálogo.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn\.js/.test(e.name))), false, `${url}: learn.js`);
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);

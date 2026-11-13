@@ -23,7 +23,7 @@
 
   const G = window.PNL;
   const { i18n: I, urlstate: U, store: S, project: P, cpm: C, matrix: MX, examples: EX, narrate: NR,
-    layout: L, predict: PR, learn: LR, aoa: A, aoaLayout: AL, mindummy: MD, compare: CM, reto: RT, dom } = G;
+    layout: L, predict: PR, aoa: A, aoaLayout: AL, mindummy: MD, compare: CM, reto: RT, dom } = G;
   const { h, clear } = dom;
   const $ = (id) => document.getElementById(id);
 
@@ -62,9 +62,11 @@
     mq: ['js/core/grade.js', 'js/core/contexts.js', 'js/core/stmtgen.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/question-view.js', 'js/moodle-page.js'],
     // F4a (plan P3): «Duraciones inciertas», con su núcleo (tres tiempos, simulación, TCL y ejemplos), textos y vista.
     // Con su hoja de estilos: M0 ya roza el presupuesto de 1 MB y no debe pagarla.
+    // F4a (decisión del autor, 2026-11-13): «Aprende más» (learn.js, 57 KB) se carga al abrir el diálogo, en todas las vistas.
+    lr: ['js/learn.js'],
     un: ['css/unc.css', 'js/core/threept.js', 'js/core/sim.js', 'js/core/tcl.js', 'js/core/stochex.js', 'js/i18n-unc.js', 'js/views/dist-chart.js', 'js/unc.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, lr: () => !!G.learn };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
@@ -721,6 +723,8 @@
 
   // «Aprende más» de un método (AC17): qué hace, qué garantiza, cómo lo aplica el laboratorio y sus referencias.
   function openMethodLearn(m) {
+    if (!G.learn) { need('lr').then(() => openMethodLearn(m)); return; }
+    const LR = G.learn;
     const L = LR.methods[m];
     const body = clear($('learnBody'));
     $('learnTitle').textContent = L.title[lang()];
@@ -876,6 +880,8 @@
   // Con un tema (el de la regla de una ficticia seleccionada), «Aprende más» abre ese tema. Con { topic }, un
   // tema que no es de ningún paso (el del contador): su pseudocódigo es el de colocar la red.
   function openLearn(forTopic) {
+    if (!G.learn) { need('lr').then(() => openLearn(forTopic)); return; }
+    const LR = G.learn;
     const tr = trace();
     if (!tr) return;
     const cur = tr[Math.min(state.step, tr.length - 1)];
@@ -907,6 +913,8 @@
   // «Aprende más» de «Ejercicios» (F3a, T015): el mismo diálogo, con su tema.
   function openExLearn() { openTopicLearn('ex.learnTitle', 'ex'); }
   function openTopicLearn(titleKey, topic) {
+    if (!G.learn) { need('lr').then(() => openTopicLearn(titleKey, topic)); return; }
+    const LR = G.learn;
     const body = clear($('learnBody'));
     $('learnTitle').textContent = t(titleKey);
     LR.topics[topic][lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
@@ -923,6 +931,7 @@
 
   // Esquema de ejemplo de una regla de los conjuntos: tabla horizontal y dibujo, como en los apuntes del autor.
   function renderScheme(body, sc, key) {
+    const LR = G.learn;
     const hl = new Set(sc.table.hl);
     const cell = (xs) => h('td', {}, xs.flatMap((x, i) => [i ? ', ' : null, hl.has(x) ? h('strong', { class: 'hl' }, [x]) : x]));
     const row = (key, cells, head) => h('tr', {}, [h('th', { scope: 'row' }, [t(key)]), ...cells.map((c) => (head ? h('td', {}, [h('strong', {}, [c])]) : cell(c)))]);
