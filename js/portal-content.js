@@ -79,6 +79,8 @@
       correspondingAuthor: 'Autor de correspondencia', licenses: 'Código MIT · contenido docente CC BY 4.0.',
       feedbackText: '¿Has visto un error o tienes una sugerencia?', feedbackLink: 'Coméntalo en GitHub',
       feedbackAuthors: 'sin GitHub, escribe a los autores desde sus páginas, enlazadas arriba.',
+      statsNote: 'Para saber si este material resulta útil, la portada cuenta las páginas vistas con GoatCounter, sin cookies y sin identificar a los visitantes. El laboratorio no cuenta nada.',
+      statsLink: 'Estadísticas públicas', visits: 'Páginas vistas: {n}',
       institutions: 'Instituciones participantes',
       footerText: 'Laboratorio de redes de proyectos · Herramientas docentes abiertas · v0.1.0', backTop: 'Volver arriba',
     },
@@ -155,6 +157,8 @@
       correspondingAuthor: 'Corresponding author', licenses: 'Code MIT · teaching content CC BY 4.0.',
       feedbackText: 'Found a mistake or have a suggestion?', feedbackLink: 'Tell us on GitHub',
       feedbackAuthors: 'without GitHub, write to the authors from their pages, linked above.',
+      statsNote: 'To know whether this material is useful, the portal counts page views with GoatCounter, without cookies and without identifying visitors. The lab itself counts nothing.',
+      statsLink: 'Public statistics', visits: 'Page views: {n}',
       institutions: 'Participating institutions',
       footerText: 'Project Network Lab · Open teaching tools · v0.1.0', backTop: 'Back to top',
     },
@@ -186,7 +190,19 @@
     return `cpm.html#${TARGETS[target]}&lang=${lang}`;
   }
 
-  const api = { messages, resolveLanguage, labHref, TARGETS, LANGS };
+  // Contador de la portada (constitución v2.1.0): GoatCounter cuenta las vistas de la ruta de la portada (index.html
+  // fija la ruta en data-goatcounter-settings) y su contador público da el total de esa ruta. Aquí solo se lee.
+  const COUNTER = { path: '/project-network-lab/', url: 'https://josemagalan.goatcounter.com/counter/%2Fproject-network-lab%2F.json' };
+
+  // El total llega como texto con separadores en inglés («1,234»): se lee como número y se escribe en el idioma de la portada.
+  function visitsText(lang, raw) {
+    const digits = String(raw == null ? '' : raw).replace(/[^\d]/g, '');
+    if (!digits || !LANGS.includes(lang)) return null;
+    const n = Number(digits).toLocaleString(lang === 'en' ? 'en-GB' : 'es-ES');
+    return messages[lang].visits.replace('{n}', n);
+  }
+
+  const api = { messages, resolveLanguage, labHref, TARGETS, LANGS, COUNTER, visitsText };
   root.PNLPortal = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

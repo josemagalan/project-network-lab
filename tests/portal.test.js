@@ -156,3 +156,31 @@ test('F3a T017 · AC17: «Ejercicios generados» está disponible y abre «Ejerc
   assert.equal(labHref('moodle', 'en'), 'cpm.html#v=moodle&lang=en');
   for (const lang of ['es', 'en']) assert.doesNotMatch(messages[lang].moodleDesc, /probabilidad|probabilit/i, lang);
 });
+
+// Contador de la portada (constitución v2.1.0, principios 2 y 20): solo en index.html, asíncrono, con la ruta fija.
+test('GoatCounter cuenta solo la portada, con una sola ruta, y el laboratorio no carga nada externo', () => {
+  const { COUNTER } = require('../js/portal-content.js');
+  const tags = [...html.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]).filter((t) => /goatcounter/.test(t));
+  assert.equal(tags.length, 1);
+  assert.match(tags[0], /\basync\b/);
+  assert.match(tags[0], /src="https:\/\/gc\.zgo\.at\/count\.js"/);
+  assert.match(tags[0], /data-goatcounter="https:\/\/josemagalan\.goatcounter\.com\/count"/);
+  assert.equal(JSON.parse(tags[0].match(/data-goatcounter-settings='([^']+)'/)[1]).path, COUNTER.path);
+  assert.equal(COUNTER.url, `https://josemagalan.goatcounter.com/counter/${encodeURIComponent(COUNTER.path)}.json`);
+  assert.match(html, /<span id="visitCount" hidden><\/span>/);
+  const lab = fs.readFileSync(path.join(ROOT, 'cpm.html'), 'utf8');
+  assert.doesNotMatch(lab, /goatcounter|zgo\.at|https?:\/\/[^"]*\.js/);
+  for (const f of fs.readdirSync(path.join(ROOT, 'js'), { recursive: true }).filter((x) => x.endsWith('.js') && !/portal/.test(x))) {
+    assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), /goatcounter|zgo\.at/, f);
+  }
+});
+
+test('el total de páginas vistas se escribe en el idioma de la portada; sin total, no hay texto', () => {
+  const { visitsText } = require('../js/portal-content.js');
+  assert.equal(visitsText('es', '1,234'), 'Páginas vistas: 1234');
+  assert.equal(visitsText('es', '12,345'), 'Páginas vistas: 12.345');
+  assert.equal(visitsText('en', '12,345'), 'Page views: 12,345');
+  assert.equal(visitsText('en', 7), 'Page views: 7');
+  for (const raw of [null, undefined, '', 'n/a']) assert.equal(visitsText('es', raw), null);
+  assert.equal(visitsText('fr', '3'), null);
+});

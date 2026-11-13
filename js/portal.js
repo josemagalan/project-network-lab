@@ -1,12 +1,21 @@
 /*
  * portal — cambia el idioma de la portada y mantiene los enlaces al laboratorio en ese idioma.
  * Sin JavaScript la portada sigue siendo navegable en español (los enlaces ya están en el HTML).
- * Los textos entran siempre con textContent.
+ * Los textos entran siempre con textContent. En el pie, el total de páginas vistas de la portada (GoatCounter).
  */
 (function () {
   'use strict';
-  const { messages, resolveLanguage, labHref } = window.PNLPortal;
+  const { messages, resolveLanguage, labHref, COUNTER, visitsText } = window.PNLPortal;
   const KEY = 'pnl-language';
+  let visits = null;   // total de páginas vistas de la portada, si GoatCounter lo da
+
+  function renderVisits(language) {
+    const node = document.getElementById('visitCount');
+    const text = node && visitsText(language, visits);
+    if (!text) return;
+    node.textContent = text;
+    node.hidden = false;
+  }
 
   function savedLanguage() {
     try { return localStorage.getItem(KEY); } catch { return null; }
@@ -25,6 +34,7 @@
     });
     document.querySelectorAll('[data-lab]').forEach((link) => { link.href = labHref(link.dataset.lab, language); });
     try { localStorage.setItem(KEY, language); } catch { /* El idioma también va en la URL. */ }
+    renderVisits(language);
   }
 
   function setLanguage(language, replace) {
@@ -42,5 +52,11 @@
   document.querySelectorAll('[data-lang]').forEach((button) => {
     button.addEventListener('click', () => setLanguage(button.dataset.lang, false));
   });
+  // Sin conexión, desde file:// o con un bloqueador, el contador no aparece y nada más cambia.
+  if (window.fetch && location.protocol !== 'file:') {
+    fetch(COUNTER.url).then((r) => (r.ok ? r.json() : null)).then((data) => {
+      if (data && data.count) { visits = data.count; renderVisits(document.documentElement.lang); }
+    }).catch(() => {});
+  }
   window.addEventListener('popstate', () => render(resolveLanguage(location.search, savedLanguage(), navigator.language)));
 })();

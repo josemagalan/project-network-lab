@@ -4824,6 +4824,46 @@ check('F4a T009 · tema oscuro, 360 px sin desbordar la página y el grupo bajo 
   await close(r);
 });
 
+// ---------- Contador de la portada (constitución v2.1.0) ----------
+
+const COUNT_FAKE = '12,345';
+
+check('Contador · la portada muestra en el pie las páginas vistas en su idioma; el laboratorio no llama a GoatCounter', async () => {
+  const p = await open('index.html?lang=es');
+  await p.waitForFunction(() => !document.getElementById('visitCount').hidden);
+  assert.equal(await p.locator('#visitCount').innerText(), 'Páginas vistas: 12.345');
+  assert.equal(await p.locator('footer #visitCount').count(), 1);
+  assert.match(await p.locator('[data-i18n="statsNote"]').innerText(), /sin cookies/);
+  await p.locator('button[data-lang="en"]').click();
+  await p.waitForFunction(() => document.getElementById('visitCount').textContent === 'Page views: 12,345');
+  const hits = p.context().counterHits;
+  assert.ok(hits.some((u) => u.endsWith('/count.js')), 'carga count.js');
+  assert.ok(hits.some((u) => u.includes('/counter/%2Fproject-network-lab%2F.json')), 'lee el total de la ruta de la portada');
+  await axe(p, 'Portada con el contador');
+  await close(p);
+  for (const url of ['cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=unc&lang=es']) {
+    const q = await open(url);
+    await q.waitForTimeout(200);
+    assert.deepEqual(q.context().counterHits, [], `${url} no llama a GoatCounter`);
+    await close(q);
+  }
+});
+
+check('Contador · sin respuesta de GoatCounter no aparece y la portada funciona igual', async () => {
+  const ctx = await browser.newContext();
+  await ctx.unrouteAll();
+  await ctx.route(/goatcounter\.com|gc\.zgo\.at/, (route) => route.abort());
+  const page = await ctx.newPage();
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.goto(`${BASE}/index.html?lang=es`);
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('#visitCount').isVisible(), false);
+  assert.equal(await page.locator('button[data-lang="en"]').isEnabled(), true, 'el cambio de idioma sigue activo');
+  assert.deepEqual(errs, []);
+  await ctx.close();
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
@@ -4860,6 +4900,20 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   const { child, base } = await serve();
   BASE = base;
   browser = await chromium.launch();
+  // Contador de la portada (constitución v2.1.0): ninguna prueba sale a GoatCounter. count.js se sustituye por un guion
+  // vacío y el total, por COUNT_FAKE; cada contexto anota las peticiones para comprobar que el laboratorio no las hace.
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (opts) => {
+    const ctx = await newContext(opts);
+    ctx.counterHits = [];
+    await ctx.route(/goatcounter\.com|gc\.zgo\.at/, (route) => {
+      const url = route.request().url();
+      ctx.counterHits.push(url);
+      if (url.includes('/counter/')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ count: COUNT_FAKE }) });
+      return route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
+    });
+    return ctx;
+  };
   let failed = 0;
   const t0 = Date.now();
   const run = cases.filter((c) => !ONLY || c.name.toLowerCase().includes(ONLY.toLowerCase()));
