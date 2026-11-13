@@ -266,3 +266,9 @@ test('F4a r1 (F7): sin incertidumbre (σ² = 0) y con el plazo en la media, la n
   const su = U.simSummary(spec, Float64Array.from({ length: 100 }, () => 8));
   assert.deepEqual([su.pn, su.ps, su.ks], [1, 1, null]);
 });
+
+test('F4a r2 (nit F9): un identificador con espacios alrededor es la misma actividad', () => {
+  const m = U.model(own([row(' a ', 1, 2, 4), row('b', 2, 3, 5, ' a ')]), 'es');
+  assert.deepEqual(m.issues, []);
+  assert.deepEqual(m.acts.map((a) => a.id), ['A', 'B']);
+});

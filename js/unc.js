@@ -736,6 +736,8 @@
       const holder = h('div', { class: 'unc-chart', id: 'uncNormal' });
       const parts = [h('h2', { id: 'uncNormalHead' }, [seen(2) ? tu('exam.chartTitle', { mu: fx(e.mu, 2), var: fx(e.var, 2) }) : tu('sim.legendNormal')]), holder];
       const T = e.deadline;
+      // El plazo escrito, con sus decimales; el calculado (plazo para una probabilidad), con 2, como el texto (revisión F4a, r2).
+      const Tl = e.inverse ? fx(T, 2) : num4(T);
       if (!all && e.inverse) {
         if (!e.degenerate) {
           const lo = Math.max(0, e.mu - 4 * e.sd); const hi = e.mu + 4 * e.sd; const pts = normalPts(e.mu, e.var, lo, hi, 160);
@@ -748,8 +750,8 @@
         const lo = Math.max(0, e.mu - 4 * e.sd); const hi = e.mu + 4 * e.sd;
         const pts = normalPts(e.mu, e.var, lo, hi, 160);
         DC.render(holder, { w: 600, h: 260, x: [lo, hi], ymax: Math.max(...pts.map((q) => q[1])) * 1.12, ticks: niceTicks(lo, hi, 8), fmt: num,
-          curves: [{ pts, cls: 'c-normal' }], shade: { pts, to: T }, vlines: [{ x: e.mu, cls: 'v-sd', dash: '3 3' }, { x: T, cls: 'v-deadline', label: tu('exam.deadline', { T: num4(T) }) }],
-          label: seen(2) ? tu('exam.chartLabel', { mu: fx(e.mu, 2), var: fx(e.var, 2), T: num4(T) }) : tu('sim.legendNormal') });
+          curves: [{ pts, cls: 'c-normal' }], shade: { pts, to: T }, vlines: [{ x: e.mu, cls: 'v-sd', dash: '3 3' }, { x: T, cls: 'v-deadline', label: tu('exam.deadline', { T: Tl }) }],
+          label: seen(2) ? tu('exam.chartLabel', { mu: fx(e.mu, 2), var: fx(e.var, 2), T: Tl }) : tu('sim.legendNormal') });
         parts.push(h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [key('k-normal', tu('exam.legendNormal'))].concat(seen(1) ? [key('k-sd', tu('exam.legendMu', { mu: fx(e.mu, 2) }))] : [])));
       }
       if (!all) return h('section', { class: 'card unc-normalcard', 'aria-labelledby': 'uncNormalHead' }, parts);

@@ -138,3 +138,9 @@ test('F4a r1 (nits): Φ y Φ⁻¹ de NaN dan NaN (sin quedarse en el bucle) y Φ
   assert.ok(Number.isNaN(T.phiInv(NaN)));
   for (let z = 7; z <= 8.0001; z += 0.0007) assert.ok(T.phi(z) <= 1, `Φ(${z}) = ${T.phi(z)}`);
 });
+
+test('F4a r2 (nit F8): Φ en la cola derecha sigue siendo 1 − cola (no un valor cualquiera ≤ 1)', () => {
+  // 1 − Φ(7) = 1,279812543885835e-12 y 1 − Φ(6) = 9,865876450376983e-10.
+  assert.ok(Math.abs(T.phi(7) - (1 - 1.279812543885835e-12)) < 1e-15);
+  assert.ok(Math.abs(T.phi(6) - (1 - 9.865876450376983e-10)) < 1e-15);
+});

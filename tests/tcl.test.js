@@ -202,3 +202,59 @@ test('F4a r1 (F8): la normal de pocas actividades, asimetría y correlación usa
   // (0, 0, 12): la varianza de la beta-PERT es 20/7 = 2,857, no la de examen (4).
   close(L.cases.few({ k: 1 }).normal.var, 20 / 7, 1e-12);
 });
+
+// ---------- Revisión de nivel 2 de la F4a (T017, ronda 2) ----------
+
+const fx3 = (a, m, b) => ({ kind: 'pert', a, m, b });
+// k rombos en serie con las dos ramas dadas (S_i fija de 1), sin la actividad final; devuelve las actividades y las dos últimas.
+function chainOf(k, x, y, order, first) {
+  const acts = []; let prev = first || [];
+  for (let i = 0; i < k; i++) {
+    const s = { id: `S${i}`, preds: prev, dist: fx3(1, 1, 1) };
+    const X = { id: `X${i}`, preds: [s.id], dist: x }; const Y = { id: `Y${i}`, preds: [s.id], dist: y };
+    acts.push(s, ...(order === 'yx' ? [Y, X] : [X, Y])); prev = [X.id, Y.id];
+  }
+  return { acts, last: prev };
+}
+
+test('F4a r2 (F3): con más de 50 críticos, la programación dinámica solo sigue arcos ajustados (EF = ES) entre críticas', () => {
+  // Tras 6 rombos (64 caminos): H → A (0, 0, 12) → D (8) y H → B (5) → C (4, 5, 6), con C también tras A.
+  // A y C son críticas, pero A → C no es un arco crítico (EF de A = 2 + …, ES de C = 5 + …).
+  const { acts, last } = chainOf(6, fx3(5, 5, 5), fx3(5, 5, 5));
+  acts.push({ id: 'H', preds: last, dist: fx3(1, 1, 1) }, { id: 'A', preds: ['H'], dist: fx3(0, 0, 12) }, { id: 'B', preds: ['H'], dist: fx3(5, 5, 5) },
+    { id: 'D', preds: ['A'], dist: fx3(8, 8, 8) }, { id: 'C', preds: ['A', 'B'], dist: fx3(4, 5, 6) });
+  const e = L.exam({ acts }, { deadline: 60 });
+  assert.ok(e.tiesCount + 1 > L.LIST_LIMIT);
+  assert.deepEqual(e.path.slice(-3), ['H', 'A', 'D']);
+  close(e.var, 4, 1e-12);
+});
+
+test('F4a r2 (F5): con más de 50 críticos y varias actividades iniciales, se empieza por la de mayor σ²', () => {
+  const start = [{ id: 'Q', preds: [], dist: fx3(2, 2, 2) }, { id: 'P', preds: [], dist: fx3(0, 0, 12) }];
+  const { acts, last } = chainOf(6, fx3(5, 5, 5), fx3(5, 5, 5), 'xy', ['P', 'Q']);
+  const all = start.concat(acts, [{ id: 'Z', preds: last, dist: fx3(1, 1, 1) }]);
+  const e = L.exam({ acts: all }, { deadline: 60 });
+  assert.equal(e.path[0], 'P');
+  close(e.var, 4, 1e-12);
+  assert.equal(e.tiesCount, 127);
+  // Dos iniciales con la misma σ²: la primera en orden natural (P2 antes que P10), aunque P10 vaya antes en la tabla.
+  const two = [{ id: 'P10', preds: [], dist: fx3(1, 1, 1) }, { id: 'P2', preds: [], dist: fx3(1, 1, 1) }];
+  const c2 = chainOf(6, fx3(2, 5, 8), fx3(2, 5, 8), 'xy', ['P10', 'P2']);
+  const e2 = L.exam({ acts: two.concat(c2.acts, [{ id: 'Z', preds: c2.last, dist: fx3(1, 1, 1) }]) }, { deadline: 60 });
+  assert.deepEqual(e2.path.slice(0, 3), ['P2', 'S0', 'X0']);
+  assert.equal(e2.tiesCount, 127);
+});
+
+test('F4a r2 (F4, F2): con más de 50 críticos e igual σ², el primero en orden natural y sin repetirlo entre los demás', () => {
+  for (const order of ['xy', 'yx']) {
+    const { acts, last } = chainOf(7, fx3(2, 5, 8), fx3(2, 5, 8), order);
+    acts.push({ id: 'Z', preds: last, dist: fx3(1, 1, 1) });
+    const e = L.exam({ acts }, { deadline: 60 });
+    assert.deepEqual(e.path, ['S0', 'X0', 'S1', 'X1', 'S2', 'X2', 'S3', 'X3', 'S4', 'X4', 'S5', 'X5', 'S6', 'X6', 'Z'], order);
+    close(e.var, 7, 1e-12);
+    assert.equal(e.tiesCount, 127);
+    const key = e.path.join('|');
+    assert.equal(e.ties.filter((t) => t.acts.join('|') === key).length, 0, `${order}: el elegido no está entre los demás`);
+    assert.equal(e.ties.length, order === 'xy' ? 49 : 50, order);
+  }
+});

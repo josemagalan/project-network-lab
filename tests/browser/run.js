@@ -5615,6 +5615,52 @@ check('F4a T017 · el histograma no se recorta: la barra más alta queda por deb
   await close(p);
 });
 
+check('F4a T017 r2 · «Taller» desde la pestaña conserva la forma del ejemplo (F1) y la tabla propia en minúsculas cambia de forma bien (F6)', async () => {
+  const p = await uncLab('lang=es');
+  await p.locator('#navWork').click();
+  await p.waitForFunction(() => PNL.app.state().v === 'work');
+  assert.equal((await state(p)).mode, require(path.join(ROOT, 'js', 'core', 'examples.js')).get('ej6').mode);
+  await close(p);
+  const q = await uncLab(ownUrl([ownRow('a', 2, 4, 6), ownRow('b', 1, 4, 9, 'a')]));
+  await q.locator('#uncMode-succ').check();
+  await uncAfter(q, () => PNL.unc.state().src.mode === 'succ');
+  const st = await uncSt(q);
+  assert.deepEqual(st.src.rows.map((r) => r.links), ['B', '']);
+  assert.deepEqual(st.path, ['A', 'B']);
+  await close(q);
+});
+
+check('F4a T017 r2 · lo escrito con sus decimales en todas partes, sin separador de miles (F7), y el plazo calculado con 2 (F11)', async () => {
+  const p = await uncLab('um=m6&ux=proj&ud=25.1255&lang=es');
+  await uncAfter(p, () => PNL.unc.state().sim && PNL.unc.state().sim.done);
+  for (const sel of ['#uncProbHead', '#uncPaths thead', '#uncSimChart .dc-vlabel']) {
+    const text = await p.locator(sel).first().innerText().catch(() => p.locator(sel).first().textContent());
+    assert.match(text, /25,1255/, sel);
+  }
+  assert.match(await p.locator('#uncSimChart svg').getAttribute('aria-label'), /25,1255/);
+  assert.equal(await p.locator('#uncDeadline').inputValue(), '25,1255');
+  await close(p);
+  const q = await uncLab('um=m6&ud=12000.5&lang=es');
+  assert.equal(await q.locator('#uncDeadline').inputValue(), '12000,5');
+  assert.match((await q.locator('#uncSteps li').allInnerTexts()).join('\n'), /12000,5/);
+  await close(q);
+  // Plazo para una probabilidad: el plazo es calculado, con 2 decimales en el texto, el gráfico y su etiqueta.
+  const r = await uncLab('um=m6&up=0.9&lang=es');
+  assert.equal(await r.locator('#uncNormal .dc-vlabel').textContent(), tuEs('exam.deadline', { T: '27,51' }));
+  assert.doesNotMatch(await r.locator('#uncNormal svg').getAttribute('aria-label'), /27,514/);
+  await close(r);
+});
+
+check('F4a T017 r2 · con más de 50 críticos se nombran 5 de los otros (nit F10)', async () => {
+  const d = [];
+  for (let i = 0; i < 7; i++) d.push(ownRow(`S${i}`, 1, 1, 1, i ? `X${i - 1}, Y${i - 1}` : ''), ownRow(`X${i}`, 5, 5, 5, `S${i}`), ownRow(`Y${i}`, 2, 5, 8, `S${i}`));
+  d.push(ownRow('Z', 1, 1, 1, 'X6, Y6'));
+  const p = await uncLab(ownUrl(d, { um: 'm6' }));
+  const first = (await p.locator('#uncSteps li').allInnerTexts())[0];
+  assert.equal((first.match(/\(σ² = /g) || []).length, 5, first);
+  await close(p);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
