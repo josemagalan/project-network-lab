@@ -344,3 +344,32 @@ test('F3c: el store pone y quita el enunciado sin borrar las respuestas, y nunca
   assert.equal(Store.reduce(s1, { type: 'ex', lv: 'custom', gp: { n: [6, 7], pred: 1.2, dummies: null, critical: [1, 1], dmax: 9 } }, 1).xt, 0);
   assert.equal(Store.reduce(s1, { type: 'ex', lv: 'hard' }, 1).xt, 1);
 });
+
+// ---------- Revisión de la F3c, ronda 2 (F2): la versión del enunciado en los enlaces de «Ejercicios» ----------
+test('F3c r2: con xt=1, un enlace de otra versión del generador de enunciados avisa; el texto es siempre el de la actual', () => {
+  const cur = X.model(exState({ sd: 7, lv: 'medium', xt: 1, sv: SG.VERSION }), 'es');
+  assert.equal(cur.textOld, false);
+  const old = X.model(exState({ sd: 7, lv: 'medium', xt: 1, sv: 1 }), 'es');
+  assert.equal(old.textOld, true);
+  assert.deepEqual(old.text.def, cur.text.def, 'se abre el texto de la versión actual');
+  assert.deepEqual(old.sol, cur.sol);
+  // Sin enunciado, la versión no cuenta.
+  assert.equal(X.model(exState({ sd: 7, lv: 'medium', sv: 1 }), 'es').textOld, false);
+  // El enlace de antes (xt=1 sin sv) se lee como versión 1 y avisa.
+  const U = require('../js/core/urlstate.js');
+  const { state } = U.decode('#v=ex&sd=7&xt=1&lang=es');
+  assert.equal(state.sv, 1);
+  assert.equal(X.model(state, 'es').textOld, true);
+});
+
+test('F3c r2: el store da la versión actual al poner el enunciado y a cada ejercicio nuevo, y conserva la de un enlace ya abierto', () => {
+  const U = require('../js/core/urlstate.js');
+  const on = Store.reduce(exState({ sd: 7, sv: null }), { type: 'exText', value: 1 }, 1);
+  assert.deepEqual([on.xt, on.sv], [1, U.STMT_VERSION]);
+  // El enlace de otra versión ya tiene el enunciado puesto: volver a ponerlo (al cargar stmtgen) no le cambia la versión.
+  const linked = Store.reduce(exState({ sd: 7, xt: 1, sv: 1 }), { type: 'exText', value: 1 }, 1);
+  assert.equal(linked.sv, 1);
+  // Otro ejercicio (u otro nivel, modo o lo que se pide) es de la versión actual.
+  assert.equal(Store.reduce(linked, { type: 'ex', sd: 8 }, 1).sv, U.STMT_VERSION);
+  assert.equal(Store.reduce(linked, { type: 'ex', xm: 'exam' }, 1).sv, U.STMT_VERSION);
+});

@@ -273,3 +273,29 @@ test('revisión: en media, una frase de varias precedencias siempre que la tabla
   for (const x of hard) assert.equal(x.res.feat.res, 1, `${x.sd}/${x.ctx}`);
   assert.ok(hard.filter((x) => x.res.feat.same > 0).length / hard.length > 0.2);
 });
+
+// ── Revisión de la F3c, ronda 2 ───────────────────────────────────────────────────────────────────────────────────
+test('ronda 2 (F2): la versión que escriben los enlaces de «Ejercicios» es la de stmtgen', () => {
+  assert.equal(require('../js/core/urlstate.js').STMT_VERSION, SG.VERSION);
+});
+
+test('ronda 2 (F3): las tablas medias que solo admiten la frase de varias precedencias hacia delante la tienen, con los dos sentidos', () => {
+  // Las semillas 1–300 no pasan por esa rama del forzado (todas las sucesoras de una precedente compartida pasan hacia
+  // delante); estas sí: 616 y 1400 se quedarían sin frase de varias precedencias y 1019 solo con frases hacia delante.
+  for (const sd of [616, 1019, 1400]) {
+    const g = G.generate(sd, G.LEVELS.medium);
+    assert.ok(g.ok, String(sd));
+    const pr = predsOf(g.rows);
+    const ids = Object.keys(pr);
+    assert.ok(!ids.some((s) => pr[s].length > 1), `${sd}: sin actividades con varias precedentes (por eso va hacia delante)`);
+    for (const ctx of X.KEYS) {
+      const res = SG.compose(g.rows, 'medium', ctx, sd);
+      assert.ok(res.ok, `${sd}/${ctx}`);
+      assert.ok(res.feat.multi > 0 && res.feat.back > 0 && res.feat.fwd > 0, `${sd}/${ctx}: ${JSON.stringify(res.feat)}`);
+      assert.deepEqual(textProblems({ lv: 'medium', sd, ctx, rows: g.rows, res }), [], `${sd}/${ctx}`);
+    }
+    // Y lo mismo con make (el contexto de la semilla), que es lo que abre la interfaz.
+    const m = SG.make(sd, 'medium');
+    assert.ok(m.feat.multi > 0 && m.feat.back > 0 && m.feat.fwd > 0, `make ${sd}`);
+  }
+});

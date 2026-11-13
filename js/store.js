@@ -122,10 +122,17 @@
         if (action.ask !== undefined) { const ask = U.cleanAsk(action.ask); if (ask) s.ask = ask; }
         if (['practice', 'exam'].includes(action.xm)) s.xm = action.xm;
         if (s.lv === 'custom') s.xt = 0;   // F3c (P8): con «Personalizar» no hay enunciado
+        s.sv = U.STMT_VERSION;   // un ejercicio nuevo es de la versión actual (como gv; revisión de la F3c, ronda 2, F2)
         break;
       }
       // F3c (T010): dar el proyecto como enunciado; no cambia el ejercicio ni las respuestas.
-      case 'exText': s.xt = action.value && s.lv !== 'custom' ? 1 : 0; break;
+      // Al ponerlo, el enunciado es de la versión actual; si ya estaba puesto (enlace de otra versión), se conserva la suya.
+      case 'exText': {
+        const on = action.value && s.lv !== 'custom' ? 1 : 0;
+        if (on && !s.xt) s.sv = U.STMT_VERSION;
+        s.xt = on;
+        break;
+      }
       case 'exAnswer':
         if (s.xd) break;
         if (action.ans === null) { s.ans = null; break; }

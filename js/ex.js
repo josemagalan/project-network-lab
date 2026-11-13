@@ -63,7 +63,7 @@
     const ask = U.cleanAsk(state.ask) || U.DEFAULT_ASK.slice();
     const base = { params: prm, issues: chk.issues, notFound: null, rows: null, project: null, sol: null, ask, ans: answersOf(state),
       mode: state.xm === 'exam' ? 'exam' : 'practice', delivered: state.xm === 'exam' && !!state.xd, seed: state.sd, lang,
-      oldVersion: state.gv != null && state.gv !== GEN.VERSION, grading: null, text: null, textPending: false };
+      oldVersion: state.gv != null && state.gv !== GEN.VERSION, grading: null, text: null, textPending: false, textOld: false };
     if (!chk.ok || !state.sd) return base;
     const gen = generated(state.sd, prm);
     if (!gen.g.ok) return Object.assign(base, { notFound: gen.g });
@@ -77,6 +77,8 @@
         const r = G3.compose(gen.rows, state.lv, ctx, state.sd);
         m.text = r.ok ? { def: r.def, ctx } : null;
         m.textFailed = !r.ok;
+        // Revisión de la F3c (ronda 2, F2): un enlace de otra versión del generador de enunciados avisa, como en M0.
+        m.textOld = state.sv != null && state.sv !== G3.VERSION;
       }
     }
     if (m.delivered) m.grading = GR.grade(m.sol, m.ans, ask);
@@ -639,6 +641,7 @@
         return;
       }
       if (m.textPending && hooks.need) hooks.need('sg').then(() => hooks.dispatch({ type: 'exText', value: 1 }));
+      if (m.textOld) container.appendChild(h('p', { class: 'banner', role: 'status', id: 'exTextOld' }, [tt('m0.gen.oldVersion')]));
       if (m.textFailed) container.appendChild(h('p', { class: 'banner', role: 'status' }, [tt('ex.text.none')]));
       const first = m.text ? textCard() : givenCard();
       container.appendChild(h('div', { class: 'ex-grid' }, [h('div', { class: 'ex-left' }, [first, netCard()]), answersCard()]));

@@ -222,6 +222,9 @@
   // ---------- F3a: «Ejercicios» ----------
   const seedOk = (x) => Number.isInteger(x) && x >= 1 && x <= EX.seed;
   const verOk = (x) => Number.isInteger(x) && x >= 1 && x <= 999;   // F3c: sv, versión del generador de enunciados
+  // Versión actual de core/stmtgen (que se carga bajo demanda): la escriben los enlaces de «Ejercicios» con el enunciado.
+  // tests/stmtgen.test.js comprueba que es la misma que stmtgen.VERSION (revisión de la F3c, ronda 2, F2).
+  const STMT_VERSION = 2;
   const pairIn = (x, lo, hi) => Array.isArray(x) && x.length === 2 && x.every(Number.isInteger) && x[0] >= lo && x[0] <= x[1] && x[1] <= hi;
   // Parámetros de «Personalizar»: solo los límites de la forma (generator.check dice lo que es imposible).
   function cleanGp(gp) {
@@ -362,7 +365,8 @@
       if (ans) q.set('ans', packAns(ans));
       if (s.xd) q.set('xd', '1');
       if (Number.isInteger(s.gv) && s.gv >= 1) q.set('gv', String(s.gv));
-      if (s.xt && s.lv !== 'custom') q.set('xt', '1');
+      // Con el enunciado, también la versión de su generador (plan P7; revisión de la F3c, ronda 2, F2).
+      if (s.xt && s.lv !== 'custom') { q.set('xt', '1'); q.set('sv', String(verOk(s.sv) ? s.sv : STMT_VERSION)); }
     }
     return '#' + q.toString();
   }
@@ -474,6 +478,11 @@
       if (q.has('ask')) { const a = decodeAsk(q.get('ask')); if (a) state.ask = a; else malformed = true; }
       if (q.has('ans')) { const a = unpackAns(q.get('ans')); if (a) state.ans = a; else malformed = true; }
       if (q.has('gv')) { const v = q.get('gv'); if (/^\d{1,3}$/.test(v) && Number(v) >= 1) state.gv = Number(v); else malformed = true; }
+      // F3c (ronda 2, F2): la versión del enunciado. Los enlaces con xt=1 de antes no la guardaban: eran de la versión 1.
+      if (state.xt) {
+        if (!q.has('sv')) state.sv = 1;
+        else { const v = q.get('sv'); if (/^\d{1,3}$/.test(v) && verOk(Number(v))) state.sv = Number(v); else malformed = true; }
+      }
     }
     // El comparador y el reto son de la red PERT (F2b, plan §3).
     if ((state.view === 'cmp' || state.view === 'reto') && state.graph !== 'aoa') { state.view = 'net'; malformed = true; }
@@ -494,7 +503,7 @@
   }
 
   const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
-    ASK, DEFAULT_ASK, EX, cleanGp, cleanAsk, cleanAns };
+    ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

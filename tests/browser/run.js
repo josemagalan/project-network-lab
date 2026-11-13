@@ -4589,13 +4589,67 @@ check('F3c revisión F5 · «Ejercicios» con enunciado conserva la red desplega
   await exText(p);
   await p.locator('#exFold').click();
   await p.waitForFunction(() => document.getElementById('exFold').getAttribute('aria-expanded') === 'true');
-  await p.locator('#exView .ex-showtable summary').click();
-  await p.waitForFunction(() => document.querySelector('#exView .ex-showtable').open);
-  await p.selectOption('#selLang', 'en');
+  // Abrir «Ver la tabla» y cambiar de idioma en la misma tarea, antes de que llegue el evento toggle: así la prueba no
+  // depende del orden de los eventos (revisión de la F3c, ronda 2, F5).
+  await p.evaluate(() => {
+    document.querySelector('#exView .ex-showtable summary').click();
+    const sel = document.getElementById('selLang');
+    sel.value = 'en';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await p.waitForFunction(() => document.querySelector('#exView .ex-showtable summary').textContent === 'Show the table');
   assert.equal(await p.locator('#exFold').getAttribute('aria-expanded'), 'true', 'la red, desplegada');
   assert.equal(await p.locator('#exView .ex-showtable').evaluate((d) => d.open), true, '«Ver la tabla», abierto');
   await close(p);
+});
+
+// ---------- F3c, T017: correcciones de la ronda 2 de la revisión (reviews/f3c-enunciados.md, «Ronda 2») ----------
+
+check('F3c revisión r2 F1 · de un enunciado al azar a «Preparar» y, pasando por otra pestaña, otra vez a M0', async () => {
+  // Sin statements.js: el enlace es de un enunciado al azar; «Preparar» lo cambia a uno propio (toM0 lo tiene que pedir).
+  for (const tab of ['#navRoute', '#navWork']) {
+    const p = await open(genUrl());
+    await p.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
+    assert.equal(await loaded(p, /js\/core\/statements\.js/), false, 'el enunciado al azar no carga statements.js');
+    await p.locator('#m0Prepare').click();
+    await p.waitForFunction(() => PNL.app.state().st === 'own');
+    await p.locator(tab).click();
+    await p.waitForFunction(() => PNL.app.state().v !== 'm0');
+    await p.locator('#navM0').click();
+    await p.waitForFunction(() => PNL.app.state().v === 'm0' && !document.getElementById('m0View').hidden);
+    assert.ok(await p.locator('#m0View').isVisible(), tab);
+    await close(p);
+  }
+});
+
+check('F3c revisión r2 F2 · «Ejercicios» con enunciado: el enlace guarda sv y el de otra versión avisa hasta otro ejercicio', async () => {
+  const sv = () => new URLSearchParams(location.hash.slice(1)).get('sv');
+  const msg = I0.t('es', 'm0.gen.oldVersion');
+  // Poner el enunciado: el enlace lleva la versión actual y no hay aviso.
+  const a = await exLab({ sd: 7, lv: 'medium' });
+  await a.locator('#exText').check();
+  await exText(a);
+  assert.equal(await a.evaluate(sv), String(U0.STMT_VERSION));
+  assert.equal(await a.locator('#exTextOld').count(), 0);
+  await close(a);
+  // Un enlace de antes (xt=1 sin sv, versión 1): el texto de la versión actual, con el aviso, y el enlace sigue diciendo 1.
+  const b = await open('cpm.html#v=ex&sd=7&xt=1&lang=es');
+  await exText(b);
+  assert.equal(await b.locator('#exTextOld').innerText(), msg);
+  assert.equal(await b.evaluate(sv), '1');
+  assert.equal(await b.locator('#urlWarning').isVisible(), false, 'no es un enlace mal formado');
+  // Otro ejercicio ya es de la versión actual.
+  await b.locator('#exAnother').click();
+  await b.waitForFunction(() => PNL.app.state().sd !== 7);
+  await exText(b);
+  assert.equal(await b.locator('#exTextOld').count(), 0);
+  assert.equal(await b.evaluate(sv), String(U0.STMT_VERSION));
+  await close(b);
+  // Con la versión actual en el enlace, sin aviso.
+  const c = await open(`cpm.html#v=ex&sd=7&xt=1&sv=${U0.STMT_VERSION}&lang=es`);
+  await exText(c);
+  assert.equal(await c.locator('#exTextOld').count(), 0);
+  await close(c);
 });
 
 // ---------- Principio 27: presupuesto de 1 MB ----------

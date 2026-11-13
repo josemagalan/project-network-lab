@@ -527,6 +527,30 @@ test('F3c: st=gen con un nivel, contexto, versión o semilla imposibles es malfo
   assert.deepEqual([other.state.sd, other.state.cx, other.state.sv], [null, null, null]);
 });
 
+test('F3c r2 (F2): los enlaces de «Ejercicios» con el enunciado guardan sv; los de antes, sin sv, son de la versión 1', () => {
+  const s = Object.assign(U.defaults(), { v: 'ex', ex: null, sd: 7, xt: 1 });
+  // Sin versión en el estado, la actual; con una, la suya.
+  assert.equal(new URLSearchParams(U.encode(s).slice(1)).get('sv'), String(U.STMT_VERSION));
+  assert.equal(new URLSearchParams(U.encode(Object.assign({}, s, { sv: 1 })).slice(1)).get('sv'), '1');
+  // Sin enunciado no se escribe.
+  assert.ok(!new URLSearchParams(U.encode(Object.assign({}, s, { xt: 0, sv: 2 })).slice(1)).has('sv'));
+  // Ida y vuelta.
+  const back = U.decode(U.encode(s));
+  assert.equal(back.warning, undefined);
+  assert.deepEqual([back.state.xt, back.state.sv], [1, U.STMT_VERSION]);
+  // El enlace de antes de la ronda 2: versión 1, sin aviso de enlace mal formado.
+  const legacy = U.decode('#v=ex&sd=7&xt=1');
+  assert.equal(legacy.warning, undefined);
+  assert.equal(legacy.state.sv, 1);
+  // Sin xt, sv no cuenta; un sv imposible es malformado.
+  assert.equal(U.decode('#v=ex&sd=7&sv=1').state.sv, null);
+  for (const h of ['#v=ex&sd=7&xt=1&sv=x', '#v=ex&sd=7&xt=1&sv=0']) {
+    const b = U.decode(h);
+    assert.equal(b.warning, 'malformed', h);
+    assert.equal(b.state.sv, null, h);
+  }
+});
+
 test('F3c: xt=1 en «Ejercicios» solo con los tres niveles', () => {
   const s = Object.assign(U.defaults(), { v: 'ex', ex: null, sd: 99, lv: 'easy', xt: 1 });
   const h = U.encode(s);
