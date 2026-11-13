@@ -5266,6 +5266,154 @@ check('F4a T013 · «Ajustes»: cerrado al abrir; se abre con el ratón y con el
   await close(page);
 });
 
+// ---------- F4a, T014: accesibilidad, teclado y tamaños de «Duraciones inciertas» (AC15 y AC16) ----------
+
+// Todas las vistas de la pestaña: M5 con Klastorin, Hillier (beta clásica y red PERT) y la tabla propia; M6 con cada caso,
+// y el cálculo de examen con los cuatro ejemplos (las dos rutas y la paralelización solo existen en M6).
+const UNC_VIEWS = ['um=m5&ue=kl', 'um=m5&ue=hl&uc=1&graph=aoa', 'OWN',
+  'um=m6&ux=exam', 'um=m6&ux=exam&ue=hl', 'um=m6&ux=exam&ue=tr', 'um=m6&ux=exam&ue=pa',
+  'um=m6&ux=merge', 'um=m6&ux=few', 'um=m6&ux=skew', 'um=m6&ux=corr', 'um=m6&ux=proj', 'um=m6&ux=proj&ue=hl'];
+// La tabla propia sale de mover un deslizador de Klastorin: su enlace lleva la tabla en `ut`.
+async function uncOwnHash(lang) {
+  const p = await uncLab(`lang=${lang}`);
+  await p.locator('#uncSl-a').focus();
+  await p.keyboard.press('ArrowRight');
+  await uncAfter(p, () => PNL.unc.state().src.kind === 'own');
+  const hash = await p.evaluate(() => location.hash.slice(1));
+  await close(p);
+  return hash;
+}
+// Abre una vista en la misma página (cambiando el enlace) y espera a que se pinte y, si simula, a que termine.
+async function uncShow(page, hash) {
+  await setHash(page, hash);
+  // Primero el estado de la vista pedida (apartado, ejemplo y caso); después, la simulación de esa vista terminada.
+  await page.waitForFunction((h) => {
+    const q = new URLSearchParams(h); const a = PNL.app.state();
+    return !document.getElementById('uncView').hidden && (q.get('um') || 'm5') === a.um && (q.get('ue') || 'kl') === a.ue && (q.get('ux') || 'exam') === a.ux;
+  }, hash, { timeout: 20000 }).catch(async (e) => { throw new Error(`${hash.slice(0, 80)}: ${JSON.stringify(await page.evaluate(() => { const a = PNL.app.state(); return [a.um, a.ue, a.ux, location.hash.slice(0, 80)]; }))} ${e.message}`); });
+  await page.waitForTimeout(250);
+  await page.waitForFunction(() => { const s = PNL.unc.state(); return s && (!s.sim || s.sim.done); }, null, { timeout: 20000 });
+}
+// Cada gráfico de la pestaña lleva su texto: role="img" con una etiqueta que no está vacía; el histograma, además, su tabla.
+const uncCharts = (page) => page.evaluate(() => [...document.querySelectorAll('#uncView svg')].filter((s) => !s.parentElement.closest('svg'))
+  .map((s) => ({ id: s.parentElement.id || s.id, role: s.getAttribute('role'), label: (s.getAttribute('aria-label') || '').trim(), hidden: s.getAttribute('aria-hidden') === 'true' })));
+
+check('F4a T014 · AC15: axe sin violaciones en claro y oscuro, ES y EN, en M5 y en cada caso de M6; cada gráfico con su texto; a 1280×720, sin desplazamiento horizontal y la cabecera en una fila', async () => {
+  for (const lang of ['es', 'en']) {
+    const own = await uncOwnHash(lang);
+    for (const scheme of ['light', 'dark']) {
+      const page = await uncLab(`lang=${lang}`, { scheme });
+      for (const v of UNC_VIEWS) {
+        const hash = v === 'OWN' ? own : `v=unc&${v}&lang=${lang}`;
+        await uncShow(page, hash);
+        const label = `F4a T014 · ${v} (${lang}, ${scheme})`;
+        await axe(page, label);
+        const charts = await uncCharts(page);
+        assert.ok(charts.length >= 1, `${label}: sin gráfico`);
+        for (const c of charts) assert.ok(c.hidden || (c.role === 'img' && c.label.length > 10), `${label}: el gráfico de #${c.id} no tiene texto (${JSON.stringify(c)})`);
+        // La red se anuncia una sola vez como red (antes, «Red ROY de Red de …»).
+        for (const c of charts) assert.doesNotMatch(c.label, /\b(red|network) (de|of) (red|network)\b/i, `${label}: ${c.label}`);
+        if (v === 'um=m5&ue=kl') {
+          const net = charts.find((c) => c.id === 'uncNet');
+          assert.equal(net.label, lang === 'es' ? 'Red ROY de Proyecto informático de 6 tareas (Klastorin), con las medias como duraciones: 6 actividades'
+            : `Activity-on-node network of ${await page.evaluate(() => PNL.unc.state().src.title)}, with the means as durations: 6 activities`);
+        }
+        if (charts.some((c) => c.id === 'uncSimChart')) assert.equal(await page.locator('#uncBins').count(), 1, `${label}: el histograma sin «Ver como tabla»`);
+        const box = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: window.innerWidth, head: document.querySelector('.site-head').getBoundingClientRect().height }));
+        assert.ok(box.w <= box.vw + 1, `${label}: desplazamiento horizontal (${box.w} px)`);
+        assert.ok(box.head <= 70, `${label}: la cabecera ocupa ${box.head} px`);
+      }
+      await close(page);
+    }
+  }
+});
+
+check('F4a T014 · AC15: a 360 px ninguna vista de la pestaña desplaza la página a lo ancho, en ES y EN', async () => {
+  for (const lang of ['es', 'en']) {
+    const own = await uncOwnHash(lang);
+    const page = await uncLab(`lang=${lang}`, { width: 360, height: 740 });
+    for (const v of UNC_VIEWS) {
+      await uncShow(page, v === 'OWN' ? own : `v=unc&${v}&lang=${lang}`);
+      const w = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: window.innerWidth }));
+      assert.ok(w.w <= w.vw + 1, `${v} (${lang}) a 360 px: ${w.w} px`);
+    }
+    await shot(page, `f4a-t014-360-${lang}`, true);
+    await close(page);
+  }
+});
+
+check('F4a T014 · AC15: con el teclado, los deslizadores de M5 (a ≤ m ≤ b) y de cada caso de M6 se mueven con las flechas, Inicio y Fin, el foco se ve y no se pierde', async () => {
+  const focusOk = (page) => page.evaluate(() => { const cs = getComputedStyle(document.activeElement); return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 2; });
+  // M5: el tabulador llega a a, m y b en orden; cada tecla mueve medio día y respeta a ≤ m ≤ b.
+  const p = await uncLab('lang=es');
+  await p.locator('#uncSl-a').focus();
+  assert.ok(await focusOk(p), 'foco visible en a');
+  for (const id of ['uncSl-m', 'uncSl-b']) { await p.keyboard.press('Tab'); assert.equal(await activeId(p), id); }
+  const val = (id) => p.locator(`#${id}`).inputValue().then(Number);
+  await p.locator('#uncSl-m').focus();
+  const m0 = await val('uncSl-m');
+  await p.keyboard.press('ArrowRight');
+  await uncAfter(p, () => PNL.unc.state().src.kind === 'own');
+  assert.equal(await val('uncSl-m'), m0 + 0.5);
+  assert.equal(await activeId(p), 'uncSl-m', 'el foco sigue en el deslizador tras recalcular');
+  await p.keyboard.press('Home');
+  await p.waitForTimeout(200);
+  assert.equal(await val('uncSl-m'), await val('uncSl-a'), 'm no baja de a');
+  await p.keyboard.press('End');
+  await p.waitForTimeout(200);
+  assert.equal(await val('uncSl-m'), await val('uncSl-b'), 'm no sube de b');
+  assert.ok(await focusOk(p), 'foco visible en m');
+  await close(p);
+  // M6: cada deslizador de cada caso cambia su valor en el enlace y vuelve a simular sin perder el foco.
+  for (const [ux, ids] of [['merge', ['n', 's']], ['few', ['k']], ['skew', ['w']], ['corr', ['r']]]) {
+    const q = await uncLab(`um=m6&ux=${ux}&lang=es`);
+    await simDone(q);
+    for (const k of ids) {
+      const id = `uncK-${k}`;
+      await q.locator(`#${id}`).focus();
+      assert.ok(await focusOk(q), `foco visible en #${id}`);
+      const before = await q.locator(`#${id}`).inputValue();
+      await q.keyboard.press(before === (await q.locator(`#${id}`).getAttribute('max')) ? 'ArrowLeft' : 'ArrowRight');
+      await q.waitForFunction(([x, b]) => new URLSearchParams(location.hash.slice(1)).get('uk') && document.getElementById(x).value !== b, [id, before]);
+      await q.waitForFunction(() => { const s = PNL.unc.state().sim; return s && s.done; }, null, { timeout: 20000 });
+      assert.notEqual(await q.locator(`#${id}`).inputValue(), before, `#${id} no se movió`);
+      assert.match(await hashGet(q, 'uk'), new RegExp(`${k}`), `#${id} no llega al enlace`);
+      assert.equal(await activeId(q), id, `#${id} pierde el foco al simular`);
+    }
+    // «Ver como tabla» se abre y se cierra con el teclado.
+    await q.locator('#uncBins').focus();
+    await q.keyboard.press('Enter');
+    await q.waitForFunction(() => document.getElementById('uncBins').getAttribute('aria-expanded') === 'true');
+    assert.equal(await q.locator('#uncBinsTable tbody tr').count(), 40);
+    assert.equal(await activeId(q), 'uncBins');
+    await close(q);
+  }
+  // Los casos de M6 se eligen con el teclado: Intro en un caso lo abre.
+  const c = await uncLab('um=m6&lang=es');
+  await c.locator('#uncCase-corr').focus();
+  await c.keyboard.press('Enter');
+  await uncAfter(c, () => PNL.app.state().ux === 'corr');
+  await close(c);
+});
+
+check('F4a T014 · AC16: la pestaña con M6 y con «Aprende más» abierto sigue por debajo de 1 MB', async () => {
+  for (const hash of ['v=unc&um=m6&ux=proj&lang=es', 'v=unc&um=m5&ue=kl&lang=en']) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/cpm.html#${hash}`, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => window.PNL && PNL.unc && PNL.unc.state && PNL.unc.state());
+    await page.locator('#uncLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+    console.log(`    cpm.html#${hash} + «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /learn-unc\.js/.test(e.name))), true);
+    assert.ok(bytes <= BUDGET, `${hash} con «Aprende más»: ${bytes} bytes`);
+    await ctx.close();
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

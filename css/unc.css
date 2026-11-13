@@ -36,7 +36,8 @@ table.data.unc-table td.num { text-align: right; }
 table.data.unc-table tr.sel { background: var(--select-soft); }
 table.data.unc-table tr.sel th[scope="row"] { box-shadow: inset 3px 0 0 var(--select); }
 table.data.unc-cmp caption { caption-side: bottom; text-align: left; padding-top: 4px; }
-.unc-scroll { overflow-x: auto; }
+/* position: relative para que lo que solo lee el lector de pantalla (.sr-only) no alargue la página a 360 px (F4a T014). */
+.unc-scroll { overflow-x: auto; position: relative; }
 table.data.unc-own input { width: 100%; min-width: 3em; height: 30px; padding: 0 5px; }
 table.data.unc-own input[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
 table.data.unc-own tr.bad { background: var(--critical-soft); }
