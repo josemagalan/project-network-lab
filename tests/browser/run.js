@@ -5414,6 +5414,51 @@ check('F4a T014 · AC16: la pestaña con M6 y con «Aprende más» abierto sigue
   }
 });
 
+// ---------- F4a, T015: lo que encontró la evidencia ----------
+
+// Tabla propia de la pestaña en el enlace (`ut`).
+const ownUrl = (rows, extra) => U4.encode(Object.assign(U4.defaults(), { v: 'unc', ue: 'own', lang: 'es', ut: { mode: 'pred', rows } }, extra || {})).slice(1);
+const ownRow = (id, a, m, b, links = '') => ({ id, name: '', a: String(a), m: String(m), b: String(b), links });
+const ownStats = (page) => page.locator('#uncOwn tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td[data-out]')].map((td) => td.textContent)));
+
+check('F4a T015 · tabla propia: μ y σ² de cada fila (tₑ con la notación española), «—» con errores y al día mientras se escribe', async () => {
+  const p = await uncLab(ownUrl([ownRow('A', 2, 4, 6), ownRow('B', 1, 4, 9, 'A'), ownRow('D', 3, 3, 3, 'A')]));
+  const heads = await p.locator('#uncOwn thead th').allInnerTexts();
+  assert.deepEqual(heads.slice(6, 8), ['μ', 'σ²']);
+  assert.deepEqual(await ownStats(p), [['4', '0,44'], ['4,33', '1,78'], ['3', '0']]);
+  // Al escribir, la tabla no se rehace (el foco sigue en la casilla) y las cifras cambian en su sitio.
+  await p.locator('#uncT-1-b').fill('13');
+  await uncAfter(p, () => PNL.unc.state().acts.some((a) => a.id === 'B' && Math.abs(a.mean - 5) < 1e-9));
+  assert.equal(await activeId(p), 'uncT-1-b');
+  assert.deepEqual((await ownStats(p))[1], ['5', '4']);
+  // Con un error no se calcula: «—» en todas las filas.
+  await p.locator('#uncT-0-a').fill('5');
+  await uncAfter(p, () => PNL.unc.state().issues.length === 1);
+  assert.deepEqual(await ownStats(p), [['—', '—'], ['—', '—'], ['—', '—']]);
+  await axe(p, 'F4a · M5 · tabla propia con μ y σ²');
+  await close(p);
+  const e = await uncLab(ownUrl([ownRow('A', 2, 4, 6)], { nota: 'es', lang: 'en' }));
+  assert.deepEqual((await e.locator('#uncOwn thead th').allInnerTexts()).slice(6, 8), ['tₑ', 'σ²']);
+  assert.deepEqual(await ownStats(e), [['4', '0.44']]);
+  await close(e);
+  // A 360 px la tabla se desplaza dentro de su región, no la página.
+  const n = await uncLab(ownUrl([ownRow('A', 2, 4, 6), ownRow('B', 1, 4, 9, 'A')]), { width: 360, height: 740 });
+  assert.equal(await n.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'sin desbordar a lo ancho');
+  await close(n);
+});
+
+check('F4a T015 · pista de z en la predicción de M6: con la tabla a dos decimales y sin redondear a cuatro', async () => {
+  const p = await uncLab('um=m6&uw=1&pred=1&step=3&lang=es');
+  assert.match(await predict(p, '0,14'), /Con la tabla, 0,41; sin redondear, 0,4062\./);
+  await close(p);
+  const e = await uncLab('um=m6&uw=1&pred=1&step=3&lang=en');
+  assert.match(await predict(e, '0.14'), /With the table, 0\.41; without rounding, 0\.4062\./);
+  await close(e);
+  const i = await uncLab('um=m6&uw=1&pred=1&up=0.95&step=3&lang=es');
+  assert.match(await predict(i, '1'), /Con la tabla, 1,64; sin redondear, 1,6449\./);
+  await close(i);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

@@ -418,9 +418,10 @@
       const body = rows.map((r, i) => h('tr', { class: bad.has(i) ? 'bad' : '', 'data-row': String(i) }, cols.map(([f, label, size]) => h('td', {}, [h('input', {
         id: `uncT-${i}-${f}`, value: str(r[f]), size: String(size), 'aria-label': tu('cell', { col: label, n: i + 1 }), 'aria-invalid': String(!!(bad.get(i) || []).includes(f)),
         'data-f': f, oninput: typed,
-      })])).concat([h('td', {}, [h('button', { type: 'button', class: 'ghost small-btn', id: `uncDel-${i}`, 'aria-label': tu('removeRow', { n: i + 1 }),
+      })])).concat(['mean', 'var'].map((k) => h('td', { class: 'num', 'data-out': k }, [ownStat(r, k)]))).concat([h('td', {}, [h('button', { type: 'button', class: 'ghost small-btn', id: `uncDel-${i}`, 'aria-label': tu('removeRow', { n: i + 1 }),
         onclick: () => { commit(readOwn().filter((_, j) => j !== i)); focus(i > 0 ? `uncDel-${i - 1}` : 'uncAdd'); } }, ['×'])])])));
-      const head = h('tr', {}, cols.map(([, label]) => h('th', { scope: 'col' }, [label])).concat([h('th', { scope: 'col' }, [h('span', { class: 'sr-only' }, [tu('removeRow', { n: '' }).trim()])])]));
+      const head = h('tr', {}, cols.map(([, label]) => h('th', { scope: 'col' }, [label])).concat([L5.mean, L5.var].map((label) => h('th', { scope: 'col' }, [label])))
+        .concat([h('th', { scope: 'col' }, [h('span', { class: 'sr-only' }, [tu('removeRow', { n: '' }).trim()])])]));
       const mode = h('fieldset', { class: 'unc-mode' }, [h('legend', {}, [t('work.modeLegend')])].concat(['pred', 'succ'].map((k) => h('label', {}, [
         h('input', { type: 'radio', name: 'uncMode', id: `uncMode-${k}`, value: k, checked: m.src.mode === k, onchange: () => switchMode(k) }), ' ', t(k === 'pred' ? 'work.modePred' : 'work.modeSucc')]))));
       const area = h('textarea', { id: 'uncPasteText', rows: '4', 'aria-describedby': 'uncPasteHint' });
@@ -446,12 +447,18 @@
         return r;
       });
     }
+    // μ y σ² de examen de una fila de la tabla propia (T015); «—» mientras haya errores o si la fila no tiene actividad.
+    function ownStat(r, k) {
+      const a = m.model && !m.issues.length ? m.acts.find((x) => x.id === str(r.id).trim()) : null;
+      return a ? num(a[k]) : '—';
+    }
     function markOwn() {
       const bad = badMap();
       for (const tr of container.querySelectorAll('#uncOwn tbody tr')) {
         const i = Number(tr.getAttribute('data-row'));
         tr.classList.toggle('bad', bad.has(i));
         for (const inp of tr.querySelectorAll('input[data-f]')) inp.setAttribute('aria-invalid', String((bad.get(i) || []).includes(inp.getAttribute('data-f'))));
+        for (const td of tr.querySelectorAll('td[data-out]')) td.textContent = ownStat(m.src.rows[i] || {}, td.getAttribute('data-out'));
       }
     }
     function switchMode(mode) {
@@ -665,7 +672,7 @@
       const given = pred.answers.get(key);
       const parts = [h('strong', {}, [tu(res === 'ok' ? 'walk.ok' : 'walk.wrong')]), ' '];
       if (res !== 'ok') {
-        parts.push(rv.alt != null ? tu('walk.answerAlt', { t: fx(rv.alt, rv.field === 'unc.p' ? 4 : 2), v: fx(rv.value, rv.field === 'unc.p' ? 4 : 2) }) : tu('walk.answer', { v: fx(rv.value, 2) }), ' ');
+        parts.push(rv.alt != null ? tu('walk.answerAlt', { t: fx(rv.alt, rv.field === 'unc.p' ? 4 : 2), v: fx(rv.value, rv.field === 'unc.p' || rv.field === 'unc.z' ? 4 : 2) }) : tu('walk.answer', { v: fx(rv.value, 2) }), ' ');
         const hk = hint(step, given, m);
         if (hk) {
           const a = m.acts.find((q) => q.id === step.act);
