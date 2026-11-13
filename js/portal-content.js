@@ -37,10 +37,10 @@
       m4Topics: 'Total · Libre · Independiente · Gantt', m4Open: 'Abrir holguras',
       m5Question: '¿Y si no sabemos cuánto dura?', m5Title: 'PERT de tres tiempos',
       m5Desc: 'Duraciones optimista, más probable y pesimista. De dónde salen la media y la varianza de cada actividad, y qué supone la beta.',
-      m5Topics: 'a · m · b · Media · Varianza',
+      m5Topics: 'a · m · b · Media · Varianza', m5Open: 'Abrir tres tiempos',
       m6Question: '¿Cuánto nos fiamos de la normal?', m6Title: 'El TCL y sus trampas',
       m6Desc: 'La probabilidad de terminar a tiempo según el teorema central del límite, y por qué mirar solo el camino crítico medio subestima el riesgo.',
-      m6Topics: 'Normal · Sesgo de fusión · Caminos casi críticos',
+      m6Topics: 'Normal · Sesgo de fusión · Caminos casi críticos', m6Open: 'Explorar el TCL',
       m7Question: '¿Qué actividad importa de verdad?', m7Title: 'Montecarlo e índices',
       m7Desc: 'Simula miles de veces el proyecto y mide con qué frecuencia es crítica cada actividad y cuánto influye en la duración total.',
       m7Topics: 'Simulación · Índice de criticidad · Crucialidad',
@@ -115,10 +115,10 @@
       m4Topics: 'Total · Free · Independent · Gantt', m4Open: 'Open floats',
       m5Question: 'What if we do not know how long it takes?', m5Title: 'Three-point PERT',
       m5Desc: 'Optimistic, most likely and pessimistic durations. Where each activity’s mean and variance come from, and what the beta assumption implies.',
-      m5Topics: 'a · m · b · Mean · Variance',
+      m5Topics: 'a · m · b · Mean · Variance', m5Open: 'Open three-point estimates',
       m6Question: 'How far can we trust the normal?', m6Title: 'The CLT and its pitfalls',
       m6Desc: 'The probability of finishing on time according to the central limit theorem, and why looking only at the mean critical path underestimates the risk.',
-      m6Topics: 'Normal · Merge bias · Near-critical paths',
+      m6Topics: 'Normal · Merge bias · Near-critical paths', m6Open: 'Explore the CLT',
       m7Question: 'Which activity really matters?', m7Title: 'Monte Carlo and indices',
       m7Desc: 'Simulate the project thousands of times and measure how often each activity is critical and how much it drives the total duration.',
       m7Topics: 'Simulation · Criticality index · Cruciality',
@@ -181,7 +181,7 @@
   // semilla: la elige la interfaz al abrir.
   const TARGETS = {
     m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
-    m4: 'v=route&ex=ej6&step=26', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle',
+    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle',
   };
 
   function labHref(target, lang) {

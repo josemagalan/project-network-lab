@@ -66,14 +66,36 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
   assert.throws(() => labHref('m1', 'fr'));
 });
 
-test('ocho módulos, cinco de ellos disponibles; ids únicos y anclas que existen', () => {
+test('ocho módulos, siete de ellos disponibles; ids únicos y anclas que existen', () => {
   assert.equal((html.match(/class="module-card tone-/g) || []).length, 8);
   for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 8, 'M0, M1, M2, M3, M4, el taller, los ejercicios generados y el banco de Moodle');
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 10, 'M0–M6, el taller, los ejercicios generados y el banco de Moodle');
   assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 0, 'la fase 2 ya no tiene nada en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
   for (const m of html.matchAll(/href="#([^"]+)"/g)) assert.ok(ids.includes(m[1]), m[1]);
+});
+
+test('F4a T013: M5 y M6 disponibles abren su apartado en ambos idiomas; M7 sigue pendiente', () => {
+  for (const target of ['m5', 'm6']) {
+    for (const lang of ['es', 'en']) {
+      const { state, warning } = U.decode('#' + labHref(target, lang).split('#')[1]);
+      assert.equal(warning, undefined);
+      assert.deepEqual([state.v, state.um, state.lang], ['unc', target, lang]);
+    }
+    const card = [...html.matchAll(/<article\b[\s\S]*?<\/article>/g)].map((m) => m[0]).find((s) => s.includes(`>${target.toUpperCase()}</span>`));
+    assert.match(card, /data-i18n="available"/);
+    assert.ok(card.includes(`data-lab="${target}"`));
+    assert.doesNotMatch(card, /tone-soon|soonPhase4/);
+  }
+  assert.equal((html.match(/data-i18n="soonPhase4"/g) || []).length, 1);
+});
+
+test('F4a T013: la barra publica Duraciones inciertas entre Taller y Ejercicios', () => {
+  const lab = fs.readFileSync(path.join(ROOT, 'cpm.html'), 'utf8');
+  const nav = lab.match(/<nav\b[\s\S]*?<\/nav>/)[0];
+  assert.deepEqual([...nav.matchAll(/id="(nav\w+)"/g)].map((m) => m[1]), ['navM0', 'navRoute', 'navWork', 'navUnc', 'navEx']);
+  assert.doesNotMatch(nav, /\bhidden\b/);
 });
 
 test('scripts, estilos, iconos y logotipos son locales y existen; sin CDN ni innerHTML', () => {

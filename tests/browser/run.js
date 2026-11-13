@@ -78,6 +78,13 @@ const close = (page) => page.context().close();
 const lab = (hash, opts) => open(`cpm.html#${hash}`, opts);
 const state = (page) => page.evaluate(() => PNL.app.state());
 const step = (page) => page.evaluate(() => PNL.app.step());
+// F4a (T013): Idioma, Notación y Caja van en el desplegable «Ajustes»: se abre, se elige y se cierra, como haría el usuario.
+async function setCtl(page, sel, value) {
+  const s = page.locator('#settings');
+  if (!(await s.evaluate((d) => d.open))) await s.locator('summary').click();
+  await page.selectOption(sel, value);
+  if (await s.evaluate((d) => d.open)) await s.locator('summary').click();
+}
 const go = (page, n) => page.evaluate((k) => PNL.app.go(k), n);
 const visible = (page, sel) => page.locator(sel).first().isVisible();
 const trace = (page) => page.evaluate(() => PNL.app.model().solution.trace.map((s) => ({ kind: s.kind, act: s.act, fields: s.reveals.map((r) => r.field) })));
@@ -246,7 +253,7 @@ check('AC7 · mientras se predice, ni la red, ni la matriz, ni el texto delatan 
   assert.ok(!(await page.locator('#btnNext').isDisabled()));
   // Lo mismo en un paso de la pasada hacia atrás (A: LF = mín{LS(D), LS(E)}), en inglés y en la matriz (ronda 2, H1).
   const kb = (await trace(page)).findIndex((s) => s.kind === 'backward' && s.act === 'B');
-  await page.selectOption('#selLang', 'en');
+  await setCtl(page, '#selLang', 'en');
   await go(page, kb);
   assert.ok(await page.locator('#btnNext').isDisabled(), 'predicción activa en el paso hacia atrás');
   assert.equal(await page.locator('#netView .chosen').count(), 0, 'hacia atrás: ninguna flecha marcada');
@@ -675,9 +682,9 @@ check('AC8 · el enlace copiado reproduce el mismo estado en otro navegador', as
   const page = await lab('v=route&ex=roy10&step=0&lang=es');
   for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
   await page.locator('#btnMatrix').click();
-  await page.selectOption('#selNota', 'es');
-  await page.selectOption('#selBox', '4');
-  await page.selectOption('#selLang', 'en');
+  await setCtl(page, '#selNota', 'es');
+  await setCtl(page, '#selBox', '4');
+  await setCtl(page, '#selLang', 'en');
   const before = await state(page);
   const url = page.url();
   await close(page);
@@ -878,7 +885,7 @@ check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () =
   const corpus = corpusOf;
   assert.ok(foreign.es.filter((s) => s.length < 10).length > 20, 'quedan trozos cortos que vigilar');
   for (const [lang, other] of [['en', 'es'], ['es', 'en']]) {
-    await page.selectOption('#selLang', lang);
+    await setCtl(page, '#selLang', lang);
     for (const n of [0, 2, 14, 26, 29, 31]) {
       await go(page, n);
       for (const view of ['#btnNet', '#btnMatrix']) {
@@ -892,7 +899,7 @@ check('AC9 · al cambiar de idioma no queda ninguna cadena del otro', async () =
   }
   await page.locator('#navWork').click();
   for (const [lang, other] of [['en', 'es'], ['es', 'en']]) {
-    await page.selectOption('#selLang', lang);
+    await setCtl(page, '#selLang', lang);
     const text = await corpus(page);
     assert.deepEqual(foreign[other].filter((s) => found(text, s)), [], `taller en ${lang}`);
   }
@@ -910,7 +917,7 @@ check('AC10 · la notación española cambia las etiquetas y no los valores', as
     return { head: [...t.querySelectorAll('thead th')].map((e) => e.textContent), body: [...t.querySelectorAll('tbody tr')].map((r) => r.textContent) };
   });
   const en = await read();
-  await page.selectOption('#selNota', 'es');
+  await setCtl(page, '#selNota', 'es');
   const es = await read();
   assert.deepEqual(es.body, en.body);
   for (const l of ['tᵢ', 'fᵢ', 'tᵢ*', 'fᵢ*', 'HT', 'HL', 'HI', 'HS']) assert.ok(es.head.includes(l), `falta ${l}`);
@@ -936,7 +943,7 @@ check('AC17 · los tres formatos de caja muestran sus campos con los mismos valo
   const fields = { 7: 6, 4: 3, c: 3 };
   const seen = {};
   for (const box of ['7', '4', 'c']) {
-    await page.selectOption('#selBox', box);
+    await setCtl(page, '#selBox', box);
     seen[box] = await read();
     assert.equal(Object.keys(seen[box]).length, n, `caja ${box}: una caja por actividad`);
     for (const v of Object.values(seen[box])) assert.equal(Object.keys(v).length, fields[box], `caja ${box}`);
@@ -986,9 +993,17 @@ check('AC14 · con el teclado se alcanza todo, el foco se ve y cada red tiene su
     if (f.id) reached.add(f.id);
     assert.ok(f.style !== 'none' && f.w >= 2, `foco invisible en #${f.id}`);
   }
-  for (const id of ['brandLink', 'navM0', 'navRoute', 'navWork', 'selLang', 'selNota', 'selBox', 'btnNet', 'btnMatrix', 'btnTable', 'chkPredict', 'btnWhatIf', 'btnLearn', 'btnNext', 'btnPlay']) {
+  for (const id of ['brandLink', 'navM0', 'navRoute', 'navWork', 'navUnc', 'navEx', 'settingsBtn', 'btnNet', 'btnMatrix', 'btnTable', 'chkPredict', 'btnWhatIf', 'btnLearn', 'btnNext', 'btnPlay']) {
     assert.ok(reached.has(id), `#${id} no se alcanza con Tab`);
   }
+  // F4a (T013): Idioma, Notación y Caja están en «Ajustes»: abierto con Intro, el tabulador los recorre en orden.
+  await page.locator('#settingsBtn').focus();
+  await page.keyboard.press('Enter');
+  for (const id of ['selLang', 'selNota', 'selBox']) {
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.activeElement.id), id, `#${id} no se alcanza con Tab dentro de «Ajustes»`);
+  }
+  await page.keyboard.press('Escape');
   await page.locator('#btnTable').focus();
   await page.keyboard.press('Enter');
   const rows = await page.locator('#altTable table tbody tr').count();
@@ -2263,7 +2278,7 @@ check('F2c AC17 · cambio de idioma: el texto y los subrayados pasan al otro idi
   await close(probe);
   const rows = [R('A', 3), R('D', 7, 'A')];
   const page = await m0Lab({ t: rows, mk: [{ from: 0, to: 1, kind: 'none' }, markOf({ from: fr.aA.from - 1, to: fr.aA.to }, 'activity', { act: 'A' }), markOf(fr.dD, 'duration', { act: 'D', value: 7 })] });
-  await page.selectOption('#selLang', 'en');
+  await setCtl(page, '#selLang', 'en');
   await page.waitForFunction(() => PNL.app.state().lang === 'en');
   const en = await fragsOf(page, 'ej5', 'en');
   const s = await m0st(page);
@@ -2277,7 +2292,7 @@ check('F2c AC17 · cambio de idioma: el texto y los subrayados pasan al otro idi
   // Ninguna cadena del español en la vista en inglés, ni al revés.
   const foreign = await foreignPieces(page);
   for (const [lang, other] of [['en', 'es'], ['es', 'en']]) {
-    await page.selectOption('#selLang', lang);
+    await setCtl(page, '#selLang', lang);
     for (const tv of [0, 1]) {
       await m0Seg(page, tv).click();
       const text = await corpusOf(page);
@@ -2455,7 +2470,7 @@ check('F2c T020 · P10: la pestaña «Del enunciado a la tabla» va la primera d
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
     const tabs = await page.locator('header nav a:visible').allInnerTexts();
     assert.deepEqual(tabs.map((x) => x.trim())[0], label);
-    assert.equal(tabs.length, 4, 'con «Ejercicios» (F3a, T017)');
+    assert.equal(tabs.length, 5, 'con «Duraciones inciertas» (F4a, T013)');
     assert.equal(await page.locator('#navM0').getAttribute('aria-current'), 'false');
     await page.locator('#navM0').click();
     await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0.state().st);
@@ -2621,7 +2636,7 @@ for (const lang of ['es', 'en']) {
     assert.deepEqual([again.mm, again.own, again.t, again.mk], [prep.mm, prep.own, prep.t, prep.mk]);
     if (es) {
       // La interfaz cambia de idioma y el enunciado propio sigue en el suyo, con sus subrayados.
-      await page.selectOption('#selLang', 'en');
+      await setCtl(page, '#selLang', 'en');
       await page.waitForFunction(() => PNL.app.state().lang === 'en');
       const s = await state(page);
       assert.deepEqual([s.own.lang, s.mk], ['es', prep.mk]);
@@ -3647,7 +3662,7 @@ check('F3a P10 · un enlace pegado carga lo que falta: M0 desde «Ejercicios» y
 // ---------- F3a, T017: publicación (pestaña, barra, portada y «Tabla al azar» visible) ----------
 
 check('F3a T017 · P11: la pestaña «Ejercicios» va la última de la barra, abre un ejercicio con semilla y «Atrás» vuelve', async () => {
-  for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Exercises']]]) {
+  for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Duraciones inciertas', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Uncertain durations', 'Exercises']]]) {
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
     assert.deepEqual((await page.locator('header nav a:visible').allInnerTexts()).map((x) => x.trim()), labels);
     assert.equal(await page.locator('#navEx').getAttribute('aria-current'), 'false');
@@ -3682,13 +3697,13 @@ check('F3a T017 · P11: la pestaña «Ejercicios» va la última de la barra, ab
   }
 });
 
-check('F3a T017 · la barra con cuatro pestañas: a 1280 px la cabecera cabe en una fila; a 360 px las pestañas pasan a dos filas sin desbordar', async () => {
+check('F3a T017 · la barra con cinco pestañas: a 1280 px la cabecera cabe en una fila; a 360 px las pestañas pasan a tres filas como mucho sin desbordar', async () => {
   for (const lang of ['es', 'en']) {
-    for (const hash of ['v=route&ex=ej6&step=0', 'v=work', 'v=m0&st=ej5', 'v=ex&sd=14844']) {
+    for (const hash of ['v=route&ex=ej6&step=0', 'v=work', 'v=m0&st=ej5', 'v=ex&sd=14844', 'v=unc&um=m5', 'v=unc&um=m6', 'v=moodle']) {
       const page = await lab(`${hash}&lang=${lang}`);
       const head = await page.evaluate(() => {
         const r = (el) => el.getBoundingClientRect();
-        const tops = [document.querySelector('.brand'), document.querySelector('.tabs'), document.querySelector('.controls')].map((el) => Math.round(r(el).top + r(el).height / 2));
+        const tops = [document.querySelector('.brand'), document.querySelector('.tabs'), document.querySelector('.settings')].map((el) => Math.round(r(el).top + r(el).height / 2));
         return { h: r(document.querySelector('.site-head')).height, tops };
       });
       assert.ok(head.h <= 70, `${lang} ${hash}: la cabecera ocupa ${head.h} px`);
@@ -3697,13 +3712,14 @@ check('F3a T017 · la barra con cuatro pestañas: a 1280 px la cabecera cabe en 
     }
     const page = await lab(`v=ex&sd=14844&lang=${lang}`, { width: 360, height: 740 });
     const bar = await page.evaluate(() => {
-      const links = [...document.querySelectorAll('.tabs a:not([hidden])')].map((a) => a.getBoundingClientRect());   // F4a: la pestaña oculta hasta T013 no cuenta
+      const links = [...document.querySelectorAll('.tabs a:not([hidden])')].map((a) => a.getBoundingClientRect());
       const lh = parseFloat(getComputedStyle(document.querySelector('.tabs a')).lineHeight) || 20;
       return { w: document.documentElement.scrollWidth, right: Math.max(...links.map((x) => x.right)), rows: new Set(links.map((x) => Math.round(x.top))).size,
         lines: links.map((x) => Math.round((x.height - 16) / lh)) };
     });
     assert.ok(bar.w <= 360 && bar.right <= 360, `${lang} 360 px: ${JSON.stringify(bar)}`);
-    assert.ok(bar.rows <= 2, `${lang} 360 px: ${bar.rows} filas de pestañas`);
+    // F4a (T013): con cinco pestañas, a 360 px caben en tres filas como mucho (boceto de «Ajustes» aprobado); en inglés no caben en dos.
+    assert.ok(bar.rows <= 3, `${lang} 360 px: ${bar.rows} filas de pestañas`);
     assert.ok(bar.lines.every((n) => n <= 1), `${lang} 360 px: alguna pestaña se parte (${bar.lines})`);
     await shot(page, `f3a-barra-360-${lang}`);
     await close(page);
@@ -3816,7 +3832,7 @@ check('F3b AC8 · v=moodle: título, resumen y vista previa igual al modelo del 
     assert.equal(await page.locator('.mq-qname').textContent(), st.preview.name);
     assert.equal(await page.locator('.mq-preview input.mq-hole').count(), Object.keys(st.preview.answers).length);
     assert.equal(await page.locator('#stage').isVisible(), false);
-    assert.equal(await page.locator('#selBox').isVisible(), false);
+    assert.equal(await page.locator('#selBox').evaluate((s) => s.closest('label').hidden), true);   // F4a (T013): el selector va en «Ajustes»
     await close(page);
   }
 });
@@ -3913,7 +3929,7 @@ check('F3b AC13 · entradas: la tarjeta de la portada y el «Aprende más» de �
 check('F3b AC8 · cambiar la notación rehace la vista previa y conserva la selección', async () => {
   const page = await mqOpen('es');
   await mqSelect(page, ['3 ·'], ['Difícil'], 7);
-  await page.locator('#selNota').selectOption('es');
+  await setCtl(page, '#selNota', 'es');
   await page.waitForFunction(() => [...document.querySelectorAll('.mq-preview th')].some((th) => th.textContent === 'HT'));
   const st = await mq(page);
   assert.deepEqual(st.sel.stages, ['floats']); assert.deepEqual(st.sel.levels, ['hard']); assert.equal(st.sel.count, 7);
@@ -3972,7 +3988,7 @@ check('F3b T016 · ejemplares acotados de 1 a 50 y botón desactivado sin selecc
 
 check('F3b T016 AC3 y AC8 · el banco descargado va en el idioma y la notación de la página, con la holgura de seguridad marcada', async () => {
   const page = await mqOpen('en');
-  await page.locator('#selNota').selectOption('es');
+  await setCtl(page, '#selNota', 'es');
   await mqSelect(page, ['3 ·'], ['Easy'], 1);
   await page.locator('#mqView .mq-check', { hasText: 'safety float' }).locator('input').check();
   assert.ok((await mq(page)).sel.sf);
@@ -4014,7 +4030,7 @@ check('F3b T016 AC10 · el estado dice qué categorías se quedan cortas y sigue
   await page.waitForFunction(() => /^Descargado/.test(document.querySelector('.mq-status').textContent));
   assert.match(await page.locator('.mq-status').textContent(),
     /: 6 preguntas, semilla del banco \d+\. No se han encontrado bastantes ejemplares distintos para: 1 · Tiempos tempranos, Fácil \(3 de 5\); 1 · Tiempos tempranos, Media \(3 de 5\)\.$/);
-  await page.locator('#selLang').selectOption('en');
+  await setCtl(page, '#selLang', 'en');
   await page.waitForFunction(() => /^Downloaded banco-redes-/.test(document.querySelector('.mq-status').textContent));
   assert.match(await page.locator('.mq-status').textContent(),
     /: 6 questions, bank seed \d+\. Not enough distinct instances were found for: 1 · Early times, Easy \(3 of 5\); 1 · Early times, Medium \(3 of 5\)\.$/);
@@ -4050,7 +4066,7 @@ check('F3b T016 · cambiar de idioma o salir de la vista mientras se genera la c
   const page = await mqOpen('es');
   let downloaded = false; page.on('download', () => { downloaded = true; });
   await mqBig(page, ['Fácil', 'Media', 'Difícil']);
-  await page.locator('#selLang').selectOption('en');
+  await setCtl(page, '#selLang', 'en');
   await page.waitForFunction(() => document.querySelector('.mq-status').textContent === 'Generation cancelled: nothing was downloaded.');
   assert.equal((await mq(page)).running, false);
   // Salir a la ruta guiada con un banco en marcha: la vista se oculta, la caja del nodo vuelve y nada se descarga.
@@ -4058,7 +4074,7 @@ check('F3b T016 · cambiar de idioma o salir de la vista mientras se genera la c
   await page.locator('#navRoute').click();
   await page.waitForFunction(() => PNL.app.state().v === 'route');
   assert.equal(await page.locator('#mqView').isVisible(), false);
-  assert.equal(await page.locator('#selBox').isVisible(), true);
+  assert.equal(await page.locator('#selBox').evaluate((s) => s.closest('label').hidden), false);
   assert.equal((await mq(page)).running, false);
   await page.waitForTimeout(1500);
   assert.equal(downloaded, false);
@@ -4071,7 +4087,7 @@ check('F3b T016 · cambiar de idioma o salir de la vista mientras se genera la c
 
 check('F3b T016 AC13 · el «Aprende más» de «Ejercicios» en inglés abre el exportador en inglés y con la notación elegida', async () => {
   const page = await lab(exUrl({ sd: 14844, lang: 'en' }).replace('cpm.html#', ''));
-  await page.locator('#selNota').selectOption('es');
+  await setCtl(page, '#selNota', 'es');
   await page.locator('#exLearn').click();
   await page.locator('#exLearnMoodle').click();
   await page.waitForFunction(() => PNL.app.state().v === 'moodle' && PNL.moodlePage && PNL.moodlePage.state);
@@ -4170,7 +4186,7 @@ check('F3c AC7 · con un enunciado al azar, «Comprobar» y la ruta paso a paso 
   await p.waitForFunction(() => PNL.m0.state && PNL.m0.state().gen);
   const es = await genFrags(p, 'es');
   await underline(p, es.aB.from, es.aB.to, { kind: 'activity' });
-  await p.selectOption('#selLang', 'en');
+  await setCtl(p, '#selLang', 'en');
   await p.waitForFunction(() => PNL.app.state().lang === 'en');
   const en = await genFrags(p, 'en');
   const mk = (await m0st(p)).marks;
@@ -4284,7 +4300,7 @@ check('F3c P8 y T013 · «Ejercicios» ofrece el enunciado (marcarlo lo pone); c
   assert.equal(await loaded(p, /stmtgen\.js/), true);
   await close(p);
   const c = await exLab({ sd: 14844, lv: 'custom', gp: { n: [12, 16], pred: 2, dummies: [3, 5], critical: [2, 3], dmax: 15 } });
-  await c.selectOption('#selLang', 'en');
+  await setCtl(c, '#selLang', 'en');
   await c.waitForFunction(() => document.getElementById('exText'));
   assert.equal(await c.locator('#exText').isDisabled(), true);
   assert.match(await c.locator('#exTextOff').innerText(), /Customise/);
@@ -4323,7 +4339,7 @@ const xmlOf = async (dl) => fs.readFileSync(await dl.path(), 'utf8');
 check('F3c P6 · sin publicar (stmtPublic falso), el exportador no ofrece la etapa 0 ni la mete en el banco; el banco carga el generador de enunciados', async () => {
   const p = await mqOpen('en');
   await p.evaluate(() => { PNL.moodlePage.stmtPublic = false; });
-  await p.selectOption('#selLang', 'es');
+  await setCtl(p, '#selLang', 'es');
   await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'early');
   const labels = await p.$$eval('#mqView .mq-stages .mq-check', (ls) => ls.map((l) => l.textContent));
   assert.equal(labels.length, 7);
@@ -4670,9 +4686,9 @@ const uncSt = (page) => page.evaluate(() => PNL.unc.state());
 const hashGet = (page, k) => page.evaluate((key) => new URLSearchParams(location.hash.slice(1)).get(key), k);
 const uncAfter = (page, fn) => page.waitForFunction(fn);
 
-check('F4a T009 · M5 con Klastorin: medias, varianzas, camino crítico de las medias, curva y red, sin la pestaña a la vista', async () => {
+check('F4a T009 · M5 con Klastorin: medias, varianzas, camino crítico de las medias, curva y red, con la pestaña publicada', async () => {
   const p = await uncLab('lang=es');
-  assert.equal(await p.locator('#navUnc').isVisible(), false, 'la pestaña sigue oculta hasta T013');
+  assert.equal(await p.locator('#navUnc').isVisible(), true, 'pestaña publicada en T013');
   assert.equal(await p.locator('#stage').isVisible(), false);
   assert.equal(await p.locator('#workshop').isVisible(), false);
   const st = await uncSt(p);
@@ -5181,6 +5197,73 @@ check('Contador · sin respuesta de GoatCounter no aparece y la portada funciona
   assert.equal(await page.locator('button[data-lang="en"]').isEnabled(), true, 'el cambio de idioma sigue activo');
   assert.deepEqual(errs, []);
   await ctx.close();
+});
+
+
+check('F4a T013 · portada y pestaña abren M5 y M6 en ES y EN', async () => {
+  const noJs = await open('index.html', { js: false });
+  for (const um of ['m5', 'm6']) assert.equal(await noJs.locator(`a[data-lab="${um}"]`).getAttribute('href'), `cpm.html#v=unc&um=${um}&lang=es`);
+  await close(noJs);
+  for (const lang of ['es', 'en']) {
+    for (const um of ['m5', 'm6']) {
+      const p = await open(`index.html?lang=${lang}`);
+      const card = p.locator('article').filter({ has: p.locator(`a[data-lab="${um}"]`) });
+      assert.equal(await card.locator('.ok').innerText(), lang === 'es' ? 'Disponible' : 'Available');
+      await card.locator('a').click();
+      await p.waitForFunction(() => window.PNL && PNL.unc && PNL.unc.state && PNL.unc.state());
+      assert.deepEqual([(await state(p)).v, (await state(p)).um, (await state(p)).lang], ['unc', um, lang]);
+      assert.equal(await p.locator('#navUnc').getAttribute('aria-current'), 'page');
+      await close(p);
+    }
+    const p = await lab(`v=work&lang=${lang}`);
+    assert.equal(await p.evaluate(() => !!PNL.unc), false);
+    await p.locator('#navUnc').focus();
+    await p.keyboard.press('Enter');
+    await p.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state());
+    assert.equal((await state(p)).v, 'unc');
+    await p.goBack();
+    await p.waitForFunction(() => PNL.app.state().v === 'work');
+    await close(p);
+  }
+});
+
+check('F4a T013 · «Ajustes»: cerrado al abrir; se abre con el ratón y con el teclado, Esc lo cierra y devuelve el foco, pulsar fuera lo cierra; axe con el panel abierto', async () => {
+  for (const [lang, label] of [['es', 'Ajustes'], ['en', 'Settings']]) {
+    for (const scheme of ['light', 'dark']) {
+      const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`, { scheme });
+      const s = page.locator('#settings');
+      const sum = s.locator('summary');
+      assert.equal((await sum.innerText()).replace('▾', '').trim(), label);
+      assert.equal(await s.evaluate((d) => d.open), false);
+      assert.equal(await page.locator('#selLang').isVisible(), false);
+      // Con el teclado: Intro abre; la barra espaciadora también, sin poner en marcha la ruta guiada.
+      await sum.focus();
+      await page.keyboard.press('Enter');
+      assert.equal(await s.evaluate((d) => d.open), true);
+      for (const id of ['#selLang', '#selNota', '#selBox']) assert.equal(await page.locator(id).isVisible(), true, id);
+      await axe(page, `Ajustes abierto (${lang}, ${scheme})`);
+      await page.keyboard.press('Escape');
+      assert.equal(await s.evaluate((d) => d.open), false);
+      assert.equal(await page.evaluate(() => document.activeElement.tagName), 'SUMMARY');
+      const before = (await state(page)).step;
+      await page.keyboard.press(' ');
+      assert.equal(await s.evaluate((d) => d.open), true);
+      await page.waitForTimeout(1500);
+      assert.equal((await state(page)).step, before, 'la barra espaciadora en «Ajustes» no reproduce la ruta');
+      // Pulsar fuera lo cierra; un cambio dentro se aplica y queda en el enlace.
+      await page.mouse.click(400, 400);
+      assert.equal(await s.evaluate((d) => d.open), false);
+      await setCtl(page, '#selNota', 'es');
+      assert.equal((await state(page)).nota, 'es');
+      await close(page);
+    }
+  }
+  // A 360 px el panel abierto no desborda la página.
+  const page = await lab('v=unc&um=m5&lang=es', { width: 360, height: 740 });
+  await page.locator('#settings summary').click();
+  const box = await page.locator('#settingsPanel').evaluate((el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right, w: document.documentElement.scrollWidth }; });
+  assert.ok(box.l >= 0 && box.r <= 360 && box.w <= 360, JSON.stringify(box));
+  await close(page);
 });
 
 // ---------- Principio 27: presupuesto de 1 MB ----------

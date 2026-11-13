@@ -18,17 +18,20 @@
       <a href="#" id="navM0" data-i18n="nav.m0">Del enunciado a la tabla</a>
       <a href="#" id="navRoute" data-i18n="nav.route">Ruta guiada</a>
       <a href="#" id="navWork" data-i18n="nav.work">Taller</a>
+      <a href="#" id="navUnc" data-i18n="nav.unc">Duraciones inciertas</a>
       <a href="#" id="navEx" data-i18n="nav.ex">Ejercicios</a>
-      <a href="#" id="navUnc" data-i18n="nav.unc" hidden>Duraciones inciertas</a>
     </nav>
-    <div class="controls">
-      <label><span data-i18n="ctl.lang">Idioma</span>
-        <select id="selLang"><option value="es">ES</option><option value="en">EN</option></select></label>
-      <label><span data-i18n="ctl.nota">Notación</span>
-        <select id="selNota"><option value="en" data-i18n="ctl.notaEn">ES · EF · LS · LF</option><option value="es" data-i18n="ctl.notaEs">tᵢ · fᵢ · tᵢ* · fᵢ*</option></select></label>
-      <label><span data-i18n="ctl.box">Caja</span>
-        <select id="selBox"><option value="7" data-i18n="ctl.box7">7 campos</option><option value="4" data-i18n="ctl.box4">4 campos</option><option value="c" data-i18n="ctl.boxc">Compacta</option></select></label>
-    </div>
+    <details class="settings" id="settings">
+      <summary id="settingsBtn"><svg class="gear" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg><span data-i18n="ctl.settings">Ajustes</span><span class="chev" aria-hidden="true">▾</span></summary>
+      <div class="controls" id="settingsPanel">
+        <label><span data-i18n="ctl.lang">Idioma</span>
+          <select id="selLang"><option value="es">ES</option><option value="en">EN</option></select></label>
+        <label><span data-i18n="ctl.nota">Notación</span>
+          <select id="selNota"><option value="en" data-i18n="ctl.notaEn">ES · EF · LS · LF</option><option value="es" data-i18n="ctl.notaEs">tᵢ · fᵢ · tᵢ* · fᵢ*</option></select></label>
+        <label><span data-i18n="ctl.box">Caja</span>
+          <select id="selBox"><option value="7" data-i18n="ctl.box7">7 campos</option><option value="4" data-i18n="ctl.box4">4 campos</option><option value="c" data-i18n="ctl.boxc">Compacta</option></select></label>
+      </div>
+    </details>
   </header>
 
   <main id="main" tabindex="-1">

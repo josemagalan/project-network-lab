@@ -47,7 +47,7 @@
   let exc = null;           // controlador de «Ejercicios» (F3a)
   let mqc = null;           // controlador del exportador de Moodle (F3b)
   let uncc = null;          // controlador de «Duraciones inciertas» (F4a)
-  const UNC_PUBLIC = false; // F4a: la pestaña se publica en T013
+  const UNC_PUBLIC = true;  // F4a: la pestaña se publica en T013
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
   // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al
@@ -1031,6 +1031,15 @@
     $('navUnc').addEventListener('click', (e) => { e.preventDefault(); toUnc(); });
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
+    // F4a (T013): el desplegable «Ajustes» se cierra con Esc (el foco vuelve a su botón) y al pulsar fuera de él.
+    const settings = $('settings');
+    settings.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !settings.open) return;
+      e.stopPropagation();
+      settings.open = false;
+      settings.querySelector('summary').focus();
+    });
+    document.addEventListener('pointerdown', (e) => { if (settings.open && !settings.contains(e.target)) settings.open = false; });
     document.addEventListener('keydown', (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
       const m0Route = state.v === 'm0' && state.mm === 'route';
@@ -1039,7 +1048,7 @@
       if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route && !uncRoute) || !$('cmpView').hidden || !$('retoView').hidden) return;
       // El texto en modo «Subrayar» y la matriz de M0 usan las flechas para moverse (F2c, plan §0).
       if (e.target.closest && e.target.closest('[data-own-keys]')) return;
-      if (tag === 'button' && (e.key === ' ' || e.key === 'Enter')) return;
+      if ((tag === 'button' || tag === 'summary') && (e.key === ' ' || e.key === 'Enter')) return;   // «Ajustes» es un summary (F4a, T013)
       const nextOff = uncRoute ? state.step >= total() - 1 || predicting(trace()[state.step]) : $('btnNext').disabled;
       if (e.key === 'ArrowRight' && !nextOff) { e.preventDefault(); dispatch({ type: 'next' }); }
       else if (e.key === 'ArrowLeft') { e.preventDefault(); dispatch({ type: 'prev' }); }
