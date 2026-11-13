@@ -144,6 +144,7 @@
   // ---------- la normal ----------
   const LN_SQRT_2PI = 0.9189385332046728;
   function phi(z) {
+    if (Number.isNaN(z)) return NaN;   // sin esto, la serie no termina (NaN !== NaN) (revisión F4a, nit)
     if (z < -37) return 0;
     if (z > 37) return 1;
     if (Math.abs(z) > 8) {             // cola: fracción continua de Laplace para 1 − Φ(|z|)
@@ -161,13 +162,14 @@
       for (let k = 80; k >= 1; k--) f = x + k / f;
       return Math.exp(-0.5 * x * x - LN_SQRT_2PI) / f;
     }
-    return 0.5 + v;
+    return Math.min(1, 0.5 + v);       // cerca de z = 8, 0,5 + v puede pasar de 1 en la última cifra
   }
   const A = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02, 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
   const B = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02, 6.680131188771972e+01, -1.328068155288572e+01];
   const C = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00, -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
   const D = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
   function phiInv(p) {
+    if (Number.isNaN(p)) return NaN;
     if (p <= 0) return -Infinity;
     if (p >= 1) return Infinity;
     const PLOW = 0.02425; let x;

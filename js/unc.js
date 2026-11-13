@@ -29,6 +29,8 @@
   const LABELS = { en: { a: 'a', m: 'm', b: 'b', mean: 'μ', var: 'σ²' }, es: { a: 'tₒ', m: 'tₘ', b: 'tₚ', mean: 'tₑ', var: 'σ²' } };
   const labels = (nota) => LABELS[nota === 'es' ? 'es' : 'en'];
   const str = (v) => (v == null ? '' : String(v));
+  // El identificador como lo lee core/project (sin espacios y en mayúsculas): «a» es la actividad A (revisión F4a, F2).
+  const idOf = (v) => str(v).trim().toUpperCase();
 
   // ---------- El proyecto ----------
 
@@ -74,7 +76,7 @@
       if (FIELDS.every((f) => f in v)) {
         if (v.a > v.m) issues.push({ code: 'aGtM', row: i });
         else if (v.m > v.b) issues.push({ code: 'mGtB', row: i });
-        else nums[str(r.id).trim()] = v;
+        else nums[idOf(r.id)] = v;
       }
     });
     // La estructura, con una duración cualquiera en las filas con algo escrito (las vacías se saltan, como en el taller).
@@ -127,11 +129,13 @@
 
   /** Las filas de la tabla propia con un valor cambiado en una actividad (los deslizadores de M5). */
   function withValue(rows, id, field, value) {
-    return rows.map((r) => (str(r.id).trim() === id ? Object.assign({}, r, { [field]: str(value) }) : Object.assign({}, r)));
+    return rows.map((r) => (idOf(r.id) === id ? Object.assign({}, r, { [field]: str(value) }) : Object.assign({}, r)));
   }
 
   /** Puntos de una curva sobre [a, b] (sin pasar de ymax, por si la densidad se dispara en un extremo). */
   function curvePts(kind, d, n) {
+    // La triangular es una poligonal: sus vértices a, m y b (con dos tramos rectos, el pico cae en m; revisión F4a).
+    if (kind === 'tri') return [[d.a, 0], [d.m, T.pdf('tri', d, d.m)], [d.b, 0]];
     return Array.from({ length: n + 1 }, (_, i) => { const x = d.a + ((d.b - d.a) * i) / n; return [x, T.pdf(kind, d, x)]; });
   }
   function niceTicks(lo, hi, count) {
@@ -149,6 +153,8 @@
   const SLIDERS = { n: { lo: 1, hi: 8, step: 1 }, s: { lo: 0, hi: 6, step: 0.5 }, k: { lo: 1, hi: 30, step: 1 }, w: { lo: 0, hi: 1, step: 0.05 }, r: { lo: 0, hi: 0.95, step: 0.05 } };
   const SEED_DEFAULT = 2026;   // sin «us» en el enlace, la misma simulación (reproducible); «Otra simulación» la cambia
   const BINS = 40;
+  const TIES_SHOWN = 5;   // con más de 50 caminos críticos, los que se nombran en el primer paso del cálculo de examen
+  const PATHS_SHOWN = 8;  // los caminos del proyecto entero que se listan (los de más media)
   const ukOf = (state) => Object.assign({}, UK_DEFAULT, state.uk || {});
   const seedOf = (state) => (Number.isInteger(state.us) ? state.us : SEED_DEFAULT);
   const CASES = ['exam', 'merge', 'few', 'skew', 'corr', 'proj'];
@@ -170,7 +176,7 @@
     const all = L.paths(m.model, inverse ? r.deadline : q.deadline);
     // El casi crítico: el camino de más media que no es crítico (para la nota del primer paso).
     const crit = new Set([r.path].concat(r.ties.map((x) => x.acts)).map((p) => p.join('|')));
-    const near = all.list.filter((p) => !crit.has(p.acts.join('|'))).sort((x, y) => y.mu - x.mu)[0] || null;
+    const near = all.list ? all.list.filter((p) => !crit.has(p.acts.join('|'))).sort((x, y) => y.mu - x.mu)[0] || null : null;
     return Object.assign({ inverse, near, terms: r.path.map((id) => L.moments(m.model.acts.find((a) => a.id === id).dist)) }, r);
   }
 
@@ -375,7 +381,7 @@
       const pad = fixed ? Math.max(1, d.a * 0.2) : (d.b - d.a) * 0.06;
       const lo = Math.max(0, d.a - pad); const hi = d.b + pad;
       const kinds = fixed ? [] : ['pert', 'tri'].concat(uc ? ['classic'] : []);
-      const curves = kinds.map((k) => ({ pts: curvePts(k, d, k === 'tri' ? 2 : 160), cls: `c-${k}`, dash: k === 'tri' ? '6 4' : k === 'classic' ? '2 3' : null }));
+      const curves = kinds.map((k) => ({ pts: curvePts(k, d, 160), cls: `c-${k}`, dash: k === 'tri' ? '6 4' : k === 'classic' ? '2 3' : null }));
       const ymax = fixed ? 1 : Math.max(...curves.map((c) => Math.max(...c.pts.map((p) => p[1])))) * 1.12;
       const vlines = sh.mean ? [{ x: st.exam.mean, cls: 'v-mean', label: `${L5.mean} ${num(st.exam.mean)}` }] : [];
       if (!fixed && sh.sd) { const sd = Math.sqrt(st.pert.var); vlines.push({ x: st.pert.mean - sd, cls: 'v-sd', dash: '3 3' }, { x: st.pert.mean + sd, cls: 'v-sd', dash: '3 3' }); }
@@ -449,7 +455,7 @@
     }
     // μ y σ² de examen de una fila de la tabla propia (T015); «—» mientras haya errores o si la fila no tiene actividad.
     function ownStat(r, k) {
-      const a = m.model && !m.issues.length ? m.acts.find((x) => x.id === str(r.id).trim()) : null;
+      const a = m.model && !m.issues.length ? m.acts.find((x) => x.id === idOf(r.id)) : null;
       return a ? num(a[k]) : '—';
     }
     function markOwn() {
@@ -466,7 +472,7 @@
       if (v.structure) {
         // Con la estructura bien, las precedencias se reescriben en la otra forma; si no, solo cambia cómo se leen.
         const back = Object.fromEntries(P.toRows(v.structure, mode).map((r) => [r.id, r.links]));
-        hooks.dispatch({ type: 'uncTable', mode, rows: m.src.rows.map((r) => Object.assign({}, r, { links: back[str(r.id).trim()] != null ? back[str(r.id).trim()] : r.links })) });
+        hooks.dispatch({ type: 'uncTable', mode, rows: m.src.rows.map((r) => Object.assign({}, r, { links: back[idOf(r.id)] != null ? back[idOf(r.id)] : r.links })) });
       } else hooks.dispatch({ type: 'uncTable', mode, rows: m.src.rows });
       focus(`uncMode-${mode}`);
     }
@@ -509,6 +515,8 @@
     const loc = () => (lang() === 'en' ? 'en-GB' : 'es-ES');
     // Cifras con k decimales fijos, con la coma del español (las probabilidades y la tabla, como en los apuntes).
     const fx = (v, k) => { const x = Number(v).toFixed(k); return lang() === 'en' ? x : x.replace('.', ','); };
+    // Lo que escribe el alumno (plazo y probabilidad) se muestra con sus decimales, hasta 4 (revisión F4a, F4).
+    const num4 = (v) => Number(v).toLocaleString(loc(), { maximumFractionDigits: 4, useGrouping: false });
     const big = (n) => Number(n).toLocaleString(loc());
     const pathText = (acts) => acts.join('–');
     const unitOf = () => (SYNTHETIC.includes(state().ux) ? tu('merge.unit') : m.src.unit);
@@ -535,7 +543,7 @@
         sim.durations = S.result(sim.job).durations; sim.job = null; sim.timer = null;
         keepFocus(drawMain);
         const su = simSummary(sim.spec, sim.durations);
-        if (hooks.announce) hooks.announce(tu('sim.done', { T: num(sim.spec.deadline), ps: fx(su.ps, 3) }));
+        if (hooks.announce) hooks.announce(tu('sim.done', { T: num4(sim.spec.deadline), ps: fx(su.ps, 3) }));
       };
       sim.timer = root.setTimeout(tick, 120);
     }
@@ -559,7 +567,7 @@
     }
     function numField(id, label, value, unit, ok, bad, commit) {
       const err = h('span', { class: 'unc-err small', id: `${id}Err`, hidden: true }, [bad]);
-      const input = h('input', { id, value: value == null ? '' : num(value), size: '6', inputmode: 'decimal', 'aria-describedby': `${id}Err`,
+      const input = h('input', { id, value: value == null ? '' : num4(value), size: '6', inputmode: 'decimal', 'aria-describedby': `${id}Err`,
         onchange: (e) => {
           const p = parseNum(e.target.value);
           const v = p.error ? NaN : p.value;
@@ -598,18 +606,22 @@
       const unit = unitOf();
       const steps = [];
       const near = e.near && !e.ties.length ? ` ${tu('exam.near', { path: pathText(e.near.acts), mu: num(e.near.mu) })}` : '';
-      const ties = e.ties.length ? ` ${tu('exam.ties', { list: I.list(lang(), e.ties.map((x) => tu('exam.tie', { path: pathText(x.acts), var: fx(x.var, 2) }))) })}` : '';
+      const tieList = (xs) => I.list(lang(), xs.map((x) => tu('exam.tie', { path: pathText(x.acts), var: fx(x.var, 2) })));
+      // Con más caminos críticos de los que se listan (más de 50), unos pocos y cuántos hay (revisión F4a, F1).
+      const ties = !e.ties.length ? '' : e.tiesCount > e.ties.length
+        ? ` ${tu('exam.tiesMany', { n: big(e.tiesCount), list: tieList(e.ties.slice(0, TIES_SHOWN)) })}`
+        : ` ${tu('exam.ties', { list: tieList(e.ties) })}`;
       steps.push([tu('exam.path'), (unit ? tu('exam.pathText', { path: pathText(e.path), mu: fx(e.mu, 2), unit }) : tu('exam.pathTextNoUnit', { path: pathText(e.path), mu: fx(e.mu, 2) })) + near + ties]);
       steps.push([tu('exam.mu'), `${e.terms.map((x) => fx(x.mean, 2)).join(' + ')} = ${fx(e.mu, 2)}`]);
       steps.push([tu('exam.var'), `${e.terms.map((x) => fx(x.var, 2)).join(' + ')} = ${fx(e.var, 2)}`]);
       if (e.degenerate) {
-        steps.push([tu('exam.degenerate'), e.inverse ? tu('exam.degT', { mu: num(e.mu) }) : tu('exam.degP', { mu: num(e.mu), T: num(e.deadline), p: num(e.exact) })]);
+        steps.push([tu('exam.degenerate'), e.inverse ? tu('exam.degT', { mu: num(e.mu) }) : tu('exam.degP', { mu: num(e.mu), T: num4(e.deadline), p: num(e.exact) })]);
       } else if (e.inverse) {
-        steps.push([tu('exam.zFor', { p: num(e.prob) }), tu('exam.zForText', { p: num(e.prob), z: fx(e.z, 4), z2: fx(e.table.z2, 2) })]);
+        steps.push([tu('exam.zFor', { p: num4(e.prob) }), tu('exam.zForText', { p: num4(e.prob), z: fx(e.z, 4), z2: fx(e.table.z2, 2) })]);
         steps.push([tu('exam.T'), tu('exam.TText', { mu: fx(e.mu, 2), z2: fx(e.table.z2, 2), var: fx(e.var, 2), Tt: fx(e.table.deadline, 2), T: fx(e.deadline, 2) })]);
       } else {
-        steps.push([tu('exam.z'), tu('exam.zText', { T: num(e.deadline), mu: fx(e.mu, 2), var: fx(e.var, 2), z: fx(e.z, 4), z2: fx(e.table.z2, 2) })]);
-        steps.push([tu('exam.p', { T: num(e.deadline) }), tu('exam.pText', { z2: fx(e.table.z2, 2), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) })]);
+        steps.push([tu('exam.z'), tu('exam.zText', { T: num4(e.deadline), mu: fx(e.mu, 2), var: fx(e.var, 2), z: fx(e.z, 4), z2: fx(e.table.z2, 2) })]);
+        steps.push([tu('exam.p', { T: num4(e.deadline) }), tu('exam.pText', { z2: fx(e.table.z2, 2), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) })]);
       }
       return steps;
     }
@@ -736,14 +748,14 @@
         const lo = Math.max(0, e.mu - 4 * e.sd); const hi = e.mu + 4 * e.sd;
         const pts = normalPts(e.mu, e.var, lo, hi, 160);
         DC.render(holder, { w: 600, h: 260, x: [lo, hi], ymax: Math.max(...pts.map((q) => q[1])) * 1.12, ticks: niceTicks(lo, hi, 8), fmt: num,
-          curves: [{ pts, cls: 'c-normal' }], shade: { pts, to: T }, vlines: [{ x: e.mu, cls: 'v-sd', dash: '3 3' }, { x: T, cls: 'v-deadline', label: tu('exam.deadline', { T: num(T) }) }],
-          label: seen(2) ? tu('exam.chartLabel', { mu: fx(e.mu, 2), var: fx(e.var, 2), T: num(T) }) : tu('sim.legendNormal') });
+          curves: [{ pts, cls: 'c-normal' }], shade: { pts, to: T }, vlines: [{ x: e.mu, cls: 'v-sd', dash: '3 3' }, { x: T, cls: 'v-deadline', label: tu('exam.deadline', { T: num4(T) }) }],
+          label: seen(2) ? tu('exam.chartLabel', { mu: fx(e.mu, 2), var: fx(e.var, 2), T: num4(T) }) : tu('sim.legendNormal') });
         parts.push(h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [key('k-normal', tu('exam.legendNormal'))].concat(seen(1) ? [key('k-sd', tu('exam.legendMu', { mu: fx(e.mu, 2) }))] : [])));
       }
       if (!all) return h('section', { class: 'card unc-normalcard', 'aria-labelledby': 'uncNormalHead' }, parts);
-      const res = e.degenerate ? (e.inverse ? tu('exam.degT', { mu: num(e.mu) }) : tu('exam.degP', { mu: num(e.mu), T: num(T), p: num(e.exact) }))
-        : e.inverse ? tu('exam.resultT', { p: num(e.prob), Tt: fx(e.table.deadline, 2), T: fx(e.deadline, 2) })
-          : tu('exam.result', { T: num(T), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) });
+      const res = e.degenerate ? (e.inverse ? tu('exam.degT', { mu: num(e.mu) }) : tu('exam.degP', { mu: num(e.mu), T: num4(T), p: num(e.exact) }))
+        : e.inverse ? tu('exam.resultT', { p: num4(e.prob), Tt: fx(e.table.deadline, 2), T: fx(e.deadline, 2) })
+          : tu('exam.result', { T: num4(T), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) });
       parts.push(h('p', { class: 'unc-note', id: 'uncExamResult' }, [h('strong', {}, [res]), ' ', tu('exam.credible'), ' ',
         h('button', { type: 'button', class: 'linklike', id: 'uncToProj', onclick: () => { go({ ux: 'proj', ud: e.inverse ? null : state().ud }); focus('uncCase-proj'); } }, [tu('exam.toProj')])]));
       return h('section', { class: 'card unc-normalcard', 'aria-labelledby': 'uncNormalHead' }, parts);
@@ -769,6 +781,8 @@
       const mu = spec.normal.mu; const sd = Math.sqrt(spec.normal.var);
       let lo = mu - 4 * sd; let hi = mu + 4 * sd;
       if (su) { lo = Math.min(lo, su.min); hi = Math.max(hi, su.max); }
+      // Sin incertidumbre (σ² = 0 y todas las réplicas iguales) el eje no tendría anchura: una unidad a cada lado.
+      if (!(hi - lo > 1e-9)) { lo = mu - 1; hi = mu + 1; }
       lo = Math.max(lo, 0);   // las duraciones nunca son negativas (la normal se trunca en 0)
       const pts = sd > 0 ? normalPts(mu, spec.normal.var, lo, hi, 200) : [];
       const peak = Math.max(0, ...pts.map((q) => q[1]));
@@ -776,8 +790,8 @@
       const pert = state().ux === 'proj' && m.acts.some((a) => a.dist.kind === 'pert');
       DC.render(holder, { w: 640, h: 270, x: [lo, hi], ymax: Math.max(peak, hpeak) * 1.1 || 1, ticks: niceTicks(lo, hi, 8), fmt: num,
         hist: su ? Object.assign({ n: su.n }, su.hist) : null, curves: pts.length ? [{ pts, cls: 'c-normal' }] : [],
-        vlines: [{ x: spec.deadline, cls: 'v-deadline', label: tu('exam.deadline', { T: num(spec.deadline) }) }],
-        label: su ? tu('sim.chartLabel', { n: big(su.n), mu: fx(mu, 2), var: fx(spec.normal.var, 2), T: num(spec.deadline), pn: fx(su.pn, 3), ps: fx(su.ps, 3) })
+        vlines: [{ x: spec.deadline, cls: 'v-deadline', label: tu('exam.deadline', { T: num4(spec.deadline) }) }],
+        label: su ? tu('sim.chartLabel', { n: big(su.n), mu: fx(mu, 2), var: fx(spec.normal.var, 2), T: num4(spec.deadline), pn: fx(su.pn, 3), ps: fx(su.ps, 3) })
           : tu('sim.running', { n: big(spec.n) }) });
       parts.push(h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [key('k-normal', tu('sim.legendNormal')), key('k-hist', tu(pert ? 'sim.legendSimPert' : 'sim.legendSim', { n: big(spec.n) }))]));
       if (!su) { parts.push(h('p', { class: 'muted small', id: 'uncSimWait' }, [tu('sim.running', { n: big(spec.n) })])); return h('section', { class: 'card unc-simcard', 'aria-labelledby': 'uncSimHead' }, parts); }
@@ -797,7 +811,7 @@
         h('thead', {}, [h('tr', {}, ['colBin', 'colCount', 'colShare', 'colNormal'].map((k) => h('th', { scope: 'col' }, [tu(`sim.${k}`)])))]), h('tbody', {}, rows)])]);
     }
     function probCard(spec, su) {
-      const s = state(); const T = num(spec.deadline);
+      const s = state(); const T = num4(spec.deadline);
       const ks = SYNTHETIC.includes(s.ux) && s.ux !== 'merge';
       const cols = [tu(s.ux === 'proj' ? 'proj.colP' : 'sim.colP', { T })].concat(ks ? [tu('sim.colKs')] : [tu('sim.colMean')]);
       const pn = su ? su.pn : (Math.sqrt(spec.normal.var) > 0 ? Tp.phi((spec.deadline - spec.normal.mu) / Math.sqrt(spec.normal.var)) : (spec.deadline >= spec.normal.mu ? 1 : 0));
@@ -810,14 +824,19 @@
         h('table', { class: 'data unc-table', id: 'uncProb' }, [h('thead', {}, [h('tr', {}, [h('td', {})].concat(cols.map((c) => h('th', { scope: 'col' }, [c]))))]), h('tbody', {}, body)])]);
     }
     function pathsCard(spec) {
-      const T = num(spec.deadline); const all = spec.info.paths; const crit = spec.info.exam.path.join('|');
-      const list = all.list.slice().sort((x, y) => y.mu - x.mu);
-      const shown = list.slice(0, 8);
+      const T = num4(spec.deadline); const all = spec.info.paths; const e = spec.info.exam; const crit = e.path.join('|');
+      // Con más de 50 caminos no hay lista: solo el crítico del cálculo de examen y cuántos hay (revisión F4a, F1).
+      const sd = Math.sqrt(e.var);
+      const list = all.list ? all.list.slice().sort((x, y) => y.mu - x.mu)
+        : [{ acts: e.path, mu: e.mu, var: e.var, p: sd > 0 ? Tp.phi((spec.deadline - e.mu) / sd) : (spec.deadline >= e.mu ? 1 : 0) }];
+      const shown = list.slice(0, PATHS_SHOWN);
       const rows = shown.map((p) => h('tr', { class: p.acts.join('|') === crit ? 'sel' : '' }, [h('th', { scope: 'row' }, [pathText(p.acts)]),
         h('td', { class: 'num' }, [fx(p.mu, 2)]), h('td', { class: 'num' }, [fx(p.var, 2)]), h('td', { class: 'num' }, [fx(p.p, 3)])]));
       const parts = [h('h2', { id: 'uncPathsHead' }, [tu('proj.pathsTitle')]),
         h('table', { class: 'data unc-table', id: 'uncPaths' }, [h('thead', {}, [h('tr', {}, [tu('proj.colPath'), 'μ', 'σ²', `P(≤ ${T})`].map((c) => h('th', { scope: 'col' }, [c])))]), h('tbody', {}, rows)])];
-      if (list.length > shown.length) parts.push(h('p', { class: 'muted small' }, [tu('proj.more', { n: list.length - shown.length })]));
+      const rest = (all.list ? list.length : all.count) - shown.length;
+      if (!all.list) parts.push(h('p', { class: 'muted small', id: 'uncPathsMany' }, [tu('proj.tooMany', { n: big(all.count) })]));
+      else if (rest > 0) parts.push(h('p', { class: 'muted small', id: 'uncPathsMore' }, [tu(rest === 1 ? 'proj.moreOne' : 'proj.more', { n: rest })]));
       return h('section', { class: 'card unc-pathscard', 'aria-labelledby': 'uncPathsHead' }, parts);
     }
     function notesCards(spec, su) {
@@ -897,7 +916,8 @@
       const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && proj && proj.isConnected && !main
         && model.src.rows.length === m.src.rows.length && model.src.mode === m.src.mode;
       m = model;
-      if (typing) { markOwn(); fill(); return; }
+      // Al teclear se repinta solo lo de M5; si la tabla pasa a ser válida estando en M6, toca la vista de M6 (revisión F4a, F14).
+      if (typing && !m6On()) { markOwn(); fill(); return; }
       keepFocus(draw);
     }
     function debug() {

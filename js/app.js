@@ -993,6 +993,13 @@
   function workRows(rows) {
     return rows.map((r) => ({ id: r.id, name: nameOf(r), duration: r.duration == null ? '' : String(r.duration), links: r.links }));
   }
+  // La tabla del taller (o el ejemplo que muestra) con su forma, para las vistas sin tabla propia del taller en el modelo
+  // («Duraciones inciertas»: «Partir del taller» y la pestaña «Taller»; revisión F4a, F1).
+  function workSource() {
+    if (state.t) return { rows: workRows(state.t), mode: state.mode };
+    const ex = EX.get(state.ex) || EX.get('ej6');
+    return { rows: workRows(ex.rows), mode: ex.mode };
+  }
 
   function bind() {
     $('btnNext').addEventListener('click', () => dispatch({ type: 'next' }));
@@ -1030,7 +1037,7 @@
     $('navEx').addEventListener('click', (e) => { e.preventDefault(); toEx(); });
     $('navUnc').addEventListener('click', (e) => { e.preventDefault(); toUnc(); });
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
-    $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
+    $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch(Object.assign({ type: 'work' }, model.rows ? { rows: workRows(model.rows), mode: model.mode } : workSource())); });
     // F4a (T013): el desplegable «Ajustes» se cierra con Esc (el foco vuelve a su botón) y al pulsar fuera de él.
     const settings = $('settings');
     settings.addEventListener('keydown', (e) => {
@@ -1125,11 +1132,7 @@
         predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
         // «Partir del taller»: la tabla del taller (o el ejemplo que muestra) con su forma; a = m = b = la duración.
         learn: openUncLearn,
-        workRows: () => {
-          if (state.t) return { rows: workRows(state.t), mode: state.mode };
-          const ex = EX.get(state.ex) || EX.get('ej6');
-          return { rows: workRows(ex.rows), mode: ex.mode };
-        },
+        workRows: workSource,
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
       });
       G.unc.state = () => uncc.debug();

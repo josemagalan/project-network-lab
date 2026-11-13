@@ -145,3 +145,50 @@ test('T005: 10 000 réplicas de 30 y de 40 actividades en menos de 2 s (principi
     assert.ok(ms < 2000, `${n} actividades: ${ms} ms`);
   }
 });
+
+// ---------- Revisión de nivel 2 de la F4a (T017, ronda 1) ----------
+
+test('F4a r1 (F3): huella fija de una semilla (AC5, AC14): un enlace ya compartido da siempre el mismo histograma', () => {
+  // Si cambia el orden o el número de números aleatorios que consume una réplica, cambian estos valores: cambiar el
+  // muestreo obliga a decidir qué pasa con los enlaces publicados.
+  const d = S.run({ kind: 'project', model: klastorin(), n: 1000, us: 2026 }).durations;
+  assert.deepEqual(Array.from(d.slice(0, 4)).map((x) => x.toFixed(10)), ['23.1209857710', '28.7551874187', '22.8137917632', '22.4392094705']);
+  assert.equal(d.reduce((s, x) => s + x, 0).toFixed(8), '24680.98264496');
+  const c = S.run({ kind: 'paths', model: { paths: [{ acts: [pert(2, 6, 14), pert(3, 5, 7)], rho: 0.5 }] }, n: 1000, us: 2026 }).durations;
+  assert.deepEqual(Array.from(c.slice(0, 3)).map((x) => x.toFixed(10)), ['12.1444127023', '11.7869455424', '11.5830267262']);
+  assert.equal(c.reduce((s, x) => s + x, 0).toFixed(8), '11706.52484518');
+});
+
+test('F4a r1 (F4): la cópula da la correlación pedida (Pearson ≈ ρ con la terna simétrica) y respeta la marginal con ρ > 0', () => {
+  const draw = (acts, rho, us, n) => {
+    const job = S.start({ kind: 'paths', model: { paths: [{ acts, rho }] }, n, us, keepActs: true });
+    while (!S.step(job, { reps: n }).done);
+    return S.result(job).acts;
+  };
+  for (const [rho, us] of [[0.3, 91], [0.6, 92], [0.9, 93]]) {
+    const [x, y] = draw([pert(0, 6, 12), pert(0, 6, 12)], rho, us, 20000);
+    const r = pearson(x, y);
+    assert.ok(Math.abs(r - rho) < 0.03, `ρ = ${rho} → Pearson ${r}`);
+  }
+  // La marginal de (2, 6, 14) con ρ = 0,3 sigue siendo la beta-PERT: media 20/3 y varianza 44/9.
+  const [x] = draw([pert(2, 6, 14), pert(2, 6, 14)], 0.3, 94, 40000);
+  assert.ok(Math.abs(mean(x) - 20 / 3) < 0.05, `media ${mean(x)}`);
+  assert.ok(Math.abs(variance(x) - 44 / 9) < 0.15, `varianza ${variance(x)}`);
+});
+
+test('F4a r1 (F5): P(≤ T) cuenta las réplicas iguales a T (a = m = b con el plazo en la duración)', () => {
+  const s = S.summary(Float64Array.from([5, 5, 5, 5]));
+  assert.equal(s.pLE(5), 1);
+  assert.equal(s.pLE(4.999), 0);
+  assert.equal(S.summary(Float64Array.from([1, 2, 2, 3])).pLE(2), 0.75);
+});
+
+test('F4a r1 (F6): la distancia KS mira los dos lados (simulación a la derecha y a la izquierda de la normal)', () => {
+  const n = 400;
+  const x = Float64Array.from({ length: n }, (_, i) => 50 + 5 * T.phiInv((i + 0.5) / n));   // cuantiles de N(50, 5)
+  const s = S.summary(x);
+  const expect = 2 * T.phi(0.5) - 1;   // 0,3829: la distancia entre N(50, 5) y N(45, 5) o N(55, 5), en 47,5 o 52,5
+  assert.ok(Math.abs(s.ks(45, 5) - expect) < 0.01, `a la derecha de la normal: ${s.ks(45, 5)}`);
+  assert.ok(Math.abs(s.ks(55, 5) - expect) < 0.01, `a la izquierda de la normal: ${s.ks(55, 5)}`);
+  assert.ok(s.ks(50, 5) < 0.01);
+});

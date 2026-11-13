@@ -18,6 +18,8 @@
   // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
   const VIEW_OK = { aon: ['net', 'matrix'], aoa: ['net', 'side', 'cmp', 'reto'] };   // el comparador y el reto también son de la PERT (F2b)
   const structureOnly = (s) => !s.t && U.STRUCTURE_ONLY.includes(s.ex);
+  // F4a: al cambiar de proyecto, el plazo vuelve al del proyecto y la probabilidad, si se pedía, al 95 %.
+  const resetAsk = (s) => { s.ud = null; if (typeof s.up === 'number') s.up = 0.95; };
   const clamp = (n, total) => Math.max(0, Math.min(Number.isInteger(n) ? n : 0, Math.max(0, total - 1)));
 
   function reduce(state, action, total) {
@@ -141,14 +143,17 @@
       case 'exDeliver': if (s.xm === 'exam') s.xd = 1; break;
       // F4a (plan f4a-tres-tiempos-tcl, §3): la pestaña de tres tiempos y el TCL. Solo se aceptan valores válidos; cambiar de
       // apartado, proyecto, actividad, caso, plazo, probabilidad o deslizadores vuelve al paso 0. El ejemplo de la ruta y la
-      // tabla del taller se conservan para volver a ellos.
+      // tabla del taller se conservan para volver a ellos. Otro proyecto vuelve a su plazo por defecto y, si se pedía el
+      // plazo para una probabilidad, al 95 % (decisión del autor, revisión F4a, F13).
       case 'unc': {
         const before = [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw].join('|');
+        const ue0 = s.ue;
         s.v = 'unc';
         const V = U.UNC;
         if (['m5', 'm6'].includes(action.um)) s.um = action.um;
         if (['kl', 'hl', 'tr', 'pa'].includes(action.ue) || (action.ue === 'own' && s.ut)) s.ue = action.ue;
         if (s.um === 'm5' && V.M6_ONLY.includes(s.ue)) s.ue = 'kl';
+        if (s.ue !== ue0) resetAsk(s);
         if (action.ua === null || V.actOk(action.ua)) s.ua = action.ua;
         if (action.uc === 0 || action.uc === 1) s.uc = action.uc;
         if (action.uw === 0 || action.uw === 1) s.uw = action.uw;   // T011: paso a paso
@@ -166,11 +171,12 @@
           a: r.duration, m: r.duration, b: r.duration, links: r.links })) });
         if (!ut) break;
         Object.assign(s, { v: 'unc', ue: 'own', ut, ua: null, step: 0 });
+        resetAsk(s);
         break;
       }
       case 'uncTable': {
         const ut = U.UNC.cleanUt({ mode: action.mode, rows: action.rows });
-        if (ut) Object.assign(s, { ue: 'own', ut });
+        if (ut) { if (s.ue !== 'own') resetAsk(s); Object.assign(s, { ue: 'own', ut }); }
         break;
       }
       case 'whatif': {

@@ -132,3 +132,9 @@ test('T011 (A5): traza de una actividad, media y varianza de examen con sus camp
   assert.deepEqual(tr[1].values, [{ field: 'unc.var', value: 4 }]);
   assert.deepEqual(T.trace({ a: 3, m: 3, b: 3 })[1].values[0].value, 0);
 });
+
+test('F4a r1 (nits): Φ y Φ⁻¹ de NaN dan NaN (sin quedarse en el bucle) y Φ no pasa de 1 cerca de z = 8', () => {
+  assert.ok(Number.isNaN(T.phi(NaN)));
+  assert.ok(Number.isNaN(T.phiInv(NaN)));
+  for (let z = 7; z <= 8.0001; z += 0.0007) assert.ok(T.phi(z) <= 1, `Φ(${z}) = ${T.phi(z)}`);
+});

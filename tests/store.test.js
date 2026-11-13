@@ -346,3 +346,22 @@ test('F4a T011: «uw» (paso a paso) es 0 o 1 y cambiarlo vuelve al paso 0; la U
   assert.doesNotMatch(U.encode(Object.assign({}, s, { uw: 0 })), /uw=/);
   assert.equal(U.decode('#v=unc&uw=2').warning, 'malformed');
 });
+
+// ---------- Revisión de nivel 2 de la F4a (T017, ronda 1) ----------
+
+test('F4a r1 (F13): otro proyecto vuelve a su plazo y, si se pedía el plazo para una probabilidad, al 95 % (decisión del autor)', () => {
+  const unc = (extra) => Object.assign(s0(), { v: 'unc', um: 'm6', ue: 'kl', ux: 'exam' }, extra);
+  const a = S.reduce(unc({ ud: 30 }), { type: 'unc', ue: 'hl' });
+  assert.deepEqual([a.ue, a.ud, a.up], ['hl', null, null]);
+  const b = S.reduce(unc({ up: 0.9 }), { type: 'unc', ue: 'hl' });
+  assert.deepEqual([b.ud, b.up], [null, 0.95]);
+  // En el mismo proyecto, el plazo escrito se queda; y cambiar el proyecto y el plazo a la vez deja el plazo nuevo.
+  assert.equal(S.reduce(unc({ ud: 30 }), { type: 'unc', ux: 'proj' }).ud, 30);
+  assert.equal(S.reduce(unc({ ud: 30 }), { type: 'unc', ue: 'hl', ud: 50 }).ud, 50);
+  // «Partir del taller» y pasar a la tabla propia también vuelven al plazo por defecto; editar la tabla propia, no.
+  const w = S.reduce(unc({ ud: 30 }), { type: 'uncFromWork', mode: 'pred', rows: [{ id: 'A', name: '', duration: '4', links: '' }] });
+  assert.deepEqual([w.ue, w.ud, w.ua], ['own', null, null]);
+  const own = S.reduce(unc({ ud: 30 }), { type: 'uncTable', mode: 'pred', rows: [{ id: 'A', name: '', a: '1', m: '2', b: '3', links: '' }] });
+  assert.deepEqual([own.ue, own.ud], ['own', null]);
+  assert.equal(S.reduce(Object.assign({}, own, { ud: 7 }), { type: 'uncTable', mode: 'pred', rows: [{ id: 'A', name: '', a: '1', m: '2', b: '4', links: '' }] }).ud, 7);
+});

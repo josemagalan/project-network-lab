@@ -96,9 +96,11 @@ test('M5 no ofrece los ejemplos solo de M6 (dos rutas y paralelización); M6 los
   assert.deepEqual(U.SECTION_EXAMPLES.m6, ['kl', 'hl', 'tr', 'pa']);
 });
 
-test('curvas: la triangular son tres puntos y las marcas del eje caen en [lo, hi]', () => {
+test('curvas: la triangular son sus tres vértices (a, 0), (m, 2/(b − a)) y (b, 0), y las marcas del eje caen en [lo, hi]', () => {
+  // Revisión F4a (F21): con a, (a + b)/2 y b el pico caía en el punto medio y no en m.
   const d = { a: 2, m: 4, b: 9 };
-  assert.deepEqual(U.curvePts('tri', d, 2).map((p) => p[0]), [2, 5.5, 9]);
+  assert.deepEqual(U.curvePts('tri', d, 160), [[2, 0], [4, 2 / 7], [9, 0]]);
+  assert.deepEqual(U.curvePts('tri', { a: 3, m: 3, b: 7 }, 160), [[3, 0], [3, 0.5], [7, 0]]);   // moda en el extremo
   const ticks = U.niceTicks(1.4, 9.6, 6);
   assert.ok(ticks.length >= 4 && ticks.every((v) => v >= 1.4 && v <= 9.6));
 });
@@ -212,4 +214,55 @@ test('T011: pistas para los errores típicos (desviación por varianza, la otra 
   assert.equal(U.hint(t6[4], '0,34', mm), 'otherTail');
   assert.equal(U.hint(t6[3], '0,14', mm), 'divVar');            // (25 − 23,83)/8,25
   assert.equal(U.hint(t6[2], '5,17', mm), 'sumSd');             // suma de las desviaciones: 2 + 1,83 + 0,67 + 0,67
+});
+
+// ---------- Revisión de nivel 2 de la F4a (T017, ronda 1) ----------
+
+test('F4a r1 (F2): un identificador en minúsculas es la actividad en mayúsculas (como en el taller), también al mover a, m o b', () => {
+  const rows = [row('a', 1, 2, 4), row('b', 2, 3, 5, 'a')];
+  const m = U.model(own(rows), 'es');
+  assert.deepEqual(m.issues, []);
+  assert.deepEqual(m.acts.map((a) => [a.id, a.mean.toFixed(4)]), [['A', (13 / 6).toFixed(4)], ['B', (19 / 6).toFixed(4)]]);
+  assert.deepEqual(m.model.acts[1].preds, ['A']);
+  const moved = U.withValue(rows, 'A', 'm', 3);
+  assert.equal(moved[0].m, '3');
+  assert.equal(moved[1].m, '3');   // la B no cambia (su m ya era 3)
+  assert.equal(U.withValue(rows, 'B', 'b', 9)[1].b, '9');
+});
+
+// 6 etapas de dos actividades en paralelo, cada una tras las dos de la anterior: 2^6 = 64 caminos (más de los 50 que se listan).
+const layers = (k) => {
+  const out = [];
+  for (let i = 0; i < k; i++) for (const j of [0, 1]) out.push(row(`L${i}S${j}`, 1, 2, j ? 5 : 4, i ? `L${i - 1}S0, L${i - 1}S1` : ''));
+  return out;
+};
+
+test('F4a r1 (F3): con más de 50 caminos, M6 calcula el examen y simula el proyecto entero (sin lista ni cuenta exacta)', () => {
+  const s = Object.assign(own(layers(6)), { um: 'm6' });
+  const m = U.model(s, 'es');
+  const e = U.examOf(s, m);
+  assert.equal(e.path.length, 6);
+  assert.ok(e.path.every((id) => id.endsWith('S1')), 'el de mayor varianza: las S1');
+  assert.equal(e.tiesCount, 0);
+  assert.equal(e.near, null);
+  const spec = U.simSpec(Object.assign({}, s, { ux: 'proj' }), m);
+  assert.equal(spec.kind, 'project');
+  assert.equal(spec.exact, null);
+  assert.deepEqual([spec.info.paths.list, spec.info.paths.count], [null, 64]);
+});
+
+test('F4a r1 (F6): la cuenta exacta del proyecto entero solo con caminos normales independientes (dos rutas), no con beta-PERT', () => {
+  const two = Object.assign(own([row('A', 1, 2, 9), row('B', 1, 2, 9)]), { um: 'm6', ux: 'proj' });
+  assert.equal(U.simSpec(two, U.model(two, 'es')).exact, null, 'tabla propia: caminos disjuntos pero beta-PERT');
+  const tr = Object.assign(base(), { um: 'm6', ue: 'tr', ux: 'proj' });
+  const spec = U.simSpec(tr, U.model(tr, 'es'));
+  assert.ok(spec.exact > 0 && spec.exact < 1, 'dos rutas: producto de Φ');
+});
+
+test('F4a r1 (F7): sin incertidumbre (σ² = 0) y con el plazo en la media, la normal y la simulación dan 1', () => {
+  const s = Object.assign(own([row('A', 5, 5, 5), row('B', 3, 3, 3, 'A')]), { um: 'm6', ux: 'proj' });
+  const spec = U.simSpec(s, U.model(s, 'es'));
+  assert.equal(spec.deadline, 8);
+  const su = U.simSummary(spec, Float64Array.from({ length: 100 }, () => 8));
+  assert.deepEqual([su.pn, su.ps, su.ks], [1, 1, null]);
 });

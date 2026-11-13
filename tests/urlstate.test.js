@@ -638,3 +638,31 @@ test('F4a: las claves u* solo cuentan en v=unc; los enlaces de las fases anterio
     for (const k of ['um', 'us', 'ux']) assert.ok(!q.has(k), `${v}: ${k}`);
   }
 });
+
+// ---------- Revisión de nivel 2 de la F4a (T017, ronda 1) ----------
+
+test('F4a r1 (F9): los límites de uk por los dos lados, los mismos que los deslizadores y que core/tcl', () => {
+  for (const h of ['n0', 'n9', 'k0', 'k31', 's201', 'w101', 'r101']) {
+    const r = U.decode(`#v=unc&um=m6&uk=${h}`);
+    assert.equal(r.warning, 'malformed', h); assert.equal(r.state.uk, null, h);
+  }
+  assert.deepEqual(U.decode('#v=unc&uk=n1.k1.s0.w0.r0').state.uk, { n: 1, k: 1, s: 0, w: 0, r: 0 });
+  assert.deepEqual(U.decode('#v=unc&uk=n8.k30.s200.w100.r100').state.uk, { n: 8, k: 30, s: 20, w: 1, r: 1 });
+});
+
+test('F4a r1 (F11): plazo y probabilidad con más decimales se escriben con 4 y el enlace se abre sin aviso', () => {
+  const s = Object.assign(U.defaults(), { v: 'unc', um: 'm6', ud: 25.123456, up: 2 / 3 });
+  const h = U.encode(s);
+  const q = new URLSearchParams(h.slice(1));
+  assert.deepEqual([q.get('ud'), q.get('up')], ['25.1235', '0.6667']);
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  assert.deepEqual([back.state.ud, back.state.up], [25.1235, 0.6667]);
+});
+
+test('F4a r1 (F12): la red PERT de la pestaña viaja en el enlace (graph=aoa)', () => {
+  const h = U.encode(Object.assign(U.defaults(), { v: 'unc', graph: 'aoa' }));
+  assert.equal(new URLSearchParams(h.slice(1)).get('graph'), 'aoa');
+  assert.equal(U.decode(h).state.graph, 'aoa');
+  assert.equal(new URLSearchParams(U.encode(Object.assign(U.defaults(), { v: 'unc' })).slice(1)).get('graph'), null);
+});

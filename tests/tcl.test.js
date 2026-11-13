@@ -141,3 +141,64 @@ test('T006: otros límites del TCL: la distancia KS es mayor en el extremo de ca
   assert.throws(() => L.cases.few({ k: 0 }));
   assert.throws(() => L.cases.corr({ rho: 2 }));
 });
+
+// ---------- Revisión de nivel 2 de la F4a (T017, ronda 1) ----------
+
+// k rombos en serie: S_i (1, 1, 1) → X_i (5, 5, 5) | Y_i (2, 5, 8) → S_{i+1} … → Z. Todos los caminos son críticos (2^k).
+function diamonds(k, reversed) {
+  const pert = (a, m, b) => ({ kind: 'pert', a, m, b });
+  const acts = []; let prev = null;
+  for (let i = 0; i < k; i++) {
+    const s = { id: `S${i}`, preds: prev || [], dist: pert(1, 1, 1) };
+    const x = { id: `X${i}`, preds: [s.id], dist: pert(5, 5, 5) };
+    const y = { id: `Y${i}`, preds: [s.id], dist: pert(2, 5, 8) };
+    acts.push(s, ...(reversed ? [y, x] : [x, y])); prev = [x.id, y.id];
+  }
+  acts.push({ id: 'Z', preds: prev, dist: pert(1, 1, 1) });
+  return { acts };
+}
+
+test('F4a r1 (F1, F2): con más de 50 caminos críticos, el de mayor σ² es el de verdad y los demás se cuentan; paths no lanza', () => {
+  for (const reversed of [false, true]) {
+    const e = L.exam(diamonds(7, reversed), { deadline: 50 });   // 128 caminos críticos de media 42
+    assert.equal(e.var, 7, 'el de todas las Y');
+    assert.deepEqual(e.path, ['S0', 'Y0', 'S1', 'Y1', 'S2', 'Y2', 'S3', 'Y3', 'S4', 'Y4', 'S5', 'Y5', 'S6', 'Y6', 'Z']);
+    assert.equal(e.tiesCount, 127);
+    assert.ok(e.ties.length >= 49 && e.ties.length <= 50, 'se nombran los que lista cpm');
+    const p = L.paths(diamonds(7, reversed), 50);
+    assert.deepEqual([p.list, p.count, p.independent, p.product], [null, 128, false, null]);
+  }
+  // Con 32 caminos (los lista cpm) da lo mismo que antes, y la lista está entera.
+  const e5 = L.exam(diamonds(5), { deadline: 40 });
+  assert.deepEqual([e5.var, e5.ties.length, e5.tiesCount], [5, 31, 31]);
+  const p5 = L.paths(diamonds(5), 40);
+  assert.deepEqual([p5.list.length, p5.count], [32, 32]);
+});
+
+test('F4a r1 (F14): empates de σ² en orden natural (A2 antes que A10) y todos los demás críticos en la lista', () => {
+  const act = (id) => ({ id, preds: [], dist: { kind: 'pert', a: 1, m: 2, b: 3 } });
+  const e = L.exam({ acts: [act('A10'), act('A2'), act('B')] }, { deadline: 3 });
+  assert.deepEqual(e.path, ['A2']);
+  assert.deepEqual(e.ties.map((x) => x.acts), [['A10'], ['B']]);
+  assert.equal(e.tiesCount, 2);
+});
+
+test('F4a r1 (F7): el plazo de tabla para una probabilidad menor que 0,5 (Hillier, 0,05): z = −1,64 y 39,08', () => {
+  const e = L.exam(L.fromExample(X.get('hl')), { prob: 0.05 });
+  close(e.z, -1.6449, 1e-4);
+  assert.deepEqual(e.table, { z2: -1.64, deadline: 39.08 });
+  close(e.deadline, 39.0654, 1e-4);
+});
+
+test('F4a r1 (F8): la normal de pocas actividades, asimetría y correlación usa los momentos de la beta-PERT y el plazo μ + σ', () => {
+  const T = require('../js/core/threept.js');
+  for (const [c, k, d] of [[L.cases.few({ k: 1 }), 1, { a: 0, m: 0, b: 12 }], [L.cases.few({ k: 7 }), 7, { a: 0, m: 0, b: 12 }],
+    [L.cases.skew({ s: 0.5 }), 3, { a: 0, m: 3, b: 12 }], [L.cases.corr({ rho: 0.5 }), 10, { a: 0, m: 6, b: 12 }]]) {
+    const m = T.moments('pert', d);
+    assert.equal(c.paths[0].acts.length, k);
+    close(c.normal.mu, k * m.mean, 1e-12); close(c.normal.var, k * m.var, 1e-12);
+    close(c.deadline, c.normal.mu + Math.sqrt(c.normal.var), 1e-12);
+  }
+  // (0, 0, 12): la varianza de la beta-PERT es 20/7 = 2,857, no la de examen (4).
+  close(L.cases.few({ k: 1 }).normal.var, 20 / 7, 1e-12);
+});

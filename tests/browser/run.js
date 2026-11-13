@@ -5459,6 +5459,162 @@ check('F4a T015 · pista de z en la predicción de M6: con la tabla a dos decima
   await close(i);
 });
 
+// ---------- F4a, T017: revisión de nivel 2, ronda 1 ----------
+
+require(path.join(ROOT, 'js', 'i18n-unc.js'));
+const tuEs = (k, p) => I0.t('es', `unc.${k}`, p);
+const setRange = (page, sel, v) => page.locator(sel).evaluate((el, val) => { el.value = String(val); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+
+check('F4a T017 · «Taller» desde «Duraciones inciertas» abre el taller (F1) y «Partir del taller» copia la tabla editada con su forma (F5)', async () => {
+  const p = await uncLab('lang=es');
+  await p.locator('#navWork').click();
+  await p.waitForFunction(() => PNL.app.state().v === 'work');
+  assert.equal((await state(p)).t.length, require(path.join(ROOT, 'js', 'core', 'examples.js')).get('ej6').rows.length, 'el taller con el ejemplo que mostraba');
+  await close(p);
+  // Una tabla editada en el taller, en forma de posteriores: «Partir del taller» la copia tal cual, con a = m = b.
+  const rows = [{ id: 'P', name: 'Primera', duration: '3', links: 'Q, R' }, { id: 'Q', name: '', duration: '2', links: 'R' }, { id: 'R', name: '', duration: '4', links: '' }];
+  const w = await lab(U4.encode(Object.assign(U4.defaults(), { v: 'work', ex: null, t: rows, mode: 'succ', lang: 'es' })).slice(1));
+  await w.locator('#navUnc').click();
+  await w.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state());
+  await w.locator('#uncFromWork').click();
+  await uncAfter(w, () => PNL.unc.state().src.kind === 'own');
+  const st = await uncSt(w);
+  assert.equal(st.src.mode, 'succ');
+  assert.deepEqual(st.src.rows.map((r) => [r.id, r.name, r.a, r.m, r.b, r.links]), [['P', 'Primera', '3', '3', '3', 'Q, R'], ['Q', '', '2', '2', '2', 'R'], ['R', '', '4', '4', '4', '']]);
+  assert.deepEqual(st.path, ['P', 'Q', 'R']);
+  await w.locator('#navWork').click();
+  await w.waitForFunction(() => PNL.app.state().v === 'work');
+  assert.deepEqual((await state(w)).t.map((r) => r.id), ['P', 'Q', 'R'], 'el taller no cambia');
+  await close(w);
+});
+
+check('F4a T017 · tabla propia con identificadores en minúsculas: se calcula al escribir y al abrir el enlace (F2)', async () => {
+  const p = await uncLab(ownUrl([ownRow('a', 2, 4, 6), ownRow('b', 1, 4, 9, 'a')]));
+  const st = await uncSt(p);
+  assert.deepEqual([st.issues.length, st.acts.map((a) => a.id)], [0, ['A', 'B']]);
+  assert.deepEqual(await ownStats(p), [['4', '0,44'], ['4,33', '1,78']]);
+  await p.locator('#uncT-1-id').fill('c');
+  await p.locator('#uncT-1-id').fill('b');
+  await uncAfter(p, () => PNL.unc.state().acts.length === 2);
+  await close(p);
+});
+
+check('F4a T017 · la probabilidad y el plazo escritos se muestran con sus decimales (F4)', async () => {
+  const p = await uncLab('um=m6&up=0.975&lang=es');
+  const steps = (await p.locator('#uncSteps li').allInnerTexts()).join('\n');
+  assert.match(steps, /0,975/);
+  assert.doesNotMatch(steps, /Φ\(z\) = 0,98 /);
+  assert.match(await p.locator('#uncExamResult').innerText(), /P = 0,975/);
+  assert.equal(await p.locator('#uncProb').inputValue(), '0,975');
+  await close(p);
+  const q = await uncLab('um=m6&ud=25.125&lang=en');
+  assert.match((await q.locator('#uncSteps li').allInnerTexts()).join('\n'), /25\.125/);
+  assert.equal(await q.locator('#uncDeadline').inputValue(), '25.125');
+  await close(q);
+});
+
+check('F4a T017 · con más de 50 caminos, M6 calcula el examen y simula el proyecto entero sin lista (F3)', async () => {
+  const rows = [];
+  for (let i = 0; i < 6; i++) for (const j of [0, 1]) rows.push(ownRow(`L${i}S${j}`, 1, 2, j ? 5 : 4, i ? `L${i - 1}S0, L${i - 1}S1` : ''));
+  const p = await uncLab(ownUrl(rows, { um: 'm6' }));
+  assert.match((await p.locator('#uncSteps li').allInnerTexts())[0], /L0S1–L1S1–L2S1–L3S1–L4S1–L5S1/);
+  await p.locator('#uncCase-proj').click();
+  await uncAfter(p, () => PNL.unc.state().sim && PNL.unc.state().sim.done);
+  assert.equal(await p.locator('#uncPaths tbody tr').count(), 1, 'solo el crítico del cálculo de examen');
+  assert.equal(await p.locator('#uncPathsMany').innerText(), tuEs('proj.tooMany', { n: '64' }));
+  await close(p);
+  // 7 rombos en serie: 128 caminos críticos de las medias; se usa el de mayor σ² (el de todas las Y) y se dice cuántos hay.
+  const d = [];
+  for (let i = 0; i < 7; i++) d.push(ownRow(`S${i}`, 1, 1, 1, i ? `X${i - 1}, Y${i - 1}` : ''), ownRow(`X${i}`, 5, 5, 5, `S${i}`), ownRow(`Y${i}`, 2, 5, 8, `S${i}`));
+  d.push(ownRow('Z', 1, 1, 1, 'X6, Y6'));
+  const q = await uncLab(ownUrl(d, { um: 'm6' }));
+  const first = (await q.locator('#uncSteps li').allInnerTexts())[0];
+  assert.match(first, /S0–Y0–S1–Y1–S2–Y2–S3–Y3–S4–Y4–S5–Y5–S6–Y6–Z/);
+  assert.match(first, /Hay otros 127 caminos críticos de las medias, por ejemplo: /);
+  assert.equal((await q.locator('#uncSteps li').allInnerTexts())[2].endsWith('= 7,00'), true, 'σ² del camino');
+  await close(q);
+});
+
+check('F4a T017 · con un solo camino más de los que se listan: «y 1 camino más» (nit)', async () => {
+  const p = await uncLab('um=m6&ux=proj&lang=es');
+  await p.locator('#uncFromWork').click();
+  await uncAfter(p, () => PNL.unc.state().src.kind === 'own' && PNL.unc.state().sim && PNL.unc.state().sim.done);
+  assert.equal(await p.locator('#uncPaths tbody tr').count(), 8);
+  assert.equal(await p.locator('#uncPathsMore').innerText(), tuEs('proj.moreOne'));
+  await close(p);
+});
+
+check('F4a T017 · σ² = 0 en el proyecto entero: el gráfico sin NaN y la normal en 1 (F13, F7)', async () => {
+  const p = await uncLab(ownUrl([ownRow('A', 5, 5, 5), ownRow('B', 3, 3, 3, 'A')], { um: 'm6', ux: 'proj' }));
+  await uncAfter(p, () => PNL.unc.state().sim && PNL.unc.state().sim.done);
+  assert.doesNotMatch(await p.locator('#uncSimChart svg').evaluate((el) => el.outerHTML), /NaN/);
+  assert.deepEqual(await p.locator('#uncProb tbody td').allInnerTexts(), ['1,000', '8,00', '1,000', '8,00']);
+  await close(p);
+});
+
+check('F4a T017 · en M6, al dejar válida la tabla propia escribiendo, se ve el cálculo de examen y no M5 (F14)', async () => {
+  const p = await uncLab('um=m6&lang=es');
+  await p.locator('#uncProj').selectOption('own');
+  await uncAfter(p, () => PNL.unc.state().src.kind === 'own' && document.getElementById('uncIssues'));
+  await p.locator('#uncT-0-a').fill('1');
+  await p.locator('#uncT-0-m').fill('2');
+  await p.locator('#uncT-0-b').fill('4');
+  await uncAfter(p, () => document.getElementById('uncSteps'));
+  assert.equal(await p.locator('#uncActHead').count(), 0, 'sin la tarjeta de la actividad de M5');
+  assert.equal(await p.locator('#uncExamHead').count(), 1);
+  await close(p);
+});
+
+check('F4a T017 · M5: la tabla comparativa dice 4,89 de la curva frente a 4 de examen (F8, AC4); con notación española, tₒ tₘ tₚ (F19)', async () => {
+  const p = await uncLab('lang=es');
+  const rows = await p.locator('#uncCmp tbody tr').evaluateAll((trs) => trs.map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent)));
+  assert.deepEqual(rows, [['6,67', '6,67', '7,33'], ['4', '4,89', '6,22']]);
+  // La red con las medias resalta el camino crítico A–C–E–F (F20).
+  assert.equal(await p.locator('#uncNet rect.box.crit').count(), 4);
+  await close(p);
+  const e = await uncLab(ownUrl([ownRow('A', 2, 4, 6)], { nota: 'es' }));
+  assert.deepEqual((await e.locator('#uncOwn thead th').allInnerTexts()).slice(2, 5), ['tₒ', 'tₘ', 'tₚ']);
+  await close(e);
+});
+
+check('F4a T017 · fusión: mover la holgura conserva el número de caminos en el estado y en el enlace (F9)', async () => {
+  const p = await uncLab('um=m6&ux=merge&lang=es');
+  await setRange(p, '#uncK-n', 6);
+  await p.waitForFunction(() => PNL.app.state().uk && PNL.app.state().uk.n === 6);
+  await setRange(p, '#uncK-s', 2);
+  await p.waitForFunction(() => PNL.app.state().uk && PNL.app.state().uk.s === 2);
+  assert.equal((await state(p)).uk.n, 6);
+  assert.match(await hashGet(p, 'uk'), /n6/);
+  await close(p);
+});
+
+check('F4a T017 · empates de las medias: se nombran los otros caminos críticos con su σ² (F10, AC18)', async () => {
+  const p = await uncLab(ownUrl([ownRow('A', 1, 2, 3), ownRow('B', 0, 2, 4)], { um: 'm6' }));
+  const first = (await p.locator('#uncSteps li').allInnerTexts())[0];
+  assert.match(first, /^Camino crítico de las medias\s+B /);
+  assert.ok(first.includes(tuEs('exam.ties', { list: tuEs('exam.tie', { path: 'A', var: '0,11' }) })), first);
+  await close(p);
+});
+
+check('F4a T017 · M6 con predicción: el paso actual no enseña su valor (F11) y el resultado dice tabla y exacta en su orden (F12)', async () => {
+  const p = await uncLab('um=m6&uw=1&pred=1&step=1&lang=es');
+  const cur = await p.locator('#uncSteps li.cur').innerText();
+  assert.doesNotMatch(cur, /23,83/);
+  assert.match(cur, new RegExp(tuEs('walk.yours').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  await close(p);
+  const q = await uncLab('um=m6&lang=es');
+  assert.match(await q.locator('#uncExamResult').innerText(), new RegExp(tuEs('exam.result', { T: '25', p4: '0,6591', exact: '0,6577' }).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  await close(q);
+});
+
+check('F4a T017 · el histograma no se recorta: la barra más alta queda por debajo del borde (F15)', async () => {
+  const p = await uncLab('um=m6&ux=few&uk=k1&lang=es');
+  await uncAfter(p, () => PNL.unc.state().sim && PNL.unc.state().sim.done);
+  const top = await p.locator('#uncSimChart rect').evaluateAll((rs) => Math.min(...rs.map((r) => Number(r.getAttribute('y')))));
+  assert.ok(top > 18 + 5, `y de la barra más alta: ${top}`);
+  await close(p);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
