@@ -223,3 +223,16 @@ test('css/styles.css: el borde de cada campo de texto y desplegable usa un token
     assert.ok(token && ok.has(token[1]), `${sel.trim()}: --${token && token[1]} no llega a 3:1`);
   }
 });
+
+// F4a (T009): la hoja de «Duraciones inciertas» se carga aparte y solo usa los tokens de styles.css; las curvas, las líneas
+// y los bordes que llevan información usan tokens con 3:1 sobre la tarjeta (1.4.11), y nada quita el contorno del foco.
+test('css/unc.css: sin colores propios; trazos y bordes con tokens de 3:1; el foco no se quita', () => {
+  const css = read('css/unc.css');
+  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/, 'sin colores fuera de los tokens');
+  assert.doesNotMatch(css, /outline:\s*(none|0)\b/);
+  const ok = new Set([...PAIRS['css/styles.css'].ui.map(([fg]) => fg), 'ink']);
+  const used = [...css.matchAll(/(?:stroke|border(?:-top|-color)?|color):[^;]*var\(--([a-z-]+)\)/g)].map((m) => m[1]);
+  assert.ok(used.length >= 8);
+  // --card en un trazo es solo la separación entre barras del histograma, no información.
+  assert.deepEqual([...new Set(used)].filter((tok) => !ok.has(tok) && tok !== 'card'), []);
+});

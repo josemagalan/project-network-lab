@@ -2445,7 +2445,7 @@ check('F2c AC18 · axe sin violaciones en M0 (practicar, subrayar, panel, matriz
 check('F2c T020 · P10: la pestaña «Del enunciado a la tabla» va la primera de la barra y abre practicar; las demás siguen igual', async () => {
   for (const [lang, label] of [['es', 'Del enunciado a la tabla'], ['en', 'From statement to table']]) {
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
-    const tabs = await page.locator('header nav a').allInnerTexts();
+    const tabs = await page.locator('header nav a:visible').allInnerTexts();
     assert.deepEqual(tabs.map((x) => x.trim())[0], label);
     assert.equal(tabs.length, 4, 'con «Ejercicios» (F3a, T017)');
     assert.equal(await page.locator('#navM0').getAttribute('aria-current'), 'false');
@@ -3641,7 +3641,7 @@ check('F3a P10 · un enlace pegado carga lo que falta: M0 desde «Ejercicios» y
 check('F3a T017 · P11: la pestaña «Ejercicios» va la última de la barra, abre un ejercicio con semilla y «Atrás» vuelve', async () => {
   for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Exercises']]]) {
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
-    assert.deepEqual((await page.locator('header nav a').allInnerTexts()).map((x) => x.trim()), labels);
+    assert.deepEqual((await page.locator('header nav a:visible').allInnerTexts()).map((x) => x.trim()), labels);
     assert.equal(await page.locator('#navEx').getAttribute('aria-current'), 'false');
     assert.match(await page.locator('#navEx').getAttribute('href'), /^#v=ex&.*sd=\d+/);
     await page.locator('#navEx').click();
@@ -3689,7 +3689,7 @@ check('F3a T017 · la barra con cuatro pestañas: a 1280 px la cabecera cabe en 
     }
     const page = await lab(`v=ex&sd=14844&lang=${lang}`, { width: 360, height: 740 });
     const bar = await page.evaluate(() => {
-      const links = [...document.querySelectorAll('.tabs a')].map((a) => a.getBoundingClientRect());
+      const links = [...document.querySelectorAll('.tabs a:not([hidden])')].map((a) => a.getBoundingClientRect());   // F4a: la pestaña oculta hasta T013 no cuenta
       const lh = parseFloat(getComputedStyle(document.querySelector('.tabs a')).lineHeight) || 20;
       return { w: document.documentElement.scrollWidth, right: Math.max(...links.map((x) => x.right)), rows: new Set(links.map((x) => Math.round(x.top))).size,
         lines: links.map((x) => Math.round((x.height - 16) / lh)) };
@@ -4652,13 +4652,185 @@ check('F3c revisión r2 F2 · «Ejercicios» con enunciado: el enlace guarda sv 
   await close(c);
 });
 
+// ---------- F4a, T009: «Duraciones inciertas», M5 (tres tiempos) ----------
+
+const uncLab = (hash, opts) => open(`cpm.html#v=unc${hash ? `&${hash}` : ''}`, opts).then(async (p) => {
+  await p.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state() && !document.getElementById('uncView').hidden);
+  return p;
+});
+const uncSt = (page) => page.evaluate(() => PNL.unc.state());
+const hashGet = (page, k) => page.evaluate((key) => new URLSearchParams(location.hash.slice(1)).get(key), k);
+const uncAfter = (page, fn) => page.waitForFunction(fn);
+
+check('F4a T009 · M5 con Klastorin: medias, varianzas, camino crítico de las medias, curva y red, sin la pestaña a la vista', async () => {
+  const p = await uncLab('lang=es');
+  assert.equal(await p.locator('#navUnc').isVisible(), false, 'la pestaña sigue oculta hasta T013');
+  assert.equal(await p.locator('#stage').isVisible(), false);
+  assert.equal(await p.locator('#workshop').isVisible(), false);
+  const st = await uncSt(p);
+  assert.equal(st.src.id, 'kl');
+  assert.deepEqual(st.path, ['A', 'C', 'E', 'F']);
+  assert.deepEqual(st.acts.map((a) => a.mean.toFixed(2)), ['6.67', '7.33', '7.83', '14.33', '5.00', '4.33']);
+  assert.equal(await p.locator('#uncTable tbody tr').count(), 6);
+  assert.deepEqual(await p.locator('#uncTable tbody tr.crit').evaluateAll((rs) => rs.map((r) => r.dataset.act)), ['A', 'C', 'E', 'F']);
+  assert.match(await p.locator('#uncNetHead').innerText(), /A–C–E–F/);
+  assert.equal(await p.locator('#uncNet svg').count(), 1, 'red ROY con las medias');
+  // La curva de A: beta-PERT y triangular; la clásica, solo al pedirla.
+  assert.match(await p.locator('#uncActHead').innerText(), /^Actividad A/);
+  assert.equal(await p.locator('#uncChart path.c-pert').count(), 1);
+  assert.equal(await p.locator('#uncChart path.c-tri').count(), 1);
+  assert.equal(await p.locator('#uncChart path.c-classic').count(), 0);
+  assert.match(await p.locator('#uncChart svg').getAttribute('aria-label'), /6,67/);
+  assert.equal(await p.locator('#uncCmp thead th').count(), 3);
+  await p.locator('#uncClassic').check();
+  await uncAfter(p, () => document.querySelector('#uncChart path.c-classic'));
+  assert.equal(await hashGet(p, 'uc'), '1');
+  assert.equal(await p.locator('#uncCmp thead th').count(), 4);
+  assert.equal(await activeId(p), 'uncClassic', 'el foco sigue en la casilla');
+  await shot(p, 'f4a-m5-klastorin');
+  await axe(p, 'F4a · M5 · Klastorin con la beta clásica');
+  await close(p);
+});
+
+check('F4a T009 · elegir actividad (lista, fila o nodo) cambia la curva y queda en el enlace', async () => {
+  const p = await uncLab('lang=es');
+  await p.locator('#uncAct').selectOption('D');
+  await uncAfter(p, () => PNL.unc.state().sel === 'D');
+  assert.equal(await hashGet(p, 'ua'), 'D');
+  assert.match(await p.locator('#uncActHead').innerText(), /^Actividad D/);
+  assert.equal(await p.locator('#uncTable tr.sel').getAttribute('data-act'), 'D');
+  await p.locator('#uncTable tr[data-act="E"] th button').click();
+  await uncAfter(p, () => PNL.unc.state().sel === 'E');
+  // Recargar con el enlace conserva la actividad.
+  const url = await p.evaluate(() => location.hash);
+  await close(p);
+  const q = await open(`cpm.html${url}`);
+  await q.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state() && PNL.unc.state().sel === 'E');
+  await close(q);
+});
+
+check('F4a T009 · un deslizador de un ejemplo pasa a tabla propia, recalcula y conserva el foco; a ≤ m ≤ b', async () => {
+  const p = await uncLab('lang=es');
+  await p.locator('#uncSl-m').focus();
+  await p.keyboard.press('ArrowRight');
+  await uncAfter(p, () => PNL.unc.state().src.kind === 'own');
+  assert.equal(await hashGet(p, 'ue'), 'own');
+  const st = await uncSt(p);
+  assert.equal(st.src.rows[0].m, '6.5');
+  assert.equal(st.acts[0].mean.toFixed(4), ((2 + 4 * 6.5 + 14) / 6).toFixed(4));
+  assert.equal(await activeId(p), 'uncSl-m');
+  // tₒ no pasa de tₘ: con End el deslizador se queda en m.
+  await p.locator('#uncSl-a').focus();
+  await p.keyboard.press('End');
+  await uncAfter(p, () => PNL.unc.state().src.rows[0].a === '6.5');
+  assert.equal((await uncSt(p)).issues.length, 0);
+  await close(p);
+});
+
+check('F4a T009 · tabla propia: errores de a, m y b y de estructura, pegar y cambiar la forma', async () => {
+  const p = await uncLab('lang=es');
+  await p.locator('#uncProj').selectOption('own');
+  await uncAfter(p, () => PNL.unc.state().src.kind === 'own' && document.getElementById('uncIssues'));
+  assert.equal(await activeId(p), 'uncT-0-a');
+  assert.match(await p.locator('#uncIssuesHead').innerText(), /3 errores/);
+  assert.equal(await p.locator('#uncOwn input[aria-invalid="true"]').count(), 3);
+  assert.equal(await p.locator('#uncNet').count(), 0, 'sin red mientras hay errores');
+  // Cada tecla se aplica sin rehacer la tabla: el foco sigue en la casilla y las marcas cambian en su sitio.
+  await p.locator('#uncT-0-a').fill('5');
+  await uncAfter(p, () => PNL.unc.state().issues.length === 2);
+  assert.equal(await activeId(p), 'uncT-0-a');
+  assert.equal(await p.locator('#uncT-0-a').getAttribute('aria-invalid'), 'false');
+  await p.locator('#uncT-0-m').fill('3');
+  await p.locator('#uncT-0-b').fill('9');
+  await uncAfter(p, () => PNL.unc.state().issues.some((i) => i.code === 'aGtM'));
+  assert.equal(await activeId(p), 'uncT-0-b');
+  assert.equal(await p.locator('#uncT-0-a').getAttribute('aria-invalid'), 'true');
+  assert.equal(await p.locator('#uncNet').count(), 0);
+  await p.locator('#uncT-0-m').fill('7');
+  await uncAfter(p, () => document.getElementById('uncNet'));
+  assert.equal(await activeId(p), 'uncT-0-m', 'con la tabla ya correcta aparecen la curva y la red sin perder el foco');
+  await p.locator('#uncT-0-m').fill('3');
+  await uncAfter(p, () => PNL.unc.state().issues.some((i) => i.code === 'aGtM'));
+  assert.match(await p.locator('#uncIssues li').first().innerText(), /Fila 1: a no puede ser mayor que m/);
+  // Pegar una tabla de dos actividades con coma decimal.
+  await p.locator('#uncPaste summary').click();
+  await p.locator('#uncPasteText').fill('Act\tNombre\ta\tm\tb\tPrec\nA\tDiseño\t1\t2\t4\t\nB\tPrueba\t1\t2,5\t4\tA');
+  await p.locator('#uncPasteApply').click();
+  await uncAfter(p, () => PNL.unc.state().acts.length === 2 && !PNL.unc.state().issues.length);
+  assert.deepEqual((await uncSt(p)).path, ['A', 'B']);
+  assert.equal(await p.locator('#uncNet svg').count(), 1);
+  // Posteriores: la tabla se reescribe en la otra forma.
+  await p.locator('#uncMode-succ').check();
+  await uncAfter(p, () => PNL.unc.state().src.mode === 'succ');
+  assert.deepEqual((await uncSt(p)).src.rows.map((r) => r.links), ['B', '']);
+  assert.deepEqual((await uncSt(p)).path, ['A', 'B']);
+  // Quitar una fila: B era posterior de A, así que ya no hay error y A queda sola.
+  await p.locator('#uncDel-1').click();
+  await uncAfter(p, () => PNL.unc.state().src.rows.length === 1);
+  assert.equal((await uncSt(p)).issues[0].code, 'unknownRef');
+  await axe(p, 'F4a · M5 · tabla propia con errores');
+  await close(p);
+});
+
+check('F4a T009 · «Partir del taller»: la estructura del taller con a = m = b = la duración, y el taller no cambia', async () => {
+  const p = await open('cpm.html#v=work&ex=ej6&lang=es');
+  const before = await state(p);
+  await setHash(p, 'v=unc&lang=es');
+  await p.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state());
+  await p.locator('#uncFromWork').click();
+  await uncAfter(p, () => PNL.unc.state().src.kind === 'own');
+  const st = await uncSt(p);
+  assert.ok(st.acts.length > 5);
+  assert.ok(st.acts.every((a) => a.var === 0), 'sin incertidumbre');
+  assert.ok(st.src.rows.every((r) => r.a === r.m && r.m === r.b));
+  assert.match(await p.locator('#live').innerText(), /taller/);
+  assert.equal(await p.locator('#uncFixed').count(), 1, 'duración fija: marca en lugar de curva');
+  assert.equal(await p.locator('#uncClassic').isDisabled(), true);
+  await p.goBack();
+  await p.goBack();
+  await p.waitForFunction(() => PNL.app.state().v === 'work');
+  assert.deepEqual((await state(p)).t, before.t);
+  await close(p);
+});
+
+check('F4a T009 · red PERT con las medias, inglés y notación española', async () => {
+  const p = await uncLab('ue=hl&lang=en&nota=es');
+  assert.match(await p.locator('#uncProjHead').innerText(), /^Project · mean and variance/);
+  const heads = await p.locator('#uncTable thead th').allInnerTexts();
+  assert.deepEqual(heads.slice(2), ['tₒ', 'tₘ', 'tₚ', 'tₑ', 'σ²']);
+  assert.match(await p.locator('#uncNetHead').innerText(), /A–B–C–E–F–J–L–N/);
+  await p.locator('#uncAoa').click();
+  await uncAfter(p, () => PNL.app.state().graph === 'aoa');
+  assert.equal(await p.locator('#uncNet svg').count(), 1);
+  assert.equal(await activeId(p), 'uncAoa');
+  await axe(p, 'F4a · M5 · Hillier, red PERT, EN');
+  await close(p);
+});
+
+check('F4a T009 · tema oscuro, 360 px sin desbordar la página y el grupo bajo demanda solo en v=unc', async () => {
+  const d = await uncLab('lang=es&uc=1', { scheme: 'dark' });
+  await axe(d, 'F4a · M5 · tema oscuro');
+  await close(d);
+  const m = await uncLab('lang=es', { width: 360, height: 740 });
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'sin desbordar a lo ancho');
+  await shot(m, 'f4a-m5-360', true);
+  await close(m);
+  const r = await lab('v=route&ex=ej6&step=0&lang=es');
+  assert.equal(await r.evaluate(() => !!PNL.unc || !!PNL.threept), false);
+  // Ir a la pestaña por enlace carga el grupo.
+  await setHash(r, 'v=unc&lang=es');
+  await r.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state());
+  assert.equal(await r.locator('#uncView').isVisible(), true);
+  await close(r);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -4675,6 +4847,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     // F3c (P5): el generador de enunciados, solo con un enunciado al azar, con el enunciado en «Ejercicios» y en el exportador.
     const gen = /st=gen|xt=1|v=moodle/.test(url);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /stmtgen\.js|contexts\.js/.test(e.name))), gen, `${url}: generador de enunciados`);
+    // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);
     await ctx.close();
   }

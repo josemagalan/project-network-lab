@@ -1,0 +1,68 @@
+/* Project Network Lab — estilos de «Duraciones inciertas» (F4a). Se cargan bajo demanda con la vista v=unc (app.js, grupo un),
+   como sus scripts, para que las demás vistas no los paguen (principio 27; decisions.md). Usan los tokens de styles.css. */
+.unc { display: flex; flex-direction: column; gap: 12px; }
+.unc h2 { margin: 0; font-size: 14px; }
+.unc-bar { padding: 8px 14px; }
+.unc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.unc-bar .seg button { padding: 4px 12px; min-height: 32px; font-size: 13px; }
+.unc button.ghost { min-height: 32px; padding: 4px 12px; }
+.unc-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
+.unc-field select { min-height: 32px; max-width: 100%; min-width: 0; }
+.unc-main { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.unc-left, .unc-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.unc-act, .unc-proj, .unc-netcard, .unc-issues { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.unc-act p, .unc-proj p, .unc-issues p, .unc-issues ul { margin: 0; }
+.unc-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; justify-content: space-between; }
+.unc-head h2 { flex: 1 1 0; min-width: 8em; }
+.unc-head .seg button { padding: 2px 10px; min-height: 28px; font-size: 13px; }
+.unc-sliders { display: flex; flex-direction: column; gap: 2px; }
+.unc-slider { display: grid; grid-template-columns: 2.2em minmax(0, 1fr) 3.5em; align-items: center; gap: 8px; min-height: 32px; font-size: 14px; }
+.unc-slider input { width: 100%; accent-color: var(--accent); }
+.unc-slider output { text-align: right; font-variant-numeric: tabular-nums; }
+.unc-sym { font-weight: 600; }
+.unc-chart { min-width: 0; }
+.unc-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.unc-key { display: inline-flex; align-items: center; gap: 5px; }
+.unc-swatch { width: 18px; height: 0; border-top: 2.5px solid currentColor; }
+.unc-swatch.k-pert { color: var(--accent); }
+.unc-swatch.k-tri { color: var(--muted); border-top-style: dashed; }
+.unc-swatch.k-classic { color: var(--warn-line); border-top-style: dotted; }
+.unc-swatch.k-mean { color: var(--ink); border-top-width: 2px; }
+.unc-swatch.k-sd { color: var(--edge); border-top: 1.5px dashed; }
+.unc-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; min-height: 32px; }
+table.data.unc-table { font-size: 13px; font-variant-numeric: tabular-nums; }
+table.data.unc-table th, table.data.unc-table td { padding: 3px 6px; }
+table.data.unc-table td.num { text-align: right; }
+table.data.unc-table tr.sel { background: var(--select-soft); }
+table.data.unc-table tr.sel th[scope="row"] { box-shadow: inset 3px 0 0 var(--select); }
+table.data.unc-cmp caption { caption-side: bottom; text-align: left; padding-top: 4px; }
+.unc-scroll { overflow-x: auto; }
+table.data.unc-own input { width: 100%; min-width: 3em; height: 30px; padding: 0 5px; }
+table.data.unc-own input[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
+table.data.unc-own tr.bad { background: var(--critical-soft); }
+.unc-mode { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 14px; }
+.unc-mode legend { float: left; padding: 0; margin-right: 2px; }
+.unc-mode label { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; }
+.unc-paste summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.unc-paste textarea { width: 100%; font-family: var(--mono); font-size: 13px; }
+.unc-issues { border-color: var(--critical); background: var(--critical-soft); }
+.unc-net { overflow-x: auto; }
+.unc-net svg.net { display: block; margin: 0 auto; }
+svg.dc { display: block; width: 100%; height: auto; }
+.dc-curve { fill: none; stroke-width: 2.5; }
+.dc-curve.c-pert { stroke: var(--accent); }
+.dc-curve.c-tri { stroke: var(--muted); stroke-width: 2; }
+.dc-curve.c-classic { stroke: var(--warn-line); }
+.dc-curve.c-normal { stroke: var(--critical); }
+.dc-hist { fill: var(--accent-mid); stroke: var(--card); stroke-width: 0.5; }
+.dc-axis { stroke: var(--edge); stroke-width: 1; }
+.dc-tick { fill: var(--muted); font-size: 11px; }
+.dc-v { stroke-width: 1.5; }
+.dc-v.v-mean { stroke: var(--ink); stroke-width: 2; }
+.dc-v.v-sd { stroke: var(--edge); }
+.dc-v.v-deadline { stroke: var(--critical); stroke-width: 2; }
+.dc-vlabel { fill: var(--ink); font-size: 11px; font-weight: 600; }
+.dc-shade { fill: var(--accent-soft); }
+@media (max-width: 860px) {
+  .unc-main { grid-template-columns: minmax(0, 1fr); }
+}

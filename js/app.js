@@ -46,6 +46,8 @@
   let m0 = null;            // controlador de M0 (F2c)
   let exc = null;           // controlador de «Ejercicios» (F3a)
   let mqc = null;           // controlador del exportador de Moodle (F3b)
+  let uncc = null;          // controlador de «Duraciones inciertas» (F4a)
+  const UNC_PUBLIC = false; // F4a: la pestaña se publica en T013
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
   // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al
@@ -58,28 +60,40 @@
     ex: ['js/core/grade.js', 'js/views/answer-table.js', 'js/ex.js'],
     // F3b (plan P5 y P7): el banco de Moodle, sus textos y su vista; F3c (P5): con el generador de enunciados (etapa 0).
     mq: ['js/core/grade.js', 'js/core/contexts.js', 'js/core/stmtgen.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/question-view.js', 'js/moodle-page.js'],
+    // F4a (plan P3): «Duraciones inciertas», con su núcleo (tres tiempos, simulación, TCL y ejemplos), textos y vista.
+    // Con su hoja de estilos: M0 ya roza el presupuesto de 1 MB y no debe pagarla.
+    un: ['css/unc.css', 'js/core/threept.js', 'js/core/sim.js', 'js/core/tcl.js', 'js/core/stochex.js', 'js/i18n-unc.js', 'js/views/dist-chart.js', 'js/unc.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
     if (!loading[group]) {
-      loading[group] = new Promise((resolve, reject) => {
+      // Una hoja de estilos del grupo (F4a) se pide a la vez; la vista se pinta cuando han llegado los scripts y ella.
+      const sheets = LAZY[group].filter((src) => src.endsWith('.css') && !document.querySelector(`link[href="${src}"]`)).map((src) => new Promise((resolve, reject) => {
+        const el = document.createElement('link');
+        el.rel = 'stylesheet'; el.href = src;
+        el.onload = () => resolve();
+        el.onerror = () => { el.remove(); reject(new Error(src)); };
+        document.head.appendChild(el);
+      }));
+      const scripts = new Promise((resolve, reject) => {
         // Un script que ya cargó otro grupo (core/grade lo usan «Ejercicios» y Moodle) no se vuelve a pedir.
         const have = new Set([...document.scripts].map((x) => x.getAttribute('src')));
-        const files = LAZY[group].filter((src, i, all) => !have.has(src) || i === all.length - 1);
+        const files = LAZY[group].filter((src, i, all) => !src.endsWith('.css') && (!have.has(src) || i === all.length - 1));
         files.forEach((src, i) => {
           const el = document.createElement('script');
           el.src = src; el.async = false;
           if (i === files.length - 1) { el.onload = () => resolve(); }
-          el.onerror = () => { delete loading[group]; reject(new Error(src)); };
+          el.onerror = () => reject(new Error(src));
           document.body.appendChild(el);
         });
-      }).then(() => { ensureControllers(); });
+      });
+      loading[group] = Promise.all([scripts, ...sheets]).then(() => { ensureControllers(); }, (err) => { delete loading[group]; throw err; });
     }
     return loading[group];
   }
-  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : null);
+  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : v === 'unc' ? 'un' : null);
   // Grupos que pide un enlace (F3c, P5 y P12): M0 con el texto de su enunciado (st) o con el generador (sg).
   function groupsOf(hash) {
     const q = new URLSearchParams(String(hash || '').replace(/^#/, ''));
@@ -106,6 +120,8 @@
     if (state.v === 'ex') { model = Object.assign(G.ex.model(state, lang()), { exm: true }); return; }
     // El exportador de Moodle (F3b): sin tabla ni traza; la vista guarda su selección.
     if (state.v === 'moodle') { model = { mqm: true }; return; }
+    // «Duraciones inciertas» (F4a): su proyecto, medias y varianzas; sin traza en M5 (el paso a paso llega con T011).
+    if (state.v === 'unc') { model = Object.assign(G.unc.model(state, lang()), { uncm: true }); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
@@ -154,7 +170,7 @@
   // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022), y sin
   // la vista lado a lado ni la matriz, que necesitan la red ROY (revisión de cierre, F2).
   function fitGraph() {
-    if (model.m0 || model.exm || model.mqm || !model.structureOnly || !model.project) return;
+    if (model.m0 || model.exm || model.mqm || model.uncm || !model.structureOnly || !model.project) return;
     const view = state.view === 'matrix' || state.view === 'side' ? 'net' : state.view;
     if (pert() && view === state.view) return;
     state = Object.assign({}, state, { graph: 'aoa', view, step: pert() ? state.step : 0 });
@@ -163,7 +179,7 @@
   function trace() {
     if (!model) return null;
     if (model.m0) return state.mm === 'route' ? model.route : null;
-    if (model.exm || model.mqm) return null;
+    if (model.exm || model.mqm || model.uncm) return null;
     if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -185,6 +201,15 @@
   // nuevo con una semilla de la interfaz, elegida una vez para que el enlace de la pestaña no cambie en cada repintado.
   let tabSeed = null;
   const exEntry = () => (state.v === 'ex' ? state : S.reduce(state, { type: 'ex', sd: state.sd || (tabSeed = tabSeed || newSeed()) }, 1));
+  // Entrada a «Duraciones inciertas»: lo que hubiera (apartado, proyecto, tabla propia); por defecto, M5 con Klastorin.
+  const uncEntry = () => Object.assign({}, state, { v: 'unc', step: 0 });
+  function toUnc() {
+    stopPlay();
+    if (state.v === 'unc') return;
+    if (!G.unc) { need('un').then(toUnc); return; }
+    dispatch({ type: 'unc' }, { push: true });
+    window.scrollTo(0, 0);
+  }
   function toEx() {
     stopPlay();
     if (state.v === 'ex') return;
@@ -205,7 +230,7 @@
   function dispatch(action, opts) {
     const before = state;
     state = S.reduce(state, action, total());
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -255,6 +280,10 @@
     $('navRoute').setAttribute('aria-current', state.v === 'route' ? 'page' : 'false');
     $('navWork').setAttribute('aria-current', state.v === 'work' ? 'page' : 'false');
     $('navEx').setAttribute('aria-current', state.v === 'ex' ? 'page' : 'false');
+    $('navUnc').setAttribute('aria-current', state.v === 'unc' ? 'page' : 'false');
+    // F4a: la pestaña se ve al publicarse (T013); hasta entonces solo se llega por enlace.
+    $('navUnc').hidden = !UNC_PUBLIC;
+    $('navUnc').href = U.encode(uncEntry());
     $('navM0').href = U.encode(m0Entry());
     $('navRoute').href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: state.ex || 'ej6', step: 0, wi: null }));
     $('navWork').href = U.encode(Object.assign({}, state, { v: 'work', step: 0 }));
@@ -270,12 +299,15 @@
     $('m0View').hidden = !m0On;
     $('exView').hidden = !exOn;
     $('mqView').hidden = !mqOn;
+    const uncOn = state.v === 'unc';
+    $('uncView').hidden = !uncOn;
     // La caja del nodo no tiene sentido en el exportador (bocetos de la F3b).
     $('selBox').closest('label').hidden = mqOn;
     if (!mqOn && mqc) mqc.leave();
     if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
     if (exOn) { $('workshop').hidden = true; $('stage').hidden = true; exc.render(model, opts); return; }
     if (mqOn) { $('workshop').hidden = true; $('stage').hidden = true; mqc.render(model, opts); return; }
+    if (uncOn) { $('workshop').hidden = true; $('stage').hidden = true; uncc.render(model, opts); return; }
     const work = state.v === 'work';
     $('workshop').hidden = !work;
     if (work) editor.render(Object.assign({}, model, { showComputed, numFmt, hideDuration: durationHidden() }), !!(opts && opts.fullEditor));
@@ -932,7 +964,7 @@
   }
 
   function workRows(rows) {
-    return rows.map((r) => ({ id: r.id, name: nameOf(r), duration: String(r.duration), links: r.links }));
+    return rows.map((r) => ({ id: r.id, name: nameOf(r), duration: r.duration == null ? '' : String(r.duration), links: r.links }));
   }
 
   function bind() {
@@ -969,6 +1001,7 @@
     // F2c, T020 (P10): la pestaña de M0 abre practicar con el enunciado de antes (o Electrona) y su tabla vacía.
     $('navM0').addEventListener('click', (e) => { e.preventDefault(); toM0(); });
     $('navEx').addEventListener('click', (e) => { e.preventDefault(); toEx(); });
+    $('navUnc').addEventListener('click', (e) => { e.preventDefault(); toUnc(); });
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch({ type: 'work', rows: workRows(model.rows), mode: model.mode }); });
     document.addEventListener('keydown', (e) => {
@@ -1043,6 +1076,19 @@
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
       });
       G.moodlePage.state = () => mqc.debug();
+    }
+    if (G.unc && !uncc) {
+      uncc = G.unc.create($('uncView'), {
+        state: () => state, lang, dispatch, newSeed, need,
+        // «Partir del taller»: la tabla del taller (o el ejemplo que muestra) con su forma; a = m = b = la duración.
+        workRows: () => {
+          if (state.t) return { rows: workRows(state.t), mode: state.mode };
+          const ex = EX.get(state.ex) || EX.get('ej6');
+          return { rows: workRows(ex.rows), mode: ex.mode };
+        },
+        announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
+      });
+      G.unc.state = () => uncc.debug();
     }
   }
 

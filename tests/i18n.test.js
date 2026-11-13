@@ -5,6 +5,8 @@ const assert = require('node:assert/strict');
 const I = require('../js/i18n.js');
 // F3b: el catálogo del banco de Moodle se carga aparte (plan P5) y entra en las mismas comprobaciones.
 require('../js/i18n-moodle.js');
+// F4a: los textos de «Duraciones inciertas» también se cargan aparte (plan P3).
+require('../js/i18n-unc.js');
 
 const keysDeep = (o, prefix = '') => Object.entries(o).flatMap(([k, v]) =>
   (v && typeof v === 'object' && !Array.isArray(v) ? keysDeep(v, prefix + k + '.') : [prefix + k])).sort();
@@ -190,4 +192,17 @@ test('F3b: el catálogo del banco de Moodle está en los dos idiomas y se fusion
   }
   assert.equal(IM.tr('es')('stem.late', { dur: 13 }).includes('13'), true);
   assert.deepEqual(IM.labels('es'), Object.assign(I.notation('es'), I.eventNotation('es')));
+});
+
+test('F4a: los textos de «Duraciones inciertas» están en los dos idiomas, con los mismos parámetros', () => {
+  const IU = require('../js/i18n-unc.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(IU.es), keysDeep(IU.en));
+  for (const k of keysDeep(IU.es)) assert.deepEqual(params(get(IU.es, k)), params(get(IU.en, k)), `unc.${k}`);
+  for (const lang of I.languages) assert.equal(I.dict[lang].unc, IU[lang]);
+  assert.equal(I.t('es', 'nav.unc'), 'Duraciones inciertas');
+  assert.equal(I.t('en', 'nav.unc'), 'Uncertain durations');
+  // Los errores de la tabla propia (a, m y b) tienen su mensaje; los de estructura reutilizan issue.* del taller.
+  for (const code of ['missing', 'badNum', 'tooBig', 'aGtM', 'mGtB']) for (const lang of I.languages) assert.ok(I.dict[lang].unc.issue[code]);
 });

@@ -25,7 +25,7 @@
         structureOnlyWarning: 'Este ejemplo solo tiene precedencias, sin duraciones: se abre en la red PERT, donde se recorre su construcción.',
         footer: 'Código con licencia MIT · contenido docente CC BY 4.0 · Universidad de Burgos',
       },
-      nav: { label: 'Secciones', m0: 'Del enunciado a la tabla', route: 'Ruta guiada', work: 'Taller', home: 'Portada del laboratorio' },
+      nav: { label: 'Secciones', m0: 'Del enunciado a la tabla', route: 'Ruta guiada', work: 'Taller', home: 'Portada del laboratorio', unc: 'Duraciones inciertas' },
       ctl: {
         lang: 'Idioma', nota: 'Notación', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Caja', box4: '4 campos', box7: '7 campos', boxc: 'Compacta',
@@ -345,7 +345,7 @@
         structureOnlyWarning: 'This example only has precedences, no durations: it opens in the activity-on-arrow network, where you can follow its construction.',
         footer: 'Code under the MIT licence · teaching content CC BY 4.0 · University of Burgos',
       },
-      nav: { label: 'Sections', m0: 'From statement to table', route: 'Guided tour', work: 'Workshop', home: 'Lab home page' },
+      nav: { label: 'Sections', m0: 'From statement to table', route: 'Guided tour', work: 'Workshop', home: 'Lab home page', unc: 'Uncertain durations' },
       ctl: {
         lang: 'Language', nota: 'Notation', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Node box', box4: '4 fields', box7: '7 fields', boxc: 'Compact',
@@ -1080,7 +1080,8 @@
     none: 'This table has no statement: the project is given as a table.',
   };
 
-  const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne'];
+  const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne',
+    'unc.legend.pert', 'unc.cmp.pert', 'unc.legend.tri', 'unc.cmp.tri'];
 
   function lookup(lang, key) {
     const table = dict[lang] || dict.es;
