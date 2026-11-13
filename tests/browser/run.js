@@ -5111,6 +5111,38 @@ check('F4a T011 · M6 paso a paso: camino, μ, σ², z y P con la tabla o la exa
   await close(z);
 });
 
+// ---------- F4a, T012: «Aprende más» de M5 y M6 ----------
+
+check('F4a T012 · «Aprende más» de M5 y de M6 se carga al abrirlo, en el idioma de la página, con sus referencias', async () => {
+  const p = await uncLab('lang=es');
+  assert.equal(await p.evaluate(() => performance.getEntriesByType('resource').some((e) => /learn-unc\.js/.test(e.name))), false, 'no viene con la pestaña');
+  await p.locator('#uncLearn').click();
+  await p.locator('#learnDialog[open]').waitFor();
+  assert.equal(await p.locator('#learnTitle').innerText(), 'Tres tiempos: de dónde salen las fórmulas');
+  const heads = await p.locator('#learnBody h3').allInnerTexts();
+  assert.deepEqual(heads, ['La idea del PERT', 'Dos betas para las mismas fórmulas', 'La triangular', 'Supuestos', 'Referencias']);
+  assert.match(await p.locator('#learnBody').innerText(), /varianza 4,89/);
+  assert.equal(await p.locator('#learnBody li').count(), 6);
+  await axe(p, 'F4a · «Aprende más» de M5');
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#learnDialog[open]').count(), 0);
+  await p.locator('#uncM6').click();
+  await p.waitForFunction(() => PNL.app.state().um === 'm6');
+  await p.locator('#uncLearn').click();
+  await p.locator('#learnDialog[open]').waitFor();
+  assert.equal(await p.locator('#learnTitle').innerText(), 'El TCL y sus trampas');
+  assert.match(await p.locator('#learnBody').innerText(), /tres aproximaciones/);
+  await p.locator('#btnLearnClose').click();
+  await close(p);
+  const e = await uncLab('um=m6&ux=merge&lang=en', { scheme: 'dark' });
+  await e.locator('#uncLearn').click();
+  await e.locator('#learnDialog[open]').waitFor();
+  assert.equal(await e.locator('#learnTitle').innerText(), 'The CLT and its pitfalls');
+  assert.match(await e.locator('#learnBody').innerText(), /MacCrimmon and Ryavec, 1964/);
+  await axe(e, 'F4a · «Aprende más» de M6, tema oscuro');
+  await close(e);
+});
+
 // ---------- Contador de la portada (constitución v2.1.0) ----------
 
 const COUNT_FAKE = '12,345';
@@ -5175,7 +5207,7 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     const gen = /st=gen|xt=1|v=moodle/.test(url);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /stmtgen\.js|contexts\.js/.test(e.name))), gen, `${url}: generador de enunciados`);
     // F4a (decisión del autor): «Aprende más» (learn.js) no se carga al abrir ninguna vista, solo al abrir su diálogo.
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn\.js/.test(e.name))), false, `${url}: learn.js`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn(-unc)?\.js/.test(e.name))), false, `${url}: learn.js`);
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);

@@ -64,9 +64,11 @@
     // Con su hoja de estilos: M0 ya roza el presupuesto de 1 MB y no debe pagarla.
     // F4a (decisión del autor, 2026-11-13): «Aprende más» (learn.js, 57 KB) se carga al abrir el diálogo, en todas las vistas.
     lr: ['js/learn.js'],
+    // F4a (T012): «Aprende más» de M5 y M6, aparte de la pestaña (la reserva de la puerta T001).
+    ul: ['js/learn-unc.js'],
     un: ['css/unc.css', 'js/core/threept.js', 'js/core/sim.js', 'js/core/tcl.js', 'js/core/stochex.js', 'js/i18n-unc.js', 'js/views/dist-chart.js', 'js/unc.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, lr: () => !!G.learn };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, lr: () => !!G.learn, ul: () => !!G.learnUnc };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
@@ -908,6 +910,21 @@
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   }
 
+  // «Aprende más» de M5 y M6 (F4a, T012): sus secciones y sus referencias, cargadas al abrirlo.
+  function openUncLearn(topic) {
+    if (!G.learnUnc) { need('ul').then(() => openUncLearn(topic)); return; }
+    const LU = G.learnUnc; const c = LU[lang()][topic];
+    const body = clear($('learnBody'));
+    $('learnTitle').textContent = c.title;
+    for (const sec of c.sections) {
+      body.appendChild(h('h3', {}, [sec.head]));
+      sec.paras.forEach((p) => body.appendChild(h('p', {}, [p])));
+    }
+    body.appendChild(h('h3', {}, [t('learn.refs')]));
+    body.appendChild(h('ul', {}, LU.refs[lang()].map((r) => h('li', {}, [r]))));
+    const dlg = $('learnDialog');
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  }
   // «Aprende más» de M0 (F2c, T018): precedencias inmediatas, transitivas y redundantes, depurar y leer el texto.
   function openM0Learn() { openTopicLearn('m0Narr.learnTitle', 'm0'); }
   // «Aprende más» de «Ejercicios» (F3a, T015): el mismo diálogo, con su tema.
@@ -1098,6 +1115,7 @@
         predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
         predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
         // «Partir del taller»: la tabla del taller (o el ejemplo que muestra) con su forma; a = m = b = la duración.
+        learn: openUncLearn,
         workRows: () => {
           if (state.t) return { rows: workRows(state.t), mode: state.mode };
           const ex = EX.get(state.ex) || EX.get('ej6');

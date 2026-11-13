@@ -295,7 +295,7 @@
         sections,
         synthetic ? h('span', { class: 'unc-field muted', id: 'uncSynthetic' }, [tu('synthetic')]) : h('label', { class: 'unc-field' }, [tu('project'), ' ', sel]),
         button(tu('fromWork'), fromWork, { id: 'uncFromWork' }),
-      ].concat(walkControls()))];
+      ].concat([h('span', { class: 'unc-push' })], walkControls(), [learnButton()]))];
       if (s.um === 'm6') rows.push(m6Controls());
       return h('div', { class: 'card unc-bar' }, rows);
     }
@@ -304,10 +304,14 @@
       const s = state();
       if (!m || !m.model || (s.um === 'm6' && s.ux !== 'exam')) return [];
       const on = !!s.uw;
-      const out = [h('span', { class: 'unc-push' }), seg([[tu('walk.toggle'), on, () => { go({ uw: on ? 0 : 1 }); focus('uncWalk'); }, 'uncWalk']], tu('walk.toggle'))];
+      const out = [seg([[tu('walk.toggle'), on, () => { go({ uw: on ? 0 : 1 }); focus('uncWalk'); }, 'uncWalk']], tu('walk.toggle'))];
       if (on) out.push(h('label', { class: 'unc-check' }, [h('input', { type: 'checkbox', id: 'uncPred', checked: !!s.pred,
         onchange: (e) => { hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }); focus('uncPred'); } }), ' ', t('predict.toggle')]));
       return out;
+    }
+    // «Aprende más» del apartado (T012), en el diálogo de la página; su texto se carga al abrirlo.
+    function learnButton() {
+      return h('button', { type: 'button', class: 'ghost', id: 'uncLearn', onclick: () => hooks.learn(state().um) }, [t('learn.button')]);
     }
     function pickProject(id) {
       if (id === 'own' && !state().ut) { hooks.dispatch({ type: 'uncTable', mode: 'pred', rows: [{ id: 'A', name: '', a: '', m: '', b: '', links: '' }] }, { push: true }); focus('uncT-0-a'); return; }
