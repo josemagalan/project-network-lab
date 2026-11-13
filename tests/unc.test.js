@@ -91,9 +91,9 @@ test('withValue cambia solo la actividad pedida y no muta las filas', () => {
   assert.equal(out[1].m, '2.5'); assert.equal(out[0].m, '2'); assert.equal(rows[1].m, '2');
 });
 
-test('M5 no ofrece los ejemplos solo de M6 (dos rutas y paralelización)', () => {
+test('M5 no ofrece los ejemplos solo de M6 (dos rutas y paralelización); M6 los ofrece todos', () => {
   assert.deepEqual(U.SECTION_EXAMPLES.m5, ['kl', 'hl']);
-  assert.equal(U.M6_READY, false);
+  assert.deepEqual(U.SECTION_EXAMPLES.m6, ['kl', 'hl', 'tr', 'pa']);
 });
 
 test('curvas: la triangular son tres puntos y las marcas del eje caen en [lo, hi]', () => {
@@ -101,4 +101,79 @@ test('curvas: la triangular son tres puntos y las marcas del eje caen en [lo, hi
   assert.deepEqual(U.curvePts('tri', d, 2).map((p) => p[0]), [2, 5.5, 9]);
   const ticks = U.niceTicks(1.4, 9.6, 6);
   assert.ok(ticks.length >= 4 && ticks.every((v) => v >= 1.4 && v <= 9.6));
+});
+
+// ---------- M6 (T010) ----------
+const SIM = require('../js/core/sim.js');
+const m6 = (extra) => Object.assign(base(), { um: 'm6' }, extra || {});
+const runSpec = (spec) => U.simSummary(spec, SIM.run({ kind: spec.kind, model: spec.model, n: spec.n, us: spec.us }).durations);
+
+test('M6, cálculo de examen de Klastorin: plazo 25 → z 0,41, P 0,6591 de tabla y 0,6577 exacta; casi crítico A–B–E–F', () => {
+  const s = m6(); const e = U.examOf(s, U.model(s, 'es'));
+  assert.deepEqual(e.path, ['A', 'C', 'E', 'F']);
+  assert.equal(e.deadline, 25);
+  assert.deepEqual(e.table, { z2: 0.41, p4: 0.6591 });
+  near(e.exact, 0.6577, 'exacta');
+  assert.deepEqual(e.near.acts, ['A', 'B', 'E', 'F']);
+  assert.deepEqual(e.terms.map((x) => x.mean.toFixed(2)), ['6.67', '7.83', '5.00', '4.33']);
+});
+
+test('M6, al revés: P = 0,95 → z 1,64 de tabla y el plazo; Hillier, plazo 47 → 0,84; plazo del enlace', () => {
+  const inv = m6({ up: 0.95 }); const e = U.examOf(inv, U.model(inv, 'es'));
+  assert.equal(e.inverse, true); assert.equal(e.table.z2, 1.64);
+  near(e.table.deadline, 23.8333 + 1.64 * Math.sqrt(8.25), 'plazo de tabla');
+  const hl = m6({ ue: 'hl' }); const eh = U.examOf(hl, U.model(hl, 'es'));
+  assert.equal(eh.deadline, 47); assert.equal(eh.table.p4.toFixed(2), '0.84');
+  const ud = m6({ ud: 26 }); assert.equal(U.examOf(ud, U.model(ud, 'es')).deadline, 26);
+  // Tabla propia: el plazo por defecto es μ + σ del camino, redondeado arriba.
+  const o = Object.assign(m6(), { ue: 'own', ut: { mode: 'pred', rows: [row('A', 1, 2, 9), row('B', 2, 3, 4, 'A')] } });
+  const mo = U.model(o, 'es'); assert.equal(U.deadlineOf(o, mo), Math.ceil(mo.exam.mu + mo.exam.sd));
+});
+
+test('M6, dos rutas: la normal de B–D da 0,81 y la simulación del proyecto entero, la cuenta exacta 0,71 (3 errores estándar)', () => {
+  const s = m6({ ue: 'tr', ux: 'proj' }); const m = U.model(s, 'es');
+  assert.equal(U.examOf(s, m).table.p4.toFixed(2), '0.81');
+  const spec = U.simSpec(s, m);
+  assert.equal(spec.exact.toFixed(2), '0.71');
+  const su = runSpec(spec);
+  assert.ok(Math.abs(su.ps - spec.exact) < 3 * Math.sqrt(spec.exact * (1 - spec.exact) / su.n), `${su.ps} frente a ${spec.exact}`);
+});
+
+test('M6, AC7: en Klastorin la simulación del proyecto entero da menos que la normal del camino crítico', () => {
+  const s = m6({ ux: 'proj' }); const spec = U.simSpec(s, U.model(s, 'es'));
+  assert.equal(spec.exact, null, 'con caminos que comparten actividades no hay cuenta exacta');
+  const su = runSpec(spec);
+  near(su.pn, 0.6577, 'normal');
+  assert.ok(su.ps < su.pn - 0.05, `${su.ps}`);
+});
+
+test('M6, AC8: más caminos o menos holgura bajan la probabilidad simulada; la normal no cambia', () => {
+  const p = (uk) => { const s = m6({ ux: 'merge', uk }); return runSpec(U.simSpec(s, U.model(s, 'es'))); };
+  const a = p({ n: 1, s: 1 }); const b = p({ n: 4, s: 1 }); const c = p({ n: 8, s: 1 }); const d = p({ n: 4, s: 0 });
+  assert.ok(a.ps > b.ps && b.ps > c.ps && b.ps > d.ps, [a.ps, b.ps, c.ps, d.ps].join(' '));
+  for (const x of [b, c, d]) near(x.pn, a.pn, 'normal');
+});
+
+test('M6, AC9: en el extremo de cada límite la distancia KS es mayor que en el otro', () => {
+  const ks = (ux, uk) => { const s = m6({ ux, uk }); return runSpec(U.simSpec(s, U.model(s, 'es'))).ks; };
+  assert.ok(ks('few', { k: 1 }) > ks('few', { k: 30 }));
+  assert.ok(ks('skew', { w: 1 }) > ks('skew', { w: 0 }));
+  assert.ok(ks('corr', { r: 0.95 }) > ks('corr', { r: 0 }));
+});
+
+test('M6: la clave de la simulación cambia con el modelo y la semilla, no con el plazo; sin semilla, la de siempre', () => {
+  const s = m6({ ux: 'proj' }); const m = U.model(s, 'es');
+  const k = U.simSpec(s, m).key;
+  assert.equal(U.simSpec(Object.assign({}, s, { ud: 30 }), m).key, k);
+  assert.notEqual(U.simSpec(Object.assign({}, s, { us: 7 }), m).key, k);
+  assert.equal(U.simSpec(s, m).us, U.SEED_DEFAULT);
+  assert.equal(U.simSpec(m6(), m), null, 'el cálculo de examen no simula');
+});
+
+test('M6: los recorridos de los deslizadores (bocetos) caben en la URL y los valores por defecto están dentro', () => {
+  for (const [k, d] of Object.entries(U.SLIDERS)) {
+    assert.ok(URL.UNC.cleanUk({ [k]: d.lo }) && URL.UNC.cleanUk({ [k]: d.hi }) && URL.UNC.cleanUk({ [k]: d.lo + d.step }), k);
+    assert.ok(U.UK_DEFAULT[k] >= d.lo && U.UK_DEFAULT[k] <= d.hi, k);
+  }
+  assert.deepEqual(U.ukOf(m6({ uk: { n: 2 } })), Object.assign({}, U.UK_DEFAULT, { n: 2 }));
 });

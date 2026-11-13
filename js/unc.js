@@ -18,10 +18,11 @@
   const T = req('./core/threept.js', 'threept');
   const L = req('./core/tcl.js', 'tcl');
   const X = req('./core/stochex.js', 'stochex');
+  const S = req('./core/sim.js', 'sim');
+  const Tp = T;
   const NR = req('./narrate.js', 'narrate');
 
-  // El apartado M6 se publica con T010.
-  const M6_READY = false;
+  const M6_READY = true;
   const SECTION_EXAMPLES = { m5: ['kl', 'hl'], m6: ['kl', 'hl', 'tr', 'pa'] };
   const FIELDS = ['a', 'm', 'b'];
   // Notación (decisión del autor en clarify): a, m, b con μ y σ² / to, tm, tp con te y σ², como en los apuntes.
@@ -141,6 +142,73 @@
     return out;
   }
 
+  // ---------- M6: el TCL y sus trampas (parte pura) ----------
+
+  // Deslizadores al abrir (tableros 64 y 65): la fusión con 4 caminos a 1 día, y los tres límites en su extremo.
+  const UK_DEFAULT = { n: 4, s: 1, k: 1, w: 1, r: 0.9 };
+  const SLIDERS = { n: { lo: 1, hi: 8, step: 1 }, s: { lo: 0, hi: 6, step: 0.5 }, k: { lo: 1, hi: 30, step: 1 }, w: { lo: 0, hi: 1, step: 0.05 }, r: { lo: 0, hi: 0.95, step: 0.05 } };
+  const SEED_DEFAULT = 2026;   // sin «us» en el enlace, la misma simulación (reproducible); «Otra simulación» la cambia
+  const BINS = 40;
+  const ukOf = (state) => Object.assign({}, UK_DEFAULT, state.uk || {});
+  const seedOf = (state) => (Number.isInteger(state.us) ? state.us : SEED_DEFAULT);
+  const CASES = ['exam', 'merge', 'few', 'skew', 'corr', 'proj'];
+  const SYNTHETIC = ['merge', 'few', 'skew', 'corr'];
+
+  /** Plazo del cálculo: el del enlace o, si no hay, el del ejemplo; en la tabla propia, μ + σ del camino redondeado arriba. */
+  function deadlineOf(state, m) {
+    if (typeof state.ud === 'number') return state.ud;
+    if (m.src.expected && typeof m.src.expected.deadline === 'number') return m.src.expected.deadline;
+    return m.exam ? Math.ceil(m.exam.mu + m.exam.sd) : 0;
+  }
+
+  /** El cálculo de examen de M6: plazo → P o, con «up», probabilidad → plazo. */
+  function examOf(state, m) {
+    if (!m.model) return null;
+    const inverse = typeof state.up === 'number';
+    const q = inverse ? { prob: state.up } : { deadline: deadlineOf(state, m) };
+    const r = L.exam(m.model, q);
+    const all = L.paths(m.model, inverse ? r.deadline : q.deadline);
+    // El casi crítico: el camino de más media que no es crítico (para la nota del primer paso).
+    const crit = new Set([r.path].concat(r.ties.map((x) => x.acts)).map((p) => p.join('|')));
+    const near = all.list.filter((p) => !crit.has(p.acts.join('|'))).sort((x, y) => y.mu - x.mu)[0] || null;
+    return Object.assign({ inverse, near, terms: r.path.map((id) => L.moments(m.model.acts.find((a) => a.id === id).dist)) }, r);
+  }
+
+  /**
+   * Lo que se simula en un caso de M6 (sin DOM; la vista lo corre a trozos y las pruebas, de una vez en Node):
+   * { key, kind, model, n, us, normal: { mu, var }, deadline, exact?, info }. null en el cálculo de examen o sin tabla.
+   */
+  function simSpec(state, m) {
+    const ux = state.ux; const us = seedOf(state); const n = S.DEFAULT_N;
+    let spec = null;
+    if (SYNTHETIC.includes(ux)) {
+      const uk = ukOf(state);
+      const c = ux === 'merge' ? L.cases.merge({ n: uk.n, slack: uk.s }) : ux === 'few' ? L.cases.few({ k: uk.k })
+        : ux === 'skew' ? L.cases.skew({ s: uk.w }) : L.cases.corr({ rho: uk.r });
+      spec = { kind: 'paths', model: { paths: c.paths }, normal: c.normal, deadline: c.deadline, exact: ux === 'merge' ? c.exact : null,
+        info: ux === 'merge' ? { n: uk.n, slack: uk.s, mu: L.cases.MERGE.mu, var: L.cases.MERGE.var } : { k: c.k, terna: c.terna, rho: ux === 'corr' ? uk.r : 0 } };
+    } else if (ux === 'proj' && m.model) {
+      const T = deadlineOf(state, m);
+      const r = L.exam(m.model, { deadline: T });
+      const all = L.paths(m.model, T);
+      spec = { kind: 'project', model: L.simModel(m.model), normal: { mu: r.mu, var: r.var }, deadline: T,
+        exact: all.independent && m.src.m6only ? all.product : null, info: { paths: all, exam: r } };
+    }
+    if (!spec) return null;
+    spec.n = n; spec.us = us;
+    spec.key = JSON.stringify([ux, spec.kind, spec.model, n, us]);
+    return spec;
+  }
+
+  /** Resumen de una simulación terminada frente a su normal (lo que se pinta y se compara con Node: la huella). */
+  function simSummary(spec, durations) {
+    const su = S.summary(durations);
+    const sd = Math.sqrt(spec.normal.var);
+    const T = spec.deadline;
+    const pn = sd > 0 ? Tp.phi((T - spec.normal.mu) / sd) : (T >= spec.normal.mu ? 1 : 0);
+    return { n: su.n, mean: su.mean, sd: su.sd, min: su.min, max: su.max, ps: su.pLE(T), pn, hist: su.hist(BINS), ks: sd > 0 ? su.ks(spec.normal.mu, sd) : null };
+  }
+
   // ---------- Vista ----------
 
   function create(container, hooks) {
@@ -174,11 +242,14 @@
       const sel = h('select', { id: 'uncProj', onchange: (e) => pickProject(e.target.value) },
         ids.map((id) => h('option', { value: id, selected: s.ue === id }, [X.get(id).title[lang()]]))
           .concat([h('option', { value: 'own', selected: s.ue === 'own' }, [tu('own')])]));
-      return h('div', { class: 'card unc-bar' }, [h('div', { class: 'unc-row' }, [
+      const synthetic = s.um === 'm6' && SYNTHETIC.includes(s.ux);
+      const rows = [h('div', { class: 'unc-row' }, [
         sections,
-        h('label', { class: 'unc-field' }, [tu('project'), ' ', sel]),
+        synthetic ? h('span', { class: 'unc-field muted', id: 'uncSynthetic' }, [tu('synthetic')]) : h('label', { class: 'unc-field' }, [tu('project'), ' ', sel]),
         button(tu('fromWork'), fromWork, { id: 'uncFromWork' }),
-      ])]);
+      ])];
+      if (s.um === 'm6') rows.push(m6Controls());
+      return h('div', { class: 'card unc-bar' }, rows);
     }
     function pickProject(id) {
       if (id === 'own' && !state().ut) { hooks.dispatch({ type: 'uncTable', mode: 'pred', rows: [{ id: 'A', name: '', a: '', m: '', b: '', links: '' }] }, { push: true }); focus('uncT-0-a'); return; }
@@ -363,6 +434,242 @@
     }
 
     // ---------- Pintar ----------
+
+    // ---------- M6: el TCL y sus trampas ----------
+    const loc = () => (lang() === 'en' ? 'en-GB' : 'es-ES');
+    // Cifras con k decimales fijos, con la coma del español (las probabilidades y la tabla, como en los apuntes).
+    const fx = (v, k) => { const x = Number(v).toFixed(k); return lang() === 'en' ? x : x.replace('.', ','); };
+    const big = (n) => Number(n).toLocaleString(loc());
+    const pathText = (acts) => acts.join('–');
+    const unitOf = () => (SYNTHETIC.includes(state().ux) ? tu('merge.unit') : m.src.unit);
+    const normalPts = (mu, v, lo, hi, n) => {
+      const sd = Math.sqrt(v);
+      return Array.from({ length: n + 1 }, (_, i) => { const x = lo + ((hi - lo) * i) / n; return [x, Math.exp(-0.5 * ((x - mu) / sd) ** 2) / (sd * Math.sqrt(2 * Math.PI))]; });
+    };
+    let binsOpen = false;
+    let sim = { key: null, spec: null, job: null, durations: null, timer: null };
+    function cancelSim() { if (sim.timer) root.clearTimeout(sim.timer); sim = { key: null, spec: null, job: null, durations: null, timer: null }; }
+    // La simulación va a trozos de unos 12 ms en el hilo principal (P6), tras un retardo corto para no relanzarla en cada tecla.
+    function ensureSim(spec) {
+      if (!spec) { cancelSim(); return; }
+      if (sim.key === spec.key) { sim.spec = spec; return; }
+      cancelSim();
+      const key = spec.key;
+      sim = { key, spec, job: null, durations: null, timer: null };
+      if (hooks.announce) hooks.announce(tu('sim.running', { n: big(spec.n) }));
+      const tick = () => {
+        if (sim.key !== key) return;
+        if (!sim.job) sim.job = S.start({ kind: spec.kind, model: spec.model, n: spec.n, us: spec.us });
+        const r = S.step(sim.job, { ms: 12 });
+        if (!r.done) { sim.timer = root.setTimeout(tick, 0); return; }
+        sim.durations = S.result(sim.job).durations; sim.job = null; sim.timer = null;
+        keepFocus(drawMain);
+        const su = simSummary(sim.spec, sim.durations);
+        if (hooks.announce) hooks.announce(tu('sim.done', { T: num(sim.spec.deadline), ps: fx(su.ps, 3) }));
+      };
+      sim.timer = root.setTimeout(tick, 120);
+    }
+
+    // Segunda fila de la barra en M6: los casos y los controles del caso elegido.
+    function m6Controls() {
+      const s = state();
+      const cases = seg(CASES.map((c) => [tu(`cases.${c}`), s.ux === c, () => go({ ux: c }), `uncCase-${c}`]), tu('cases.label'));
+      const row = [cases];
+      if (s.ux === 'exam') row.push(askControls());
+      else if (s.ux === 'proj') row.push(deadlineField(), againButton());
+      else row.push(...sliderControls(), againButton());
+      return h('div', { class: 'unc-row unc-cases' }, row);
+    }
+    function askControls() {
+      const s = state(); const inverse = typeof s.up === 'number';
+      const radios = h('fieldset', { class: 'unc-mode' }, [h('legend', {}, [tu('ask.legend')])].concat([['p', !inverse], ['t', inverse]].map(([k, on]) => h('label', {}, [
+        h('input', { type: 'radio', name: 'uncAsk', id: `uncAsk-${k}`, value: k, checked: on,
+          onchange: () => { go(k === 'p' ? { up: null } : { up: typeof s.up === 'number' ? s.up : 0.95 }); focus(`uncAsk-${k}`); } }), ' ', tu(`ask.${k}`)]))));
+      return h('div', { class: 'unc-row' }, [radios, inverse ? probField() : deadlineField()]);
+    }
+    function numField(id, label, value, unit, ok, bad, commit) {
+      const err = h('span', { class: 'unc-err small', id: `${id}Err`, hidden: true }, [bad]);
+      const input = h('input', { id, value: value == null ? '' : num(value), size: '6', inputmode: 'decimal', 'aria-describedby': `${id}Err`,
+        onchange: (e) => {
+          const p = parseNum(e.target.value);
+          const v = p.error ? NaN : p.value;
+          if (!ok(v)) { e.target.setAttribute('aria-invalid', 'true'); err.hidden = false; return; }
+          e.target.setAttribute('aria-invalid', 'false'); err.hidden = true; commit(v);
+        } });
+      return h('span', { class: 'unc-field' }, [h('label', { for: id }, [label]), input, unit ? h('span', { class: 'muted' }, [unit]) : null, err]);
+    }
+    function deadlineField() {
+      return numField('uncDeadline', tu('ask.deadline'), m.model ? deadlineOf(state(), m) : null, m.src.unit, (v) => v >= 0 && v <= 999999, tu('ask.badDeadline'), (v) => go({ ud: v }));
+    }
+    function probField() {
+      return numField('uncProb', tu('ask.prob'), state().up, '', (v) => v > 0 && v < 1, tu('ask.badProb'), (v) => go({ up: v }));
+    }
+    function againButton() {
+      return h('span', { class: 'unc-field' }, [button(tu('sim.again'), () => { go({ us: hooks.newSeed() }); focus('uncAgain'); }, { id: 'uncAgain' }),
+        h('span', { class: 'muted small', id: 'uncSeed' }, [tu('sim.seed', { us: seedOf(state()) })])]);
+    }
+    function sliderControls() {
+      const s = state(); const uk = ukOf(s);
+      const keys = s.ux === 'merge' ? ['n', 's'] : s.ux === 'few' ? ['k'] : s.ux === 'skew' ? ['w'] : ['r'];
+      return keys.map((k) => {
+        const d = SLIDERS[k];
+        const label = k === 'n' || k === 's' ? tu(`merge.${k}`) : tu(`lim.${k}`);
+        const show = (v) => (k === 'w' || k === 'r' ? fx(v, 2) : num(v));
+        const out = h('output', { id: `uncOut-${k}`, for: `uncK-${k}` }, [show(uk[k])]);
+        const input = h('input', { type: 'range', id: `uncK-${k}`, min: String(d.lo), max: String(d.hi), step: String(d.step), value: String(uk[k]), 'aria-label': label,
+          oninput: (e) => { out.textContent = show(Number(e.target.value)); },
+          onchange: (e) => { go({ uk: Object.assign({}, s.uk || {}, { [k]: Number(e.target.value) }) }); focus(`uncK-${k}`); } });
+        return h('label', { class: 'unc-kslider' }, [h('span', {}, [label]), input, out, h('span', { class: 'muted small', 'aria-hidden': 'true' }, [`${show(d.lo)}–${show(d.hi)}`])]);
+      });
+    }
+
+    // Cálculo de examen: los pasos (la predicción llega con T011) y la normal del camino crítico.
+    function examCard(e) {
+      const unit = unitOf();
+      const steps = [];
+      const near = e.near && !e.ties.length ? ` ${tu('exam.near', { path: pathText(e.near.acts), mu: num(e.near.mu) })}` : '';
+      const ties = e.ties.length ? ` ${tu('exam.ties', { list: I.list(lang(), e.ties.map((x) => tu('exam.tie', { path: pathText(x.acts), var: fx(x.var, 2) }))) })}` : '';
+      steps.push([tu('exam.path'), (unit ? tu('exam.pathText', { path: pathText(e.path), mu: fx(e.mu, 2), unit }) : tu('exam.pathTextNoUnit', { path: pathText(e.path), mu: fx(e.mu, 2) })) + near + ties]);
+      steps.push([tu('exam.mu'), `${e.terms.map((x) => fx(x.mean, 2)).join(' + ')} = ${fx(e.mu, 2)}`]);
+      steps.push([tu('exam.var'), `${e.terms.map((x) => fx(x.var, 2)).join(' + ')} = ${fx(e.var, 2)}`]);
+      if (e.degenerate) {
+        steps.push([tu('exam.degenerate'), e.inverse ? tu('exam.degT', { mu: num(e.mu) }) : tu('exam.degP', { mu: num(e.mu), T: num(e.deadline), p: num(e.exact) })]);
+      } else if (e.inverse) {
+        steps.push([tu('exam.zFor', { p: num(e.prob) }), tu('exam.zForText', { p: num(e.prob), z: fx(e.z, 4), z2: fx(e.table.z2, 2) })]);
+        steps.push([tu('exam.T'), tu('exam.TText', { mu: fx(e.mu, 2), z2: fx(e.table.z2, 2), var: fx(e.var, 2), Tt: fx(e.table.deadline, 2), T: fx(e.deadline, 2) })]);
+      } else {
+        steps.push([tu('exam.z'), tu('exam.zText', { T: num(e.deadline), mu: fx(e.mu, 2), var: fx(e.var, 2), z: fx(e.z, 4), z2: fx(e.table.z2, 2) })]);
+        steps.push([tu('exam.p', { T: num(e.deadline) }), tu('exam.pText', { z2: fx(e.table.z2, 2), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) })]);
+      }
+      return h('section', { class: 'card unc-examcard', 'aria-labelledby': 'uncExamHead' }, [h('h2', { id: 'uncExamHead' }, [tu('exam.title')]),
+        h('ol', { class: 'unc-steps', id: 'uncSteps' }, steps.map(([title, text]) => h('li', {}, [h('strong', {}, [title]), h('span', {}, [text])])))]);
+    }
+    function examChartCard(e) {
+      const holder = h('div', { class: 'unc-chart', id: 'uncNormal' });
+      const parts = [h('h2', { id: 'uncNormalHead' }, [tu('exam.chartTitle', { mu: fx(e.mu, 2), var: fx(e.var, 2) })]), holder];
+      const T = e.deadline;
+      if (!e.degenerate) {
+        const lo = Math.max(0, e.mu - 4 * e.sd); const hi = e.mu + 4 * e.sd;
+        const pts = normalPts(e.mu, e.var, lo, hi, 160);
+        DC.render(holder, { w: 600, h: 260, x: [lo, hi], ymax: Math.max(...pts.map((q) => q[1])) * 1.12, ticks: niceTicks(lo, hi, 8), fmt: num,
+          curves: [{ pts, cls: 'c-normal' }], shade: { pts, to: T }, vlines: [{ x: e.mu, cls: 'v-sd', dash: '3 3' }, { x: T, cls: 'v-deadline', label: tu('exam.deadline', { T: num(T) }) }],
+          label: tu('exam.chartLabel', { mu: fx(e.mu, 2), var: fx(e.var, 2), T: num(T) }) });
+        parts.push(h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [key('k-normal', tu('exam.legendNormal')), key('k-sd', tu('exam.legendMu', { mu: fx(e.mu, 2) }))]));
+      }
+      const res = e.degenerate ? (e.inverse ? tu('exam.degT', { mu: num(e.mu) }) : tu('exam.degP', { mu: num(e.mu), T: num(T), p: num(e.exact) }))
+        : e.inverse ? tu('exam.resultT', { p: num(e.prob), Tt: fx(e.table.deadline, 2), T: fx(e.deadline, 2) })
+          : tu('exam.result', { T: num(T), p4: fx(e.table.p4, 4), exact: fx(e.exact, 4) });
+      parts.push(h('p', { class: 'unc-note', id: 'uncExamResult' }, [h('strong', {}, [res]), ' ', tu('exam.credible'), ' ',
+        h('button', { type: 'button', class: 'linklike', id: 'uncToProj', onclick: () => { go({ ux: 'proj', ud: e.inverse ? null : state().ud }); focus('uncCase-proj'); } }, [tu('exam.toProj')])]));
+      return h('section', { class: 'card unc-normalcard', 'aria-labelledby': 'uncNormalHead' }, parts);
+    }
+    function key(cls, text) { return h('span', { class: 'unc-key' }, [h('span', { class: `unc-swatch ${cls}`, 'aria-hidden': 'true' }), text]); }
+
+    // Casos simulados: normal sobre el histograma, con su alternativa en texto (tabla de clases).
+    function simTitle(spec) {
+      const s = state(); const i = spec.info;
+      if (s.ux === 'merge') {
+        const p = { mu: num(i.mu), var: num(i.var), k: i.n - 1, s: num(i.slack) };
+        return i.n === 1 ? tu('merge.title1', p) : tu(i.slack === 0 ? 'merge.titleSame' : i.slack === 1 ? 'merge.titleOneDay' : 'merge.title', p);
+      }
+      if (s.ux === 'proj') return tu('proj.title', { name: m.src.title });
+      const d = { a: num(i.terna.a), m: num(i.terna.m), b: num(i.terna.b) };
+      if (s.ux === 'few') return i.k === 1 ? tu('lim.fewTitleOne', d) : tu('lim.fewTitle', Object.assign({ k: i.k }, d));
+      if (s.ux === 'skew') return tu('lim.skewTitle', d);
+      return tu('lim.corrTitle', Object.assign({ rho: fx(i.rho, 2) }, d));
+    }
+    function simChartCard(spec, su) {
+      const holder = h('div', { class: 'unc-chart', id: 'uncSimChart' });
+      const parts = [h('h2', { id: 'uncSimHead' }, [simTitle(spec)]), holder];
+      const mu = spec.normal.mu; const sd = Math.sqrt(spec.normal.var);
+      let lo = mu - 4 * sd; let hi = mu + 4 * sd;
+      if (su) { lo = Math.min(lo, su.min); hi = Math.max(hi, su.max); }
+      lo = Math.max(lo, 0);   // las duraciones nunca son negativas (la normal se trunca en 0)
+      const pts = sd > 0 ? normalPts(mu, spec.normal.var, lo, hi, 200) : [];
+      const peak = Math.max(0, ...pts.map((q) => q[1]));
+      const hpeak = su ? Math.max(...su.hist.counts) / (su.n * su.hist.width) : 0;
+      const pert = state().ux === 'proj' && m.acts.some((a) => a.dist.kind === 'pert');
+      DC.render(holder, { w: 640, h: 270, x: [lo, hi], ymax: Math.max(peak, hpeak) * 1.1 || 1, ticks: niceTicks(lo, hi, 8), fmt: num,
+        hist: su ? Object.assign({ n: su.n }, su.hist) : null, curves: pts.length ? [{ pts, cls: 'c-normal' }] : [],
+        vlines: [{ x: spec.deadline, cls: 'v-deadline', label: tu('exam.deadline', { T: num(spec.deadline) }) }],
+        label: su ? tu('sim.chartLabel', { n: big(su.n), mu: fx(mu, 2), var: fx(spec.normal.var, 2), T: num(spec.deadline), pn: fx(su.pn, 3), ps: fx(su.ps, 3) })
+          : tu('sim.running', { n: big(spec.n) }) });
+      parts.push(h('div', { class: 'unc-legend', 'aria-hidden': 'true' }, [key('k-normal', tu('sim.legendNormal')), key('k-hist', tu(pert ? 'sim.legendSimPert' : 'sim.legendSim', { n: big(spec.n) }))]));
+      if (!su) { parts.push(h('p', { class: 'muted small', id: 'uncSimWait' }, [tu('sim.running', { n: big(spec.n) })])); return h('section', { class: 'card unc-simcard', 'aria-labelledby': 'uncSimHead' }, parts); }
+      const toggle = h('button', { type: 'button', class: 'linklike', id: 'uncBins', 'aria-expanded': String(binsOpen), 'aria-controls': 'uncBinsTable',
+        onclick: () => { binsOpen = !binsOpen; keepFocus(drawMain); } }, [binsOpen ? tu('sim.hideTable') : tu('sim.showTable')]);
+      parts.push(h('p', { class: 'muted small' }, [toggle, su.ks == null ? '' : ` · ${tu('sim.ks', { ks: fx(su.ks, 3) })}`]));
+      if (binsOpen) parts.push(binsTable(spec, su));
+      return h('section', { class: 'card unc-simcard', 'aria-labelledby': 'uncSimHead' }, parts);
+    }
+    function binsTable(spec, su) {
+      const { lo, width, counts } = su.hist; const mu = spec.normal.mu; const sd = Math.sqrt(spec.normal.var);
+      const F = (x) => (sd > 0 ? Tp.phi((x - mu) / sd) : (x >= mu ? 1 : 0));
+      const rows = counts.map((c, i) => { const a = lo + i * width; const b = a + width;
+        return h('tr', {}, [h('th', { scope: 'row' }, [`${fx(a, 2)} – ${fx(b, 2)}`]), h('td', { class: 'num' }, [big(c)]), h('td', { class: 'num' }, [fx(c / su.n, 3)]), h('td', { class: 'num' }, [fx(F(b) - F(a), 3)])]); });
+      return h('div', { class: 'unc-scroll unc-bins', tabindex: '0', role: 'region', 'aria-label': tu('sim.binsCaption'), id: 'uncBinsTable' }, [h('table', { class: 'data unc-table' }, [
+        h('caption', { class: 'sr-only' }, [tu('sim.binsCaption')]),
+        h('thead', {}, [h('tr', {}, ['colBin', 'colCount', 'colShare', 'colNormal'].map((k) => h('th', { scope: 'col' }, [tu(`sim.${k}`)])))]), h('tbody', {}, rows)])]);
+    }
+    function probCard(spec, su) {
+      const s = state(); const T = num(spec.deadline);
+      const ks = SYNTHETIC.includes(s.ux) && s.ux !== 'merge';
+      const cols = [tu(s.ux === 'proj' ? 'proj.colP' : 'sim.colP', { T })].concat(ks ? [tu('sim.colKs')] : [tu('sim.colMean')]);
+      const pn = su ? su.pn : (Math.sqrt(spec.normal.var) > 0 ? Tp.phi((spec.deadline - spec.normal.mu) / Math.sqrt(spec.normal.var)) : (spec.deadline >= spec.normal.mu ? 1 : 0));
+      const row = (label, cells, cls) => h('tr', { class: cls || '' }, [h('th', { scope: 'row' }, [label])].concat(cells.map((c) => h('td', { class: 'num' }, [c]))));
+      const body = [row(tu('sim.rowNormal'), [fx(pn, 3), ks ? '—' : fx(spec.normal.mu, 2)], 'k-normal-row'),
+        row(tu('sim.rowSim', { n: big(spec.n) }), su ? [fx(su.ps, 3), ks ? fx(su.ks, 3) : fx(su.mean, 2)] : ['…', '…'], 'strong')];
+      if (spec.exact != null) body.push(row(s.ux === 'proj' ? tu('proj.exact') : tu('sim.rowExact'), [fx(spec.exact, 3), '—']));
+      const title = s.ux === 'proj' ? tu('proj.probTitle', { T }) : tu('sim.probTitle');
+      return h('section', { class: 'card unc-probcard', 'aria-labelledby': 'uncProbHead' }, [h('h2', { id: 'uncProbHead' }, [title]),
+        h('table', { class: 'data unc-table', id: 'uncProb' }, [h('thead', {}, [h('tr', {}, [h('td', {})].concat(cols.map((c) => h('th', { scope: 'col' }, [c]))))]), h('tbody', {}, body)])]);
+    }
+    function pathsCard(spec) {
+      const T = num(spec.deadline); const all = spec.info.paths; const crit = spec.info.exam.path.join('|');
+      const list = all.list.slice().sort((x, y) => y.mu - x.mu);
+      const shown = list.slice(0, 8);
+      const rows = shown.map((p) => h('tr', { class: p.acts.join('|') === crit ? 'sel' : '' }, [h('th', { scope: 'row' }, [pathText(p.acts)]),
+        h('td', { class: 'num' }, [fx(p.mu, 2)]), h('td', { class: 'num' }, [fx(p.var, 2)]), h('td', { class: 'num' }, [fx(p.p, 3)])]));
+      const parts = [h('h2', { id: 'uncPathsHead' }, [tu('proj.pathsTitle')]),
+        h('table', { class: 'data unc-table', id: 'uncPaths' }, [h('thead', {}, [h('tr', {}, [tu('proj.colPath'), 'μ', 'σ²', `P(≤ ${T})`].map((c) => h('th', { scope: 'col' }, [c])))]), h('tbody', {}, rows)])];
+      if (list.length > shown.length) parts.push(h('p', { class: 'muted small' }, [tu('proj.more', { n: list.length - shown.length })]));
+      return h('section', { class: 'card unc-pathscard', 'aria-labelledby': 'uncPathsHead' }, parts);
+    }
+    function notesCards(spec, su) {
+      const s = state(); const out = [];
+      if (s.ux === 'merge') {
+        const i = spec.info;
+        if (i.n === 1) out.push(h('p', { class: 'card unc-callout' }, [tu('merge.note1')]));
+        else if (su) {
+          out.push(h('p', { class: 'card unc-callout', id: 'uncMergeNote' }, [tu('merge.note', { pn: fx(su.pn, 3), n: i.n, ps: fx(su.ps, 3) })]));
+          if (su.mean > i.mu + 0.05) out.push(h('p', { class: 'card unc-info', id: 'uncSchoenberger' }, [tu('merge.schoenberger', { mean: fx(su.mean, 2), mu: num(i.mu) })]));
+        }
+      } else if (s.ux === 'proj') {
+        const pert = m.acts.some((a) => a.dist.kind === 'pert');
+        out.push(h('p', { class: 'card unc-callout' }, [pert ? tu('proj.causesPert', lab()) : tu('proj.causes')]));
+      } else {
+        out.push(h('p', { class: 'card unc-info' }, [tu(`lim.${s.ux}`, lab())]));
+      }
+      return out;
+    }
+    function drawM6Main(grid) {
+      const s = state();
+      if (s.ux === 'exam') {
+        cancelSim();
+        const e = examOf(s, m);
+        grid.appendChild(h('div', { class: 'unc-left' }, [examCard(e)]));
+        grid.appendChild(h('div', { class: 'unc-side' }, [examChartCard(e)]));
+        return;
+      }
+      const spec = simSpec(s, m);
+      ensureSim(spec);
+      const su = sim.durations && sim.key === spec.key ? simSummary(spec, sim.durations) : null;
+      grid.appendChild(h('div', { class: 'unc-left' }, [simChartCard(spec, su)]));
+      const side = [probCard(spec, su)];
+      if (s.ux === 'proj') side.push(pathsCard(spec));
+      grid.appendChild(h('div', { class: 'unc-side' }, side.concat(notesCards(spec, su))));
+    }
+
     // A la izquierda, la actividad (o los errores de la tabla); a la derecha, la tabla del proyecto y la red.
     let left = null; let side = null; let proj = null;
     function fill() {
@@ -371,25 +678,51 @@
       while (side.lastChild && side.lastChild !== proj) side.removeChild(side.lastChild);
       if (m.model) side.appendChild(netCard());
     }
+    // M6 (salvo una tabla propia con errores, que se corrige aquí mismo): la barra con los casos y, debajo, el caso.
+    let main = null;
+    function drawMain() {
+      if (!main) return;
+      clear(main);
+      drawM6Main(main);
+    }
+    const m6On = () => state().um === 'm6' && (!!m.model || SYNTHETIC.includes(state().ux));
     function draw() {
       clear(container);
       container.appendChild(bar());
+      main = null;
+      if (m6On()) {
+        main = h('div', { class: 'unc-main' });
+        container.appendChild(main);
+        drawMain();
+        return;
+      }
+      cancelSim();
       left = h('div', { class: 'unc-left' }); proj = projectCard(); side = h('div', { class: 'unc-side' }, [proj]);
       container.appendChild(h('div', { class: 'unc-main' }, [left, side]));
       fill();
     }
     function render(model, opts) {
-      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && proj && proj.isConnected
+      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && proj && proj.isConnected && !main
         && model.src.rows.length === m.src.rows.length && model.src.mode === m.src.mode;
       m = model;
       if (typing) { markOwn(); fill(); return; }
       keepFocus(draw);
     }
-    function debug() { return m ? { src: m.src, issues: m.issues, acts: m.acts.map((a) => ({ id: a.id, mean: a.mean, var: a.var })), sel: m.sel, path: m.exam ? m.exam.path : null } : null; }
+    function debug() {
+      if (!m) return null;
+      const out = { src: m.src, issues: m.issues, acts: m.acts.map((a) => ({ id: a.id, mean: a.mean, var: a.var })), sel: m.sel, path: m.exam ? m.exam.path : null };
+      // M6: la huella de la simulación (se compara con la de Node para la misma semilla, A4).
+      if (sim.key) {
+        const su = sim.durations ? simSummary(sim.spec, sim.durations) : null;
+        out.sim = { key: sim.key, us: sim.spec.us, done: !!su, ps: su && su.ps, pn: su && su.pn, mean: su && su.mean, ks: su && su.ks, counts: su && su.hist.counts, lo: su && su.hist.lo, width: su && su.hist.width };
+      }
+      return out;
+    }
     return { render, debug };
   }
 
-  const api = { M6_READY, SECTION_EXAMPLES, LABELS, labels, source, parseNum, validate, model, pasteRows, withValue, curvePts, niceTicks, create };
+  const api = { M6_READY, SECTION_EXAMPLES, LABELS, labels, source, parseNum, validate, model, pasteRows, withValue, curvePts, niceTicks,
+    UK_DEFAULT, SLIDERS, SEED_DEFAULT, BINS, CASES, SYNTHETIC, ukOf, seedOf, deadlineOf, examOf, simSpec, simSummary, create };
   root.PNL = root.PNL || {};
   root.PNL.unc = api;
   if (isNode) module.exports = api;

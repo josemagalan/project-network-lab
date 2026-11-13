@@ -4824,6 +4824,175 @@ check('F4a T009 · tema oscuro, 360 px sin desbordar la página y el grupo bajo 
   await close(r);
 });
 
+// ---------- F4a, T010: M6, el TCL y sus trampas ----------
+
+const UNC = require(path.join(ROOT, 'js', 'unc.js'));
+const SIMC = require(path.join(ROOT, 'js', 'core', 'sim.js'));
+const U4 = require(path.join(ROOT, 'js', 'core', 'urlstate.js'));
+// Espera a que la simulación del caso abierto termine y devuelve su huella.
+const simDone = async (page) => { await page.waitForFunction(() => { const s = PNL.unc.state(); return s && s.sim && s.sim.done; }, null, { timeout: 20000 }); return (await uncSt(page)).sim; };
+// La misma huella, calculada en Node con el núcleo a partir del enlace (A4).
+function nodePrint(hash) {
+  const st = U4.decode(hash).state;
+  const spec = UNC.simSpec(st, UNC.model(st, st.lang || 'es'));
+  const su = UNC.simSummary(spec, SIMC.run({ kind: spec.kind, model: spec.model, n: spec.n, us: spec.us }).durations);
+  return { ps: su.ps, mean: su.mean, counts: su.hist.counts, us: spec.us };
+}
+
+check('F4a T010 · cálculo de examen de Klastorin: los cinco pasos, la normal con el plazo y el plazo para una probabilidad', async () => {
+  const p = await uncLab('um=m6&lang=es');
+  assert.equal(await p.locator('#uncCase-exam').getAttribute('aria-pressed'), 'true');
+  const steps = await p.locator('#uncSteps li').allInnerTexts();
+  assert.equal(steps.length, 5);
+  assert.match(steps[0], /A–C–E–F \(de 23,83 semanas\)\. Casi crítico: A–B–E–F \(23,33\)/);
+  assert.match(steps[1], /6,67 \+ 7,83 \+ 5,00 \+ 4,33 = 23,83/);
+  assert.match(steps[2], /= 8,25/);
+  assert.match(steps[3], /con la tabla, z = 0,41/);
+  assert.match(steps[4], /Φ\(0,41\) = 0,6591; sin redondear z, 0,6577/);
+  assert.equal(await p.locator('#uncNormal svg path.c-normal').count(), 1);
+  assert.equal(await p.locator('#uncNormal svg .dc-shade').count(), 1);
+  // Otro plazo: se escribe con coma y queda en el enlace; uno no válido se marca y no cambia nada.
+  await p.locator('#uncDeadline').fill('26,5');
+  await p.locator('#uncDeadline').press('Enter');
+  await p.locator('#uncDeadline').blur();
+  await p.waitForFunction(() => new URLSearchParams(location.hash.slice(1)).get('ud') === '26.5');
+  assert.match((await p.locator('#uncSteps li').allInnerTexts())[4], /P\(duración ≤ 26,5\)/);
+  await p.locator('#uncDeadline').fill('-3');
+  await p.locator('#uncDeadline').blur();
+  assert.equal(await p.locator('#uncDeadline').getAttribute('aria-invalid'), 'true');
+  assert.equal(await p.locator('#uncDeadlineErr').isVisible(), true);
+  assert.equal(await hashGet(p, 'ud'), '26.5');
+  // Al revés: la probabilidad del 95 % da z = 1,64 con la tabla.
+  await p.locator('#uncAsk-t').check();
+  await p.waitForFunction(() => new URLSearchParams(location.hash.slice(1)).get('up') === '0.95');
+  const inv = await p.locator('#uncSteps li').allInnerTexts();
+  assert.match(inv[3], /con la tabla, 1,64/);
+  assert.match(inv[4], /23,83 \+ 1,64·√8,25 = 28,54/);
+  assert.equal(await activeId(p), 'uncAsk-t');
+  await axe(p, 'F4a · M6 · cálculo de examen');
+  await p.locator('#uncToProj').click();
+  await p.waitForFunction(() => PNL.app.state().ux === 'proj');
+  await close(p);
+});
+
+check('F4a T010 · σ² = 0 (desde el taller): se explica en lugar de dividir por cero', async () => {
+  const p = await uncLab('um=m6&lang=es');
+  await p.locator('#uncFromWork').click();
+  await p.waitForFunction(() => PNL.unc.state().src.kind === 'own' && document.querySelectorAll('#uncSteps li').length === 4);
+  assert.match((await p.locator('#uncSteps li').allInnerTexts())[3], /σ² = 0: sin incertidumbre\s+La duración del camino es fija, 13: P\(duración ≤ 13\) = 1, sin normal ni z\./);
+  await close(p);
+});
+
+check('F4a T010 · fusión de caminos: normal fija, simulación y cuenta exacta; deslizadores, «Otra simulación» y la huella de Node', async () => {
+  const hash = 'v=unc&um=m6&ux=merge&lang=es';
+  const p = await uncLab('um=m6&ux=merge&lang=es');
+  assert.equal(await p.locator('#uncProj').count(), 0, 'caso sintético: sin selector de proyecto');
+  const a = await simDone(p);
+  const n = nodePrint(`#${hash}`);
+  assert.equal(a.us, 2026);
+  assert.deepEqual(a.counts, n.counts, 'el histograma del navegador es el de Node');
+  assert.equal(a.ps, n.ps);
+  const rows = await p.locator('#uncProb tbody tr').allInnerTexts();
+  assert.equal(rows.length, 3);
+  assert.match(rows[0], /0,841/);
+  assert.match(rows[2], /Cuenta exacta/);
+  assert.match(await p.locator('#uncMergeNote').innerText(), /4 caminos/);
+  assert.equal(await p.locator('#uncSchoenberger').count(), 1);
+  assert.match(await p.locator('#uncSimChart svg').getAttribute('aria-label'), /Plazo 22: normal 0,841, simulación 0,6/);
+  // Más caminos: la probabilidad simulada baja y la normal sigue igual; el foco se queda en el deslizador.
+  await p.locator('#uncK-n').focus();
+  await p.keyboard.press('End');
+  await p.waitForFunction((ps) => { const s = PNL.unc.state().sim; return s && s.done && s.ps < ps; }, a.ps, { timeout: 20000 });
+  assert.equal(await hashGet(p, 'uk'), 'n8', 'solo el deslizador movido; la holgura sigue en su valor por defecto');
+  assert.equal(await activeId(p), 'uncK-n');
+  assert.match((await p.locator('#uncProb tbody tr').allInnerTexts())[0], /0,841/);
+  // Otra simulación: semilla nueva en el enlace; ese enlace, abierto en otra página, da el mismo histograma.
+  await p.locator('#uncAgain').click();
+  await p.waitForFunction(() => new URLSearchParams(location.hash.slice(1)).get('us'));
+  const b = await simDone(p);
+  assert.notEqual(b.us, 2026);
+  const url = await p.evaluate(() => location.hash);
+  assert.deepEqual(b.counts, nodePrint(url).counts);
+  const q = await open(`cpm.html${url}`);
+  await q.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state());
+  assert.deepEqual((await simDone(q)).counts, b.counts);
+  await close(q);
+  // La alternativa en texto: la tabla de clases del histograma.
+  await p.locator('#uncBins').click();
+  await p.waitForFunction(() => document.querySelector('#uncBinsTable tbody tr'));
+  assert.equal(await p.locator('#uncBinsTable tbody tr').count(), 40);
+  assert.equal(await p.locator('#uncBins').getAttribute('aria-expanded'), 'true');
+  assert.equal(await activeId(p), 'uncBins');
+  await axe(p, 'F4a · M6 · fusión con la tabla de clases');
+  await close(p);
+});
+
+check('F4a T010 · los tres límites: en su extremo la KS es mayor; el proyecto entero de Klastorin da menos que la normal', async () => {
+  const ks = {};
+  for (const [ux, hi, lo] of [['few', 'k1', 'k30'], ['skew', 'w100', 'w0'], ['corr', 'r95', 'r0']]) {
+    for (const uk of [hi, lo]) {
+      const p = await uncLab(`um=m6&ux=${ux}&uk=${uk}&lang=en`);
+      ks[`${ux}.${uk}`] = (await simDone(p)).ks;
+      if (uk === hi) assert.match(await p.locator('#uncProb thead').innerText(), /KS/);
+      await close(p);
+    }
+    assert.ok(ks[`${ux}.${hi}`] > ks[`${ux}.${lo}`], `${ux}: ${ks[`${ux}.${hi}`]} frente a ${ks[`${ux}.${lo}`]}`);
+  }
+  const p = await uncLab('um=m6&ux=proj&lang=es');
+  const s = await simDone(p);
+  assert.ok(s.ps < s.pn - 0.05, `${s.ps} frente a ${s.pn}`);
+  const paths = await p.locator('#uncPaths tbody tr').allInnerTexts();
+  assert.match(paths[0], /A–C–E–F\s+23,83\s+8,25\s+0,658/);
+  assert.equal(await p.locator('#uncPaths tbody tr.sel').count(), 1);
+  await shot(p, 'f4a-m6-proyecto');
+  await axe(p, 'F4a · M6 · el proyecto entero');
+  await close(p);
+  const d = await uncLab('um=m6&ux=corr&lang=es', { scheme: 'dark' });
+  await simDone(d);
+  await axe(d, 'F4a · M6 · correlación, tema oscuro');
+  await close(d);
+});
+
+check('F4a T010 · la página atiende el teclado mientras simula y avisa al empezar y al terminar', async () => {
+  const p = await uncLab('um=m6&ux=corr&uk=r95&lang=es');
+  await simDone(p);
+  await p.evaluate(() => {
+    window.__lag = [];
+    document.addEventListener('keydown', (e) => { const s = PNL.unc.state().sim; window.__lag.push({ lag: performance.now() - e.timeStamp, running: !!s && !s.done }); });
+  });
+  await p.locator('#uncAgain').click();
+  assert.match(await p.locator('#live').innerText(), /Simulando 10\.000 réplicas/);
+  await p.waitForFunction(() => { const s = PNL.unc.state().sim; return s && !s.done && document.querySelector('#uncSimWait'); });
+  await p.waitForTimeout(150);
+  for (let i = 0; i < 3; i++) { await p.keyboard.press('Shift'); await p.waitForTimeout(20); }
+  const lags = await p.evaluate(() => window.__lag);
+  assert.ok(lags.some((x) => x.running), `sin teclas durante la simulación: ${JSON.stringify(lags)}`);
+  for (const x of lags) assert.ok(x.lag < 100, `${x.lag.toFixed(1)} ms`);
+  await simDone(p);
+  assert.match(await p.locator('#live').innerText(), /Simulación terminada: P\(duración ≤ /);
+  await close(p);
+});
+
+check('F4a T010 · M6 en inglés con la notación española, dos rutas y paralelización; 360 px sin desbordar', async () => {
+  const p = await uncLab('um=m6&ue=tr&lang=en&nota=es');
+  assert.match((await p.locator('#uncSteps li').allInnerTexts())[0], /B–D/);
+  assert.match((await p.locator('#uncSteps li').allInnerTexts())[4], /Φ\(0.89\) = 0.8133/);
+  await p.locator('#uncCase-proj').click();
+  await simDone(p);
+  const rows = await p.locator('#uncProb tbody tr').allInnerTexts();
+  assert.match(rows[2], /Exact count \(independent paths\)\s+0.710/);
+  await p.locator('#uncProj').selectOption('pa');
+  await p.waitForFunction(() => PNL.unc.state().src.id === 'pa');
+  const s = await simDone(p);
+  assert.ok(Math.abs(s.ps - 0.25) < 3 * Math.sqrt(0.25 * 0.75 / 10000), `${s.ps}`);
+  await close(p);
+  const m = await uncLab('um=m6&ux=merge&lang=es', { width: 360, height: 740 });
+  await simDone(m);
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'sin desbordar a lo ancho');
+  await shot(m, 'f4a-m6-360', true);
+  await close(m);
+});
+
 // ---------- Contador de la portada (constitución v2.1.0) ----------
 
 const COUNT_FAKE = '12,345';

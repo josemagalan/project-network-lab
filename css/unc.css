@@ -62,7 +62,31 @@ svg.dc { display: block; width: 100%; height: auto; }
 .dc-v.v-sd { stroke: var(--edge); }
 .dc-v.v-deadline { stroke: var(--critical); stroke-width: 2; }
 .dc-vlabel { fill: var(--ink); font-size: 11px; font-weight: 600; }
-.dc-shade { fill: var(--accent-soft); }
+.dc-shade { fill: var(--accent-mid); opacity: 0.6; }
 @media (max-width: 860px) {
   .unc-main { grid-template-columns: minmax(0, 1fr); }
 }
+/* M6 (T010) */
+.unc-cases { margin-top: 8px; }
+.unc-cases .seg { flex-wrap: wrap; }
+.unc-kslider { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; min-height: 32px; }
+.unc-kslider input { width: 140px; accent-color: var(--accent); }
+.unc-kslider output { min-width: 2.5em; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.unc-field input[inputmode] { width: 6em; height: 32px; padding: 0 6px; }
+.unc-field input[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
+.unc-err { color: var(--critical-text); }
+.unc-examcard, .unc-normalcard, .unc-simcard, .unc-probcard, .unc-pathscard { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.unc-steps { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 8px; }
+.unc-steps li { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.unc-steps li::marker { font-weight: 700; color: var(--accent); }
+.unc-steps strong { display: block; font-size: 14px; }
+.unc-steps span { font-size: 14px; font-variant-numeric: tabular-nums; }
+.unc-note { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 14px; }
+.unc-callout { margin: 0; padding: 10px 14px; border-color: var(--warn-line); background: var(--warn-soft); font-size: 14px; }
+.unc-info { margin: 0; padding: 10px 14px; background: var(--accent-soft); font-size: 14px; }
+.unc-swatch.k-normal { color: var(--critical); }
+.unc-swatch.k-hist { height: 10px; border: 1px solid var(--accent); background: var(--accent-mid); }
+table.data.unc-table tr.strong { font-weight: 700; }
+table.data.unc-table tr.k-normal-row th { color: var(--critical-text); }
+.unc-bins { max-height: 280px; overflow: auto; }
+table.data.unc-table thead td { border-top: 0; }

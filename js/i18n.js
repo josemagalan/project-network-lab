@@ -1081,7 +1081,7 @@
   };
 
   const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne',
-    'unc.legend.pert', 'unc.cmp.pert', 'unc.legend.tri', 'unc.cmp.tri'];
+    'unc.legend.pert', 'unc.cmp.pert', 'unc.legend.tri', 'unc.cmp.tri', 'unc.exam.tie', 'unc.sim.colNormal'];
 
   function lookup(lang, key) {
     const table = dict[lang] || dict.es;

@@ -230,9 +230,9 @@ test('css/unc.css: sin colores propios; trazos y bordes con tokens de 3:1; el fo
   const css = read('css/unc.css');
   assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/, 'sin colores fuera de los tokens');
   assert.doesNotMatch(css, /outline:\s*(none|0)\b/);
-  const ok = new Set([...PAIRS['css/styles.css'].ui.map(([fg]) => fg), 'ink']);
+  const ok = new Set([...PAIRS['css/styles.css'].ui.map(([fg]) => fg), ...PAIRS['css/styles.css'].text.map(([fg]) => fg)]);
   const used = [...css.matchAll(/(?:stroke|border(?:-top|-color)?|color):[^;]*var\(--([a-z-]+)\)/g)].map((m) => m[1]);
   assert.ok(used.length >= 8);
-  // --card en un trazo es solo la separación entre barras del histograma, no información.
-  assert.deepEqual([...new Set(used)].filter((tok) => !ok.has(tok) && tok !== 'card'), []);
+  // --card (separación entre barras del histograma) y --line (borde de una tarjeta, como en styles.css) no llevan información.
+  assert.deepEqual([...new Set(used)].filter((tok) => !ok.has(tok) && tok !== 'card' && tok !== 'line'), []);
 });
