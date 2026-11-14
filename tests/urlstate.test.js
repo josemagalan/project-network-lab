@@ -611,7 +611,8 @@ test('F4a: la tabla propia admite 40 filas (P9) y se recorta a los límites de l
 
 test('F4a: valores fuera de rango son malformados y vuelven al valor por defecto', () => {
   const cases = [
-    ['#v=unc&um=m7', 'um', 'm5'], ['#v=unc&ue=zz', 'ue', 'kl'], ['#v=unc&ux=foo', 'ux', 'exam'], ['#v=unc&uc=2', 'uc', 0],
+    ['#v=unc&um=m8', 'um', 'm5'], ['#v=unc&ue=zz', 'ue', 'kl'],   // F4b: m7 ya es válido (M7)
+    ['#v=unc&ux=foo', 'ux', 'exam'], ['#v=unc&uc=2', 'uc', 0],
     ['#v=unc&ua=A-1', 'ua', null], ['#v=unc&ud=-3', 'ud', null], ['#v=unc&ud=abc', 'ud', null], ['#v=unc&up=1', 'up', null],
     ['#v=unc&up=0', 'up', null], ['#v=unc&up=1.5', 'up', null], ['#v=unc&us=0', 'us', null], ['#v=unc&us=1000000', 'us', null],
     ['#v=unc&uk=n9', 'uk', null], ['#v=unc&uk=n2.n3', 'uk', null], ['#v=unc&uk=k0', 'uk', null], ['#v=unc&uk=r101', 'uk', null],
@@ -665,4 +666,81 @@ test('F4a r1 (F12): la red PERT de la pestaña viaja en el enlace (graph=aoa)', 
   assert.equal(new URLSearchParams(h.slice(1)).get('graph'), 'aoa');
   assert.equal(U.decode(h).state.graph, 'aoa');
   assert.equal(new URLSearchParams(U.encode(Object.assign(U.defaults(), { v: 'unc' })).slice(1)).get('graph'), null);
+});
+
+// ---------- F4b T008: M7 en la URL (plan f4b-montecarlo-indices, §3) ----------
+
+const M7Q = { A: { x: ['5', '15', '25'], p: ['0.2', '0.2', '0.6'] }, C: { x: ['1', '2'], p: ['0,5', ''] } };
+
+test('F4b T008: um=m7 por defecto: beta-PERT, 10⁴ réplicas, P95, Pearson, distribución e índice de criticidad; nada más en el enlace', () => {
+  const s = Object.assign(U.defaults(), { v: 'unc', ex: null, um: 'm7' });
+  const h = U.encode(s);
+  const q = new URLSearchParams(h.slice(1));
+  assert.equal(q.get('um'), 'm7');
+  for (const k of ['ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui']) assert.ok(!q.has(k), k);
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  assert.deepEqual(['um', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui'].map((k) => back.state[k]), ['m7', 'pert', null, null, 4, 95, 'p', 'dist', 'cr']);
+});
+
+test('F4b T008: ida y vuelta con todas las claves de M7, también una discreta escrita con errores (se guarda como texto)', () => {
+  const s = Object.assign(U.defaults(), { v: 'unc', ex: null, um: 'm7', ue: 'own', ut: { mode: 'pred', rows: UNC_ROWS }, ug: 'logn',
+    uf: { A: 'disc', B: 'unif', C: 'disc' }, uq: M7Q, ur: 5, uv: 99, uo: 's', uy: 'rep', ui: 'si', us: 31, ud: 30, step: 7 });
+  const h = U.encode(s);
+  assert.ok(new URLSearchParams(h.slice(1)).get('uf') === 'A-d.B-u.C-d');
+  const back = U.decode(h);
+  assert.equal(back.warning, undefined);
+  for (const k of ['um', 'ue', 'ug', 'ur', 'uv', 'uo', 'uy', 'ui', 'us', 'ud', 'step']) assert.deepEqual(back.state[k], s[k], k);
+  assert.deepEqual(back.state.uf, s.uf);
+  assert.deepEqual(back.state.uq, M7Q);
+  for (const id of ['kd', 'wa', 'wb', 'wc', 'wd']) {
+    assert.equal(U.decode(U.encode(Object.assign({}, s, { ue: id, ut: null, uf: null, uq: null }))).state.ue, id);
+  }
+});
+
+test('F4b T008: valores de M7 fuera de rango son malformados y vuelven al valor por defecto', () => {
+  const bad = (frag, key, want) => {
+    const r = U.decode(`#v=unc&um=m7&${frag}`);
+    assert.ok(r.warning, frag);
+    assert.deepEqual(r.state[key], want, frag);
+  };
+  bad('ug=disc', 'ug', 'pert');
+  bad('ug=gamma', 'ug', 'pert');
+  bad('ur=6', 'ur', 4);
+  bad('uv=0', 'uv', 95);
+  bad('uv=100', 'uv', 95);
+  bad('uv=8.5', 'uv', 95);
+  bad('uo=k', 'uo', 'p');
+  bad('uy=tabla', 'uy', 'dist');
+  bad('ui=xx', 'ui', 'cr');
+  bad('uf=A-z', 'uf', null);
+  bad('uf=A-u.A-l', 'uf', null);
+  bad('uf=A?-u', 'uf', null);
+  bad('uq=basura', 'uq', null);
+  // Los ejemplos discretos solo en M7; los casos del Tema 6c, solo en M6.
+  for (const h of ['#v=unc&ue=kd', '#v=unc&um=m6&ue=wa', '#v=unc&um=m7&ue=tr', '#v=unc&um=m7&ue=pa']) {
+    const r = U.decode(h);
+    assert.equal(r.warning, 'malformed', h);
+    assert.equal(r.state.ue, 'kl', h);
+  }
+});
+
+test('F4b T008: 40 actividades discretas de 6 valores caben en el enlace (8000 caracteres)', () => {
+  const rows = Array.from({ length: 40 }, (_, i) => ({ id: `A${i}`, name: '', a: '1', m: '2', b: '3', links: i ? `A${i - 1}` : '' }));
+  const uq = Object.fromEntries(rows.map((r, i) => [r.id, { x: ['1', '2.5', '4', '7.25', '10', String(12 + i)], p: ['0.1', '0.15', '0.25', '0.25', '0.15', '0.1'] }]));
+  const uf = Object.fromEntries(rows.map((r) => [r.id, 'disc']));
+  const s = Object.assign(U.defaults(), { v: 'unc', ex: null, um: 'm7', ue: 'own', ut: { mode: 'pred', rows }, uf, uq });
+  const h = U.encode(s);
+  assert.ok(h.length <= U.LIMITS.hash, `${h.length} caracteres`);
+  assert.deepEqual(U.decode(h).state.uq, uq);
+});
+
+test('F4b T008: las claves de M7 solo cuentan en v=unc; los enlaces de las fases anteriores no cambian', () => {
+  const r = U.decode('#v=route&ex=ej6&ug=logn&ur=5&uy=rep');
+  assert.deepEqual([r.state.ug, r.state.ur, r.state.uy], ['pert', 4, 'dist']);
+  const f4a = U.decode('#v=unc&um=m6&ue=hl&ux=merge&uk=n3.s25&us=12');
+  assert.equal(f4a.warning, undefined);
+  const q = new URLSearchParams(U.encode(f4a.state).slice(1));
+  for (const k of ['ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui']) assert.ok(!q.has(k), k);
+  assert.deepEqual(['um', 'ue', 'ux', 'uk', 'us'].map((k) => q.get(k)), ['m6', 'hl', 'merge', 'n3.s25', '12']);
 });

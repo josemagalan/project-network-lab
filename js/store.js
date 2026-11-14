@@ -146,14 +146,26 @@
       // tabla del taller se conservan para volver a ellos. Otro proyecto vuelve a su plazo por defecto y, si se pedía el
       // plazo para una probabilidad, al 95 % (decisión del autor, revisión F4a, F13).
       case 'unc': {
-        const before = [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw].join('|');
+        const sig = () => [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw, s.ug, JSON.stringify(s.uf), JSON.stringify(s.uq), s.ur, s.us, s.uy].join('|');
+        const before = sig();
         const ue0 = s.ue;
         s.v = 'unc';
         const V = U.UNC;
-        if (['m5', 'm6'].includes(action.um)) s.um = action.um;
-        if (['kl', 'hl', 'tr', 'pa'].includes(action.ue) || (action.ue === 'own' && s.ut)) s.ue = action.ue;
+        if (['m5', 'm6', 'm7'].includes(action.um)) s.um = action.um;
+        if (['kl', 'hl', 'tr', 'pa'].includes(action.ue) || V.M7_ONLY.includes(action.ue) || (action.ue === 'own' && s.ut)) s.ue = action.ue;
         if (s.um === 'm5' && V.M6_ONLY.includes(s.ue)) s.ue = 'kl';
-        if (s.ue !== ue0) resetAsk(s);
+        if (s.um !== 'm7' && V.M7_ONLY.includes(s.ue)) s.ue = 'kl';   // F4b: los ejemplos discretos, solo en M7
+        if (s.um === 'm7' && V.M6_ONLY.includes(s.ue)) s.ue = 'kl';
+        if (s.ue !== ue0) { resetAsk(s); s.uf = null; s.uq = null; }   // F4b: las distribuciones propias son de cada proyecto
+        // F4b (plan §3): M7.
+        if (['pert', 'classic', 'tri', 'unif', 'norm', 'logn'].includes(action.ug)) s.ug = action.ug;
+        if (action.uf !== undefined) { const uf = V.cleanUf(action.uf); if (uf || action.uf === null) s.uf = uf; }
+        if (action.uq !== undefined) { const uq = V.cleanUq(action.uq); if (uq || action.uq === null) s.uq = uq; }
+        if ([2, 3, 4, 5].includes(action.ur)) s.ur = action.ur;
+        if (V.pctOk(action.uv)) s.uv = action.uv;
+        if (['p', 's'].includes(action.uo)) s.uo = action.uo;
+        if (['dist', 'idx', 'rep', 'conv'].includes(action.uy)) s.uy = action.uy;
+        if (['cr', 'cu', 'si'].includes(action.ui)) s.ui = action.ui;
         if (action.ua === null || V.actOk(action.ua)) s.ua = action.ua;
         if (action.uc === 0 || action.uc === 1) s.uc = action.uc;
         if (action.uw === 0 || action.uw === 1) s.uw = action.uw;   // T011: paso a paso
@@ -162,7 +174,7 @@
         if (action.up === null || V.probOk(action.up)) s.up = action.up;
         if (action.uk !== undefined) { const uk = V.cleanUk(action.uk); if (uk || action.uk === null) s.uk = uk; }
         if (V.seedOk(action.us)) s.us = action.us;
-        if ([s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw].join('|') !== before) s.step = 0;
+        if (sig() !== before) s.step = 0;
         break;
       }
       // F4a (AC12): partir del taller copia la estructura con a = m = b = duración; el taller no cambia (A8: tal cual).

@@ -365,3 +365,28 @@ test('F4a r1 (F13): otro proyecto vuelve a su plazo y, si se pedía el plazo par
   assert.deepEqual([own.ue, own.ud], ['own', null]);
   assert.equal(S.reduce(Object.assign({}, own, { ud: 7 }), { type: 'uncTable', mode: 'pred', rows: [{ id: 'A', name: '', a: '1', m: '2', b: '4', links: '' }] }).ud, 7);
 });
+
+test('F4b T008: acción unc con M7: valores válidos, ejemplos discretos solo en M7, otro proyecto borra uf y uq, y vuelve al paso 0', () => {
+  let s = S.reduce(U.defaults(), { type: 'unc', um: 'm7' }, 10);
+  assert.equal(s.um, 'm7');
+  s = S.reduce(s, { type: 'unc', ue: 'kd' }, 10);
+  assert.equal(s.ue, 'kd');
+  s = S.reduce(s, { type: 'unc', ug: 'unif', ur: 3, uv: 90, uo: 's', uy: 'idx', ui: 'cu', uf: { A: 'disc' }, uq: { A: { x: ['1'], p: ['1'] } } }, 10);
+  assert.deepEqual([s.ug, s.ur, s.uv, s.uo, s.uy, s.ui, s.uf, s.uq], ['unif', 3, 90, 's', 'idx', 'cu', { A: 'disc' }, { A: { x: ['1'], p: ['1'] } }]);
+  const same = S.reduce(s, { type: 'unc', ug: 'disc', ur: 9, uv: 0, uo: 'x', uy: 'x', ui: 'x', uf: { 'A?': 'unif' }, uq: { A: 'x' } }, 10);
+  for (const k of ['ug', 'ur', 'uv', 'uo', 'uy', 'ui', 'uf', 'uq']) assert.deepEqual(same[k], s[k], k);
+  s = S.reduce(Object.assign({}, s, { step: 4 }), { type: 'unc', uy: 'rep' }, 10);
+  assert.equal(s.step, 0);
+  s = S.reduce(Object.assign({}, s, { step: 4 }), { type: 'unc', ur: 5 }, 10);
+  assert.equal(s.step, 0);
+  s = S.reduce(Object.assign({}, s, { step: 4 }), { type: 'unc', ui: 'si' }, 10);
+  assert.equal(s.step, 4, 'el índice de la red no cambia las réplicas');
+  s = S.reduce(s, { type: 'unc', ue: 'wa' }, 10);
+  assert.deepEqual([s.ue, s.uf, s.uq], ['wa', null, null]);
+  s = S.reduce(s, { type: 'unc', um: 'm6' }, 10);
+  assert.equal(s.ue, 'kl', 'un ejemplo discreto fuera de M7 vuelve a Klastorin');
+  s = S.reduce(Object.assign({}, s, { um: 'm6', ue: 'tr' }), { type: 'unc', um: 'm7' }, 10);
+  assert.equal(s.ue, 'kl', 'los casos del Tema 6c no existen en M7');
+  s = S.reduce(s, { type: 'unc', uf: null, uq: null }, 10);
+  assert.deepEqual([s.uf, s.uq], [null, null]);
+});

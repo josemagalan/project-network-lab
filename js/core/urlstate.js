@@ -23,11 +23,13 @@
     lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
     cx: ['home', 'product', 'congress', 'lab'], xt: ['0', '1'],   // F3c: contexto del enunciado al azar y enunciado en «Ejercicios»
     // F4a: pestaña de tres tiempos y el TCL (plan f4a-tres-tiempos-tcl, §3): apartado, proyecto, curva clásica y caso de M6.
-    um: ['m5', 'm6'], ue: ['kl', 'hl', 'tr', 'pa', 'own'], uc: ['0', '1'], ux: ['exam', 'merge', 'few', 'skew', 'corr', 'proj'], uw: ['0', '1'],
+    um: ['m5', 'm6', 'm7'], ue: ['kl', 'hl', 'tr', 'pa', 'own', 'kd', 'wa', 'wb', 'wc', 'wd'], uc: ['0', '1'], ux: ['exam', 'merge', 'few', 'skew', 'corr', 'proj'], uw: ['0', '1'],
+    // F4b: M7 (plan f4b-montecarlo-indices, §3): distribución para todas, réplicas (10^ur), Pearson o Spearman, vista e índice de la red.
+    ug: ['pert', 'classic', 'tri', 'unif', 'norm', 'logn'], ur: ['2', '3', '4', '5'], uo: ['p', 's'], uy: ['dist', 'idx', 'rep', 'conv'], ui: ['cr', 'cu', 'si'],
   };
-  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
-    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw'];
+    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -55,7 +57,8 @@
       st: null, own: null, mk: null, tv: 'list', mm: 'practice', sol: 0,
       sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null,
       cx: null, sv: null, xt: 0,
-      um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0 };
+      um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
+      ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr' };
   }
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -309,7 +312,51 @@
   // ---------- F4a: la pestaña de tres tiempos y el TCL (v=unc) ----------
   // Los casos del Tema 6c con media y varianza solo existen en M6 (core/stochex, m6only).
   const UNC_M6_ONLY = ['tr', 'pa'];
-  const UNC_DEFAULTS = { um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0 };
+  const UNC_DEFAULTS = { um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
+    ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr' };
+  // F4b: los ejemplos con tiempos discretos solo existen en M7 (core/stochex, m7only).
+  const UNC_M7_ONLY = ['kd', 'wa', 'wb', 'wc', 'wd'];
+  // F4b: distribución propia de cada actividad (uf, «A-u.C-l») y discretas editadas (uq, como texto, empaquetadas).
+  const UF_LETTER = { pert: 'p', classic: 'c', tri: 't', unif: 'u', norm: 'n', logn: 'l', disc: 'd' };
+  const UF_KIND = Object.fromEntries(Object.entries(UF_LETTER).map(([k, v]) => [v, k]));
+  const DISC_MAX = 20;
+  function cleanUf(uf) {
+    if (!uf || typeof uf !== 'object' || Array.isArray(uf)) return null;
+    const e = Object.entries(uf);
+    if (!e.length || e.length > LIMITS.rows || !e.every(([id, k]) => ID_RE.test(id) && UF_LETTER[k])) return null;
+    return Object.fromEntries(e);
+  }
+  const encodeUf = (uf) => Object.entries(uf).map(([id, k]) => `${id}-${UF_LETTER[k]}`).join('.');
+  function decodeUf(text) {
+    const out = {};
+    for (const part of String(text).split('.')) {
+      const m = part.match(/^([A-Za-z0-9]{1,4})-([a-z])$/);
+      if (!m || !UF_KIND[m[2]] || m[1] in out) return null;
+      out[m[1]] = UF_KIND[m[2]];
+    }
+    return cleanUf(out);
+  }
+  const strList = (a) => Array.isArray(a) && a.length >= 1 && a.length <= DISC_MAX && a.every((x) => typeof x === 'string' && x.length <= LIMITS.duration);
+  function cleanUq(uq) {
+    if (!uq || typeof uq !== 'object' || Array.isArray(uq)) return null;
+    const e = Object.entries(uq);
+    if (!e.length || e.length > LIMITS.rows) return null;
+    if (!e.every(([id, q]) => ID_RE.test(id) && q && strList(q.x) && strList(q.p) && q.x.length === q.p.length)) return null;
+    return Object.fromEntries(e.map(([id, q]) => [id, { x: q.x.slice(), p: q.p.slice() }]));
+  }
+  const packUq = (uq) => textpack().compress(JSON.stringify([1, Object.entries(uq).map(([id, q]) => [id, q.x, q.p])]));
+  function unpackUq(packed) {
+    const tp = textpack();
+    const json = tp ? tp.decompress(packed, { max: EX.packed }) : null;
+    if (json === null) return null;
+    let a;
+    try { a = JSON.parse(json); } catch { return null; }
+    if (!Array.isArray(a) || a.length !== 2 || a[0] !== 1 || !Array.isArray(a[1]) || !a[1].every((r) => Array.isArray(r) && r.length === 3)) return null;
+    const ids = a[1].map((r) => r[0]);
+    if (new Set(ids).size !== ids.length) return null;
+    return cleanUq(Object.fromEntries(a[1].map((r) => [r[0], { x: r[1], p: r[2] }])));
+  }
+  const pctOk = (x) => Number.isInteger(x) && x >= 1 && x <= 99;
   // Deslizadores: n caminos (1–8), s holgura (0–20, en décimas), k actividades (1–30), w asimetría y r correlación (0–1, en
   // centésimas). En la URL, letra y entero separados por puntos: n3.s25.k4.w25.r90.
   const UK = { n: { lo: 1, hi: 8, scale: 1 }, s: { lo: 0, hi: 20, scale: 10 }, k: { lo: 1, hi: 30, scale: 1 }, w: { lo: 0, hi: 1, scale: 100 }, r: { lo: 0, hi: 1, scale: 100 } };
@@ -371,6 +418,15 @@
     const uk = cleanUk(s.uk);
     if (uk) q.set('uk', encodeUk(uk));
     if (seedOk(s.us)) q.set('us', String(s.us));
+    // F4b: M7.
+    if (s.ug !== 'pert') q.set('ug', s.ug);
+    const uf = cleanUf(s.uf);
+    if (uf) q.set('uf', encodeUf(uf));
+    const uq = cleanUq(s.uq);
+    if (uq) q.set('uq', packUq(uq));
+    if (s.ur !== 4) q.set('ur', String(s.ur));
+    if (pctOk(s.uv) && s.uv !== 95) q.set('uv', String(s.uv));
+    for (const [k, d] of [['uo', 'p'], ['uy', 'dist'], ['ui', 'cr']]) if (s[k] !== d) q.set(k, s[k]);
   }
   function decodeUnc(q, state) {
     let bad = false;
@@ -379,6 +435,11 @@
     if (state.ue === 'own' && !state.ut) { state.ue = 'kl'; bad = true; }
     if (state.ue !== 'own') state.ut = null;
     if (state.um === 'm5' && UNC_M6_ONLY.includes(state.ue)) { state.ue = 'kl'; bad = true; }
+    if (state.um !== 'm7' && UNC_M7_ONLY.includes(state.ue)) { state.ue = 'kl'; bad = true; }
+    if (state.um === 'm7' && UNC_M6_ONLY.includes(state.ue)) { state.ue = 'kl'; bad = true; }
+    if (q.has('uf')) { const uf = decodeUf(q.get('uf')); if (uf) state.uf = uf; else bad = true; }
+    if (q.has('uq')) { const uq = unpackUq(q.get('uq')); if (uq) state.uq = uq; else bad = true; }
+    if (q.has('uv')) { const v = q.get('uv'); const n = /^\d{1,2}$/.test(v) ? Number(v) : NaN; if (pctOk(n)) state.uv = n; else bad = true; }
     if (q.has('ua')) { if (actOk(q.get('ua'))) state.ua = q.get('ua'); else bad = true; }
     if (q.has('ud')) { const v = q.get('ud'); const n = /^\d{1,6}(\.\d{1,4})?$/.test(v) ? Number(v) : NaN; if (deadlineOk(n)) state.ud = n; else bad = true; }
     if (q.has('up')) { const v = q.get('up'); const n = /^0\.\d{1,4}$/.test(v) ? Number(v) : NaN; if (probOk(n)) state.up = n; else bad = true; }
@@ -601,7 +662,7 @@
 
   const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
     ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns,
-    UNC: { M6_ONLY: UNC_M6_ONLY, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk } };
+    UNC: { M6_ONLY: UNC_M6_ONLY, M7_ONLY: UNC_M7_ONLY, cleanUf, cleanUq, pctOk, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk } };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
