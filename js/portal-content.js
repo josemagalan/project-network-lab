@@ -43,7 +43,7 @@
       m6Topics: 'Normal · Sesgo de fusión · Caminos casi críticos', m6Open: 'Explorar el TCL',
       m7Question: '¿Qué actividad importa de verdad?', m7Title: 'Montecarlo e índices',
       m7Desc: 'Simula miles de veces el proyecto y mide con qué frecuencia es crítica cada actividad y cuánto influye en la duración total.',
-      m7Topics: 'Simulación · Índice de criticidad · Crucialidad',
+      m7Topics: 'Simulación · Índice de criticidad · Crucialidad', m7Open: 'Abrir Montecarlo',
       fitTitle: 'Así encajan', fitNote: 'La misma tabla de principio a fin', fitKnown: 'Duraciones conocidas', fitUncertain: 'Duraciones inciertas',
       fitTable: 'Enunciado → tabla', fitTableSub: 'M0 · precedencias', fitRoy: 'Red ROY', fitOr: 'o', fitPert: 'Red PERT',
       fitNetSub: 'M1 · M2 · dos dibujos de la misma tabla', fitTimes: 'Tiempos', fitTimesSub: 'M3 · hacia delante y hacia atrás',
@@ -121,7 +121,7 @@
       m6Topics: 'Normal · Merge bias · Near-critical paths', m6Open: 'Explore the CLT',
       m7Question: 'Which activity really matters?', m7Title: 'Monte Carlo and indices',
       m7Desc: 'Simulate the project thousands of times and measure how often each activity is critical and how much it drives the total duration.',
-      m7Topics: 'Simulation · Criticality index · Cruciality',
+      m7Topics: 'Simulation · Criticality index · Cruciality', m7Open: 'Open Monte Carlo',
       fitTitle: 'How they fit together', fitNote: 'The same table from start to finish', fitKnown: 'Known durations', fitUncertain: 'Uncertain durations',
       fitTable: 'Statement → table', fitTableSub: 'M0 · precedences', fitRoy: 'Activity on node', fitOr: 'or', fitPert: 'Activity on arrow',
       fitNetSub: 'M1 · M2 · two drawings of the same table', fitTimes: 'Times', fitTimesSub: 'M3 · forward and backward',
@@ -181,7 +181,7 @@
   // semilla: la elige la interfaz al abrir.
   const TARGETS = {
     m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
-    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle',
+    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', m7: 'v=unc&um=m7', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle',
   };
 
   function labHref(target, lang) {

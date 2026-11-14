@@ -66,18 +66,18 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
   assert.throws(() => labHref('m1', 'fr'));
 });
 
-test('ocho módulos, siete de ellos disponibles; ids únicos y anclas que existen', () => {
+test('ocho módulos, todos disponibles; ids únicos y anclas que existen', () => {
   assert.equal((html.match(/class="module-card tone-/g) || []).length, 8);
   for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 10, 'M0–M6, el taller, los ejercicios generados y el banco de Moodle');
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 11, 'M0–M7, el taller, los ejercicios generados y el banco de Moodle');
   assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 0, 'la fase 2 ya no tiene nada en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
   for (const m of html.matchAll(/href="#([^"]+)"/g)) assert.ok(ids.includes(m[1]), m[1]);
 });
 
-test('F4a T013: M5 y M6 disponibles abren su apartado en ambos idiomas; M7 sigue pendiente', () => {
-  for (const target of ['m5', 'm6']) {
+test('F4a T013 y F4b T013: M5, M6 y M7 disponibles abren su apartado en ambos idiomas; nada de la fase 4 en preparación', () => {
+  for (const target of ['m5', 'm6', 'm7']) {
     for (const lang of ['es', 'en']) {
       const { state, warning } = U.decode('#' + labHref(target, lang).split('#')[1]);
       assert.equal(warning, undefined);
@@ -88,7 +88,7 @@ test('F4a T013: M5 y M6 disponibles abren su apartado en ambos idiomas; M7 sigue
     assert.ok(card.includes(`data-lab="${target}"`));
     assert.doesNotMatch(card, /tone-soon|soonPhase4/);
   }
-  assert.equal((html.match(/data-i18n="soonPhase4"/g) || []).length, 1);
+  assert.equal((html.match(/data-i18n="soonPhase4"|tone-soon/g) || []).length, 0);
 });
 
 test('F4a T013: la barra publica Duraciones inciertas entre Taller y Ejercicios', () => {

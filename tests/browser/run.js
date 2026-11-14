@@ -5200,12 +5200,12 @@ check('Contador · sin respuesta de GoatCounter no aparece y la portada funciona
 });
 
 
-check('F4a T013 · portada y pestaña abren M5 y M6 en ES y EN', async () => {
+check('F4a T013 · portada y pestaña abren M5 y M6 en ES y EN (y M7 desde F4b T013)', async () => {
   const noJs = await open('index.html', { js: false });
-  for (const um of ['m5', 'm6']) assert.equal(await noJs.locator(`a[data-lab="${um}"]`).getAttribute('href'), `cpm.html#v=unc&um=${um}&lang=es`);
+  for (const um of ['m5', 'm6', 'm7']) assert.equal(await noJs.locator(`a[data-lab="${um}"]`).getAttribute('href'), `cpm.html#v=unc&um=${um}&lang=es`);
   await close(noJs);
   for (const lang of ['es', 'en']) {
-    for (const um of ['m5', 'm6']) {
+    for (const um of ['m5', 'm6', 'm7']) {
       const p = await open(`index.html?lang=${lang}`);
       const card = p.locator('article').filter({ has: p.locator(`a[data-lab="${um}"]`) });
       assert.equal(await card.locator('.ok').innerText(), lang === 'es' ? 'Disponible' : 'Available');
@@ -5683,7 +5683,7 @@ const m7Groups = (page) => page.evaluate(() => performance.getEntriesByType('res
 
 check('F4b T010 · M7 con Klastorin: histograma, función de distribución, percentiles y resultados iguales a los de Node; u7 solo con um=m7', async () => {
   const p0 = await uncLab('lang=es');
-  assert.equal(await p0.locator('#uncM7').count(), 0, 'M7 oculto hasta su publicación (T013)');
+  assert.equal(await p0.locator('#uncM7').getAttribute('aria-pressed'), 'false', 'M7 publicado (T013): su botón se ve en M5');
   assert.equal(await m7Groups(p0), 0, 'sin el grupo u7 en M5');
   await close(p0);
   const p = await m7Lab('lang=es');
@@ -6078,6 +6078,33 @@ check('F4b T012 · «Aprende más» de M7 se carga al abrirlo (grupo l7), en el 
     console.log(`    cpm.html#${hash} + «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
     assert.ok(bytes <= BUDGET, `${hash} con «Aprende más»: ${bytes} bytes`);
     await ctx.close();
+  }
+});
+
+// ---------- F4b, T013: publicación ----------
+
+check('F4b T013 · M7 publicado: el botón del apartado lo abre desde M6, carga u7 y vuelve a M6; la tarjeta de la portada dice «Abrir Montecarlo»', async () => {
+  const p = await uncLab('um=m6&lang=es');
+  assert.equal(await m7Groups(p), 0, 'sin el grupo u7 en M6');
+  assert.equal(await p.locator('#uncM7').innerText(), 'Montecarlo e índices (M7)');
+  await p.locator('#uncM7').click();
+  await p.waitForFunction(() => PNL.app.state().um === 'm7');
+  await m7Done(p);
+  assert.equal(await m7Groups(p), 5, 'el grupo u7 entero');
+  assert.equal(await p.locator('#uncM7').getAttribute('aria-pressed'), 'true');
+  assert.match(await p.evaluate(() => location.hash), /um=m7/);
+  await p.locator('#uncM6').click();
+  await p.waitForFunction(() => PNL.app.state().um === 'm6');
+  assert.equal(await p.locator('#uncM6').getAttribute('aria-pressed'), 'true');
+  await p.locator('#uncSteps').waitFor();
+  await close(p);
+  for (const lang of ['es', 'en']) {
+    const home = await open(`index.html?lang=${lang}`);
+    const a = home.locator('a[data-lab="m7"]');
+    assert.equal(await a.locator('[data-i18n="m7Open"]').innerText(), lang === 'es' ? 'Abrir Montecarlo' : 'Open Monte Carlo');
+    assert.equal(await a.getAttribute('href'), `cpm.html#v=unc&um=m7&lang=${lang}`);
+    if (lang === 'en') await axe(home, 'F4b · portada con M7 disponible');
+    await close(home);
   }
 });
 

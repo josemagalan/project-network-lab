@@ -23,8 +23,8 @@
   const NR = req('./narrate.js', 'narrate');
 
   const M6_READY = true;
-  // F4b (T010): M7 está oculto hasta su publicación (T013); con um=m7 en el enlace sí se ve su botón.
-  const M7_READY = false;
+  // F4b (T013): M7 publicado (oculto en T010–T012; con um=m7 en el enlace sí se veía su botón).
+  const M7_READY = true;
   const SECTION_EXAMPLES = { m5: ['kl', 'hl'], m6: ['kl', 'hl', 'tr', 'pa'], m7: ['kl', 'hl', 'kd', 'wa', 'wb', 'wc', 'wd'] };
   const FIELDS = ['a', 'm', 'b'];
   // Notación (decisión del autor en clarify): a, m, b con μ y σ² / to, tm, tp con te y σ², como en los apuntes.
