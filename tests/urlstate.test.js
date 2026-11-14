@@ -744,3 +744,18 @@ test('F4b T008: las claves de M7 solo cuentan en v=unc; los enlaces de las fases
   for (const k of ['ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui']) assert.ok(!q.has(k), k);
   assert.deepEqual(['um', 'ue', 'ux', 'uk', 'us'].map((k) => q.get(k)), ['m6', 'hl', 'merge', 'n3.s25', '12']);
 });
+
+// ---------- F4b T010: orden del tornado en espejo (bocetos aprobados, T009: orden elegible) ----------
+
+test('F4b T010: uz guarda el orden del tornado (c por criticidad, por defecto; u por crucialidad); otro valor es malformado', () => {
+  const s = Object.assign(U.defaults(), { v: 'unc', ex: null, um: 'm7', uy: 'idx' });
+  assert.equal(s.uz, 'c');
+  assert.ok(!new URLSearchParams(U.encode(s).slice(1)).has('uz'));
+  const h = U.encode(Object.assign({}, s, { uz: 'u' }));
+  assert.equal(new URLSearchParams(h.slice(1)).get('uz'), 'u');
+  assert.equal(U.decode(h).state.uz, 'u');
+  const r = U.decode('#v=unc&um=m7&uz=x');
+  assert.equal(r.warning, 'malformed');
+  assert.equal(r.state.uz, 'c');
+  assert.equal(U.decode('#v=route&ex=ej6&uz=u').state.uz, 'c', 'solo en v=unc');
+});

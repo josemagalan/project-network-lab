@@ -166,6 +166,7 @@
         if (['p', 's'].includes(action.uo)) s.uo = action.uo;
         if (['dist', 'idx', 'rep', 'conv'].includes(action.uy)) s.uy = action.uy;
         if (['cr', 'cu', 'si'].includes(action.ui)) s.ui = action.ui;
+        if (['c', 'u'].includes(action.uz)) s.uz = action.uz;   // T010: orden del tornado (no cambia el paso)
         if (action.ua === null || V.actOk(action.ua)) s.ua = action.ua;
         if (action.uc === 0 || action.uc === 1) s.uc = action.uc;
         if (action.uw === 0 || action.uw === 1) s.uw = action.uw;   // T011: paso a paso

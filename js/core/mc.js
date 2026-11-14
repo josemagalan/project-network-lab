@@ -139,38 +139,72 @@
   }
 
   // ---------- índices de una simulación con track ----------
-  function indices(res, model, opts) {
+  // A trozos (plan §4, T010): startIndices prepara; stepIndices hace unidades de trabajo (la duración del proyecto y sus
+  // rangos, cada actividad, cada camino listado) hasta `units` o hasta `ms` milisegundos; resultIndices da lo mismo que
+  // indices, que lo hace todo de una vez. Los rangos de Spearman ordenan cada actividad: con 10⁵ réplicas y 40
+  // actividades son casi un segundo, así que la interfaz los pide a trozos.
+  const now = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+  function startIndices(res, model, opts) {
     const corr = (opts && opts.corr) || 'pearson';
-    const D = res.acts; const TF = res.tf; const Td = res.durations; const n = Td.length; const k = model.acts.length;
-    let tbar = 0;
-    for (let r = 0; r < n; r++) tbar += Td[r];
-    tbar /= n;
-    const crit = []; const sig = []; const cruc = [];
-    const RT = corr === 'spearman' ? ranks(Td) : null;
-    for (let i = 0; i < k; i++) {
-      let c = 0; let s = 0; const d = D[i]; const tf = TF[i];
+    const k = model.acts.length;
+    const succ = succsOf(model);
+    const w = model.acts.map((a) => moments(a.dist).mean);
+    const top = topPaths(model, succ, w, PATH_LIMIT);
+    return { res, model, corr, k, succ, top, unit: 0, total: 1 + k + top.length, tbar: 0, RT: null,
+      crit: [], cruc: [], sig: [], pc: [] };
+  }
+  function unitOf(job) {
+    const { res, k } = job; const D = res.acts; const TF = res.tf; const Td = res.durations; const n = Td.length;
+    const u = job.unit;
+    if (u === 0) {
+      let tbar = 0;
+      for (let r = 0; r < n; r++) tbar += Td[r];
+      job.tbar = tbar / n;
+      if (job.corr === 'spearman') job.RT = ranks(Td);
+    } else if (u <= k) {
+      const i = u - 1;
+      let c = 0; let sg = 0; const d = D[i]; const tf = TF[i];
       for (let r = 0; r < n; r++) {
         const isCrit = tf[r] <= tolOf(Td[r]);
         if (isCrit) c++;
-        s += (isCrit ? 1 : d[r] / (d[r] + tf[r])) * Td[r];
+        sg += (isCrit ? 1 : d[r] / (d[r] + tf[r])) * Td[r];
       }
-      crit.push(c / n);
-      sig.push(tbar > 0 ? s / n / tbar : 0);
-      cruc.push(corr === 'spearman' ? pearson(ranks(d), RT) : pearson(d, Td));
-    }
-    const succ = succsOf(model);
-    const w = model.acts.map((a) => moments(a.dist).mean);
-    const list = topPaths(model, succ, w, PATH_LIMIT).map(({ path, mean }) => {
+      job.crit.push(c / n);
+      job.sig.push(job.tbar > 0 ? sg / n / job.tbar : 0);
+      job.cruc.push(job.corr === 'spearman' ? pearson(ranks(d), job.RT) : pearson(d, Td));
+    } else {
+      const path = job.top[u - 1 - k].path;
       let c = 0;
       for (let r = 0; r < n; r++) {
         let len = 0;
         for (const i of path) len += D[i][r];
         if (len >= Td[r] - tolOf(Td[r])) c++;
       }
-      return { ids: path.map((i) => model.acts[i].id), idx: path, mean, crit: c / n };
-    });
-    const count = countPaths(model, succ);
-    return { crit, cruc, sig, paths: { list, count, more: Math.max(0, count - list.length) } };
+      job.pc.push(c / n);
+    }
+    job.unit++;
+  }
+  function stepIndices(job, limit) {
+    const lim = limit || {};
+    const until = lim.ms != null ? now() + lim.ms : Infinity;
+    let left = lim.units != null ? Math.max(1, lim.units) : Infinity;
+    while (job.unit < job.total && left > 0) {
+      unitOf(job); left--;
+      if (now() >= until) break;
+    }
+    return { done: job.unit >= job.total };
+  }
+  function resultIndices(job) {
+    if (job.unit < job.total) throw new Error('mc: los índices no han terminado');
+    const { model } = job;
+    const list = job.top.map(({ path, mean }, j) => ({ ids: path.map((i) => model.acts[i].id), idx: path, mean, crit: job.pc[j] }));
+    const count = countPaths(model, job.succ);
+    return { crit: job.crit, cruc: job.cruc, sig: job.sig, paths: { list, count, more: Math.max(0, count - list.length) } };
+  }
+  function indices(res, model, opts) {
+    const job = startIndices(res, model, opts);
+    stepIndices(job, {});
+    return resultIndices(job);
   }
 
   // ---------- cuenta exacta ----------
@@ -298,7 +332,7 @@
     return { k, d, es, ef, T: Tk, crit };
   }
 
-  const api = { KINDS, LETTER, PATH_LIMIT, EXACT_LIMIT, distFor, moments, checkDisc, pearson, spearman, ranks, indices, exact,
+  const api = { KINDS, LETTER, PATH_LIMIT, EXACT_LIMIT, distFor, moments, checkDisc, pearson, spearman, ranks, indices, startIndices, stepIndices, resultIndices, exact,
     percentile, deadlineFor, convergence, toJSON, replicaTrace };
   root.PNL = root.PNL || {};
   root.PNL.mc = api;

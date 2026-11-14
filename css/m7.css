@@ -1,0 +1,59 @@
+/* Project Network Lab — estilos de M7, Montecarlo e índices (F4b). Se cargan bajo demanda con um=m7 (app.js, grupo u7),
+   sobre los de «Duraciones inciertas» (css/unc.css). Usan los tokens de styles.css, así que valen en claro y oscuro. */
+:root { --shade-0: #f2f6fa; --shade-1: #cfe0ee; --shade-2: #92b8d6; --shade-3: #3f76a3; --shade-4: #1f5f8b; --cruc: #a8550f; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --shade-0: #23292e; --shade-1: #2b4a62; --shade-2: #3f6d91; --shade-3: #6fa3cc; --shade-4: #a9cdea; --cruc: #f0a868; }
+}
+:root[data-theme="dark"] { --shade-0: #23292e; --shade-1: #2b4a62; --shade-2: #3f6d91; --shade-3: #6fa3cc; --shade-4: #a9cdea; --cruc: #f0a868; }
+.m7-controls { margin-top: 2px; gap: 6px 12px; font-size: 14px; }
+.m7-controls .unc-field input[inputmode] { width: 4.5em; }
+.m7-controls select { min-height: 32px; }
+.m7-controls .unc-mode legend { margin-right: 6px; }
+.m7-down button.linklike { font-size: inherit; }
+.m7-dists { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.m7-dists p { margin: 0; }
+td.m7-kind { white-space: nowrap; }
+td.m7-kind select { min-height: 30px; max-width: 14em; }
+table.data.unc-table.m7-table tr.bad { background: var(--critical-soft); }
+.m7-qbox { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: flex-start; padding: 4px 0 6px; }
+.m7-qside { display: flex; flex-direction: column; gap: 6px; max-width: 30em; }
+.m7-qside p { margin: 0; }
+table.data.m7-q caption { caption-side: top; text-align: left; padding-bottom: 4px; }
+table.data.m7-q input { width: 6em; height: 30px; padding: 0 5px; }
+table.data.m7-q input[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
+.m7-stale { filter: grayscale(1); pointer-events: none; }
+.m7-stale .card { border-style: dashed; }
+.m7-idx, .m7-tor { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.m7-idx p, .unc-pathscard p { margin: 0; }
+table.data.unc-table caption.muted { caption-side: top; text-align: left; padding-bottom: 4px; }
+/* Gráficos de M7 (views/mc-charts.js) */
+.mc-grid { stroke: var(--line); stroke-width: 1; }
+.mc-cdf { fill: none; stroke: var(--accent); stroke-width: 2.4; }
+.mc-normal { fill: none; stroke: var(--critical); stroke-width: 1.8; stroke-dasharray: 5 4; }
+.mc-mark { fill: var(--ink); stroke: var(--ink); }
+.mc-mark.chosen { fill: var(--critical-text); stroke: var(--critical-text); }
+.mc-guide { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 3; }
+.mc-guide.chosen { stroke: var(--critical-text); }
+.mc-label { stroke: none; font-size: 11px; font-weight: 600; }
+.mc-head { fill: var(--ink); font-size: 12px; font-weight: 600; }
+.mc-bar.crit { fill: var(--accent); }
+.mc-bar.cruc { fill: var(--cruc); }
+.mc-id { fill: var(--ink); font-size: 12px; font-weight: 700; }
+.mc-val { fill: var(--ink); font-size: 11px; }
+.unc-swatch.k-cdf { color: var(--accent); }
+.unc-swatch.k-normal-dash { color: var(--critical); border-top-style: dashed; }
+/* La red coloreada (roy-view, ctx.shade): cinco tonos de azul; el texto pasa a claro en los dos más oscuros. */
+svg.net .box.shade { stroke: var(--edge); stroke-width: 1.2; }
+svg.net .box.shade-0 { fill: var(--shade-0); }
+svg.net .box.shade-1 { fill: var(--shade-1); }
+svg.net .box.shade-2 { fill: var(--shade-2); }
+svg.net .box.shade-3 { fill: var(--shade-3); }
+svg.net .box.shade-4 { fill: var(--shade-4); }
+svg.net text.shade-t.on-dark { fill: var(--card); }
+.m7-scale { align-items: center; }
+.m7-swatch { display: inline-block; width: 28px; height: 12px; border: 1px solid var(--edge); }
+.m7-swatch.shade-0 { background: var(--shade-0); }
+.m7-swatch.shade-1 { background: var(--shade-1); }
+.m7-swatch.shade-2 { background: var(--shade-2); }
+.m7-swatch.shade-3 { background: var(--shade-3); }
+.m7-swatch.shade-4 { background: var(--shade-4); }

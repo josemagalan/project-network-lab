@@ -310,3 +310,25 @@ test('Índices: la significación y la crucialidad simuladas se acercan a las ex
   ix.sig.forEach((v, i) => close(v, ex.sig[i], 0.006, `significación de ${'ABCD'[i]}`));
   ix.cruc.forEach((v, i) => close(v, ex.cruc[i], 0.02, `crucialidad de ${'ABCD'[i]}`));
 });
+
+// ---------- F4b T010: los índices a trozos (plan §4: «al terminar, índices y convergencia en trozos también») ----------
+
+test('Índices a trozos: startIndices/stepIndices/resultIndices dan lo mismo que indices, se corten como se corten', () => {
+  const kl = X.get('kl');
+  const ids = kl.rows.map((r) => r.id);
+  const model = { acts: kl.rows.map((r) => ({ id: r.id, preds: String(r.links || '').split(/[,\s]+/).filter(Boolean).map((p) => ids.indexOf(p)), dist: MC.distFor('pert', r) })) };
+  const res = sim(model, 3000, 7);
+  for (const corr of ['pearson', 'spearman']) {
+    const all = MC.indices(res, model, { corr });
+    for (const units of [1, 3, 1000]) {
+      const job = MC.startIndices(res, model, { corr });
+      let guard = 0;
+      while (!MC.stepIndices(job, { units }).done) assert.ok(++guard < 1000);
+      assert.deepEqual(MC.resultIndices(job), all, `${corr}, ${units}`);
+    }
+    const job = MC.startIndices(res, model, { corr });
+    assert.throws(() => MC.resultIndices(job), /no han terminado/);
+    MC.stepIndices(job, { ms: 1e6 });
+    assert.deepEqual(MC.resultIndices(job), all);
+  }
+});

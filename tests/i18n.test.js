@@ -206,3 +206,18 @@ test('F4a: los textos de «Duraciones inciertas» están en los dos idiomas, con
   // Los errores de la tabla propia (a, m y b) tienen su mensaje; los de estructura reutilizan issue.* del taller.
   for (const code of ['missing', 'badNum', 'tooBig', 'aGtM', 'mGtB']) for (const lang of I.languages) assert.ok(I.dict[lang].unc.issue[code]);
 });
+
+test('F4b T010: los textos de M7 están en los dos idiomas, con los mismos parámetros', () => {
+  const I7 = require('../js/i18n-m7.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(I7.es), keysDeep(I7.en));
+  for (const k of keysDeep(I7.es)) assert.deepEqual(params(get(I7.es, k)), params(get(I7.en, k)), `m7.${k}`);
+  for (const lang of I.languages) assert.equal(I.dict[lang].m7, I7[lang]);
+  // Un texto por cada distribución y por cada error de una discreta (core/mc.checkDisc).
+  for (const lang of I.languages) {
+    for (const k of ['pert', 'classic', 'tri', 'unif', 'norm', 'logn', 'disc']) assert.ok(I.dict[lang].m7.kind[k], `${lang} kind.${k}`);
+    for (const c of ['empty', 'nan', 'negative', 'repeated', 'prob', 'sum']) assert.ok(I.dict[lang].m7.disc[c], `${lang} disc.${c}`);
+    assert.ok(I.dict[lang].unc.m7);
+  }
+});

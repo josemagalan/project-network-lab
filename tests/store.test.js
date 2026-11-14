@@ -390,3 +390,11 @@ test('F4b T008: acción unc con M7: valores válidos, ejemplos discretos solo en
   s = S.reduce(s, { type: 'unc', uf: null, uq: null }, 10);
   assert.deepEqual([s.uf, s.uq], [null, null]);
 });
+
+test('F4b T010: la acción unc acepta el orden del tornado (uz) y no vuelve al paso 0 por él', () => {
+  let s = S.reduce(Object.assign(U.defaults(), { v: 'unc', um: 'm7', step: 3 }), { type: 'unc', uz: 'u' }, 10);
+  assert.equal(s.uz, 'u');
+  assert.equal(s.step, 3);
+  s = S.reduce(s, { type: 'unc', uz: 'x' }, 10);
+  assert.equal(s.uz, 'u');
+});

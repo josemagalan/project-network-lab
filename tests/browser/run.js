@@ -5661,13 +5661,260 @@ check('F4a T017 r2 · con más de 50 críticos se nombran 5 de los otros (nit F1
   await close(p);
 });
 
+// ---------- F4b, T010: M7, distribución de la duración e índices (oculto hasta T013) ----------
+
+const M7N = require(path.join(ROOT, 'js', 'm7.js'));
+const m7Lab = (hash, opts) => uncLab(`um=m7${hash ? `&${hash}` : ''}`, opts);
+const m7St = (page) => page.evaluate(() => PNL.unc.state().m7);
+// Espera a que la simulación (y, si se piden, los índices) del estado actual terminen.
+const m7Done = async (page, idx) => {
+  await page.waitForFunction((withIdx) => { const s = PNL.unc.state(); return s && s.m7 && s.m7.done && (!withIdx || s.m7.idx); }, !!idx, { timeout: 30000 });
+  return m7St(page);
+};
+// Lo mismo en Node, con el núcleo, a partir del enlace de la página (reproducible, AC6 y AC14).
+async function m7Node(page) {
+  const st = U4.decode(await page.evaluate(() => location.hash)).state;
+  const m = M7N.model(st, st.lang || 'es');
+  const res = SIMC.run({ kind: 'project', model: m.sim.model, n: m.sim.n, us: m.sim.us, track: true });
+  return { m, res, r: M7N.results(m, res), idx: require(path.join(ROOT, 'js', 'core', 'mc.js')).indices(res, m.sim.model, { corr: m.corr }) };
+}
+const m7Groups = (page) => page.evaluate(() => performance.getEntriesByType('resource').filter((e) => /m7\.js|core\/mc\.js|i18n-m7\.js|mc-charts\.js|m7\.css/.test(e.name)).length);
+
+check('F4b T010 · M7 con Klastorin: histograma, función de distribución, percentiles y resultados iguales a los de Node; u7 solo con um=m7', async () => {
+  const p0 = await uncLab('lang=es');
+  assert.equal(await p0.locator('#uncM7').count(), 0, 'M7 oculto hasta su publicación (T013)');
+  assert.equal(await m7Groups(p0), 0, 'sin el grupo u7 en M5');
+  await close(p0);
+  const p = await m7Lab('lang=es');
+  assert.equal(await p.locator('#uncM7').getAttribute('aria-pressed'), 'true');
+  assert.equal(await m7Groups(p), 5, 'el grupo u7 entero');
+  assert.equal(await p.locator('#uncLearn').count(), 0, '«Aprende más» de M7 llega en T012');
+  assert.equal(await p.locator('#uncWalk').count(), 0, 'en M7 no hay «Paso a paso»');
+  const st = await m7Done(p);
+  const N = await m7Node(p);
+  assert.equal(st.results.mean, N.r.mean);
+  assert.equal(st.results.pT, N.r.pT);
+  assert.deepEqual(st.results.counts, N.r.hist.counts);
+  assert.deepEqual(st.results.q.map((q) => q.sim), N.r.q.map((q) => q.sim));
+  assert.ok(st.results.mean > 23.83 && st.results.pT < 0.66, 'AC5');
+  assert.equal(await p.locator('#m7Hist svg rect').count() > 20, true, 'histograma');
+  assert.equal(await p.locator('#m7Hist path.c-normal').count(), 1, 'normal de M6');
+  assert.equal(await p.locator('#m7Cdf path.mc-cdf').count(), 1, 'función de distribución');
+  assert.deepEqual(await p.locator('#m7Cdf text.mc-label').allTextContents(), ['P50', 'P80', 'P90', 'P95']);
+  assert.match(await p.locator('#m7Cdf svg').getAttribute('aria-label'), /P95 = 29,49/);
+  const res = await p.locator('#m7Res tbody tr').allInnerTexts();
+  assert.match(res[0], /24,67 ± 0,06\s+23,83/);
+  assert.match(res[2], /P\(duración ≤ 25\)\s+0,554 ± 0,010\s+0,658/);
+  assert.match(res[6], /P95 \(elegido\)\s+29,49\s+28,56/);
+  assert.match(await p.locator('#m7PctText').innerText(), /95\s% .* 29,49 semanas/);
+  assert.match(await p.locator('#m7Note').innerText(), /0,658 a 0,554/);
+  await p.locator('#m7Bins').click();
+  assert.equal(await p.locator('#m7BinsTable tbody tr').count(), 40);
+  assert.equal(await activeId(p), 'm7Bins');
+  await shot(p, 'f4b-m7-dist');
+  await axe(p, 'F4b · M7 · duración del proyecto');
+  // Percentil, plazo y réplicas: quedan en el enlace y Node da lo mismo.
+  await p.locator('#m7Pct').fill('85'); await p.locator('#m7Pct').press('Enter');
+  await uncAfter(p, () => PNL.app.state().uv === 85);
+  await p.locator('#m7Deadline').fill('27'); await p.locator('#m7Deadline').press('Enter');
+  await uncAfter(p, () => PNL.app.state().ud === 27);
+  await p.locator('#m7Reps').selectOption('3');
+  await uncAfter(p, () => PNL.app.state().ur === 3);
+  const st2 = await m7Done(p);
+  const N2 = await m7Node(p);
+  assert.equal(st2.results.pT, N2.r.pT);
+  assert.deepEqual(st2.results.q.map((q) => q.p), [0.5, 0.8, 0.85, 0.9]);
+  assert.equal(await hashGet(p, 'uv'), '85');
+  assert.equal(await hashGet(p, 'ud'), '27');
+  assert.equal(await hashGet(p, 'ur'), '3');
+  await p.locator('#m7Pct').fill('100'); await p.locator('#m7Pct').press('Enter');
+  assert.equal(await p.locator('#m7PctErr').isVisible(), true);
+  assert.equal((await state(p)).uv, 85);
+  // Otro navegador (otro contexto) con el mismo enlace da lo mismo (AC14).
+  const q = await open(`cpm.html${await p.evaluate(() => location.hash)}`);
+  await q.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state() && PNL.unc.state().m7);
+  assert.deepEqual((await m7Done(q)).results, st2.results);
+  await close(q);
+  await close(p);
+});
+
+check('F4b T010 · índices del Klastorin discreto con la cuenta exacta; Spearman, orden del tornado y red coloreada en el enlace', async () => {
+  const p = await m7Lab('ue=kd&uy=idx&lang=es');
+  const st = await m7Done(p, true);
+  const N = await m7Node(p);
+  assert.deepEqual(st.idx, JSON.parse(JSON.stringify(N.idx)));
+  const rows = await p.locator('#m7Idx tbody tr').evaluateAll((rs) => rs.map((r) => [...r.cells].map((c) => c.textContent)));
+  assert.deepEqual(rows.map((r) => r[0]), ['C', 'D', 'B', 'A'], 'por criticidad');
+  assert.deepEqual(rows[0].slice(1), ['0,657', '0,660', '0,592', '0,584', '0,817', '0,817']);
+  assert.match(await p.locator('#m7Idx caption').innerText(), /36 combinaciones/);
+  assert.match(await p.locator('#m7PathsTie').innerText(), /Suman 1,046/);
+  assert.equal(await p.locator('#m7Tor rect.mc-bar.crit').count(), 4);
+  assert.match(await p.locator('#m7Tor svg').getAttribute('aria-label'), /C, criticidad 0,66 y crucialidad 0,59/);
+  assert.match(await p.locator('#m7Net svg').getAttribute('aria-label'), /criticidad: A 0,07, B 0,32, C 0,66, D 0,39/);
+  assert.equal(await p.locator('#m7Net rect.shade-3').count(), 1, 'C en el cuarto tono');
+  await axe(p, 'F4b · M7 · índices del discreto');
+  await p.locator('#m7Order').selectOption('u');
+  await uncAfter(p, () => PNL.app.state().uz === 'u');
+  assert.deepEqual(await p.locator('#m7Idx tbody tr th').allTextContents(), ['C', 'D', 'B', 'A']);
+  assert.equal(await hashGet(p, 'uz'), 'u');
+  await p.locator('#m7Corr-s').check();
+  await uncAfter(p, () => PNL.app.state().uo === 's');
+  const st2 = await m7Done(p, true);
+  assert.deepEqual(st2.idx, JSON.parse(JSON.stringify((await m7Node(p)).idx)));
+  assert.deepEqual(await p.locator('#m7Idx thead th').allTextContents(), ['Actividad', 'Criticidad', 'Exacta', 'Crucialidad (Spearman)', 'Significación', 'Exacta'], 'la exacta es de Pearson');
+  assert.equal(await activeId(p), 'm7Corr-s');
+  await p.locator('#m7Shade').selectOption('cu');
+  await uncAfter(p, () => PNL.app.state().ui === 'cu');
+  assert.match(await p.locator('#m7Net svg').getAttribute('aria-label'), /crucialidad: /);
+  await shot(p, 'f4b-m7-idx-kd');
+  await close(p);
+  // Klastorin con beta-PERT: B no está en el camino de las medias y es crítica muchas veces (AC5).
+  const k = await m7Lab('uy=idx&lang=en', { scheme: 'dark' });
+  const sk = await m7Done(k, true);
+  assert.ok(sk.idx.crit[1] > 0.3 && sk.idx.crit[0] === 1 && sk.idx.crit[4] > sk.idx.crit[2], 'AC5');
+  assert.match(await k.locator('#m7PathsOff').innerText(), /A–B–E–F is not the critical path of the means \(A–C–E–F\), but it is critical in 40\s%/);
+  await axe(k, 'F4b · M7 · índices, oscuro, EN');
+  await close(k);
+});
+
+check('F4b T010 · distribuciones por actividad: cambiar una, la discreta con sus errores, restablecer y la misma para todas', async () => {
+  const p = await m7Lab('lang=es');
+  await m7Done(p);
+  await p.locator('#m7PerAct').click();
+  assert.equal(await p.locator('#m7PerAct').getAttribute('aria-expanded'), 'true');
+  assert.equal(await p.locator('#m7DistTable tbody tr').count(), 6);
+  await p.locator('#m7K-B').selectOption('unif');
+  await uncAfter(p, () => JSON.stringify(PNL.app.state().uf) === '{"B":"unif"}');
+  assert.equal(await hashGet(p, 'uf'), 'B-u');
+  assert.equal(await activeId(p), 'm7K-B');
+  assert.deepEqual(await p.locator('#m7DistTable tr[data-act="B"] td.num').allTextContents(), ['4', '7', '12', '8,00', '5,33']);
+  assert.equal(await p.locator('#m7Dist option:checked').innerText(), 'varias');
+  await p.locator('#m7K-C').selectOption('disc');
+  await uncAfter(p, () => document.getElementById('m7Q-C'));
+  assert.deepEqual(await p.locator('#m7Q-C input[data-q="p"]').evaluateAll((xs) => xs.map((x) => x.value)), ['1/6', '2/3', '1/6']);
+  await p.locator('#m7Q-C-p-1').fill('0,5'); await p.locator('#m7Q-C-p-1').press('Tab');
+  await uncAfter(p, () => document.getElementById('m7QErr-C'));
+  assert.match(await p.locator('#m7QErr-C').innerText(), /suman 0,83; tienen que sumar 1/);
+  assert.match(await p.locator('#m7Blocked').innerText(), /Mientras C tenga errores/);
+  assert.equal(await p.locator('.m7-stale').count(), 1, 'la última simulación, en gris');
+  assert.equal(await p.locator('#m7Json').isDisabled(), true);
+  await axe(p, 'F4b · M7 · discreta con errores');
+  await p.locator('#m7Q-C-p-0').fill('0,25'); await p.locator('#m7Q-C-p-0').press('Tab');
+  await p.locator('#m7Q-C-p-2').fill('1/4'); await p.locator('#m7Q-C-p-2').press('Tab');
+  await uncAfter(p, () => PNL.unc.state().m7.ok);
+  const C = (await m7St(p)).acts.find((a) => a.id === 'C');
+  assert.deepEqual(C.dist, { kind: 'disc', x: [2, 8, 13], p: [0.25, 0.5, 0.25] });
+  assert.ok(await hashGet(p, 'uq'));
+  await m7Done(p);
+  // Añadir y quitar un valor; restablecer vuelve a a, m y b.
+  await p.locator('#m7QAdd-C').click();
+  await uncAfter(p, () => document.querySelectorAll('#m7Q-C input[data-q="x"]').length === 4);
+  assert.equal(await activeId(p), 'm7Q-C-x-3');
+  await p.locator('#m7QDel-C-3').click();
+  await uncAfter(p, () => document.querySelectorAll('#m7Q-C input[data-q="x"]').length === 3);
+  await p.locator('#m7QReset-C').click();
+  await uncAfter(p, () => !PNL.app.state().uq);
+  assert.equal(await hashGet(p, 'uq'), null);
+  await p.locator('#m7Dist').selectOption('logn');
+  await uncAfter(p, () => PNL.app.state().ug === 'logn' && !PNL.app.state().uf);
+  assert.deepEqual((await m7St(p)).acts.map((a) => a.kind), ['logn', 'logn', 'logn', 'logn', 'logn', 'logn']);
+  await shot(p, 'f4b-m7-dists');
+  await close(p);
+  // En un ejemplo discreto no hay a, m ni b ni distribución para todas.
+  const d = await m7Lab('ue=wb&lang=en');
+  await d.locator('#m7PerAct').click();
+  assert.equal(await d.locator('#m7Dist').count(), 0);
+  assert.equal(await d.locator('#m7K-A').isDisabled(), true);
+  assert.deepEqual(await d.locator('#m7DistTable tr[data-act="A"] td.num').allTextContents(), ['—', '—', '—', '15.00', '25.00']);
+  await close(d);
+});
+
+check('F4b T010 · descargas: el .py y el proyecto en JSON; el informe del .py coincide con la página (AC7)', async () => {
+  const p = await m7Lab('ue=hl&ug=tri&uf=C-n.D-l.E-d&ur=3&us=4242&ud=46&uv=80&lang=es');
+  const st = await m7Done(p);
+  assert.equal(await p.locator('#m7Py').getAttribute('download'), 'pnl_montecarlo.py');
+  const py = await p.evaluate(async () => { const r = await fetch(document.getElementById('m7Py').href); return r.ok ? (await r.text()).slice(0, 200) : null; });
+  assert.match(py, /python|Python/);
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#m7Json').click()]);
+  assert.equal(dl.suggestedFilename(), 'pnl-montecarlo-hl.json');
+  const file = path.join(require('node:os').tmpdir(), `pnl-m7-${process.pid}.json`);
+  await dl.saveAs(file);
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.deepEqual([data.format, data.version, data.reps, data.seed, data.deadline, data.percentile], ['pnl-montecarlo', 1, 1000, 4242, 46, 0.8]);
+  const { spawnSync } = require('node:child_process');
+  const pyBin = ['python3', 'python'].find((b) => { const r = spawnSync(b, ['--version'], { encoding: 'utf8' }); return r.status === 0 && /Python 3/.test(r.stdout + r.stderr); });
+  if (!pyBin) { assert.ok(!process.env.CI, 'Python 3 en la CI'); console.log('    (sin Python 3: se salta la comparación con el .py)'); }
+  else {
+    const out = spawnSync(pyBin, [path.join(ROOT, 'python', 'pnl_montecarlo.py'), file, '--json'], { encoding: 'utf8' });
+    assert.equal(out.status, 0, out.stderr);
+    const r = JSON.parse(out.stdout);
+    assert.ok(Math.abs(r.mean - st.results.mean) < 1e-9, `${r.mean} frente a ${st.results.mean}`);
+    assert.ok(Math.abs(r.p_deadline - st.results.pT) < 1e-12);
+    assert.ok(Math.abs(r.percentiles['80'] - st.results.q.find((q) => q.p === 0.8).sim) < 1e-9);
+    const txt = spawnSync(pyBin, [path.join(ROOT, 'python', 'pnl_montecarlo.py'), file], { encoding: 'utf8' });
+    assert.equal(txt.status, 0, txt.stderr);
+    assert.ok(txt.stdout.includes(st.results.mean.toFixed(4)), 'el informe en texto da la misma media');
+  }
+  fs.unlinkSync(file);
+  assert.match(await p.locator('#live').innerText(), /Proyecto descargado en JSON/);
+  await close(p);
+});
+
+check('F4b T010 · tabla propia con errores, todo fijo y Williams (d): avisos de M7', async () => {
+  const bad = await uncLab(ownUrl([{ id: 'A', name: '', a: '3', m: '2', b: '5', links: '' }], { um: 'm7' }));
+  assert.match(await bad.locator('#m7Issues').innerText(), /1 errores|errores/);
+  await bad.locator('#m7ToM5').click();
+  await uncAfter(bad, () => PNL.app.state().um === 'm5');
+  assert.equal(await activeId(bad), 'uncM5');
+  await close(bad);
+  const fixed = await uncLab(ownUrl([{ id: 'A', name: '', a: '3', m: '3', b: '3', links: '' }, { id: 'B', name: '', a: '2', m: '2', b: '2', links: 'A' }], { um: 'm7' }));
+  await m7Done(fixed);
+  assert.match(await fixed.locator('#m7Fixed').innerText(), /siempre 5/);
+  await fixed.locator('#m7View-idx').click();
+  await m7Done(fixed, true);
+  assert.match(await fixed.locator('#m7NoUnc').innerText(), /Sin incertidumbre/);
+  await close(fixed);
+  const w = await m7Lab('ue=wd&uy=idx&lang=es');
+  const sw = await m7Done(w, true);
+  assert.equal(sw.idx.cruc[0], 0, 'A fija: crucialidad 0');
+  assert.match(await w.locator('.m7-idx').innerText(), /duración fija tiene crucialidad 0/);
+  await close(w);
+});
+
+check('F4b T010 · notación española, 360 px sin desbordar y la página atiende el teclado mientras simula 100 000 réplicas', async () => {
+  const n = await m7Lab('lang=es&nota=es');
+  await n.locator('#m7PerAct').click();
+  assert.deepEqual((await n.locator('#m7DistTable thead th').allTextContents()).slice(3, 6), ['tₒ', 'tₘ', 'tₚ']);
+  await close(n);
+  for (const uy of ['dist', 'idx']) {
+    const m = await m7Lab(`uy=${uy}&lang=es`, { width: 360, height: 740 });
+    await m7Done(m, uy === 'idx');
+    assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `${uy} a 360 px`);
+    await shot(m, `f4b-m7-${uy}-360`, true);
+    await axe(m, `F4b · M7 · ${uy} a 360 px`);
+    await close(m);
+  }
+  const p = await m7Lab('ur=5&uy=idx&uo=s&lang=es');
+  await p.evaluate(() => {
+    window.__lag = [];
+    document.addEventListener('keydown', (e) => { const s = PNL.unc.state().m7; window.__lag.push({ lag: performance.now() - e.timeStamp, running: !(s && s.done && s.idx) }); });
+  });
+  await p.waitForTimeout(300);
+  for (let i = 0; i < 6; i++) { await p.keyboard.press('Shift'); await p.waitForTimeout(60); }
+  const lags = await p.evaluate(() => window.__lag);
+  assert.ok(lags.some((x) => x.running), `sin teclas durante la simulación: ${JSON.stringify(lags)}`);
+  for (const x of lags) assert.ok(x.lag < 100, `${x.lag.toFixed(1)} ms`);
+  await m7Done(p, true);
+  await close(p);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -5693,6 +5940,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     for (const re of [/core\/aoacheck\.js/, /core\/aoamethods\.js/, /core\/compare\.js/, /compare-view\.js/, /\/reto\.js/, /reto-canvas\.js/, /reto-table\.js/]) {
       assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), cr, `${url}: ${re.source}`);
     }
+    // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);
     await ctx.close();
   }

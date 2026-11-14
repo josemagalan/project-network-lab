@@ -11,7 +11,7 @@
 
   const es = {
     region: 'Duraciones inciertas',
-    sections: 'Apartado', m5: 'Tres tiempos (M5)', m6: 'El TCL y sus trampas (M6)',
+    sections: 'Apartado', m5: 'Tres tiempos (M5)', m6: 'El TCL y sus trampas (M6)', m7: 'Montecarlo e índices (M7)',
     project: 'Proyecto', own: 'Tabla propia', fromWork: 'Partir del taller',
     act: 'Actividad', actTitle: 'Actividad {id} · {name}', actTitleNoName: 'Actividad {id}',
     toOwn: 'Al mover {a}, {m} o {b} en un ejemplo, el proyecto pasa a ser una tabla propia.',
@@ -121,7 +121,7 @@
 
   const en = {
     region: 'Uncertain durations',
-    sections: 'Section', m5: 'Three-point estimates (M5)', m6: 'The CLT and its pitfalls (M6)',
+    sections: 'Section', m5: 'Three-point estimates (M5)', m6: 'The CLT and its pitfalls (M6)', m7: 'Monte Carlo and indices (M7)',
     project: 'Project', own: 'Your own table', fromWork: 'Start from the workshop',
     act: 'Activity', actTitle: 'Activity {id} · {name}', actTitleNoName: 'Activity {id}',
     toOwn: 'Moving {a}, {m} or {b} in an example turns the project into your own table.',

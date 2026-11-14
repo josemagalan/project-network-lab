@@ -5,6 +5,8 @@
  * Selección compartida con la red PERT (F2a): ctx.selected (actividad), ctx.selPrecs (precedencias
  * [a, b] que representa la ficticia seleccionada), ctx.onSelect(id) al pulsar un nodo y ctx.fit
  * (lado a lado: la red se encoge con su columna en vez de mantener 560 px).
+ * F4b (M7, plan P8): ctx.shade = { values: { id: v entre 0 y 1 }, fmt(v), label } colorea cada actividad según un índice
+ * (cinco tonos de una escala, clases shade-0…shade-4 de css/m7.css) y escribe su valor en la caja; sin tiempos.
  */
 (function (root) {
   'use strict';
@@ -65,7 +67,8 @@
     // En pantallas estrechas la red no baja de 560 px: el contenedor se desplaza en horizontal.
     const svg = sel.append('svg').attr('class', 'net').attr('width', '100%').attr('style', `max-width:${width}px;min-width:${ctx.fit ? Math.min(width, ctx.minWidth || 0) : Math.min(width, 560)}px`)
       .attr('viewBox', `0 0 ${width} ${height}`).attr('role', 'img')
-      .attr('aria-label', G.i18n.t(lang, 'view.netLabel', { name: ctx.name, n: project.activities.length }));
+      .attr('aria-label', ctx.shade ? `${G.i18n.t(lang, 'view.netLabel', { name: ctx.name, n: project.activities.length })} ${ctx.shade.label}: ${project.activities.map((a) => `${a.id} ${ctx.shade.fmt(ctx.shade.values[a.id])}`).join(', ')}.`
+        : G.i18n.t(lang, 'view.netLabel', { name: ctx.name, n: project.activities.length }));
     const defs = svg.append('defs');
     for (const [id, cls] of [['pnl-mk', 'mk'], ['pnl-mk-a', 'mk-a'], ['pnl-mk-c', 'mk-c'], ['pnl-mk-s', 'mk-s']]) {
       defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
@@ -110,6 +113,17 @@
       if (id === START || id === END) {
         gg.append('rect').attr('class', 'term').attr('width', p.w).attr('height', p.h).attr('rx', p.h / 2);
         gg.append('text').attr('class', 'lbl').attr('x', p.w / 2).attr('y', p.h / 2 + 4).text(G.narrate.nodeName(lang, id));
+        continue;
+      }
+      if (ctx.shade) {
+        // M7: la caja con el id y el valor del índice, en el tono de su quinto de la escala (el valor, también en texto).
+        const v = ctx.shade.values[id];
+        const k = Math.max(0, Math.min(4, Math.floor(v * 5 - 1e-9)));
+        gg.attr('class', 'node');
+        gg.append('rect').attr('class', `box shade shade-${k}`).attr('width', p.w).attr('height', p.h).attr('rx', 6);
+        gg.append('text').attr('class', `nid shade-t${k >= 3 ? ' on-dark' : ''}`).attr('x', p.w / 2).attr('y', p.h / 2 - 3).text(id);
+        gg.append('text').attr('class', `val shade-t${k >= 3 ? ' on-dark' : ''}`).attr('x', p.w / 2).attr('y', p.h / 2 + 13).text(ctx.shade.fmt(v))
+          .append('title').text(`${ctx.shade.label}: ${ctx.shade.fmt(v)}`);
         continue;
       }
       const active = step && step.act === id;

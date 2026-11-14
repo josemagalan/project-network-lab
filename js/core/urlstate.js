@@ -26,10 +26,12 @@
     um: ['m5', 'm6', 'm7'], ue: ['kl', 'hl', 'tr', 'pa', 'own', 'kd', 'wa', 'wb', 'wc', 'wd'], uc: ['0', '1'], ux: ['exam', 'merge', 'few', 'skew', 'corr', 'proj'], uw: ['0', '1'],
     // F4b: M7 (plan f4b-montecarlo-indices, §3): distribución para todas, réplicas (10^ur), Pearson o Spearman, vista e índice de la red.
     ug: ['pert', 'classic', 'tri', 'unif', 'norm', 'logn'], ur: ['2', '3', '4', '5'], uo: ['p', 's'], uy: ['dist', 'idx', 'rep', 'conv'], ui: ['cr', 'cu', 'si'],
+    // F4b (T010; bocetos aprobados, T009): orden del tornado en espejo, por criticidad (c) o por crucialidad (u).
+    uz: ['c', 'u'],
   };
   const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
-    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui'];
+    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -58,7 +60,7 @@
       sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null,
       cx: null, sv: null, xt: 0,
       um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
-      ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr' };
+      ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c' };
   }
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
@@ -313,7 +315,7 @@
   // Los casos del Tema 6c con media y varianza solo existen en M6 (core/stochex, m6only).
   const UNC_M6_ONLY = ['tr', 'pa'];
   const UNC_DEFAULTS = { um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
-    ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr' };
+    ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c' };
   // F4b: los ejemplos con tiempos discretos solo existen en M7 (core/stochex, m7only).
   const UNC_M7_ONLY = ['kd', 'wa', 'wb', 'wc', 'wd'];
   // F4b: distribución propia de cada actividad (uf, «A-u.C-l») y discretas editadas (uq, como texto, empaquetadas).
@@ -426,7 +428,7 @@
     if (uq) q.set('uq', packUq(uq));
     if (s.ur !== 4) q.set('ur', String(s.ur));
     if (pctOk(s.uv) && s.uv !== 95) q.set('uv', String(s.uv));
-    for (const [k, d] of [['uo', 'p'], ['uy', 'dist'], ['ui', 'cr']]) if (s[k] !== d) q.set(k, s[k]);
+    for (const [k, d] of [['uo', 'p'], ['uy', 'dist'], ['ui', 'cr'], ['uz', 'c']]) if (s[k] !== d) q.set(k, s[k]);
   }
   function decodeUnc(q, state) {
     let bad = false;

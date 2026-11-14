@@ -23,7 +23,9 @@
   const NR = req('./narrate.js', 'narrate');
 
   const M6_READY = true;
-  const SECTION_EXAMPLES = { m5: ['kl', 'hl'], m6: ['kl', 'hl', 'tr', 'pa'] };
+  // F4b (T010): M7 está oculto hasta su publicación (T013); con um=m7 en el enlace sí se ve su botón.
+  const M7_READY = false;
+  const SECTION_EXAMPLES = { m5: ['kl', 'hl'], m6: ['kl', 'hl', 'tr', 'pa'], m7: ['kl', 'hl', 'kd', 'wa', 'wb', 'wc', 'wd'] };
   const FIELDS = ['a', 'm', 'b'];
   // Notación (decisión del autor en clarify): a, m, b con μ y σ² / to, tm, tp con te y σ², como en los apuntes.
   const LABELS = { en: { a: 'a', m: 'm', b: 'b', mean: 'μ', var: 'σ²' }, es: { a: 'tₒ', m: 'tₘ', b: 'tₚ', mean: 'tₑ', var: 'σ²' } };
@@ -91,6 +93,8 @@
 
   /** El modelo de la vista: proyecto, comprobación, medias y varianzas, camino crítico de las medias y actividad elegida. */
   function model(state, lang) {
+    // F4b (T010): M7 tiene su propio modelo (js/m7.js, grupo u7).
+    if (state.um === 'm7' && root.PNL && root.PNL.m7) return Object.assign(root.PNL.m7.model(state, lang), { m7: true });
     const src = source(state, lang);
     const v = validate(src);
     const out = { src, issues: v.issues, warnings: v.warnings, model: v.model, empty: !!v.empty, acts: [], sel: null, solution: null, project: null, exam: null };
@@ -224,7 +228,7 @@
    * Sin «uw», sin tabla o en un caso simulado de M6: null.
    */
   function trace(state, m) {
-    if (!state.uw || !m || !m.model) return null;
+    if (state.um === 'm7' || !state.uw || !m || !m.model) return null;
     if (state.um === 'm6') {
       if (state.ux !== 'exam') return null;
       const e = examOf(state, m);
@@ -275,6 +279,10 @@
     const num = (v) => NR.fmt(lang(), v);
     const lab = () => labels(state().nota);
     let m = null;
+    // M7 (F4b, T010): su vista, creada al entrar por primera vez (js/m7.js llega con el grupo u7).
+    let m7c = null;
+    const m7v = () => m7c || (m7c = root.PNL.m7.create({ state, lang, dispatch: hooks.dispatch, newSeed: hooks.newSeed, focus,
+      announce: (text) => { if (hooks.announce) hooks.announce(text); }, redraw: () => keepFocus(draw) }));
 
     function focus(id) { const el = root.document.getElementById(id); if (el) el.focus(); }
     function keepFocus(fn) {
@@ -291,7 +299,8 @@
     // ---------- Barra ----------
     function bar() {
       const s = state();
-      const sections = seg([[tu('m5'), s.um === 'm5', () => go({ um: 'm5' }), 'uncM5'], [tu('m6'), s.um === 'm6', () => go({ um: 'm6' }), 'uncM6', !M6_READY]], tu('sections'));
+      const sections = seg([[tu('m5'), s.um === 'm5', () => go({ um: 'm5' }), 'uncM5'], [tu('m6'), s.um === 'm6', () => go({ um: 'm6' }), 'uncM6', !M6_READY],
+        [tu('m7'), s.um === 'm7', () => go({ um: 'm7' }), 'uncM7', !M7_READY && s.um !== 'm7']], tu('sections'));
       const ids = SECTION_EXAMPLES[s.um] || SECTION_EXAMPLES.m5;
       const sel = h('select', { id: 'uncProj', onchange: (e) => pickProject(e.target.value) },
         ids.map((id) => h('option', { value: id, selected: s.ue === id }, [X.get(id).title[lang()]]))
@@ -301,14 +310,15 @@
         sections,
         synthetic ? h('span', { class: 'unc-field muted', id: 'uncSynthetic' }, [tu('synthetic')]) : h('label', { class: 'unc-field' }, [tu('project'), ' ', sel]),
         button(tu('fromWork'), fromWork, { id: 'uncFromWork' }),
-      ].concat([h('span', { class: 'unc-push' })], walkControls(), [learnButton()]))];
+      ].concat([h('span', { class: 'unc-push' })], walkControls(), [s.um === 'm7' ? null : learnButton()]))];
       if (s.um === 'm6') rows.push(m6Controls());
+      if (m.m7) rows.push(...m7v().rows());
       return h('div', { class: 'card unc-bar' }, rows);
     }
     // «Paso a paso» (T011): en M5 y en el cálculo de examen de M6, con la casilla de la predicción.
     function walkControls() {
       const s = state();
-      if (!m || !m.model || (s.um === 'm6' && s.ux !== 'exam')) return [];
+      if (!m || !m.model || s.um === 'm7' || (s.um === 'm6' && s.ux !== 'exam')) return [];
       const on = !!s.uw;
       const out = [seg([[tu('walk.toggle'), on, () => { go({ uw: on ? 0 : 1 }); focus('uncWalk'); }, 'uncWalk']], tu('walk.toggle'))];
       if (on) out.push(h('label', { class: 'unc-check' }, [h('input', { type: 'checkbox', id: 'uncPred', checked: !!s.pred,
@@ -895,6 +905,14 @@
     const m6On = () => state().um === 'm6' && (!!m.model || SYNTHETIC.includes(state().ux));
     function draw() {
       clear(container);
+      if (m.m7) {
+        cancelSim(); main = null; left = null; side = null; proj = null;
+        m7v().setModel(m);
+        container.appendChild(bar());
+        for (const el of m7v().main()) container.appendChild(el);
+        return;
+      }
+      if (m7c) m7c.leave();
       container.appendChild(bar());
       main = null;
       if (m6On()) {
@@ -915,7 +933,7 @@
       fill();
     }
     function render(model, opts) {
-      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && proj && proj.isConnected && !main
+      const typing = opts && opts.fromEditor && m && !m.m7 && !model.m7 && m.src.kind === 'own' && model.src.kind === 'own' && proj && proj.isConnected && !main
         && model.src.rows.length === m.src.rows.length && model.src.mode === m.src.mode;
       m = model;
       // Al teclear se repinta solo lo de M5; si la tabla pasa a ser válida estando en M6, toca la vista de M6 (revisión F4a, F14).
@@ -924,6 +942,7 @@
     }
     function debug() {
       if (!m) return null;
+      if (m.m7) return { m7: m7c ? m7c.debug() : null, src: m.src };
       const out = { src: m.src, issues: m.issues, acts: m.acts.map((a) => ({ id: a.id, mean: a.mean, var: a.var })), sel: m.sel, path: m.exam ? m.exam.path : null };
       // M6: la huella de la simulación (se compara con la de Node para la misma semilla, A4).
       if (sim.key) {
@@ -935,7 +954,7 @@
     return { render, debug };
   }
 
-  const api = { M6_READY, SECTION_EXAMPLES, LABELS, labels, source, parseNum, validate, model, pasteRows, withValue, curvePts, niceTicks,
+  const api = { M6_READY, M7_READY, SECTION_EXAMPLES, LABELS, labels, source, parseNum, validate, model, pasteRows, withValue, curvePts, niceTicks,
     UK_DEFAULT, SLIDERS, SEED_DEFAULT, BINS, CASES, SYNTHETIC, ukOf, seedOf, deadlineOf, examOf, simSpec, simSummary, trace, hint, create };
   root.PNL = root.PNL || {};
   root.PNL.unc = api;
