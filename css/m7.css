@@ -6,7 +6,7 @@
 }
 :root[data-theme="dark"] { --shade-0: #23292e; --shade-1: #2b4a62; --shade-2: #3f6d91; --shade-3: #6fa3cc; --shade-4: #a9cdea; --cruc: #f0a868; }
 .unc-bar .seg.m7-seg { flex-wrap: wrap; }
-.m7-controls { margin-top: 2px; gap: 6px 12px; font-size: 14px; }
+.m7-controls { margin-top: 2px; gap: 6px 10px; font-size: 14px; }
 .m7-controls .unc-field input[inputmode] { width: 4.5em; }
 .m7-controls select { min-height: 32px; }
 .m7-controls .unc-mode legend { margin-right: 6px; }

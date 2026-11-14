@@ -6108,6 +6108,154 @@ check('F4b T013 · M7 publicado: el botón del apartado lo abre desde M6, carga 
   }
 });
 
+// ---------- F4b, T014: accesibilidad, teclado y tamaño de M7 ----------
+
+// Las vistas de M7 que recorren las pruebas de accesibilidad: las cuatro vistas, con ejemplos de tiempos continuos y
+// discretos, otra distribución, Spearman con la red coloreada por crucialidad, la predicción del camino y todo fijo.
+const M7_VIEWS = ['uy=dist&ue=kl', 'uy=dist&ue=hl&ug=tri', 'uy=dist&ue=kd', 'uy=dist&ue=wd', 'uy=idx&ue=kd', 'uy=idx&ue=hl&uo=s&ui=cu&uz=u',
+  'uy=rep&ue=kl&uh=t', 'uy=rep&ue=kd&uh=p', 'uy=conv&ue=kd', 'uy=conv&ue=hl'];
+// Abre una vista de M7 en la misma página y espera a que termine (la simulación, los índices o la convergencia).
+async function m7Show(page, hash) {
+  await setHash(page, `v=unc&um=m7&${hash}`);
+  await page.waitForFunction((h) => {
+    const q = new URLSearchParams(h); const a = PNL.app.state();
+    return a.um === 'm7' && (q.get('uy') || 'dist') === a.uy && (q.get('ue') || 'kl') === a.ue;
+  }, hash, { timeout: 20000 });
+  const uy = new URLSearchParams(hash).get('uy');
+  await m7Done(page, uy === 'idx');
+  if (uy === 'conv') await page.locator('#m7Conv-mean svg').waitFor({ timeout: 30000 });
+  if (uy === 'rep') await page.locator('#m7RepNet svg').waitFor({ timeout: 30000 });
+  await page.waitForTimeout(150);
+}
+
+check('F4b T014 · AC15: axe sin violaciones en claro y oscuro, ES y EN, en las cuatro vistas de M7; cada gráfico con su texto; a 1280×720, sin desplazamiento horizontal, la cabecera en una fila y la barra de M7 baja', async () => {
+  for (const lang of ['es', 'en']) {
+    for (const scheme of ['light', 'dark']) {
+      const page = await m7Lab(`lang=${lang}`, { scheme });
+      for (const v of M7_VIEWS) {
+        await m7Show(page, `${v}&lang=${lang}`);
+        const label = `F4b T014 · ${v} (${lang}, ${scheme})`;
+        await axe(page, label);
+        const charts = await uncCharts(page);
+        assert.ok(charts.length >= 1, `${label}: sin gráfico`);
+        for (const c of charts) assert.ok(c.hidden || (c.role === 'img' && c.label.length > 10), `${label}: el gráfico de #${c.id} no tiene texto (${JSON.stringify(c)})`);
+        const box = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: window.innerWidth, head: document.querySelector('.site-head').getBoundingClientRect().height,
+          bar: document.querySelector('.unc-bar').getBoundingClientRect().height, rows: [...document.querySelectorAll('.unc-bar > .unc-row')].map((r) => r.getBoundingClientRect().height) }));
+        assert.ok(box.w <= box.vw + 1, `${label}: desplazamiento horizontal (${box.w} px)`);
+        assert.ok(box.head <= 70, `${label}: la cabecera ocupa ${box.head} px`);
+        // La barra de M7 (boceto 80): apartado y proyecto (en una fila en español; en inglés, «Learn more» puede bajar);
+        // vistas y descargas, siempre en una; los controles, en una o dos según la vista. Como mucho, 200 px.
+        assert.equal(box.rows.length, 3, `${label}: filas de la barra`);
+        if (lang === 'es') assert.ok(box.rows[0] <= 48, `${label}: la primera fila ocupa ${box.rows[0]} px`);
+        assert.ok(box.rows[1] <= 48, `${label}: la fila de las vistas ocupa ${box.rows[1]} px`);
+        assert.ok(box.bar <= 200, `${label}: la barra ocupa ${box.bar} px (${box.rows.join(', ')})`);
+      }
+      // «Distribuciones por actividad» abierto, con el editor de la discreta.
+      await m7Show(page, `uy=dist&ue=kl&uf=A-d&lang=${lang}`);
+      await page.locator('#m7PerAct').click();
+      await page.locator('#m7Dists').waitFor();
+      await page.locator('#m7Edit-A').click();
+      await page.locator('#m7Q-A').waitFor();
+      await axe(page, `F4b T014 · distribuciones por actividad y editor de la discreta (${lang}, ${scheme})`);
+      await close(page);
+    }
+  }
+});
+
+check('F4b T014 · AC15: a 360 px ninguna vista de M7 desplaza la página a lo ancho, en ES y EN, tampoco con las distribuciones por actividad abiertas', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await m7Lab(`lang=${lang}`, { width: 360, height: 740 });
+    for (const v of M7_VIEWS) {
+      await m7Show(page, `${v}&lang=${lang}`);
+      const w = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: window.innerWidth }));
+      assert.ok(w.w <= w.vw + 1, `${v} (${lang}) a 360 px: ${w.w} px`);
+    }
+    await m7Show(page, `uy=dist&ue=kl&uf=A-d&lang=${lang}`);
+    await page.locator('#m7PerAct').click();
+    await page.locator('#m7Edit-A').click();
+    await page.locator('#m7Q-A').waitFor();
+    const w = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: window.innerWidth }));
+    assert.ok(w.w <= w.vw + 1, `distribuciones por actividad (${lang}) a 360 px: ${w.w} px`);
+    await shot(page, `f4b-t014-360-${lang}`, true);
+    await close(page);
+  }
+});
+
+check('F4b T014 · AC15: con el teclado se eligen las vistas, la distribución, las réplicas, el orden del tornado, el índice de la red y Pearson o Spearman; el foco se ve y no se pierde al recalcular', async () => {
+  const p = await m7Lab('ue=kd&lang=es');
+  await m7Done(p);
+  // Las vistas: el tabulador llega a los cuatro botones en orden; Intro y espacio los pulsan y el foco se queda.
+  await p.locator('#m7View-dist').focus();
+  assert.ok(await focusVisible(p), 'foco visible en la vista');
+  for (const v of ['idx', 'rep', 'conv']) { await p.keyboard.press('Tab'); assert.equal(await activeId(p), `m7View-${v}`); }
+  await p.locator('#m7View-idx').focus();
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => PNL.app.state().uy === 'idx');
+  await m7Done(p, true);
+  assert.equal(await activeId(p), 'm7View-idx');
+  // Pearson o Spearman, con las flechas del grupo de radios.
+  await p.locator('#m7Corr-p').focus();
+  await p.keyboard.press('ArrowRight');
+  await p.waitForFunction(() => PNL.app.state().uo === 's');
+  await m7Done(p, true);
+  assert.equal(await activeId(p), 'm7Corr-s');
+  assert.ok(await focusVisible(p), 'foco visible en Spearman');
+  // Los desplegables (orden del tornado, índice de la red, réplicas) cambian con las flechas sin perder el foco.
+  for (const [id, key] of [['m7Order', 'uz'], ['m7Shade', 'ui'], ['m7Reps', 'ur']]) {
+    const before = await hashGet(p, key);
+    await p.locator(`#${id}`).focus();
+    assert.ok(await focusVisible(p), `foco visible en #${id}`);
+    await p.keyboard.press('ArrowDown');
+    await p.waitForFunction(([k, b]) => new URLSearchParams(location.hash.slice(1)).get(k) !== b, [key, before]);
+    await m7Done(p, true);
+    assert.equal(await activeId(p), id, `#${id} pierde el foco`);
+  }
+  // El plazo se escribe y se confirma con Intro.
+  await p.locator('#m7Deadline').focus();
+  await p.keyboard.press('Control+A');
+  await p.keyboard.type('22');
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => PNL.app.state().ud === 22);
+  await m7Done(p, true);
+  assert.equal(await activeId(p), 'm7Deadline');
+  await close(p);
+  // La distribución para todas y «Distribuciones por actividad», con el teclado.
+  const q = await m7Lab('ue=kl&lang=en');
+  await m7Done(q);
+  await q.locator('#m7Dist').focus();
+  await q.keyboard.press('ArrowDown');
+  await q.waitForFunction(() => PNL.app.state().ug && PNL.app.state().ug !== 'pert');
+  await m7Done(q);
+  assert.equal(await activeId(q), 'm7Dist');
+  await q.locator('#m7PerAct').focus();
+  await q.keyboard.press('Enter');
+  await q.locator('#m7Dists').waitFor();
+  assert.equal(await q.locator('#m7PerAct').getAttribute('aria-expanded'), 'true');
+  assert.equal(await activeId(q), 'm7PerAct');
+  await q.keyboard.press(' ');
+  await q.waitForFunction(() => document.getElementById('m7PerAct').getAttribute('aria-expanded') === 'false');
+  assert.equal(await activeId(q), 'm7PerAct');
+  await close(q);
+});
+
+check('F4b T014 · AC16: cada vista de M7 con «Aprende más» abierto sigue por debajo de 1 MB, y sin el código de M5 y M6', async () => {
+  for (const uy of ['dist', 'idx', 'rep', 'conv']) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/cpm.html#v=unc&um=m7&ue=hl&uy=${uy}&lang=es`, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => window.PNL && PNL.unc && PNL.unc.state && PNL.unc.state());
+    await page.locator('#uncLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((sum, x) => sum + (x.encodedBodySize || x.transferSize || 0), 0));
+    console.log(`    uy=${uy} + «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes <= BUDGET, `uy=${uy} con «Aprende más»: ${bytes} bytes`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /unc-m56\.js|learn-unc\.js/.test(e.name))), false, `uy=${uy}: código de M5 y M6`);
+    await ctx.close();
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

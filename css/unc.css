@@ -8,6 +8,8 @@
 .unc button.ghost { min-height: 32px; padding: 4px 12px; }
 .unc-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
 .unc-field select { min-height: 32px; max-width: 100%; min-width: 0; }
+/* F4b T014: el proyecto, como en el boceto 80 (la lista desplegada enseña el nombre entero), para que la barra quepa en una fila a 1280 px con M7. */
+.unc-bar #uncProj { width: 16rem; }
 .unc-main { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 .unc-left, .unc-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .unc-act, .unc-proj, .unc-netcard, .unc-issues { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
