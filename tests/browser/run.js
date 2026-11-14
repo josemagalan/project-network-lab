@@ -5664,7 +5664,7 @@ check('F4a T017 r2 · con más de 50 críticos se nombran 5 de los otros (nit F1
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
-  for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es',
+  for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
     exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es']) {
@@ -5688,6 +5688,11 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn(-unc)?\.js/.test(e.name))), false, `${url}: learn.js`);
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
+    // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo (grupo cr), solo con view=cmp, view=reto o m=prog.
+    const cr = /view=(cmp|reto)|m=prog/.test(url);
+    for (const re of [/core\/aoacheck\.js/, /core\/aoamethods\.js/, /core\/compare\.js/, /compare-view\.js/, /\/reto\.js/, /reto-canvas\.js/, /reto-table\.js/]) {
+      assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), cr, `${url}: ${re.source}`);
+    }
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);
     await ctx.close();
   }

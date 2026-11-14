@@ -23,7 +23,10 @@
 
   const G = window.PNL;
   const { i18n: I, urlstate: U, store: S, project: P, cpm: C, matrix: MX, examples: EX, narrate: NR,
-    layout: L, predict: PR, aoa: A, aoaLayout: AL, mindummy: MD, compare: CM, reto: RT, dom } = G;
+    layout: L, predict: PR, aoa: A, aoaLayout: AL, mindummy: MD, dom } = G;
+  // F4b (plan P4): el comparador y el reto se cargan bajo demanda (grupo cr); se leen de G al usarlos.
+  const CM = { run: (...a) => G.compare.run(...a), combine: (...a) => G.compare.combine(...a), get METHODS() { return G.compare.METHODS; } };
+  const RT = { start: (...a) => G.reto.start(...a), fromUrl: (...a) => G.reto.fromUrl(...a), check: (...a) => G.reto.check(...a), apply: (...a) => G.reto.apply(...a) };
   const { h, clear } = dom;
   const $ = (id) => document.getElementById(id);
 
@@ -66,9 +69,12 @@
     lr: ['js/learn.js'],
     // F4a (T012): «Aprende más» de M5 y M6, aparte de la pestaña (la reserva de la puerta T001).
     ul: ['js/learn-unc.js'],
+    // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo de la F2b, solo con view=cmp, view=reto o m=prog
+    // (la carga común baja unos 88 KiB y deja sitio a M7).
+    cr: ['js/core/aoacheck.js', 'js/core/aoamethods.js', 'js/core/compare.js', 'js/compare-view.js', 'js/reto.js', 'js/views/reto-canvas.js', 'js/views/reto-table.js'],
     un: ['css/unc.css', 'js/core/threept.js', 'js/core/sim.js', 'js/core/tcl.js', 'js/core/stochex.js', 'js/i18n-unc.js', 'js/views/dist-chart.js', 'js/unc.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, lr: () => !!G.learn, ul: () => !!G.learnUnc };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, cr: () => !!G.retoTable, lr: () => !!G.learn, ul: () => !!G.learnUnc };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
@@ -97,6 +103,8 @@
     }
     return loading[group];
   }
+  // F4b (T002): el grupo cr hace falta con la red PERT en el comparador, en el reto o en el dibujo progresivo.
+  const needsCr = (s) => s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog');
   const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : v === 'unc' ? 'un' : null);
   // Grupos que pide un enlace (F3c, P5 y P12): M0 con el texto de su enunciado (st) o con el generador (sg).
   function groupsOf(hash) {
@@ -106,6 +114,7 @@
     // necesita (revisión de la F3c, F1).
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
     if (v === 'ex' && q.get('xt') === '1') return ['ex', 'sg'];
+    if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
     return [groupOf(v)];
   }
   const needAll = (groups) => Promise.all(groups.filter(Boolean).map((g) => need(g)));
@@ -165,8 +174,13 @@
     model.aoaLay = AL.layout(model.net);
     model.succs = A._reduce(model.project).direct;
     // Dibujo progresivo (F2b, T019): su red final, con su traza, colocada una vez; los pasos enseñan una parte.
-    model.progNet = A.build(model.project, { method: 'prog' });
-    model.progLay = AL.layout(model.progNet);
+    // F4b (T002, analyze A1): se construye al pedirla (progNet), porque necesita core/aoamethods, del grupo cr.
+    model.progNet = null;
+    model.progLay = null;
+  }
+  function progNet() {
+    if (!model.progNet) { model.progNet = A.build(model.project, { method: 'prog' }); model.progLay = AL.layout(model.progNet); }
+    return model.progNet;
   }
 
   const pert = () => state.graph === 'aoa';
@@ -185,7 +199,7 @@
     if (model.m0) return state.mm === 'route' ? model.route : null;
     if (model.uncm) return model.trace || null;
     if (model.exm || model.mqm) return null;
-    if (pert()) return model.net ? (prog() ? model.progNet.trace : model.net.trace) : null;
+    if (pert()) return model.net ? (prog() ? progNet().trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
   const total = () => { const tr = trace(); return tr ? tr.length : 1; };
@@ -234,7 +248,10 @@
 
   function dispatch(action, opts) {
     const before = state;
-    state = S.reduce(state, action, total());
+    const next = S.reduce(state, action, total());
+    // F4b (T002): el comparador, el reto y el dibujo progresivo esperan a su grupo (cr) antes de cambiar nada.
+    if (needsCr(next) && !READY.cr()) { need('cr').then(() => dispatch(action, opts)); return; }
+    state = next;
     const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
@@ -297,6 +314,8 @@
   }
 
   function render(opts) {
+    // F4b (T002): red de seguridad; dispatch y los enlaces ya piden el grupo cr antes de llegar aquí.
+    if (needsCr(state) && !READY.cr()) { need('cr').then(() => render(opts)); return; }
     renderTexts();
     const m0On = state.v === 'm0';
     const exOn = state.v === 'ex';
@@ -347,7 +366,7 @@
     const ctx = { project: model.project, solution: sol, lay: model.lay, matrix: model.matrix, step, stepIndex: k, revealed,
       box: state.box, lang: lang(), nota: state.nota, criticalOn, numFmt, name: model.name, unit: model.unit, hide, net: model.net };
     const progOn = prog();
-    if (progOn) ctx.net = model.progNet;
+    if (progOn) ctx.net = progNet();
 
     $('btnAon').setAttribute('aria-pressed', String(!isPert));
     $('btnAoa').setAttribute('aria-pressed', String(isPert));
@@ -487,7 +506,7 @@
   // Dibujo progresivo (F2b, T019): lo dibujado hasta el paso k con la colocación de la red final. Mientras se
   // predice, sin la actividad del paso; después, con ella y sus ficticias resaltadas (AC8).
   function progView(tr, k, hide) {
-    const net = model.progNet;
+    const net = progNet();
     const step = tr[k];
     const upto = hide ? k - 1 : k;
     const acts = new Set(tr.slice(0, upto + 1).filter((s) => s.kind === 'progAct').map((s) => s.act));
@@ -737,7 +756,7 @@
     body.appendChild(h('h3', {}, [t('learn.refs')]));
     body.appendChild(h('ul', {}, L.refs.map((r) => h('li', {}, [r]))));
     if (L.open && L.open !== state.ex) {
-      const href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: L.open, step: 0, wi: null, graph: 'aoa', view: 'cmp', ms: CM.METHODS.slice(), pair: null, min: 0 }));
+      const href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: L.open, step: 0, wi: null, graph: 'aoa', view: 'cmp', ms: U.METHODS.slice(), pair: null, min: 0 }));
       body.appendChild(h('p', {}, [h('a', { href, onclick: () => $('learnDialog').close() }, [t('cmp.learnOpen')])]));
     }
     const dlg = $('learnDialog');
