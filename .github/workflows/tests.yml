@@ -13,6 +13,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
+      # Principio 5: las pruebas de paridad comparan el núcleo con el gemelo en Python (tests/parity.test.js); con CI=true,
+      # sin Python 3 fallan en lugar de saltarse. La imagen del ejecutor lo trae; aquí solo se comprueba.
+      - name: Python 3 para el gemelo
+        run: python3 --version
       - name: Sintaxis y pruebas
         run: npm test
       - name: Cobertura del núcleo (≥ 90 % de líneas en js/core/)

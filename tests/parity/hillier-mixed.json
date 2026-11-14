@@ -1,0 +1,189 @@
+{
+ "format": "pnl-montecarlo",
+ "version": 1,
+ "unit": "weeks",
+ "reps": 2000,
+ "seed": 44,
+ "deadline": 47,
+ "percentile": 0.8,
+ "corr": "spearman",
+ "activities": [
+  {
+   "id": "A",
+   "preds": [],
+   "dist": {
+    "kind": "pert",
+    "a": 1,
+    "m": 2,
+    "b": 3
+   }
+  },
+  {
+   "id": "B",
+   "preds": [
+    "A"
+   ],
+   "dist": {
+    "kind": "classic",
+    "a": 2,
+    "m": 3.5,
+    "b": 8
+   }
+  },
+  {
+   "id": "C",
+   "preds": [
+    "B"
+   ],
+   "dist": {
+    "kind": "tri",
+    "a": 6,
+    "m": 9,
+    "b": 18
+   }
+  },
+  {
+   "id": "D",
+   "preds": [
+    "C"
+   ],
+   "dist": {
+    "kind": "unif",
+    "a": 4,
+    "b": 10
+   }
+  },
+  {
+   "id": "E",
+   "preds": [
+    "C"
+   ],
+   "dist": {
+    "kind": "normal",
+    "mu": 4,
+    "var": 0.4444444444444444
+   }
+  },
+  {
+   "id": "F",
+   "preds": [
+    "E"
+   ],
+   "dist": {
+    "kind": "logn",
+    "mu": 5,
+    "sd": 1
+   }
+  },
+  {
+   "id": "G",
+   "preds": [
+    "D"
+   ],
+   "dist": {
+    "kind": "disc",
+    "x": [
+     5,
+     6.5,
+     11
+    ],
+    "p": [
+     0.16666666666666666,
+     0.6666666666666666,
+     0.16666666666666666
+    ]
+   }
+  },
+  {
+   "id": "H",
+   "preds": [
+    "E",
+    "G"
+   ],
+   "dist": {
+    "kind": "pert",
+    "a": 5,
+    "m": 8,
+    "b": 17
+   }
+  },
+  {
+   "id": "I",
+   "preds": [
+    "C"
+   ],
+   "dist": {
+    "kind": "classic",
+    "a": 3,
+    "m": 7.5,
+    "b": 9
+   }
+  },
+  {
+   "id": "J",
+   "preds": [
+    "F",
+    "I"
+   ],
+   "dist": {
+    "kind": "tri",
+    "a": 3,
+    "m": 9,
+    "b": 9
+   }
+  },
+  {
+   "id": "K",
+   "preds": [
+    "J"
+   ],
+   "dist": {
+    "kind": "unif",
+    "a": 4,
+    "b": 4
+   }
+  },
+  {
+   "id": "L",
+   "preds": [
+    "J"
+   ],
+   "dist": {
+    "kind": "normal",
+    "mu": 5,
+    "var": 1
+   }
+  },
+  {
+   "id": "M",
+   "preds": [
+    "H"
+   ],
+   "dist": {
+    "kind": "logn",
+    "mu": 2,
+    "sd": 0.3333333333333333
+   }
+  },
+  {
+   "id": "N",
+   "preds": [
+    "K",
+    "L"
+   ],
+   "dist": {
+    "kind": "disc",
+    "x": [
+     5,
+     5.5,
+     9
+    ],
+    "p": [
+     0.16666666666666666,
+     0.6666666666666666,
+     0.16666666666666666
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,81 @@
+{
+ "format": "pnl-montecarlo",
+ "version": 1,
+ "unit": "weeks",
+ "reps": 3000,
+ "seed": 7,
+ "deadline": 26,
+ "percentile": 0.95,
+ "corr": "spearman",
+ "activities": [
+  {
+   "id": "A",
+   "preds": [],
+   "dist": {
+    "kind": "classic",
+    "a": 2,
+    "m": 6,
+    "b": 14
+   }
+  },
+  {
+   "id": "B",
+   "preds": [
+    "A"
+   ],
+   "dist": {
+    "kind": "tri",
+    "a": 4,
+    "m": 7,
+    "b": 12
+   }
+  },
+  {
+   "id": "C",
+   "preds": [
+    "A"
+   ],
+   "dist": {
+    "kind": "unif",
+    "a": 2,
+    "b": 13
+   }
+  },
+  {
+   "id": "D",
+   "preds": [
+    "A"
+   ],
+   "dist": {
+    "kind": "classic",
+    "a": 12,
+    "m": 14,
+    "b": 18
+   }
+  },
+  {
+   "id": "E",
+   "preds": [
+    "B",
+    "C"
+   ],
+   "dist": {
+    "kind": "tri",
+    "a": 3,
+    "m": 5,
+    "b": 7
+   }
+  },
+  {
+   "id": "F",
+   "preds": [
+    "E"
+   ],
+   "dist": {
+    "kind": "unif",
+    "a": 3,
+    "b": 7
+   }
+  }
+ ]
+}
