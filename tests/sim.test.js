@@ -192,3 +192,93 @@ test('F4a r1 (F6): la distancia KS mira los dos lados (simulación a la derecha 
   assert.ok(Math.abs(s.ks(55, 5) - expect) < 0.01, `a la izquierda de la normal: ${s.ks(55, 5)}`);
   assert.ok(s.ks(50, 5) < 0.01);
 });
+
+// ---------- F4b T004: distribuciones nuevas y track (spec f4b-montecarlo-indices; plan §0 y §3) ----------
+
+const KLD = () => ({ acts: [   // Klastorin con tiempos discretos (Tema 6c): D tras A y B; C sola
+  { id: 'A', preds: [], dist: { kind: 'disc', x: [7, 8, 9], p: [1 / 3, 1 / 3, 1 / 3] } },
+  { id: 'B', preds: [], dist: { kind: 'disc', x: [2, 12], p: [0.2, 0.8] } },
+  { id: 'C', preds: [], dist: { kind: 'disc', x: [5, 15, 25], p: [0.2, 0.2, 0.6] } },
+  { id: 'D', preds: [0, 1], dist: { kind: 'disc', x: [3, 12], p: [0.3, 0.7] } }] });
+
+test('F4b T004: uniforme, lognormal y discreta: media y varianza muestrales dentro de 4 errores estándar, sin negativos', () => {
+  const ln = { mu: 6.667, sd: 2 };
+  const s2 = Math.log(1 + (ln.sd / ln.mu) ** 2);
+  const cases = [
+    [{ kind: 'unif', a: 2, b: 14 }, 8, 144 / 12],
+    [{ kind: 'logn', mu: ln.mu, sd: ln.sd }, ln.mu, ln.sd ** 2],
+    [{ kind: 'disc', x: [5, 15, 25], p: [0.2, 0.2, 0.6] }, 19, 0.2 * 196 + 0.2 * 16 + 0.6 * 36],
+  ];
+  for (const [dist, mu, v] of cases) {
+    const n = 40000;
+    const d = Array.from(S.run({ kind: 'paths', model: { paths: [{ acts: [dist] }] }, n, us: 99 }).durations);
+    assert.ok(d.every((x) => x >= 0), dist.kind);
+    assert.ok(Math.abs(mean(d) - mu) < 4 * Math.sqrt(v / n), `${dist.kind}: media ${mean(d)} frente a ${mu}`);
+    const kurt = dist.kind === 'logn' ? Math.exp(4 * s2) + 2 * Math.exp(3 * s2) + 3 * Math.exp(2 * s2) - 3 : 3;
+    assert.ok(Math.abs(variance(d) - v) < 4 * v * Math.sqrt((kurt - 1) / n), `${dist.kind}: varianza ${variance(d)} frente a ${v}`);
+  }
+  const disc = Array.from(S.run({ kind: 'paths', model: { paths: [{ acts: [cases[2][0]] }] }, n: 1000, us: 3 }).durations);
+  assert.ok(disc.every((x) => [5, 15, 25].includes(x)), 'la discreta solo da sus valores');
+});
+
+test('F4b T004: casos fijos: uniforme y lognormal sin anchura, discreta de un valor', () => {
+  const one = (dist) => Array.from(S.run({ kind: 'paths', model: { paths: [{ acts: [dist] }] }, n: 50, us: 1 }).durations);
+  assert.ok(one({ kind: 'unif', a: 4, b: 4 }).every((x) => x === 4));
+  assert.ok(one({ kind: 'logn', mu: 5, sd: 0 }).every((x) => x === 5));
+  assert.ok(one({ kind: 'logn', mu: 0, sd: 0 }).every((x) => x === 0));
+  assert.ok(one({ kind: 'disc', x: [100], p: [1] }).every((x) => x === 100));
+});
+
+test('F4b T004: distribuciones nuevas mal formadas se rechazan', () => {
+  const bad = (dist) => assert.throws(() => S.start({ kind: 'paths', model: { paths: [{ acts: [dist] }] }, n: 1, us: 1 }), undefined, JSON.stringify(dist));
+  bad({ kind: 'unif', a: 5, b: 4 });
+  bad({ kind: 'unif', a: -1, b: 4 });
+  bad({ kind: 'logn', mu: -1, sd: 1 });
+  bad({ kind: 'logn', mu: 1, sd: -1 });
+  bad({ kind: 'disc', x: [1, 2], p: [0.5, 0.6] });
+  bad({ kind: 'disc', x: [1, 1], p: [0.5, 0.5] });
+  bad({ kind: 'disc', x: [-1, 2], p: [0.5, 0.5] });
+  bad({ kind: 'disc', x: [1, 2], p: [0, 1] });
+  bad({ kind: 'disc', x: [], p: [] });
+});
+
+test('F4b T004: track guarda dᵢ, HTᵢ y T por réplica; HT coincide con una pasada hacia atrás hecha aparte', () => {
+  const model = KLD();
+  const res = S.run({ kind: 'project', model, n: 500, us: 11, track: true });
+  assert.equal(res.acts.length, 4);
+  assert.equal(res.tf.length, 4);
+  for (let r = 0; r < 500; r++) {
+    const [a, b, c, d] = res.acts.map((x) => x[r]);
+    const T = Math.max(Math.max(a, b) + d, c);
+    assert.equal(res.durations[r], T);
+    const want = [T - (Math.max(a, b) + d) + Math.max(a, b) - a, T - (Math.max(a, b) + d) + Math.max(a, b) - b, T - c, T - (Math.max(a, b) + d)];
+    want.forEach((w, i) => assert.ok(Math.abs(res.tf[i][r] - w) < 1e-12, `réplica ${r}, actividad ${i}`));
+  }
+});
+
+test('F4b T004: track no cambia la secuencia: mismas duraciones con y sin track, y con trozos de 1, 7 y 10 000', () => {
+  const model = klastorin();
+  const base = S.run({ kind: 'project', model, n: 2000, us: 2026 }).durations;
+  const tracked = S.run({ kind: 'project', model, n: 2000, us: 2026, track: true }).durations;
+  assert.deepEqual(Array.from(tracked), Array.from(base));
+  for (const reps of [1, 7, 10000]) {
+    const job = S.start({ kind: 'project', model, n: 2000, us: 2026, track: true });
+    while (!S.step(job, { reps }).done);
+    const r = S.result(job);
+    assert.deepEqual(Array.from(r.durations), Array.from(base), `trozos de ${reps}`);
+    assert.equal(r.tf.length, 6);
+  }
+});
+
+test('F4b T004: la cópula también vale con uniforme, lognormal y discreta (marginal respetada con ρ > 0)', () => {
+  const dists = [[{ kind: 'unif', a: 2, b: 14 }, 8], [{ kind: 'logn', mu: 6, sd: 2 }, 6], [{ kind: 'disc', x: [5, 15, 25], p: [0.2, 0.2, 0.6] }, 19],
+    [{ kind: 'unif', a: 3, b: 3 }, 3], [{ kind: 'logn', mu: 4, sd: 0 }, 4], [{ kind: 'disc', x: [7], p: [1] }, 7]];
+  const n = 20000;
+  const res = S.run({ kind: 'paths', model: { paths: [{ acts: dists.map((d) => d[0]), rho: 0.5 }] }, n, us: 5, keepActs: true });
+  dists.forEach(([d, mu], i) => {
+    const x = Array.from(res.acts[i]);
+    assert.ok(x.every((v) => v >= 0), d.kind);
+    assert.ok(Math.abs(mean(x) - mu) < 0.15 + 0.02 * mu, `${d.kind}: ${mean(x)} frente a ${mu}`);
+  });
+  assert.ok(pearson(Array.from(res.acts[0]), Array.from(res.acts[1])) > 0.3, 'correladas');
+});

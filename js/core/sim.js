@@ -11,6 +11,10 @@
  *   Zᵢ = √ρ·W + √(1 − ρ)·εᵢ y la duración es la inversa de su distribución en Φ(Zᵢ) (en una rejilla de 1024 puntos).
  * - dist: { kind: 'pert' | 'classic' | 'tri', a, m, b } (core/threept), { kind: 'normal', mu, var } (truncada en 0) o
  *   { kind: 'fixed', d }.
+ * F4b (spec f4b-montecarlo-indices; plan §0, §3 y P1): también { kind: 'unif', a, b }, { kind: 'logn', mu, sd } (lognormal con esa
+ * media y desviación) y { kind: 'disc', x, p } (valores distintos ≥ 0 con probabilidades > 0 que suman 1; por inversión).
+ * start({ track: true }) guarda por réplica la duración de cada actividad (acts) y su holgura total (tf, de una pasada hacia
+ * atrás con las duraciones de esa réplica), para los índices de core/mc. Ni lo uno ni lo otro cambia el orden de la semilla.
  * Todo el azar sale de rng.mulberry32(us) y se consume siempre en el mismo orden (réplica a réplica, actividad a
  * actividad), así que el resultado no depende de cómo se corte en trozos con step (AC5). Muestreo (P3): normal por
  * Box–Muller con el par guardado; gamma de Marsaglia–Tsang; beta como cociente de gammas; triangular por inversión.
@@ -63,6 +67,27 @@
       const sd = Math.sqrt(dist.var);
       return { kind, mu: dist.mu, sd, lo: sd > 0 ? T.phi(-dist.mu / sd) : 0 };
     }
+    if (kind === 'unif') {
+      const { a, b } = dist;
+      if (!isNum(a) || !isNum(b) || !(a >= 0 && a <= b)) throw new Error('sim: uniforme no válida');
+      return { kind, a, w: b - a, fixed: !(b > a) };
+    }
+    if (kind === 'logn') {
+      const { mu, sd } = dist;
+      if (!isNum(mu) || !isNum(sd) || mu < 0 || sd < 0) throw new Error('sim: lognormal no válida');
+      if (!(mu > 0 && sd > 0)) return { kind, fixed: true, d: mu };
+      const s2 = Math.log(1 + (sd / mu) ** 2);
+      return { kind, fixed: false, m: Math.log(mu) - s2 / 2, s: Math.sqrt(s2) };
+    }
+    if (kind === 'disc') {
+      const x = dist.x || []; const pr = dist.p || [];
+      if (!x.length || x.length !== pr.length || !x.every((v) => isNum(v) && v >= 0) || !pr.every((v) => isNum(v) && v > 0)
+        || new Set(x).size !== x.length) throw new Error('sim: discreta no válida');
+      const c = []; let acc = 0;
+      for (const v of pr) { acc += v; c.push(acc); }
+      if (Math.abs(acc - 1) > 1e-9) throw new Error('sim: las probabilidades de la discreta no suman 1');
+      return { kind, x: x.slice(), c, fixed: x.length === 1 };
+    }
     if (T.KINDS.includes(kind)) {
       const { a, m, b } = dist;
       if (![a, m, b].every(isNum) || !(a >= 0 && a <= m && m <= b)) throw new Error('sim: a, m, b no válidos');
@@ -83,6 +108,9 @@
         return 0;
       }
       case 'tri': return p.fixed ? p.d.a : T.quantile('tri', p.d, s.u());
+      case 'unif': return p.fixed ? p.a : p.a + p.w * s.u();
+      case 'logn': return p.fixed ? p.d : Math.exp(p.m + p.s * s.normal());
+      case 'disc': return p.fixed ? p.x[0] : discAt(p, s.u());
       default: {
         if (p.fixed) return p.d.a;
         const x = s.gamma(p.alpha);
@@ -90,9 +118,16 @@
       }
     }
   }
+  function discAt(p, u) {             // el primer valor cuya probabilidad acumulada supera u
+    for (let j = 0; j < p.c.length - 1; j++) if (u < p.c[j]) return p.x[j];
+    return p.x[p.x.length - 1];
+  }
   function fromUniform(p, u) {        // la inversa de cada distribución, para la cópula
     switch (p.kind) {
       case 'fixed': return p.d;
+      case 'unif': return p.fixed ? p.a : p.a + p.w * u;
+      case 'logn': return p.fixed ? p.d : Math.exp(p.m + p.s * T.phiInv(Math.min(1 - 1e-12, Math.max(1e-12, u))));
+      case 'disc': return p.fixed ? p.x[0] : discAt(p, u);
       case 'normal': return p.sd === 0 ? Math.max(0, p.mu) : Math.max(0, p.mu + p.sd * T.phiInv(p.lo + u * (1 - p.lo)));
       default: {
         if (p.fixed) return p.d.a;
@@ -107,7 +142,8 @@
     const o = opts || {};
     const n = o.n == null ? DEFAULT_N : o.n;
     if (!Number.isInteger(n) || n < 1) throw new Error('sim: n no válido');
-    const job = { kind: o.kind, n, i: 0, s: sampler(o.us >>> 0), out: new Float64Array(n), keep: !!o.keepActs };
+    const job = { kind: o.kind, n, i: 0, s: sampler(o.us >>> 0), out: new Float64Array(n), keep: !!o.keepActs || (o.kind === 'project' && !!o.track),
+      track: o.kind === 'project' && !!o.track };
     if (o.kind === 'project') {
       const acts = (o.model && o.model.acts) || [];
       job.acts = acts.map((a, i) => {
@@ -117,6 +153,12 @@
       });
       job.ef = new Float64Array(acts.length);
       if (job.keep) job.store = acts.map(() => new Float64Array(n));
+      if (job.track) {
+        job.succ = acts.map(() => []);
+        job.acts.forEach((a, i) => a.preds.forEach((q) => job.succ[q].push(i)));
+        job.dur = new Float64Array(acts.length); job.lf = new Float64Array(acts.length);
+        job.tf = acts.map(() => new Float64Array(n));
+      }
     } else if (o.kind === 'paths') {
       const paths = (o.model && o.model.paths) || [];
       job.paths = paths.map((pa) => {
@@ -140,8 +182,17 @@
         for (const p of a.preds) if (job.ef[p] > es) es = job.ef[p];
         const d = draw(a.p, s);
         if (job.keep) job.store[i][r] = d;
+        if (job.track) job.dur[i] = d;
         job.ef[i] = es + d;
         if (job.ef[i] > end) end = job.ef[i];
+      }
+      if (job.track) {                 // pasada hacia atrás de esta réplica: holgura total de cada actividad
+        for (let i = job.acts.length - 1; i >= 0; i--) {
+          let lf = end;
+          for (const q of job.succ[i]) { const ls = job.lf[q] - job.dur[q]; if (ls < lf) lf = ls; }
+          job.lf[i] = lf;
+          job.tf[i][r] = lf - job.ef[i];
+        }
       }
       return end;
     }
@@ -175,6 +226,7 @@
     if (job.i < job.n) throw new Error('sim: la simulación no ha terminado');
     const r = { durations: job.out };
     if (job.keep) r.acts = job.store;
+    if (job.track) r.tf = job.tf;
     return r;
   }
 
