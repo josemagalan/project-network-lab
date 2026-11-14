@@ -221,3 +221,12 @@ test('F4b T010: los textos de M7 están en los dos idiomas, con los mismos pará
     assert.ok(I.dict[lang].unc.m7);
   }
 });
+
+test('F4b T011: los textos de «Réplica a réplica» y «Convergencia» (js/m7-rep.js) están en los dos idiomas, con los mismos parámetros', () => {
+  const R = require('../js/m7-rep.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(R.TEXTS.es), keysDeep(R.TEXTS.en));
+  for (const k of keysDeep(R.TEXTS.es)) assert.deepEqual(params(get(R.TEXTS.es, k)), params(get(R.TEXTS.en, k)), `m7.${k}`);
+  for (const lang of I.languages) { assert.equal(I.dict[lang].m7.rep, R.TEXTS[lang].rep); assert.equal(I.dict[lang].m7.conv, R.TEXTS[lang].conv); }
+});

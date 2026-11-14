@@ -9,7 +9,7 @@
   const I = isNode ? require('./i18n.js') : root.PNL.i18n;
 
   const es = {
-    views: { label: 'Vista', dist: 'Duración del proyecto', idx: 'Índices' },
+    views: { label: 'Vista', dist: 'Duración del proyecto', idx: 'Índices', rep: 'Réplica a réplica', conv: 'Convergencia' },
     download: 'Descargar:', py: 'Código en Python', json: 'Proyecto en JSON', jsonDone: 'Proyecto descargado en JSON.',
     distAll: 'Distribución', distDisc: 'Distribución: discreta (la del ejemplo)', mixed: 'varias', mixedShort: 'varias distribuciones',
     kind: { pert: 'beta-PERT', classic: 'beta clásica', tri: 'triangular', unif: 'uniforme', norm: 'normal truncada en 0', logn: 'lognormal', disc: 'discreta' },
@@ -59,7 +59,7 @@
   };
 
   const en = {
-    views: { label: 'View', dist: 'Project duration', idx: 'Indices' },
+    views: { label: 'View', dist: 'Project duration', idx: 'Indices', rep: 'Run by run', conv: 'Convergence' },
     download: 'Download:', py: 'Python code', json: 'Project as JSON', jsonDone: 'Project downloaded as JSON.',
     distAll: 'Distribution', distDisc: 'Distribution: discrete (from the example)', mixed: 'mixed', mixedShort: 'mixed distributions',
     kind: { pert: 'beta-PERT', classic: 'classic beta', tri: 'triangular', unif: 'uniform', norm: 'normal truncated at 0', logn: 'lognormal', disc: 'discrete' },

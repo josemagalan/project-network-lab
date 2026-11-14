@@ -145,3 +145,61 @@ test('tornadoOrder: por criticidad o por crucialidad, de mayor a menor, con empa
   assert.deepEqual(M7.tornadoOrder(rows, 'c').map((r) => r.id), ['B', 'A2', 'A10']);
   assert.deepEqual(M7.tornadoOrder(rows, 'u').map((r) => r.id), ['A2', 'A10', 'B']);
 });
+
+// ---------- T011: réplica a réplica y convergencia ----------
+
+test('trace: las 20 primeras réplicas de la misma simulación, con la duración (uh=t) o el camino crítico (uh=p) que predecir', () => {
+  const s = st({ uy: 'rep' });
+  const m = M7.model(s, 'es');
+  const tr = M7.trace(s, m);
+  assert.equal(tr.length, 20);
+  const full = S.run({ kind: 'project', model: m.sim.model, n: m.sim.n, us: m.sim.us, track: true });
+  tr.forEach((step, k) => {
+    assert.equal(step.kind, 'm7.rep');
+    assert.equal(step.k, k);
+    assert.equal(step.rep.T, full.durations[k], `réplica ${k + 1}`);
+    assert.deepEqual(step.reveals, [{ act: 'R', field: 'm7.T', value: full.durations[k] }]);
+  });
+  assert.deepEqual(tr[3].crit, ['A–D'], 'la réplica 4 de Klastorin: D se alarga');
+  assert.equal(M7.trace(st({ uy: 'dist' }), m), null, 'solo en «Réplica a réplica»');
+  assert.equal(M7.trace(st({ uy: 'rep', uq: { C: { x: ['1'], p: ['0.5'] } }, uf: { C: 'disc' } }), M7.model(st({ uy: 'rep', uq: { C: { x: ['1'], p: ['0.5'] } }, uf: { C: 'disc' } }), 'es')), null, 'con errores, nada');
+});
+
+test('trace con uh=p: el camino o los caminos críticos de cada réplica, con las opciones (los de más media y los críticos)', () => {
+  const s = st({ ue: 'kd', uy: 'rep', uh: 'p' });
+  const tr = M7.trace(s, M7.model(s, 'es'));
+  const r7 = tr[6];
+  assert.equal(r7.rep.T, 15);
+  assert.deepEqual(r7.crit, ['B–D', 'C'], 'empate en la réplica 7');
+  assert.equal(r7.reveals[0].field, 'm7.path');
+  assert.deepEqual(r7.reveals[0].ok, ['B–D', 'C']);
+  assert.deepEqual(r7.options, ['B–D', 'C', 'A–D']);
+  for (const step of tr) for (const c of step.crit) assert.ok(step.options.includes(c));
+});
+
+test('convergence: las cuatro series (media, P del plazo, percentil y criticidad de una actividad) con su intervalo y su referencia', () => {
+  const s = st({ ue: 'kd', uy: 'conv', ua: 'C' });
+  const m = M7.model(s, 'es');
+  const res = S.run({ kind: 'project', model: m.sim.model, n: m.sim.n, us: m.sim.us, track: true });
+  const c = M7.convergence(s, m, res);
+  assert.equal(c.act, 'C');
+  assert.deepEqual(Object.keys(c.series), ['mean', 'pT', 'q', 'crit']);
+  const mean = c.series.mean;
+  assert.equal(mean.rows[mean.rows.length - 1].n, 10000);
+  close(mean.ref, 23.248, 1e-9, 'la exacta');
+  close(c.series.pT.ref, 0.15733333333333335, 1e-12);
+  assert.equal(c.series.q.ref, 25, 'el P95 exacto');
+  close(c.series.crit.ref, 0.66, 1e-9);
+  for (const r of mean.rows) assert.ok(r.lo <= r.v && r.v <= r.hi);
+  assert.equal(c.series.q.rows[0].lo, undefined, 'el percentil no lleva intervalo');
+  // AC10: el error estándar de la media decrece como 1/√n.
+  const se = (r) => (r.hi - r.lo) / 3.92;
+  const a = mean.rows.find((r) => r.n >= 1000); const b = mean.rows[mean.rows.length - 1];
+  assert.ok(Math.abs(se(a) * Math.sqrt(a.n) / (se(b) * Math.sqrt(b.n)) - 1) < 0.15);
+  // Sin cuenta exacta, la referencia es la normal de M6 (salvo la criticidad); una actividad mala, la primera que varía.
+  const k = M7.model(st({ uy: 'conv', ua: 'Z' }), 'es');
+  const ck = M7.convergence(st({ uy: 'conv', ua: 'Z' }), k, S.run({ kind: 'project', model: k.sim.model, n: 1000, us: 3, track: true }));
+  close(ck.series.mean.ref, 23.833333333333332, 1e-9);
+  assert.equal(ck.series.crit.ref, null);
+  assert.equal(ck.act, 'B', 'A es crítica siempre: la primera que no lo es');
+});

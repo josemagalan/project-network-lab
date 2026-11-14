@@ -5,6 +5,7 @@
   :root:not([data-theme="light"]) { --shade-0: #23292e; --shade-1: #2b4a62; --shade-2: #3f6d91; --shade-3: #6fa3cc; --shade-4: #a9cdea; --cruc: #f0a868; }
 }
 :root[data-theme="dark"] { --shade-0: #23292e; --shade-1: #2b4a62; --shade-2: #3f6d91; --shade-3: #6fa3cc; --shade-4: #a9cdea; --cruc: #f0a868; }
+.unc-bar .seg.m7-seg { flex-wrap: wrap; }
 .m7-controls { margin-top: 2px; gap: 6px 12px; font-size: 14px; }
 .m7-controls .unc-field input[inputmode] { width: 4.5em; }
 .m7-controls select { min-height: 32px; }
@@ -57,3 +58,17 @@ svg.net text.shade-t.on-dark { fill: var(--card); }
 .m7-swatch.shade-2 { background: var(--shade-2); }
 .m7-swatch.shade-3 { background: var(--shade-3); }
 .m7-swatch.shade-4 { background: var(--shade-4); }
+.mc-band { fill: var(--accent); opacity: 0.22; stroke: none; }
+.mc-ref { stroke: var(--critical); stroke-width: 1.6; stroke-dasharray: 5 4; }
+.mc-reflabel { fill: var(--critical-text); font-size: 11px; }
+.mc-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+.mc-dot { fill: var(--accent); }
+/* Réplica a réplica y convergencia (T011) */
+.m7-rep, .m7-conv-card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.m7-rep p { margin: 0; }
+.m7-paths { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.m7-paths label { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.m7-conv { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.m7-conv-card p { margin: 0; }
+.m7-conv-card h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+@media (max-width: 860px) { .m7-conv { grid-template-columns: minmax(0, 1fr); } }

@@ -75,8 +75,10 @@
     un: ['css/unc.css', 'js/core/threept.js', 'js/core/sim.js', 'js/core/tcl.js', 'js/core/stochex.js', 'js/i18n-unc.js', 'js/views/dist-chart.js', 'js/unc.js'],
     // F4b (plan P4, T010): M7, solo con um=m7 y siempre después de un (usa su núcleo y su vista).
     u7: ['css/m7.css', 'js/core/mc.js', 'js/i18n-m7.js', 'js/views/mc-charts.js', 'js/m7.js'],
+    // F4b (T011, reserva de T001): «Réplica a réplica» y «Convergencia», solo con uy=rep o uy=conv, después de u7.
+    u7r: ['js/m7-rep.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, cr: () => !!G.retoTable, lr: () => !!G.learn, ul: () => !!G.learnUnc };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, cr: () => !!G.retoTable, lr: () => !!G.learn, ul: () => !!G.learnUnc };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
@@ -109,7 +111,9 @@
   const needsCr = (s) => s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog');
   // F4b (T010): M7 necesita su grupo (u7) además del de la pestaña (un), en ese orden.
   const needsU7 = (s) => s.v === 'unc' && s.um === 'm7';
-  const needU7 = () => need('un').then(() => need('u7'));
+  const needsU7r = (s) => needsU7(s) && (s.uy === 'rep' || s.uy === 'conv');
+  const missingU7 = (s) => needsU7(s) && (!READY.u7() || (needsU7r(s) && !READY.u7r()));
+  const needU7 = (s) => need('un').then(() => need('u7')).then(() => (needsU7r(s) ? need('u7r') : null));
   const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : v === 'unc' ? 'un' : null);
   // Grupos que pide un enlace (F3c, P5 y P12): M0 con el texto de su enunciado (st) o con el generador (sg).
   function groupsOf(hash) {
@@ -120,7 +124,7 @@
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
     if (v === 'ex' && q.get('xt') === '1') return ['ex', 'sg'];
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
-    if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'];
+    if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);
     return [groupOf(v)];
   }
   const needAll = (groups) => Promise.all(groups.filter(Boolean).map((g) => need(g)));
@@ -257,9 +261,9 @@
     const next = S.reduce(state, action, total());
     // F4b (T002): el comparador, el reto y el dibujo progresivo esperan a su grupo (cr) antes de cambiar nada.
     if (needsCr(next) && !READY.cr()) { need('cr').then(() => dispatch(action, opts)); return; }
-    if (needsU7(next) && !READY.u7()) { needU7().then(() => dispatch(action, opts)); return; }
+    if (missingU7(next)) { needU7(next).then(() => dispatch(action, opts)); return; }
     state = next;
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -323,7 +327,7 @@
   function render(opts) {
     // F4b (T002): red de seguridad; dispatch y los enlaces ya piden el grupo cr antes de llegar aquí.
     if (needsCr(state) && !READY.cr()) { need('cr').then(() => render(opts)); return; }
-    if (needsU7(state) && !READY.u7()) { needU7().then(() => { compute(); render(opts); }); return; }
+    if (missingU7(state)) { needU7(state).then(() => { compute(); render(opts); }); return; }
     renderTexts();
     const m0On = state.v === 'm0';
     const exOn = state.v === 'ex';

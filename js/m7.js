@@ -204,12 +204,12 @@
 
     // ---------- Filas de la barra ----------
     function seg(items, label) {
-      return h('div', { class: 'seg', role: 'group', 'aria-label': label },
+      return h('div', { class: 'seg m7-seg', role: 'group', 'aria-label': label },
         items.map(([text, on, fn, id]) => h('button', { type: 'button', 'aria-pressed': String(!!on), onclick: fn, id }, [text])));
     }
     function rows() {
       const s = state();
-      const views = seg(['dist', 'idx'].map((v) => [tm(`views.${v}`), s.uy === v, () => { go({ uy: v }); focus(`m7View-${v}`); }, `m7View-${v}`]), tm('views.label'));
+      const views = seg(['dist', 'idx', 'rep', 'conv'].map((v) => [tm(`views.${v}`), s.uy === v, () => { go({ uy: v }); focus(`m7View-${v}`); }, `m7View-${v}`]), tm('views.label'));
       const down = h('span', { class: 'unc-field m7-down' }, [tm('download'), ' ',
         h('a', { href: 'python/pnl_montecarlo.py', download: 'pnl_montecarlo.py', id: 'm7Py' }, [tm('py')]), ' · ',
         h('button', { type: 'button', class: 'linklike', id: 'm7Json', disabled: !m.ok, onclick: downloadJson }, [tm('json')])]);
@@ -218,6 +218,7 @@
     }
     function controls() {
       const s = state();
+      if (s.uy === 'rep') return RV().repControls();
       const parts = [];
       if (m.discrete) parts.push(h('span', { class: 'unc-field muted', id: 'm7DistFixed' }, [tm('distDisc')]));
       else {
@@ -232,7 +233,7 @@
         [2, 3, 4, 5].map((k) => h('option', { value: String(k), selected: (s.ur || 4) === k }, [big(10 ** k)])))]));
       if (m.ok) {
         parts.push(numField('m7Deadline', tu('ask.deadline'), m.deadline, m.src.unit, (v) => v >= 0 && v <= 999999, tu('ask.badDeadline'), (v) => go({ ud: v })));
-        if (s.uy === 'dist') parts.push(numField('m7Pct', tm('pct'), Math.round(m.pct * 100), '%', (v) => Number.isInteger(v) && v >= 1 && v <= 99, tm('badPct'), (v) => go({ uv: v })));
+        if (s.uy === 'dist' || s.uy === 'conv') parts.push(numField('m7Pct', tm('pct'), Math.round(m.pct * 100), '%', (v) => Number.isInteger(v) && v >= 1 && v <= 99, tm('badPct'), (v) => go({ uv: v })));
       }
       if (s.uy === 'idx') {
         parts.push(h('fieldset', { class: 'unc-mode', id: 'm7Corr' }, [h('legend', {}, [tm('corr')])].concat(['p', 's'].map((k) => h('label', {}, [
@@ -487,6 +488,10 @@
       return h('section', { class: 'card unc-netcard', 'aria-labelledby': 'm7NetHead' }, parts);
     }
 
+    // «Réplica a réplica» y «Convergencia» (js/m7-rep.js, grupo u7r): sus piezas usan las de esta vista.
+    let rv = null;
+    const RV = () => rv || (rv = root.PNL.m7rep.views({ h, t, tm, tu, fx, num4, big, go, focus, narrow, hooks, state, lang }));
+
     // ---------- Pintar ----------
     function issues() {
       if (m.issues.length || m.empty) {
@@ -508,6 +513,8 @@
       }
       const mm = m; if (!m.ok) m = cur.m;
       const grid = h('div', { class: `unc-main${mm.ok ? '' : ' m7-stale'}`, inert: !mm.ok });
+      if (s.uy === 'rep') { m = mm; if (m.ok && m.trace) { RV().setModel(m); out.push(RV().repMain()); } return out; }
+      if (s.uy === 'conv') { grid.className = mm.ok ? 'm7-convbox' : 'm7-convbox m7-stale'; RV().setModel(m); grid.appendChild(RV().convMain(cur)); m = mm; out.push(grid); return out; }
       if (s.uy === 'idx') {
         const idx = mm.ok ? (run.idx && run.key === m.sim.key && run.ikey === `${m.sim.key}|${m.corr}` ? run.idx : null) : (cur.idx || null);
         if (mm.ok && idx && last) last.idx = idx;
@@ -534,7 +541,13 @@
     return { setModel, rows, main, leave, debug };
   }
 
-  const api = { EXAMPLES, KINDS, parseProb, fmtProb, discText, model, results, tornadoOrder, create };
+  // T011 (reserva de T001, decisions.md): «Réplica a réplica» y «Convergencia» van en js/m7-rep.js (grupo u7r), que solo
+  // se carga con uy=rep o uy=conv. Sin él (otra vista de M7), no hay traza.
+  const REP = () => (isNode ? require('./m7-rep.js') : root.PNL.m7rep);
+  const trace = (state, m) => (REP() ? REP().trace(state, m) : null);
+  const convergence = (state, m, res) => REP().convergence(state, m, res);
+
+  const api = { EXAMPLES, KINDS, parseProb, fmtProb, discText, model, results, trace, convergence, tornadoOrder, create };
   root.PNL = root.PNL || {};
   root.PNL.m7 = api;
   if (isNode) module.exports = api;

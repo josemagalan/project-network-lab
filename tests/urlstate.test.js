@@ -759,3 +759,14 @@ test('F4b T010: uz guarda el orden del tornado (c por criticidad, por defecto; u
   assert.equal(r.state.uz, 'c');
   assert.equal(U.decode('#v=route&ex=ej6&uz=u').state.uz, 'c', 'solo en v=unc');
 });
+
+test('F4b T011: uh guarda qué se predice en «Réplica a réplica» (t la duración, por defecto; p el camino crítico)', () => {
+  const s = Object.assign(U.defaults(), { v: 'unc', ex: null, um: 'm7', uy: 'rep', pred: 1 });
+  assert.equal(s.uh, 't');
+  assert.ok(!new URLSearchParams(U.encode(s).slice(1)).has('uh'));
+  const h = U.encode(Object.assign({}, s, { uh: 'p' }));
+  assert.equal(U.decode(h).state.uh, 'p');
+  const r = U.decode('#v=unc&um=m7&uh=x');
+  assert.equal(r.warning, 'malformed');
+  assert.equal(r.state.uh, 't');
+});

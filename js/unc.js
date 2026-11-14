@@ -228,7 +228,9 @@
    * Sin «uw», sin tabla o en un caso simulado de M6: null.
    */
   function trace(state, m) {
-    if (state.um === 'm7' || !state.uw || !m || !m.model) return null;
+    // F4b (T011): en M7, las réplicas de «Réplica a réplica» (js/m7.js).
+    if (state.um === 'm7') return m && m.m7 && root.PNL.m7 ? root.PNL.m7.trace(state, m) : null;
+    if (!state.uw || !m || !m.model) return null;
     if (state.um === 'm6') {
       if (state.ux !== 'exam') return null;
       const e = examOf(state, m);
@@ -282,6 +284,7 @@
     // M7 (F4b, T010): su vista, creada al entrar por primera vez (js/m7.js llega con el grupo u7).
     let m7c = null;
     const m7v = () => m7c || (m7c = root.PNL.m7.create({ state, lang, dispatch: hooks.dispatch, newSeed: hooks.newSeed, focus,
+      pred: hooks.pred, predicting: hooks.predicting, predCheck: hooks.predCheck, predShow: hooks.predShow,
       announce: (text) => { if (hooks.announce) hooks.announce(text); }, redraw: () => keepFocus(draw) }));
 
     function focus(id) { const el = root.document.getElementById(id); if (el) el.focus(); }

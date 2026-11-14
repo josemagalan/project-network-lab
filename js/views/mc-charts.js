@@ -83,7 +83,7 @@
     return svg;
   }
 
-  const api = { PAD, steps, cdf, tornado };
+  const api = { PAD, steps, cdf, tornado, make };
   root.PNL = root.PNL || {};
   root.PNL.mcCharts = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

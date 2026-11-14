@@ -398,3 +398,11 @@ test('F4b T010: la acción unc acepta el orden del tornado (uz) y no vuelve al p
   s = S.reduce(s, { type: 'unc', uz: 'x' }, 10);
   assert.equal(s.uz, 'u');
 });
+
+test('F4b T011: la acción unc acepta qué se predice (uh) y vuelve al paso 0 al cambiarlo', () => {
+  let s = S.reduce(Object.assign(U.defaults(), { v: 'unc', um: 'm7', uy: 'rep', step: 3 }), { type: 'unc', uh: 'p' }, 20);
+  assert.equal(s.uh, 'p');
+  assert.equal(s.step, 0);
+  s = S.reduce(s, { type: 'unc', uh: 'x' }, 20);
+  assert.equal(s.uh, 'p');
+});

@@ -230,3 +230,18 @@ test('F4a T011 (P10): un valor con alternativa (P de tabla y exacta, z o plazo d
   const T = { kind: 'tcl.deadline', reveals: [{ act: 'P', field: 'unc.T', value: 28.5578, alt: 28.5439 }] };
   for (const [v, want] of [['28,54', 'ok'], ['28.56', 'ok'], ['28,55', 'wrong']]) assert.equal(Pr.check(T, new Map([[Pr.key(T.reveals[0]), v]])).get(Pr.key(T.reveals[0])), want, v);
 });
+
+test('F4b T011: el camino crítico de una réplica (m7.path) vale si es uno de los críticos de esa réplica (empates)', () => {
+  const step = { kind: 'm7.rep', reveals: [{ act: 'R', field: Pr.M7_PATH, value: 'B–D', ok: ['B–D', 'C'] }] };
+  const k = Pr.key(step.reveals[0]);
+  const chk = (v) => Pr.check(step, new Map(v == null ? [] : [[k, v]])).get(k);
+  assert.equal(chk('B–D'), 'ok');
+  assert.equal(chk('C'), 'ok');
+  assert.equal(chk('A–D'), 'wrong');
+  assert.equal(chk(''), 'empty');
+  assert.equal(chk(null), 'empty');
+  assert.equal(Pr.hasPrediction(step), true);
+  // La duración de la réplica (m7.T), a dos decimales como siempre.
+  const t = { kind: 'm7.rep', reveals: [{ act: 'R', field: 'm7.T', value: 22.4449 }] };
+  assert.equal(Pr.check(t, new Map([[Pr.key(t.reveals[0]), '22,44']])).get(Pr.key(t.reveals[0])), 'ok');
+});

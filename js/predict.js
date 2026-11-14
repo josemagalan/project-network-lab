@@ -13,6 +13,7 @@
  * precedencias) si ya las implican las que hay.
  * En el paso a paso de la F4a (P10), un valor puede llevar alternativa (rv.alt: la P, la z o el plazo «de tabla»): vale
  * cualquiera de las dos, con el mismo redondeo.
+ * En «Réplica a réplica» de M7 (F4b, T011), el camino crítico de la réplica (M7_PATH): uno de los críticos (rv.ok).
  */
 (function (root) {
   'use strict';
@@ -35,6 +36,8 @@
   const PROG_DUMMIES = 'prog.dummies';
   const PROG_STARTS = ['initial', 'pred', 'existing', 'new'];
   const M0_GIVES = 'm0.gives';
+  // F4b (T011): el camino crítico de una réplica de M7, elegido entre los de la lista; con empates vale cualquiera (rv.ok).
+  const M7_PATH = 'm7.path';
   const byId = (a, b) => a.localeCompare(b, 'en', { numeric: true });
 
   // Qué precedentes marcadas sobran y cuáles faltan respecto a las que llevan ficticia de dependencia.
@@ -92,6 +95,11 @@
       out.set(RULE_COUNT, c === null ? 'empty' : (c === step.rule.dummies.length ? 'ok' : 'wrong'));
     }
     for (const rv of step.reveals) {
+      if (rv.field === M7_PATH) {
+        const given = answers.get(key(rv));
+        out.set(key(rv), given == null || given === '' ? 'empty' : (rv.ok.includes(given) ? 'ok' : 'wrong'));
+        continue;
+      }
       const a = parseAnswer(answers.get(key(rv)));
       // F4a (P10): con alternativa (P, z o plazo «de tabla»), vale cualquiera de las dos.
       const hit = Number.isFinite(a) && (r2(a) === r2(rv.value) || (rv.alt != null && r2(a) === r2(rv.alt)));
@@ -109,7 +117,7 @@
   const hasPrediction = (step) => !!step && (step.kind === 'progAct' || !!step.rule || (step.kind === 'm0Frag' && !!step.fields)
     || (!!step.reveals && step.reveals.length > 0));
 
-  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, m0Diff, M0_GIVES, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
+  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, m0Diff, M0_GIVES, M7_PATH, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
   root.PNL = root.PNL || {};
   root.PNL.predict = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

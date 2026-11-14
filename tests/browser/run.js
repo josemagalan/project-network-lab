@@ -5908,13 +5908,131 @@ check('F4b T010 · notación española, 360 px sin desbordar y la página atiend
   await close(p);
 });
 
+// ---------- F4b, T011: réplica a réplica con predicción y convergencia ----------
+
+const repStep = (page) => page.evaluate(() => { const tr = PNL.app.model().trace; const k = Math.min(PNL.app.state().step, tr.length - 1); const s = tr[k]; return { k, T: s.rep.T, d: s.rep.d, crit: s.crit, options: s.options, n: tr.length }; });
+
+check('F4b T011 · réplica a réplica: predecir la duración, el error típico del camino de las medias, el histograma que crece y las teclas', async () => {
+  const p = await m7Lab('uy=rep&pred=1&step=3&lang=es');
+  await p.locator('#m7PredIn').waitFor();
+  const r = await repStep(p);
+  assert.equal(r.n, 20);
+  const N = await m7Node(p);
+  assert.equal(r.T, N.res.durations[3], 'la réplica 4 de la misma simulación');
+  assert.deepEqual(r.crit, ['A–D']);
+  assert.equal(await p.locator('#uncWalk').count(), 0);
+  assert.match(await p.locator('#m7RepNet svg').getAttribute('aria-label'), /réplica 4/);
+  assert.equal(await p.locator('#m7RepNet text.val:not(.hidden)').count() > 0, true, 'las duraciones se ven');
+  assert.equal(await p.locator('#m7RepNet text.val.hidden').count() > 0, true, 'los tiempos, no');
+  assert.equal(await p.locator('#m7RepTable tbody tr').count(), 3, 'la réplica 4 aún no está en la tabla');
+  assert.equal(await p.locator('#m7Next').isDisabled(), true);
+  await p.locator('#m7PredCheck').click();
+  assert.equal(await p.locator('#m7PredEmpty').isVisible(), true);
+  // El error típico: sumar A–C–E–F con las duraciones de la réplica.
+  const ids = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const acef = ['A', 'C', 'E', 'F'].reduce((x, id) => x + r.d[ids.indexOf(id)], 0);
+  await p.locator('#m7PredIn').fill(acef.toFixed(2).replace('.', ','));
+  await p.locator('#m7PredIn').press('Enter');
+  await p.locator('#m7PredFb').waitFor();
+  assert.match(await p.locator('#m7PredFb').innerText(), new RegExp(`No es[\\s\\S]*A–C–E–F, el camino crítico de las medias; en esta réplica el crítico es A–D y dura ${r.T.toFixed(2).replace('.', ',')}`));
+  assert.equal(await activeId(p), 'm7PredFb');
+  assert.equal(await p.locator('#m7RepTable tbody tr').count(), 4);
+  assert.match(await p.locator('#m7RepHist svg').getAttribute('aria-label'), /las 4 réplicas vistas/);
+  assert.equal(await p.locator('#m7RepNet text.val.hidden').count(), 0, 'tiempos revelados');
+  assert.equal(await p.locator('#m7RepNet rect.crit').count(), 2, 'A y D en rojo');
+  await axe(p, 'F4b · M7 · réplica a réplica, predicción');
+  await shot(p, 'f4b-m7-rep');
+  // Teclado: → pasa a la réplica 5; con la predicción pendiente, → no avanza.
+  await p.locator('body').press('ArrowRight');
+  await uncAfter(p, () => PNL.app.state().step === 4);
+  const r5 = await repStep(p);
+  assert.equal(r5.T, N.res.durations[4]);
+  await p.locator('body').press('ArrowRight');
+  await p.waitForTimeout(150);
+  assert.equal((await state(p)).step, 4);
+  await p.locator('#m7PredIn').fill(r5.T.toFixed(2));
+  await p.locator('#m7PredCheck').click();
+  assert.match(await p.locator('#m7PredFb').innerText(), /^Bien/);
+  await p.locator('#m7Prev').click();
+  await uncAfter(p, () => PNL.app.state().step === 3);
+  // Sin predicción, cada réplica se ve entera.
+  await p.locator('#m7Pred-none').check();
+  await uncAfter(p, () => PNL.app.state().pred === 0);
+  assert.match(await p.locator('#m7RepResult').innerText(), new RegExp(`dura ${r.T.toFixed(2).replace('.', ',')}; camino crítico: A–D`));
+  assert.equal(await activeId(p), 'm7Pred-none');
+  await close(p);
+});
+
+check('F4b T011 · réplica a réplica: predecir el camino crítico, con el empate de la réplica 7 del Klastorin discreto', async () => {
+  const p = await m7Lab('ue=kd&uy=rep&pred=1&step=6&lang=en', { scheme: 'dark' });
+  await p.locator('#m7PredIn').waitFor();
+  await p.locator('#m7Pred-p').check();
+  await uncAfter(p, () => PNL.app.state().uh === 'p');
+  assert.equal((await state(p)).step, 0, 'cambiar lo que se predice vuelve a la primera réplica');
+  await p.evaluate(() => PNL.app.go(6));
+  await p.locator('#m7Path-0').waitFor();
+  const r = await repStep(p);
+  assert.deepEqual(r.options, ['B–D', 'C', 'A–D']);
+  assert.deepEqual(r.crit, ['B–D', 'C']);
+  assert.deepEqual(await p.locator('.m7-paths label').allInnerTexts(), ['B–D', 'C', 'A–D'].map((x) => ` ${x}`.trim()));
+  await p.locator('#m7Path-1').check();
+  await p.locator('#m7PredCheck').click();
+  assert.match(await p.locator('#m7PredFb').innerText(), /Right[\s\S]*B–D and C tie at 15\.00: both are critical/);
+  assert.equal(await hashGet(p, 'uh'), 'p');
+  await axe(p, 'F4b · M7 · run by run, path, dark');
+  await p.locator('#m7Next').click();
+  await p.locator('#m7Path-2').check();
+  await p.locator('#m7PredCheck').click();
+  assert.match(await p.locator('#m7PredFb').innerText(), /^Not quite|^Not/);
+  await close(p);
+});
+
+check('F4b T011 · convergencia: cuatro gráficos con su banda y la exacta, la actividad en el enlace, la tabla y 360 px', async () => {
+  const p = await m7Lab('ue=kd&uy=conv&ua=C&lang=es');
+  await p.locator('#m7Conv-mean svg').waitFor({ timeout: 30000 });
+  const N = await m7Node(p);
+  const c = M7N.convergence(U4.decode(await p.evaluate(() => location.hash)).state, N.m, N.res);
+  const last = c.rows[c.rows.length - 1];
+  const f = (v, k) => v.toFixed(k).replace('.', ',');
+  assert.equal(await p.locator('#m7ConvHead-mean').innerText(), `Media · ${f(last.mean, 2)} ± ${f(1.96 * last.se, 2)}`);
+  assert.match(await p.locator('#m7ConvHead-pT').innerText(), new RegExp(`P\\(duración ≤ 20\\) · ${f(last.pT, 3)}`));
+  assert.match(await p.locator('#m7ConvHead-crit').innerText(), new RegExp(`· ${f(last.crit[2], 3)}`));
+  for (const id of ['mean', 'pT', 'crit']) assert.equal(await p.locator(`#m7Conv-${id} path.mc-band`).count(), 1, id);
+  assert.equal(await p.locator('#m7Conv-q path.mc-band').count(), 0, 'el percentil, sin banda');
+  assert.deepEqual(await p.locator('text.mc-reflabel').allTextContents(), ['exacta 23,25', 'exacta 0,157', 'exacta 25,00', 'exacta 0,660']);
+  assert.match(await p.locator('#m7Conv-mean svg').getAttribute('aria-label'), /10\.000: 23,2/);
+  await p.locator('#m7ConvTable').click();
+  assert.equal(await p.locator('#m7ConvRows tbody tr').count(), c.rows.length);
+  await axe(p, 'F4b · M7 · convergencia');
+  await shot(p, 'f4b-m7-conv');
+  await p.locator('#m7ConvAct').selectOption('D');
+  await uncAfter(p, () => PNL.app.state().ua === 'D');
+  assert.match(await p.locator('#m7ConvHead-crit').innerText(), new RegExp(`· ${f(last.crit[3], 3)}`));
+  assert.equal(await activeId(p), 'm7ConvAct');
+  await close(p);
+  // Sin cuenta exacta, la referencia es la normal de M6; a 360 px, uno debajo de otro y sin desbordar.
+  const m = await m7Lab('uy=conv&lang=es', { width: 360, height: 740, scheme: 'dark' });
+  await m.locator('#m7Conv-mean svg').waitFor({ timeout: 30000 });
+  assert.match(await m.locator('#m7Conv-mean text.mc-reflabel').textContent(), /normal de M6 23,83/);
+  assert.equal(await m.locator('#m7Conv-crit text.mc-reflabel').count(), 0);
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await axe(m, 'F4b · M7 · convergencia a 360 px, oscuro');
+  await shot(m, 'f4b-m7-conv-360', true);
+  await close(m);
+  const r = await m7Lab('uy=rep&lang=es', { width: 360, height: 740 });
+  await r.locator('#m7RepResult').waitFor();
+  assert.equal(await r.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await axe(r, 'F4b · M7 · réplica a réplica a 360 px');
+  await close(r);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -5941,6 +6059,7 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
       assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), cr, `${url}: ${re.source}`);
     }
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);
     await ctx.close();

@@ -146,7 +146,7 @@
       // tabla del taller se conservan para volver a ellos. Otro proyecto vuelve a su plazo por defecto y, si se pedía el
       // plazo para una probabilidad, al 95 % (decisión del autor, revisión F4a, F13).
       case 'unc': {
-        const sig = () => [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw, s.ug, JSON.stringify(s.uf), JSON.stringify(s.uq), s.ur, s.us, s.uy].join('|');
+        const sig = () => [s.v, s.um, s.ue, s.ua, s.ux, s.ud, s.up, JSON.stringify(s.uk), s.uw, s.ug, JSON.stringify(s.uf), JSON.stringify(s.uq), s.ur, s.us, s.uy, s.uh].join('|');
         const before = sig();
         const ue0 = s.ue;
         s.v = 'unc';
@@ -167,6 +167,7 @@
         if (['dist', 'idx', 'rep', 'conv'].includes(action.uy)) s.uy = action.uy;
         if (['cr', 'cu', 'si'].includes(action.ui)) s.ui = action.ui;
         if (['c', 'u'].includes(action.uz)) s.uz = action.uz;   // T010: orden del tornado (no cambia el paso)
+        if (['t', 'p'].includes(action.uh)) s.uh = action.uh;   // T011: qué se predice en «Réplica a réplica»
         if (action.ua === null || V.actOk(action.ua)) s.ua = action.ua;
         if (action.uc === 0 || action.uc === 1) s.uc = action.uc;
         if (action.uw === 0 || action.uw === 1) s.uw = action.uw;   // T011: paso a paso
