@@ -69,6 +69,8 @@
     lr: ['js/learn.js'],
     // F4a (T012): «Aprende más» de M5 y M6, aparte de la pestaña (la reserva de la puerta T001).
     ul: ['js/learn-unc.js'],
+    // F4b (plan P4, T012): «Aprende más» de M7, aparte de M5 y M6 y de la vista de M7 (grupo u7).
+    l7: ['js/learn-m7.js'],
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo de la F2b, solo con view=cmp, view=reto o m=prog
     // (la carga común baja unos 88 KiB y deja sitio a M7).
     cr: ['js/core/aoacheck.js', 'js/core/aoamethods.js', 'js/core/compare.js', 'js/compare-view.js', 'js/reto.js', 'js/views/reto-canvas.js', 'js/views/reto-table.js'],
@@ -77,8 +79,10 @@
     u7: ['css/m7.css', 'js/core/mc.js', 'js/i18n-m7.js', 'js/views/mc-charts.js', 'js/m7.js'],
     // F4b (T011, reserva de T001): «Réplica a réplica» y «Convergencia», solo con uy=rep o uy=conv, después de u7.
     u7r: ['js/m7-rep.js'],
+    // F4b (T012, reserva 2 de T001): la vista de M5 y M6, aparte de unc.js, para no cargarla con um=m7; después de un.
+    u56: ['js/unc-m56.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, cr: () => !!G.retoTable, lr: () => !!G.learn, ul: () => !!G.learnUnc };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
@@ -112,8 +116,10 @@
   // F4b (T010): M7 necesita su grupo (u7) además del de la pestaña (un), en ese orden.
   const needsU7 = (s) => s.v === 'unc' && s.um === 'm7';
   const needsU7r = (s) => needsU7(s) && (s.uy === 'rep' || s.uy === 'conv');
-  const missingU7 = (s) => needsU7(s) && (!READY.u7() || (needsU7r(s) && !READY.u7r()));
-  const needU7 = (s) => need('un').then(() => need('u7')).then(() => (needsU7r(s) ? need('u7r') : null));
+  // F4b (T012): M5 y M6 necesitan su vista (u56), que con um=m7 no se carga.
+  const needsU56 = (s) => s.v === 'unc' && s.um !== 'm7';
+  const missingU7 = (s) => (needsU7(s) && (!READY.u7() || (needsU7r(s) && !READY.u7r()))) || (needsU56(s) && !READY.u56());
+  const needU7 = (s) => need('un').then(() => (needsU7(s) ? need('u7').then(() => (needsU7r(s) ? need('u7r') : null)) : need('u56')));
   const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : v === 'unc' ? 'un' : null);
   // Grupos que pide un enlace (F3c, P5 y P12): M0 con el texto de su enunciado (st) o con el generador (sg).
   function groupsOf(hash) {
@@ -125,6 +131,7 @@
     if (v === 'ex' && q.get('xt') === '1') return ['ex', 'sg'];
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
     if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);
+    if (v === 'unc') return ['un', 'u56'];
     return [groupOf(v)];
   }
   const needAll = (groups) => Promise.all(groups.filter(Boolean).map((g) => need(g)));
@@ -941,10 +948,13 @@
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   }
 
-  // «Aprende más» de M5 y M6 (F4a, T012): sus secciones y sus referencias, cargadas al abrirlo.
+  // «Aprende más» de M5 y M6 (F4a, T012) y de M7 (F4b, T012): sus secciones y sus referencias, cargadas al abrirlo.
+  // M7 trae su propio grupo (l7), para no cargar con M7 los textos de M5 y M6 ni al revés.
   function openUncLearn(topic) {
-    if (!G.learnUnc) { need('ul').then(() => openUncLearn(topic)); return; }
-    const LU = G.learnUnc; const c = LU[lang()][topic];
+    const m7 = topic === 'm7';
+    const LU = m7 ? G.learnM7 : G.learnUnc;
+    if (!LU) { need(m7 ? 'l7' : 'ul').then(() => openUncLearn(topic)); return; }
+    const c = LU[lang()][topic];
     const body = clear($('learnBody'));
     $('learnTitle').textContent = c.title;
     for (const sec of c.sections) {

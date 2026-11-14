@@ -5664,6 +5664,7 @@ check('F4a T017 r2 · con más de 50 críticos se nombran 5 de los otros (nit F1
 // ---------- F4b, T010: M7, distribución de la duración e índices (oculto hasta T013) ----------
 
 const M7N = require(path.join(ROOT, 'js', 'm7.js'));
+const M7L = require(path.join(ROOT, 'js', 'learn-m7.js'));
 const m7Lab = (hash, opts) => uncLab(`um=m7${hash ? `&${hash}` : ''}`, opts);
 const m7St = (page) => page.evaluate(() => PNL.unc.state().m7);
 // Espera a que la simulación (y, si se piden, los índices) del estado actual terminen.
@@ -5688,7 +5689,7 @@ check('F4b T010 · M7 con Klastorin: histograma, función de distribución, perc
   const p = await m7Lab('lang=es');
   assert.equal(await p.locator('#uncM7').getAttribute('aria-pressed'), 'true');
   assert.equal(await m7Groups(p), 5, 'el grupo u7 entero');
-  assert.equal(await p.locator('#uncLearn').count(), 0, '«Aprende más» de M7 llega en T012');
+  assert.equal(await p.locator('#uncLearn').count(), 1, '«Aprende más» de M7 (T012)');
   assert.equal(await p.locator('#uncWalk').count(), 0, 'en M7 no hay «Paso a paso»');
   const st = await m7Done(p);
   const N = await m7Node(p);
@@ -6026,6 +6027,60 @@ check('F4b T011 · convergencia: cuatro gráficos con su banda y la exacta, la a
   await close(r);
 });
 
+// ---------- F4b, T012: «Aprende más» de M7 ----------
+
+check('F4b T012 · «Aprende más» de M7 se carga al abrirlo (grupo l7), en el idioma de la página, y M7 con él sigue por debajo de 1 MB', async () => {
+  const learnM7 = (page) => page.evaluate(() => performance.getEntriesByType('resource').filter((e) => /learn-(m7|unc)\.js/.test(e.name)).map((e) => e.name.replace(/^.*\/js\//, '')));
+  const p = await m7Lab('ue=kd&uy=idx&lang=es');
+  await m7Done(p, true);
+  assert.deepEqual(await learnM7(p), [], 'no viene con M7');
+  await p.locator('#uncLearn').click();
+  await p.locator('#learnDialog[open]').waitFor();
+  assert.deepEqual(await learnM7(p), ['learn-m7.js'], 'solo el de M7, no el de M5 y M6');
+  assert.equal(await p.locator('#learnTitle').innerText(), 'Montecarlo e índices: qué mide cada número');
+  const heads = await p.locator('#learnBody h3').allInnerTexts();
+  assert.deepEqual(heads, [...M7L.es.m7.sections.map((x) => x.head), 'Referencias']);
+  const body = await p.locator('#learnBody').innerText();
+  assert.match(body, /0,612 \+ 0,048 = 0,660/);
+  assert.match(body, /python3 pnl_montecarlo\.py/);
+  assert.equal(await p.locator('#learnBody li').count(), M7L.refs.es.length);
+  await axe(p, 'F4b · «Aprende más» de M7');
+  await p.keyboard.press('Escape');
+  assert.equal(await p.locator('#learnDialog[open]').count(), 0);
+  assert.equal(await p.evaluate(() => document.activeElement && document.activeElement.id), 'uncLearn', 'el foco vuelve al botón');
+  // De M7 a M5: «Aprende más» de M5 sigue siendo el suyo.
+  await p.locator('#uncM5').click();
+  await p.waitForFunction(() => PNL.app.state().um === 'm5');
+  await p.locator('#uncLearn').click();
+  await p.locator('#learnDialog[open]').waitFor();
+  assert.equal(await p.locator('#learnTitle').innerText(), 'Tres tiempos: de dónde salen las fórmulas');
+  await p.locator('#btnLearnClose').click();
+  await close(p);
+  const e = await m7Lab('uy=rep&lang=en', { scheme: 'dark' });
+  await e.locator('#uncLearn').click();
+  await e.locator('#learnDialog[open]').waitFor();
+  assert.equal(await e.locator('#learnTitle').innerText(), 'Monte Carlo and indices: what each number measures');
+  assert.deepEqual(await e.locator('#learnBody h3').allInnerTexts(), [...M7L.en.m7.sections.map((x) => x.head), 'References']);
+  assert.match(await e.locator('#learnBody').innerText(), /Van Slyke \(1963\)/);
+  await axe(e, 'F4b · «Aprende más» de M7, inglés y tema oscuro');
+  await close(e);
+  // Principio 27 (AC16): la vista más pesada de M7 (convergencia, con u7r) y la de los índices, con «Aprende más» abierto.
+  for (const hash of ['v=unc&um=m7&ue=hl&uy=conv&lang=es', 'v=unc&um=m7&ue=kd&uy=idx&lang=en']) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/cpm.html#${hash}`, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => window.PNL && PNL.unc && PNL.unc.state && PNL.unc.state());
+    await page.locator('#uncLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((sum, x) => sum + (x.encodedBodySize || x.transferSize || 0), 0));
+    console.log(`    cpm.html#${hash} + «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes <= BUDGET, `${hash} con «Aprende más»: ${bytes} bytes`);
+    await ctx.close();
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
@@ -6050,7 +6105,7 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     const gen = /st=gen|xt=1|v=moodle/.test(url);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /stmtgen\.js|contexts\.js/.test(e.name))), gen, `${url}: generador de enunciados`);
     // F4a (decisión del autor): «Aprende más» (learn.js) no se carga al abrir ninguna vista, solo al abrir su diálogo.
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn(-unc)?\.js/.test(e.name))), false, `${url}: learn.js`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn(-unc|-m7)?\.js/.test(e.name))), false, `${url}: learn.js`);
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo (grupo cr), solo con view=cmp, view=reto o m=prog.
@@ -6061,6 +6116,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);
+    // F4b (T012, reserva 2 de T001): la vista de M5 y M6 (grupo u56), en la pestaña salvo con um=m7.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /unc-m56\.js/.test(e.name))), url.includes('v=unc') && !url.includes('um=m7'), `${url}: grupo u56`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);
     await ctx.close();
   }

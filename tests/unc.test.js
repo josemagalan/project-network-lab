@@ -272,3 +272,16 @@ test('F4a r2 (nit F9): un identificador con espacios alrededor es la misma activ
   assert.deepEqual(m.issues, []);
   assert.deepEqual(m.acts.map((a) => a.id), ['A', 'B']);
 });
+
+test('F4b T012 (reserva 2 de T001): la vista de M5 y M6 va en unc-m56.js (grupo u56), no en cpm.html ni con M7', () => {
+  const fs = require('node:fs'); const path = require('node:path');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'cpm.html'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
+  assert.doesNotMatch(html, /unc-m56/);
+  assert.match(app, /u56: \['js\/unc-m56\.js'\]/);
+  for (const g of ['un', 'u7', 'u7r']) assert.doesNotMatch(app.match(new RegExp(`\\b${g}: \\[[^\\]]*\\]`))[0], /unc-m56/, g);
+  // unc.js da a la vista de M5 y M6 lo que necesita de su parte pura.
+  for (const k of ['FIELDS', 'SLIDERS', 'CASES', 'SYNTHETIC', 'TIES_SHOWN', 'PATHS_SHOWN', 'withValue', 'curvePts', 'niceTicks', 'parseNum', 'deadlineOf', 'examOf', 'simSpec', 'simSummary', 'seedOf', 'ukOf', 'hint']) {
+    assert.ok(U[k] !== undefined, k);
+  }
+});

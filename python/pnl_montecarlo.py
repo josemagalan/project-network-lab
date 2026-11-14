@@ -14,8 +14,17 @@ cambiar entre JavaScript y Python).
 Usage / uso:
     python3 pnl_montecarlo.py project.json [--reps N] [--seed S] [--json]
 
-project.json is the file that M7 downloads («Proyecto en JSON» / "Project as JSON").
-project.json es el archivo que descarga M7.
+project.json is the file that M7 downloads ("Project as JSON"). Without --json it prints a report: mean, percentiles,
+P(duration <= deadline), the indices of each activity and the criticality of the paths; with --json, everything as JSON.
+project.json es el archivo que descarga M7 («Proyecto en JSON»). Sin --json escribe un informe: media, percentiles,
+P(duración <= plazo), los índices de cada actividad y la criticidad de los caminos; con --json, todo en JSON.
+
+As a module / como módulo:
+    import json
+    import pnl_montecarlo as pm
+    with open('project.json', encoding='utf-8') as f:
+        res = pm.analyse(json.load(f), reps=10000, seed=2026)
+    print(res['mean'], res['crit'])   # also res['durations'], the duration of every replica / la de cada réplica
 
 Only the Python 3 standard library (3.8 or later). / Solo la biblioteca estándar de Python 3 (3.8 o posterior).
 Code: MIT licence, Project Network Lab (https://github.com/josemagalan/project-network-lab).
@@ -51,7 +60,8 @@ def mulberry32(seed):
 
 
 class Sampler:
-    """Normal (Box–Muller, keeping the pair) and gamma (Marsaglia–Tsang), as core/sim.js."""
+    """Normal (Box–Muller, keeping the pair) and gamma (Marsaglia–Tsang), as core/sim.js.
+    Normal (Box–Muller, guardando el par) y gamma (Marsaglia–Tsang), como core/sim.js."""
 
     def __init__(self, seed):
         self.u = mulberry32(seed)
@@ -95,13 +105,15 @@ def _beta_var(al, be):
 
 
 def beta_params(kind, a, m, b):
-    """Beta-PERT (lambda = 4) or classic beta (mode m, sd (b - a)/6) on [a, b]; None if a = b."""
+    """Beta-PERT (lambda = 4) or classic beta (mode m, sd (b - a)/6) on [a, b]; None if a = b.
+    Beta-PERT (lambda = 4) o beta clásica (moda m, desviación (b - a)/6) en [a, b]; None si a = b."""
     if not b > a:
         return None
     p = (m - a) / (b - a)
     if kind == 'pert':
         return 1 + 4 * p, 1 + 4 * (1 - p)
-    lo, hi = 2.0, 1e6                       # classic: variance 1/36 on [0, 1] (bisection, as core/threept.js)
+    # classic: variance 1/36 on [0, 1] (bisection, as core/threept.js) / clásica: varianza 1/36 en [0, 1] (bisección)
+    lo, hi = 2.0, 1e6
     k = 0
     while k < 200 and hi - lo > 1e-13 * hi:
         mid = (lo + hi) / 2
@@ -116,6 +128,7 @@ def beta_params(kind, a, m, b):
 
 
 def tri_quantile(a, m, b, u):
+    """Inverse distribution function of the triangular. / Inversa de la función de distribución de la triangular."""
     if not b > a or u <= 0:
         return a
     if u >= 1:
@@ -129,7 +142,7 @@ LN_SQRT_2PI = 0.9189385332046728
 
 
 def phi(z):
-    """Standard normal distribution function, as core/threept.js."""
+    """Standard normal distribution function, as core/threept.js. / Función de distribución de la normal estándar."""
     if z != z:
         return float('nan')
     if z < -37:
@@ -162,7 +175,8 @@ def phi(z):
 # ---------- distributions / distribuciones ----------
 
 class Dist:
-    """One activity duration: pert, classic, tri, unif, normal (truncated at 0), logn, disc or fixed."""
+    """One activity duration: pert, classic, tri, unif, normal (truncated at 0), logn, disc or fixed.
+    La duración de una actividad: pert, classic, tri, unif, normal (truncada en 0), logn, disc o fixed."""
 
     def __init__(self, spec):
         self.kind = k = spec['kind']
@@ -233,7 +247,7 @@ class Dist:
                 if u < self.c[j]:
                     return self.x[j]
             return self.x[-1]
-        x = s.gamma(self.alpha)                  # pert, classic: beta as a ratio of gammas
+        x = s.gamma(self.alpha)                  # pert, classic: beta as a ratio of gammas / beta como cociente de gammas
         return self.a + (self.b - self.a) * x / (x + s.gamma(self.beta))
 
     def mean(self):
@@ -261,6 +275,8 @@ class Dist:
 # ---------- the project / el proyecto ----------
 
 class Project:
+    """The activities of the JSON file, in topological order. / Las actividades del JSON, en orden topológico."""
+
     def __init__(self, data):
         if data.get('format') != FORMAT or data.get('version') != VERSION:
             raise ValueError('not a Project Network Lab Montecarlo file (format %s, version %s)' % (FORMAT, VERSION))
@@ -283,11 +299,13 @@ class Project:
 
 
 def tol(t):
+    """Rounding tolerance: total float 0 up to this is critical. / Tolerancia: holgura total 0 hasta aquí es crítica."""
     return 1e-9 * max(1.0, abs(t))
 
 
 def simulate(project, reps, seed):
-    """Durations of the project and, for each activity, its duration and total float in every replica."""
+    """Durations of the project and, for each activity, its duration and total float in every replica.
+    Duración del proyecto y, de cada actividad, su duración y su holgura total en cada réplica."""
     s = Sampler(seed & M32)
     k = len(project.ids)
     T = [0.0] * reps
@@ -328,6 +346,7 @@ def percentile(sorted_values, p):
 
 
 def pearson(x, y):
+    """Pearson correlation; 0 if x or y does not vary. / Correlación de Pearson; 0 si x o y no varían."""
     n = len(x)
     mx = sum(x) / n
     my = sum(y) / n
@@ -387,6 +406,7 @@ def top_paths(project, limit=PATH_LIMIT):
 
 
 def count_paths(project):
+    """Number of paths from start to end. / Número de caminos de principio a fin."""
     k = len(project.ids)
     c = [0] * k
     for i in range(k - 1, -1, -1):
@@ -395,7 +415,13 @@ def count_paths(project):
 
 
 def indices(project, T, D, TF, corr='pearson'):
-    """Criticality, cruciality and significance of each activity, and criticality of the longest paths."""
+    """Criticality, cruciality and significance of each activity, and criticality of the longest paths.
+    Criticidad, crucialidad y significación de cada actividad, y criticidad de los caminos más largos.
+
+    criticality / criticidad: share of replicas with total float 0 (ties count) / réplicas con holgura total 0 (con empates)
+    cruciality / crucialidad: correlation (Pearson or Spearman) of d and T / correlación de d y T
+    significance / significación (Williams 1992): mean of d/(d + TF) * T/E(T), 1 if TF = 0 / media de d/(d + HT) * T/E(T)
+    """
     n = len(T)
     tbar = sum(T) / n
     crit, cruc, sig = [], [], []
@@ -459,6 +485,7 @@ def report(res, unit):
         lines.append('P(duration ≤ %s) / P(duración ≤ %s): %.4f' % (res['deadline'], res['deadline'], res['p_deadline']))
     lines.append('')
     lines.append('%-10s %12s %12s %12s' % ('Activity', 'Criticality', 'Cruciality', 'Significance'))
+    lines.append('%-10s %12s %12s %12s' % ('Actividad', 'Criticidad', 'Crucialidad', 'Significación'))
     for i, a in enumerate(res['ids']):
         lines.append('%-10s %12.4f %12.4f %12.4f' % (a, res['crit'][i], res['cruc'][i], res['sig'][i]))
     lines.append('')
@@ -471,11 +498,12 @@ def report(res, unit):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description='Montecarlo simulation of a Project Network Lab project (M7).')
-    ap.add_argument('project', help='project file downloaded from M7 (JSON)')
-    ap.add_argument('--reps', type=int, help='number of replicas (default: the file\'s)')
-    ap.add_argument('--seed', type=int, help='seed (default: the file\'s)')
-    ap.add_argument('--json', action='store_true', help='print every result as JSON')
+    ap = argparse.ArgumentParser(description='Montecarlo simulation of a Project Network Lab project (M7). / '
+                                             'Simulación de Montecarlo de un proyecto de Project Network Lab (M7).')
+    ap.add_argument('project', help='project file downloaded from M7 (JSON) / archivo del proyecto descargado de M7')
+    ap.add_argument('--reps', type=int, help='number of replicas (default: the file\'s) / réplicas (por defecto, las del archivo)')
+    ap.add_argument('--seed', type=int, help='seed (default: the file\'s) / semilla (por defecto, la del archivo)')
+    ap.add_argument('--json', action='store_true', help='print every result as JSON / escribir todos los resultados en JSON')
     args = ap.parse_args(argv)
     with open(args.project, encoding='utf-8') as f:
         data = json.load(f)
