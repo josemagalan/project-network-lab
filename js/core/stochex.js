@@ -4,6 +4,9 @@
  * dan la media y la varianza de cada tarea (mu, var, duraciones normales) y solo se usan en M6 (m6only).
  * expected guarda lo que la fuente da explícitamente (camino crítico de las medias y plazo); las cifras las calcula
  * core/tcl y las pruebas las comparan con las de la fuente.
+ * F4b (spec f4b-montecarlo-indices; plan §2, T003): los ejemplos con tiempos discretos (disc: valores x y probabilidades
+ * p, sin a, m ni b) solo se usan en M7 (m7only): el de Klastorin del Tema 6c y los cuatro de Williams (2002) que
+ * comparan la criticidad con la crucialidad. Sus cifras exactas las calcula core/mc.
  * Hillier y Lieberman reutiliza los ids, las precedencias y los nombres del ejemplo `hillier` de core/examples
  * (sus medias son esas duraciones); aquí solo se añaden o, m y p de la tabla 22.4.
  */
@@ -15,6 +18,14 @@
 
   const tp = (id, a, m, b, links, es, en) => ({ id, a, m, b, links, name: { es, en } });
   const nv = (id, mu, v, links, es, en) => ({ id, mu, var: v, links, name: { es, en } });
+  const dv = (id, x, p, links, es, en) => ({ id, disc: { x, p }, links, name: { es: es || `Tarea ${id}`, en: en || `Task ${id}` } });
+  const KD_SRC = { es: 'T. Klastorin (2010), Gestión de proyectos, Profit Editorial (ejemplo 3 del PERT clásico); en el Tema 6c de J. M. Galán',
+                   en: 'T. Klastorin (2010), Gestión de proyectos, Profit Editorial (Classic PERT example 3); in Unit 6c by J. M. Galán' };
+  const W_SRC = (fig) => ({ es: `T. Williams (2002), Modelling Complex Projects, Wiley, cap. 5, fig. ${fig}`,
+                            en: `T. Williams (2002), Modelling Complex Projects, Wiley, ch. 5, Fig. ${fig}` });
+  const W_B = () => dv('B', [0, 100], [0.99, 0.01], '');
+  const williams = (id, a, es, en, fig) => ({ id, m7only: true, title: { es, en }, source: W_SRC(fig), unit: { es: 'días', en: 'days' },
+    rows: [dv('A', a, [0.5, 0.5], ''), W_B()] });
 
   // Tabla 22.4 de Hillier y Lieberman (2015): o, m y p de cada actividad de Reliable Construction Co.
   const HL = { A: [1, 2, 3], B: [2, 3.5, 8], C: [6, 9, 18], D: [4, 5.5, 10], E: [1, 4.5, 5], F: [4, 4, 10], G: [5, 6.5, 11],
@@ -73,6 +84,31 @@
       // La diapositiva solo da la media (30): la probabilidad de terminar en 30 no depende de la varianza.
       rows: [nv('A', 30, 4, '', 'Tarea A', 'Task A'), nv('B', 30, 4, '', 'Tarea B', 'Task B')],
       expected: { deadline: 30 },
+    },
+    {
+      id: 'kd',
+      m7only: true,
+      title: { es: 'Cuatro tareas con tiempos discretos (Klastorin)', en: 'Four tasks with discrete durations (Klastorin)' },
+      source: KD_SRC,
+      unit: { es: 'semanas', en: 'weeks' },
+      rows: [
+        dv('A', [7, 8, 9], [1 / 3, 1 / 3, 1 / 3], ''),
+        dv('B', [2, 12], [0.2, 0.8], ''),
+        dv('C', [5, 15, 25], [0.2, 0.2, 0.6], ''),
+        dv('D', [3, 12], [0.3, 0.7], 'A, B'),
+      ],
+      expected: { deadline: 20 },
+    },
+    williams('wa', [0.1, 0.2], 'Williams (a): una tarea corta frente a un riesgo raro', 'Williams (a): a short task against a rare risk', '5.17'),
+    williams('wb', [10, 20], 'Williams (b): la tarea corta se alarga', 'Williams (b): the short task gets longer', '5.18'),
+    williams('wc', [2, 99], 'Williams (c): la tarea corta, muy incierta', 'Williams (c): the short task, highly uncertain', '5.18'),
+    {
+      id: 'wd',
+      m7only: true,
+      title: { es: 'Williams (d): una tarea larga y fija antes de una corta', en: 'Williams (d): a long fixed task before a short one' },
+      source: W_SRC('5.19'),
+      unit: { es: 'días', en: 'days' },
+      rows: [dv('A', [100], [1], ''), dv('B', [0.1, 0.2], [0.5, 0.5], 'A')],
     },
   ];
 
