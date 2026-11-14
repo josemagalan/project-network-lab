@@ -74,9 +74,18 @@ Proyecto hermano de / Sister project of [Genetic Algorithms Lab](https://josemag
 - **M6 · el TCL y sus trampas.** El cálculo de examen paso a paso: el camino crítico de las medias (si hay varios, el de mayor varianza), μ, σ², z y la probabilidad de cumplir un plazo, primero con z a dos decimales y la tabla de la normal y al lado la exacta; o, al revés, el plazo para una probabilidad. Después, la normal frente a una simulación con semilla de 10 000 réplicas: la fusión de caminos casi críticos en paralelo (con la cuenta exacta cuando son independientes), pocas actividades, duraciones asimétricas, duraciones correlacionadas dentro de un camino y el proyecto entero. En el ejemplo de Klastorin, la normal da 0,66 para 25 semanas y la simulación, unos 0,55.
 - **Paso a paso con predicción** en M5 y en el cálculo de examen de M6: el alumno escribe cada valor antes de verlo y, si se equivoca de una forma típica (sumar las desviaciones, dividir entre σ², tomar la varianza de la curva), recibe una pista. «Aprende más» explica de dónde salen las fórmulas, por qué ninguna beta cuadra con las dos, los supuestos y la hipótesis de Schoenberger.
 - **Reproducible.** El enlace guarda el proyecto, los deslizadores, el plazo y la semilla, y abrirlo da el mismo histograma; «Otra simulación» cambia la semilla. La simulación avanza a trozos y la página sigue respondiendo mientras tanto.
-- **Qué no hace todavía:** el Montecarlo completo (índices de criticidad, tornado, percentiles, convergencia y elegir la distribución de cada actividad) y el gemelo en Python llegan en la fase 4b; los ejercicios y el banco de Moodle de probabilidad, en la fase 3d.
+### Fase 4b: Montecarlo e índices (M7)
 
-La portada (`index.html`) presenta los ocho módulos del itinerario. Hoy están disponibles M0 (del enunciado a la tabla, con la ruta paso a paso, el enunciado propio y el enunciado al azar), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos), M5 (tres tiempos), M6 (el TCL y sus trampas), el taller, los ejercicios generados y los bancos de Moodle; M7 (análisis de riesgo con Montecarlo) llegará en la fase 4b.
+- **Montecarlo e índices (M7)**, el tercer apartado de «Duraciones inciertas» y la tarjeta M7 de la portada: [`cpm.html#v=unc&um=m7`](https://josemagalan.github.io/project-network-lab/cpm.html#v=unc&um=m7). Los mismos proyectos que M5 y M6, la tabla propia y cinco ejemplos con tiempos discretos: el de cuatro tareas de Klastorin (Tema 6c) y los cuatro de Williams (2002) que enseñan los límites de la criticidad.
+- **La distribución de cada actividad**, para todas a la vez o una a una: beta-PERT, beta clásica, triangular, uniforme, normal truncada en 0, lognormal y discreta, todas desde a, m y b (la discreta empieza con a, m y b con 1/6, 4/6 y 1/6, y se edita). La tabla da la media y la varianza de cada una.
+- **Duración del proyecto.** De 100 a 100 000 réplicas con semilla: el histograma con la normal de M6 encima, la función de distribución, P50, P80, P90 y el percentil que se elija, y P(duración ≤ plazo) con su intervalo al 95 %. Con tiempos discretos, la cuenta exacta de todas las combinaciones al lado.
+- **Índices.** La criticidad de cada actividad (es crítica la que tiene holgura total 0 en la réplica, también cuando dos caminos empatan) y de cada camino, la crucialidad de Pearson o de Spearman y el índice de significación, en una tabla, en un tornado en espejo (criticidad frente a crucialidad) y en la red ROY coloreada.
+- **Réplica a réplica**, con predicción de la duración o del camino crítico de cada réplica y el histograma que crece, y **convergencia** de la media, de P(duración ≤ plazo), del percentil y de la criticidad de una actividad, con su intervalo al 95 %.
+- **El código en Python.** «Código en Python» descarga [`python/pnl_montecarlo.py`](python/pnl_montecarlo.py), que solo necesita Python 3.8 o posterior, y «Proyecto en JSON», el proyecto con sus distribuciones, las réplicas, la semilla, el plazo y el percentil. `python3 pnl_montecarlo.py proyecto.json` escribe un informe con la media, los percentiles, la P del plazo, los índices y la criticidad de los caminos; `--reps` y `--seed` cambian las réplicas y la semilla, y `--json` lo da todo en JSON. También se usa como módulo (`analyse`). Con la misma semilla da los mismos números que la web (a 1e-9), y las pruebas lo comprueban en cada push.
+- **«Aprende más»** explica la criticidad como probabilidad y sus límites, la diferencia con la diapositiva del Tema 6c cuando hay empates, la crucialidad, la significación, el error del Montecarlo, la hipótesis de Schoenberger y cómo usar el código en Python.
+- **Qué no hace todavía:** los ejercicios y el banco de Moodle de probabilidad y de Montecarlo llegan en la fase 3d.
+
+La portada (`index.html`) presenta los ocho módulos del itinerario, ya todos disponibles: M0 (del enunciado a la tabla, con la ruta paso a paso, el enunciado propio y el enunciado al azar), M1 (red ROY), M2 (red PERT y ficticias, con el comparador de métodos y el reto), M3 (cálculo de tiempos), M4 (holguras y caminos críticos), M5 (tres tiempos), M6 (el TCL y sus trampas) y M7 (Montecarlo e índices), además del taller, los ejercicios generados y los bancos de Moodle.
 
 ### Usarlo sin conexión
 
@@ -84,16 +93,16 @@ Descarga el repositorio y abre `index.html` en el navegador. No necesita servido
 
 ### Desarrollo
 
-Solo hace falta Node 22 o posterior; el proyecto no tiene dependencias.
+Solo hace falta Node 22 o posterior (y Python 3 para la prueba de paridad del gemelo, que sin él se salta); el proyecto no tiene dependencias.
 
 ```
 npm start              # vista previa en http://127.0.0.1:4173
-npm test               # sintaxis, núcleo, textos, accesibilidad estática y portada
+npm test               # sintaxis, núcleo, textos, accesibilidad estática, portada y paridad con Python
 npm run coverage       # cobertura de js/core (mínimo 90 % de líneas)
 npm run test:browser   # Chromium con Playwright y axe-core, si están instalados
 ```
 
-Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx playwright install chromium`; la integración continua las ejecuta en cada push. Recorren las rutas ROY y PERT en los dos idiomas, con y sin predicción, y comprueban el enlace y la recarga, la matriz, el lado a lado, el contador de ficticias, el comparador, el dibujo progresivo, el reto (con un error de cada tipo), los ejercicios generados (los tres niveles en Practicar y en Examen, el error consecuente, los sucesos, «Personalizar» y «Tabla al azar»), las duraciones inciertas (M5 y M6 con cada ejemplo y cada caso, la predicción y la misma simulación que en Node), el teclado, 1280×720 y 360 px, axe en modo claro y oscuro, y que ninguna vista cargue más de 1 MB.
+Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx playwright install chromium`; la integración continua las ejecuta en cada push. Recorren las rutas ROY y PERT en los dos idiomas, con y sin predicción, y comprueban el enlace y la recarga, la matriz, el lado a lado, el contador de ficticias, el comparador, el dibujo progresivo, el reto (con un error de cada tipo), los ejercicios generados (los tres niveles en Practicar y en Examen, el error consecuente, los sucesos, «Personalizar» y «Tabla al azar»), las duraciones inciertas (M5 y M6 con cada ejemplo y cada caso, la predicción y la misma simulación que en Node), M7 (sus cuatro vistas, la distribución de cada actividad, la predicción, las descargas y el informe del `.py`), el teclado, 1280×720 y 360 px, axe en modo claro y oscuro, y que ninguna vista cargue más de 1 MB.
 
 ## English
 
@@ -161,9 +170,18 @@ Las pruebas de navegador necesitan `npm i --no-save playwright axe-core` y `npx 
 - **M6 · the CLT and its pitfalls.** The exam calculation step by step: the critical path of the means (if there are several, the one with the largest variance), μ, σ², z and the probability of meeting a deadline, first with z to two decimals and the normal table and, next to it, the exact value; or, the other way round, the deadline for a probability. Then the normal against a seeded simulation of 10,000 runs: merging near-critical parallel paths (with the exact count when they are independent), few activities, skewed durations, correlated durations within a path, and the whole project. In Klastorin’s example, the normal gives 0.66 for 25 weeks and the simulation about 0.55.
 - **Step by step with prediction** in M5 and in the M6 exam calculation: students type each value before seeing it and, if they make a typical mistake (adding standard deviations, dividing by σ², taking the variance of the curve), they get a hint. “Learn more” explains where the formulas come from, why no beta matches both, the assumptions and Schoenberger’s hypothesis.
 - **Reproducible.** The link stores the project, the sliders, the deadline and the seed, and opening it gives the same histogram; “Simulate again” changes the seed. The simulation runs in chunks and the page stays responsive meanwhile.
-- **What it does not do yet:** full Monte Carlo (criticality indices, tornado chart, percentiles, convergence and choosing each activity’s distribution) and the Python twin come in phase 4b; probability exercises and the probability Moodle bank, in phase 3d.
+### Phase 4b: Monte Carlo and indices (M7)
 
-The home page (`index.html`) presents the eight modules of the learning path. M0 (from statement to table, with the step-by-step tour, your own statement and the random statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths), M5 (three-point estimates), M6 (the CLT and its pitfalls), the workshop, the generated exercises and the Moodle banks are available today; M7 (Monte Carlo risk analysis) will follow in phase 4b.
+- **Monte Carlo and indices (M7)**, the third section of “Uncertain durations” and the M7 card on the home page: [`cpm.html#v=unc&um=m7`](https://josemagalan.github.io/project-network-lab/cpm.html#v=unc&um=m7&lang=en). The same projects as M5 and M6, your own table and five examples with discrete durations: Klastorin’s four-task example (Unit 6c) and Williams’s four (2002), which show the limits of criticality.
+- **Each activity’s distribution**, for all at once or one by one: beta-PERT, classic beta, triangular, uniform, normal truncated at 0, lognormal and discrete, all from a, m and b (the discrete one starts as a, m and b with 1/6, 4/6 and 1/6, and can be edited). The table gives the mean and variance of each.
+- **Project duration.** From 100 to 100,000 seeded runs: the histogram with the normal of M6 on top, the distribution function, P50, P80, P90 and a percentile of your choice, and P(duration ≤ deadline) with its 95% interval. With discrete durations, the exact count over every combination alongside.
+- **Indices.** The criticality of each activity (an activity is critical when its total float is 0 in the run, also when two paths tie) and of each path, Pearson or Spearman cruciality and the significance index, in a table, in a mirror tornado (criticality against cruciality) and on the shaded activity-on-node network.
+- **Run by run**, predicting each run’s duration or critical path while the histogram grows, and **convergence** of the mean, of P(duration ≤ deadline), of the percentile and of one activity’s criticality, with their 95% interval.
+- **The Python code.** “Python code” downloads [`python/pnl_montecarlo.py`](python/pnl_montecarlo.py), which only needs Python 3.8 or later, and “Project as JSON”, the project with its distributions, runs, seed, deadline and percentile. `python3 pnl_montecarlo.py project.json` prints a report with the mean, the percentiles, the deadline probability, the indices and the path criticalities; `--reps` and `--seed` change the runs and the seed, and `--json` prints everything as JSON. It can also be used as a module (`analyse`). With the same seed it gives the same numbers as the web (to 1e-9), and the tests check it on every push.
+- **“Learn more”** explains criticality as a probability and its limits, the difference from the Unit 6c slide when there are ties, cruciality, significance, the Monte Carlo error, Schoenberger’s hypothesis and how to use the Python code.
+- **What it does not do yet:** probability and Monte Carlo exercises and Moodle banks come in phase 3d.
+
+The home page (`index.html`) presents the eight modules of the learning path, all available now: M0 (from statement to table, with the step-by-step tour, your own statement and the random statement), M1 (activity-on-node network), M2 (activity-on-arrow network and dummies, with the method comparison and the dummy challenge), M3 (scheduling), M4 (slack and critical paths), M5 (three-point estimates), M6 (the CLT and its pitfalls) and M7 (Monte Carlo and indices), together with the workshop, the generated exercises and the Moodle banks.
 
 ### Offline use
 
@@ -171,16 +189,16 @@ Download the repository and open `index.html` in a browser. No server or connect
 
 ### Development
 
-Only Node 22 or later is required; the project has no dependencies.
+Only Node 22 or later is required (and Python 3 for the parity test of the twin, which is skipped without it); the project has no dependencies.
 
 ```
 npm start              # preview at http://127.0.0.1:4173
-npm test               # syntax, core, texts, static accessibility and home page
+npm test               # syntax, core, texts, static accessibility, home page and Python parity
 npm run coverage       # js/core coverage (at least 90 % of lines)
 npm run test:browser   # Chromium with Playwright and axe-core, when installed
 ```
 
-Browser tests need `npm i --no-save playwright axe-core` and `npx playwright install chromium`; continuous integration runs them on every push. They walk the activity-on-node and activity-on-arrow tours in both languages, with and without prediction, and check links and reloads, the matrix, the side-by-side view, the dummy counter, the method comparison, progressive drawing, the dummy challenge (with one mistake of each kind), the generated exercises (the three levels in Practice and Exam, carried errors, events, “Customise” and “Random table”), uncertain durations (M5 and M6 with every example and case, prediction, and the same simulation as in Node), keyboard use, 1280×720 and 360 px, axe in light and dark mode, and that no view loads more than 1 MB.
+Browser tests need `npm i --no-save playwright axe-core` and `npx playwright install chromium`; continuous integration runs them on every push. They walk the activity-on-node and activity-on-arrow tours in both languages, with and without prediction, and check links and reloads, the matrix, the side-by-side view, the dummy counter, the method comparison, progressive drawing, the dummy challenge (with one mistake of each kind), the generated exercises (the three levels in Practice and Exam, carried errors, events, “Customise” and “Random table”), uncertain durations (M5 and M6 with every example and case, prediction, and the same simulation as in Node), M7 (its four views, each activity’s distribution, prediction, the downloads and the `.py` report), keyboard use, 1280×720 and 360 px, axe in light and dark mode, and that no view loads more than 1 MB.
 
 ## Equipo / Team
 
