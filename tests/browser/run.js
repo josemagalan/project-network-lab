@@ -5975,7 +5975,11 @@ check('F4b T011 · réplica a réplica: predecir el camino crítico, con el empa
   const r = await repStep(p);
   assert.deepEqual(r.options, ['B–D', 'C', 'A–D']);
   assert.deepEqual(r.crit, ['B–D', 'C']);
-  assert.deepEqual(await p.locator('.m7-paths label').allInnerTexts(), ['B–D', 'C', 'A–D'].map((x) => ` ${x}`.trim()));
+  // Con el estado de cada etiqueta en el mensaje: en la CI 107 y 108 salieron con un espacio delante (sin m7.css o sin pintar).
+  const labs = await p.locator('.m7-paths label').evaluateAll((ls) => ls.map((l) => ({ t: l.innerText, d: getComputedStyle(l).display, v: l.checkVisibility(), hid: l.closest('[hidden]') ? l.closest('[hidden]').id || l.closest('[hidden]').tagName : null,
+    up: l.parentElement.parentElement ? l.parentElement.parentElement.id || l.parentElement.parentElement.className : null })));
+  const css = await p.evaluate(() => [...document.styleSheets].map((s) => (s.href || 'inline').split('/').pop() + (s.disabled ? ':off' : '')).join(','));
+  assert.deepEqual(labs.map((x) => x.t), ['B–D', 'C', 'A–D'], `${JSON.stringify(labs)} · hojas: ${css}`);
   await p.locator('#m7Path-1').check();
   await p.locator('#m7PredCheck').click();
   assert.match(await p.locator('#m7PredFb').innerText(), /Right[\s\S]*B–D and C tie at 15\.00: both are critical/);
