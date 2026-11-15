@@ -664,6 +664,9 @@
   // ---------- F2c · M0, del enunciado a la tabla (practicar, T016) ----------
   dict.es.app.urlTooLong = 'La tabla ya no cabe en el enlace: la dirección de la página no recoge los últimos cambios. Acorta los nombres o quita filas para poder compartirla.';
   dict.en.app.urlTooLong = 'The table no longer fits in the link: the page address does not keep your latest changes. Shorten the names or remove rows to be able to share it.';
+  // F4b (revisión, I-F3 e I-F5): una parte que se carga al abrirla no llegó.
+  dict.es.app.loadFailed = 'No se pudo cargar esta parte del laboratorio. Comprueba la conexión y vuelve a intentarlo.';
+  dict.en.app.loadFailed = 'This part of the lab could not be loaded. Check your connection and try again.';
   dict.es.m0 = {
     region: 'Del enunciado a la tabla', statement: 'Enunciado', tableView: 'Vista de la tabla', list: 'Lista', matrixView: 'Matriz',
     underline: 'Subrayar', check: 'Comprobar', text: 'Texto', textUnderline: 'Texto · modo subrayar', source: 'Fuente: {src}.',

@@ -83,10 +83,15 @@
     u56: ['js/unc-m56.js'],
   };
   const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
+  // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
+  // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
+  const broken = new Set();
+  for (const g of Object.keys(READY)) { const f = READY[g]; READY[g] = () => !broken.has(g) && f(); }
   const loading = {};
   function need(group) {
     if (!group || READY[group]()) return Promise.resolve();
     if (!loading[group]) {
+      const retry = broken.has(group);
       // Una hoja de estilos del grupo (F4a) se pide a la vez; la vista se pinta cuando han llegado los scripts y ella.
       const sheets = LAZY[group].filter((src) => src.endsWith('.css') && !document.querySelector(`link[href="${src}"]`)).map((src) => new Promise((resolve, reject) => {
         const el = document.createElement('link');
@@ -98,21 +103,31 @@
       const scripts = new Promise((resolve, reject) => {
         // Un script que ya cargó otro grupo (core/grade lo usan «Ejercicios» y Moodle) no se vuelve a pedir.
         const have = new Set([...document.scripts].map((x) => x.getAttribute('src')));
-        const files = LAZY[group].filter((src, i, all) => !src.endsWith('.css') && (!have.has(src) || i === all.length - 1));
+        const files = LAZY[group].filter((src, i, all) => !src.endsWith('.css') && (retry || !have.has(src) || i === all.length - 1));
         files.forEach((src, i) => {
           const el = document.createElement('script');
           el.src = src; el.async = false;
           if (i === files.length - 1) { el.onload = () => resolve(); }
-          el.onerror = () => reject(new Error(src));
+          // Un script que no carga se quita, para que el reintento lo vuelva a pedir (revisión de la F4b, I-F3).
+          el.onerror = () => { el.remove(); reject(new Error(src)); };
           document.body.appendChild(el);
         });
       });
-      loading[group] = Promise.all([scripts, ...sheets]).then(() => { ensureControllers(); }, (err) => { delete loading[group]; throw err; });
+      // Si los scripts llegan pero el grupo no queda listo (un proxy o una caché que devuelve otra cosa), es un fallo: si no,
+      // dispatch y render se llamarían a sí mismos sin fin (revisión de la F4b, I-F5).
+      loading[group] = Promise.all([scripts, ...sheets]).then(() => {
+        broken.delete(group);
+        if (!READY[group]()) throw new Error(`group ${group}`);
+        $('loadFailed').hidden = true;
+        ensureControllers();
+      }).catch((err) => { delete loading[group]; broken.add(group); $('loadFailed').hidden = false; throw err; });
     }
     return loading[group];
   }
   // F4b (T002): el grupo cr hace falta con la red PERT en el comparador, en el reto o en el dibujo progresivo.
-  const needsCr = (s) => s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog');
+  // Solo en la ruta y el taller, como groupsOf: un enlace de otra vista con graph=aoa&view=cmp no lo carga (revisión de la
+  // F4b, I-F4: con M7 pasaba de 1 MB).
+  const needsCr = (s) => (!s.v || s.v === 'route' || s.v === 'work') && s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog');
   // F4b (T010): M7 necesita su grupo (u7) además del de la pestaña (un), en ese orden.
   const needsU7 = (s) => s.v === 'unc' && s.um === 'm7';
   const needsU7r = (s) => needsU7(s) && (s.uy === 'rep' || s.uy === 'conv');
@@ -135,6 +150,8 @@
     return [groupOf(v)];
   }
   const needAll = (groups) => Promise.all(groups.filter(Boolean).map((g) => need(g)));
+  // Un grupo que no carga ya lo dice el aviso «loadFailed»; las promesas que esperaban se quedan sin hacer nada.
+  const noop = () => {};
 
   const lang = () => state.lang || 'es';
   const t = (k, p) => I.t(lang(), k, p);
@@ -242,21 +259,21 @@
   function toUnc() {
     stopPlay();
     if (state.v === 'unc') return;
-    if (!G.unc) { need('un').then(toUnc); return; }
+    if (!G.unc) { need('un').then(toUnc, noop); return; }
     dispatch({ type: 'unc' }, { push: true });
     window.scrollTo(0, 0);
   }
   function toEx() {
     stopPlay();
     if (state.v === 'ex') return;
-    if (!G.ex) { need('ex').then(toEx); return; }
+    if (!G.ex) { need('ex').then(toEx, noop); return; }
     dispatch({ type: 'ex', sd: exEntry().sd });
     window.scrollTo(0, 0);
   }
   function toM0() {
     stopPlay();
     // La acción m0 sin paquete propio pasa a ej5: con st=own también hace falta statements.js (revisión de la F3c, F2).
-    if (!G.m0 || (state.st === 'gen' ? !G.stmtgen : !G.statements)) { needAll(['m0', state.st === 'gen' ? 'sg' : 'st']).then(toM0); return; }
+    if (!G.m0 || (state.st === 'gen' ? !G.stmtgen : !G.statements)) { needAll(['m0', state.st === 'gen' ? 'sg' : 'st']).then(toM0, noop); return; }
     // Ya en M0: de la ruta paso a paso vuelve a practicar sin perder la tabla.
     if (state.v === 'm0') { if (state.mm !== 'practice') { dispatch({ type: 'set', key: 'mm', value: 'practice' }); dispatch({ type: 'first' }); } return; }
     dispatch({ type: 'm0', st: state.st, mm: 'practice' });
@@ -267,8 +284,8 @@
     const before = state;
     const next = S.reduce(state, action, total());
     // F4b (T002): el comparador, el reto y el dibujo progresivo esperan a su grupo (cr) antes de cambiar nada.
-    if (needsCr(next) && !READY.cr()) { need('cr').then(() => dispatch(action, opts)); return; }
-    if (missingU7(next)) { needU7(next).then(() => dispatch(action, opts)); return; }
+    if (needsCr(next) && !READY.cr()) { need('cr').then(() => dispatch(action, opts), noop); return; }
+    if (missingU7(next)) { needU7(next).then(() => dispatch(action, opts), noop); return; }
     state = next;
     const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
@@ -333,8 +350,8 @@
 
   function render(opts) {
     // F4b (T002): red de seguridad; dispatch y los enlaces ya piden el grupo cr antes de llegar aquí.
-    if (needsCr(state) && !READY.cr()) { need('cr').then(() => render(opts)); return; }
-    if (missingU7(state)) { needU7(state).then(() => { compute(); render(opts); }); return; }
+    if (needsCr(state) && !READY.cr()) { need('cr').then(() => render(opts), noop); return; }
+    if (missingU7(state)) { needU7(state).then(() => { compute(); render(opts); }, noop); return; }
     renderTexts();
     const m0On = state.v === 'm0';
     const exOn = state.v === 'ex';
@@ -347,6 +364,7 @@
     // La caja del nodo no tiene sentido en el exportador (bocetos de la F3b).
     $('selBox').closest('label').hidden = mqOn;
     if (!mqOn && mqc) mqc.leave();
+    if (!uncOn && uncc) uncc.leave();
     if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
     if (exOn) { $('workshop').hidden = true; $('stage').hidden = true; exc.render(model, opts); return; }
     if (mqOn) { $('workshop').hidden = true; $('stage').hidden = true; mqc.render(model, opts); return; }
@@ -763,7 +781,7 @@
 
   // «Aprende más» de un método (AC17): qué hace, qué garantiza, cómo lo aplica el laboratorio y sus referencias.
   function openMethodLearn(m) {
-    if (!G.learn) { need('lr').then(() => openMethodLearn(m)); return; }
+    if (!G.learn) { need('lr').then(() => openMethodLearn(m), noop); return; }
     const LR = G.learn;
     const L = LR.methods[m];
     const body = clear($('learnBody'));
@@ -920,7 +938,7 @@
   // Con un tema (el de la regla de una ficticia seleccionada), «Aprende más» abre ese tema. Con { topic }, un
   // tema que no es de ningún paso (el del contador): su pseudocódigo es el de colocar la red.
   function openLearn(forTopic) {
-    if (!G.learn) { need('lr').then(() => openLearn(forTopic)); return; }
+    if (!G.learn) { need('lr').then(() => openLearn(forTopic), noop); return; }
     const LR = G.learn;
     const tr = trace();
     if (!tr) return;
@@ -953,7 +971,7 @@
   function openUncLearn(topic) {
     const m7 = topic === 'm7';
     const LU = m7 ? G.learnM7 : G.learnUnc;
-    if (!LU) { need(m7 ? 'l7' : 'ul').then(() => openUncLearn(topic)); return; }
+    if (!LU) { need(m7 ? 'l7' : 'ul').then(() => openUncLearn(topic), noop); return; }
     const c = LU[lang()][topic];
     const body = clear($('learnBody'));
     $('learnTitle').textContent = c.title;
@@ -971,7 +989,7 @@
   // «Aprende más» de «Ejercicios» (F3a, T015): el mismo diálogo, con su tema.
   function openExLearn() { openTopicLearn('ex.learnTitle', 'ex'); }
   function openTopicLearn(titleKey, topic) {
-    if (!G.learn) { need('lr').then(() => openTopicLearn(titleKey, topic)); return; }
+    if (!G.learn) { need('lr').then(() => openTopicLearn(titleKey, topic), noop); return; }
     const LR = G.learn;
     const body = clear($('learnBody'));
     $('learnTitle').textContent = t(titleKey);
@@ -1106,7 +1124,7 @@
     window.addEventListener('hashchange', () => {
       if (location.hash === U.encode(state)) return;
       const groups = groupsOf(location.hash).filter((g) => g && !READY[g]());
-      if (groups.length) { needAll(groups).then(() => window.dispatchEvent(new Event('hashchange'))); return; }
+      if (groups.length) { needAll(groups).then(() => window.dispatchEvent(new Event('hashchange')), noop); return; }
       // Otro ejemplo u otra tabla: la selección era de la red anterior (revisión de cierre, F4).
       const before = state;
       load();

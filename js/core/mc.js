@@ -87,7 +87,10 @@
     mx /= n; my /= n;
     let sxy = 0; let sx = 0; let sy = 0;
     for (let i = 0; i < n; i++) { const dx = x[i] - mx; const dy = y[i] - my; sxy += dx * dy; sx += dx * dx; sy += dy * dy; }
-    if (!(sx > 0 && sy > 0)) return 0;
+    // Sin variación (con un umbral relativo, como la cuenta exacta): una duración fija como 0,1 acumula 1 ulp de error en
+    // la media y no debe dar una crucialidad de ±1e-14 (revisión de la F4b, N-F15).
+    const flat = (s, m) => !(s / n > 1e-15 * Math.max(1, m * m + s / n));
+    if (flat(sx, mx) || flat(sy, my)) return 0;
     const r = sxy / Math.sqrt(sx * sy);
     return Math.max(-1, Math.min(1, r));
   }
@@ -97,7 +100,9 @@
     const r = new Float64Array(n);
     for (let i = 0; i < n;) {
       let j = i;
-      while (j + 1 < n && x[idx[j + 1]] === x[idx[i]]) j++;
+      // Empate con la misma tolerancia que la criticidad: dos duraciones que difieren en el último bit tienen el mismo
+      // rango (revisión de la F4b, N-F3; igual en el gemelo en Python).
+      while (j + 1 < n && x[idx[j + 1]] - x[idx[i]] <= tolOf(x[idx[i]])) j++;
       const v = (i + j) / 2 + 1;
       for (let k = i; k <= j; k++) r[idx[k]] = v;
       i = j + 1;
@@ -122,12 +127,33 @@
   function topPaths(model, succ, w, limit) {
     const k = model.acts.length; const rest = new Array(k).fill(0);
     for (let i = k - 1; i >= 0; i--) rest[i] = w[i] + (succ[i].length ? Math.max(...succ[i].map((j) => rest[j])) : 0);
+    // Montículo binario (revisión de la F4b, N-F16): antes se reordenaba la lista entera en cada inserción y una red muy
+    // densa (30 actividades, cada una con todas las anteriores) tardaba 24 s. El orden total es el mismo (más media
+    // primero; con empate, el camino menor), así que salen los mismos caminos en el mismo orden (y en el gemelo en Python).
     const heap = [];
-    const push = (e) => { heap.push(e); heap.sort((x, y) => y.key - x.key || cmpArr(x.path, y.path)); };
+    const before = (x, y) => (y.key - x.key || cmpArr(x.path, y.path)) < 0;
+    const push = (e) => {
+      heap.push(e);
+      for (let i = heap.length - 1; i > 0;) { const p = (i - 1) >> 1; if (!before(heap[i], heap[p])) break; [heap[i], heap[p]] = [heap[p], heap[i]]; i = p; }
+    };
+    const pop = () => {
+      const top = heap[0]; const end = heap.pop();
+      if (heap.length) {
+        heap[0] = end;
+        for (let i = 0; ;) {
+          const l = 2 * i + 1; const r = l + 1; let b = i;
+          if (l < heap.length && before(heap[l], heap[b])) b = l;
+          if (r < heap.length && before(heap[r], heap[b])) b = r;
+          if (b === i) break;
+          [heap[i], heap[b]] = [heap[b], heap[i]]; i = b;
+        }
+      }
+      return top;
+    };
     model.acts.forEach((a, i) => { if (!a.preds.length) push({ key: rest[i], done: w[i], path: [i] }); });
     const out = [];
     while (heap.length && out.length < limit) {
-      const e = heap.shift(); const last = e.path[e.path.length - 1];
+      const e = pop(); const last = e.path[e.path.length - 1];
       if (!succ[last].length) { out.push({ path: e.path, mean: e.done }); continue; }
       for (const j of succ[last]) push({ key: e.done + rest[j], done: e.done + w[j], path: e.path.concat(j) });
     }
@@ -296,7 +322,7 @@
     for (const m of at) {
       for (; r < m; r++) {
         const t = Td[r]; s += t; s2 += t * t;
-        if (o.deadline != null && t <= o.deadline) le++;
+        if (o.deadline != null && t <= o.deadline + tolOf(o.deadline)) le++;   // como pLE (revisión de la F4b, N-F9)
         if (res.tf) for (let i = 0; i < k; i++) if (res.tf[i][r] <= tolOf(t)) cc[i]++;
       }
       const mean = s / m; const v = m > 1 ? Math.max(0, (s2 - m * mean * mean) / (m - 1)) : 0;

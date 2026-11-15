@@ -168,7 +168,9 @@
     let last = null;               // la última simulación terminada { m, res, r } (se ve en gris mientras haya errores)
     function cancel() { if (run.timer) root.clearTimeout(run.timer); run = { key: null, job: null, res: null, timer: null, ikey: null, ijob: null, idx: null }; }
     function ensure() {
-      if (!m.ok) { if (run.timer) root.clearTimeout(run.timer); run.timer = null; return; }
+      // Con errores no se simula; se cancela del todo, para que al corregirlos vuelva a empezar (revisión de la F4b, I-F10).
+      // La última simulación válida (last) se sigue viendo en gris.
+      if (!m.ok) { cancel(); return; }
       const key = m.sim.key; const ikey = `${key}|${m.corr}`;
       if (run.key === key && run.ikey === ikey) return;
       if (run.key === key && run.res) { startIdx(ikey); return; }
@@ -195,12 +197,22 @@
         if (run.key !== key || run.ikey !== ikey) return;
         if (!MC.stepIndices(run.ijob, { ms: 12 }).done) { run.timer = root.setTimeout(tick, 0); return; }
         run.idx = MC.resultIndices(run.ijob); run.ijob = null; run.timer = null;
+        // Los índices de la última simulación válida, aunque no se esté en «Índices» (revisión de la F4b, I-F26).
+        if (last && last.res === run.res && run.ikey === `${last.m.sim.key}|${last.m.corr}`) last.idx = run.idx;
         if (state().uy === 'idx') hooks.redraw();
       };
       run.timer = root.setTimeout(tick, 0);
     }
     const ready = () => m.ok && run.key === m.sim.key && run.res;
-    const current = () => (ready() ? { m, res: run.res, r: last && last.res === run.res ? last.r : results(m, run.res) } : null);
+    // El resumen depende también del plazo y del percentil, que no cambian la simulación: si cambian, se rehace (revisión
+    // de la F4b, I-F1: antes se enseñaba el del plazo anterior con la etiqueta nueva).
+    function current() {
+      if (!ready()) return null;
+      if (!(last && last.res === run.res && last.m.deadline === m.deadline && last.m.pct === m.pct)) {
+        last = { m, res: run.res, r: results(m, run.res), idx: last && last.res === run.res ? last.idx : null };
+      }
+      return { m, res: run.res, r: last.r };
+    }
 
     // ---------- Filas de la barra ----------
     function seg(items, label) {
@@ -313,11 +325,14 @@
         const p = [...box.querySelectorAll('input[data-q="p"]')].map((i) => i.value);
         return { x, p };
       };
+      // Al cambiar un valor se guarda después de que el foco se haya movido (Tab o clic a otra casilla), y el repintado
+      // conserva el foco donde está (revisión de la F4b, I-F13). Si otro botón ya ha guardado (y repintado), no se repite.
+      const later = (el) => root.setTimeout(() => { if (el.isConnected) save(read()); }, 0);
       const rowsQ = q.x.map((x, j) => h('tr', {}, [
         h('td', {}, [h('input', { id: `m7Q-${a.id}-x-${j}`, 'data-q': 'x', value: x, size: '6', inputmode: 'decimal', 'aria-label': tm('valueN', { id: a.id, n: j + 1 }),
-          'aria-invalid': String(!!a.err), onchange: () => { save(read()); focus(`m7Q-${a.id}-x-${j}`); } })]),
+          'aria-invalid': String(!!a.err), onchange: (e) => later(e.target) })]),
         h('td', {}, [h('input', { id: `m7Q-${a.id}-p-${j}`, 'data-q': 'p', value: q.p[j], size: '6', inputmode: 'decimal', 'aria-label': tm('probN', { id: a.id, n: j + 1 }),
-          'aria-invalid': String(!!a.err), onchange: () => { save(read()); focus(`m7Q-${a.id}-p-${j}`); } })]),
+          'aria-invalid': String(!!a.err), onchange: (e) => later(e.target) })]),
         h('td', {}, [h('button', { type: 'button', class: 'ghost small-btn', id: `m7QDel-${a.id}-${j}`, 'aria-label': tm('removeValue', { id: a.id, n: j + 1 }), disabled: q.x.length <= 1,
           onclick: () => { const r = read(); r.x.splice(j, 1); r.p.splice(j, 1); save(r); focus(`m7QAdd-${a.id}`); } }, ['×'])])]));
       const table = h('table', { class: 'data unc-table m7-q' }, [h('caption', { class: 'muted small' }, [a.edited ? tm('discEdited', { id: a.id }) : tm('discStart', { id: a.id })]),
@@ -331,7 +346,11 @@
     }
     function sumText(q) {
       const ps = q.p.map(parseProb);
-      return ps.some((r) => r.error) ? '—' : fx(ps.reduce((x, r) => x + r.value, 0), 2);
+      if (ps.some((r) => r.error)) return '—';
+      // Con los decimales que hagan falta para que no se lea «1» (0,333 × 3 = 0,999; revisión de la F4b, I-F14).
+      const sum = ps.reduce((x, r) => x + r.value, 0);
+      for (let k = 2; k <= 6; k++) if (fx(sum, k) !== fx(1, k)) return fx(sum, k);
+      return String(sum).replace('.', lang() === 'en' ? '.' : ',');
     }
 
     // ---------- Duración del proyecto ----------
@@ -438,7 +457,10 @@
         ['c', 'u'].map((k) => h('option', { value: k, selected: (s.uz || 'c') === k }, [tm(`order.${k}`)])));
       const parts = [h('div', { class: 'unc-head' }, [h('h2', { id: 'm7TorHead' }, [tm('torTitle')]), h('label', { class: 'unc-field' }, [tm('orderLabel'), ' ', order])]), holder];
       if (idx) {
-        const rowsT = tornadoOrder(m.acts.map((a, i) => ({ id: a.id, crit: idx.crit[i], cruc: Math.max(0, idx.cruc[i]) })), s.uz);
+        // La crucialidad con su signo, como en la tabla (la barra no crece hacia la izquierda: mc-charts la deja en 0), y el
+        // mismo orden que la tabla (revisión de la F4b, I-F25).
+        const z = (v) => (Math.abs(v) < 5e-4 ? 0 : v);
+        const rowsT = tornadoOrder(m.acts.map((a, i) => ({ id: a.id, crit: z(idx.crit[i]), cruc: z(idx.cruc[i]) })), s.uz);
         MCC.tornado(holder, { w: narrow() ? 330 : 580, rows: rowsT, left: tm('crit'), right: tm(m.corr === 'spearman' ? 'crucS' : 'crucP'), fmt: (v) => fx(v, 2),
           label: tm('torLabel', { order: tm(`order.${s.uz === 'u' ? 'u' : 'c'}`), list: rowsT.map((r) => tm('torItem', { id: r.id, c: fx(r.crit, 2), u: fx(r.cruc, 2) })).join('; ') }) });
       }

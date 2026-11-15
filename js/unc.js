@@ -527,7 +527,10 @@
       }
       return out;
     }
-    return { render, debug };
+    // Al salir de la pestaña, las simulaciones de M6 y M7 se paran: no siguen en segundo plano ni anuncian su resultado en
+    // otra vista (revisión de la F4b, I-F27). Al volver, empiezan otra vez con la misma semilla.
+    function leave() { cancelSim(); if (m7c) m7c.leave(); }
+    return { render, debug, leave };
   }
 
   const api = { M6_READY, M7_READY, SECTION_EXAMPLES, LABELS, FIELDS, labels, source, parseNum, validate, model, pasteRows, withValue, curvePts, niceTicks,

@@ -243,8 +243,11 @@
     for (let i = 0; i < n; i++) v += (x[i] - m) ** 2;
     const sd = n > 1 ? Math.sqrt(v / (n - 1)) : 0;
     function pLE(t) {                  // proporción de réplicas ≤ t (búsqueda binaria)
+      // Con la tolerancia de la cuenta exacta (mc.exact): una duración que difiere del plazo en el último bit cuenta como
+      // igual (revisión de la F4b, N-F9; igual en el gemelo en Python).
+      const tt = t + 1e-9 * Math.max(1, Math.abs(t));
       let lo = 0; let hi = n;
-      while (lo < hi) { const mid = (lo + hi) >> 1; if (x[mid] <= t) lo = mid + 1; else hi = mid; }
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (x[mid] <= tt) lo = mid + 1; else hi = mid; }
       return lo / n;
     }
     function hist(bins) {

@@ -282,3 +282,27 @@ test('F4b T004: la cópula también vale con uniforme, lognormal y discreta (mar
   });
   assert.ok(pearson(Array.from(res.acts[0]), Array.from(res.acts[1])) > 0.3, 'correladas');
 });
+
+// ---------- Revisión de la F4b (T017, ronda 1) ----------
+
+test('Revisión F4b N-F8: una actividad de duración fija no consume números aleatorios, sea cual sea su distribución', () => {
+  // Lo que mantiene a la web y al gemelo en Python en la misma secuencia: las actividades aleatorias de alrededor dan lo
+  // mismo con cualquier fija en medio.
+  const fixed = [{ kind: 'fixed', d: 4 }, { kind: 'disc', x: [4], p: [1] }, { kind: 'logn', mu: 4, sd: 0 }, { kind: 'normal', mu: 4, var: 0 },
+    { kind: 'pert', a: 4, m: 4, b: 4 }, { kind: 'classic', a: 4, m: 4, b: 4 }, { kind: 'tri', a: 4, m: 4, b: 4 }, { kind: 'unif', a: 4, b: 4 }];
+  const runWith = (mid) => S.run({ kind: 'project', n: 300, us: 77, keepActs: true, model: { acts: [
+    { id: 'A', preds: [], dist: { kind: 'pert', a: 1, m: 2, b: 9 } }, { id: 'B', preds: [0], dist: mid },
+    { id: 'C', preds: [1], dist: { kind: 'logn', mu: 3, sd: 1 } }, { id: 'D', preds: [2], dist: { kind: 'normal', mu: 3, var: 2 } }] } });
+  const base = runWith(fixed[0]);
+  for (const f of fixed.slice(1)) {
+    const r = runWith(f);
+    assert.deepEqual(Array.from(r.durations), Array.from(base.durations), f.kind);
+    assert.ok(r.acts[1].every((v) => v === 4), `${f.kind}: siempre 4`);
+  }
+});
+
+test('Revisión F4b N-F9: P(duración ≤ plazo) cuenta como iguales las duraciones que difieren del plazo en el último bit', () => {
+  const s = S.summary([0.1 + 0.2, 0.3, 0.5, 0.30000000000000004]);
+  assert.equal(s.pLE(0.3), 0.75);
+  assert.equal(s.pLE(0.29), 0);
+});

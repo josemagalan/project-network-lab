@@ -73,8 +73,46 @@ for (const file of fs.readdirSync(CASES).filter((f) => f.endsWith('.json')).sort
     py.paths.forEach((p, i) => { near(p.crit, js.ix.paths.list[i].crit, `criticidad del camino ${i}`); near(p.mean, js.ix.paths.list[i].mean, `media del camino ${i}`); });
     assert.equal(py.count, js.ix.paths.count);
     assert.equal(py.more, js.ix.paths.more);
+    // AC6 pide también el histograma: el de las duraciones del .py es el de la web (revisión de la F4b, N-F21).
+    assert.deepEqual(S.summary(py.durations).hist(40).counts, js.sum.hist(40).counts);
   });
 }
+
+test('AC7 (revisión de la F4b, N-F14): el informe en texto, fila a fila, con la P del plazo y «y N caminos más»', { skip }, () => {
+  for (const file of ['klastorin-discrete.json', 'grid-729-paths.json']) {
+    const data = JSON.parse(fs.readFileSync(path.join(CASES, file), 'utf8'));
+    const r = spawnSync(PYTHON, [PY, path.join(CASES, file)], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const js = jsAnalyse(data);
+    const f4 = (v) => v.toFixed(4);
+    data.activities.forEach((a, i) => assert.match(r.stdout, new RegExp(`^${a.id}\\s+${f4(js.ix.crit[i])}\\s+${f4(js.ix.cruc[i])}\\s+${f4(js.ix.sig[i])}$`, 'm'), `${file}: fila de ${a.id}`));
+    if (js.pT != null) assert.ok(r.stdout.includes(`P(duration <= ${data.deadline}) / P(duración <= ${data.deadline}): ${f4(js.pT)}`), `${file}: P del plazo`);
+    js.ix.paths.list.forEach((p) => assert.ok(r.stdout.includes(`  ${p.ids.join('-')}: ${f4(p.crit)}`), `${file}: camino ${p.ids.join('-')}`));
+    if (js.ix.paths.more) assert.ok(r.stdout.includes(`… and ${js.ix.paths.more} more paths / y ${js.ix.paths.more} caminos más`), `${file}: y N caminos más`);
+  }
+});
+
+test('AC7 (revisión de la F4b, N-F10 y N-F13): el .py rechaza valores no finitos e identificadores raros, y su informe se escribe en cp1252', { skip }, () => {
+  const os = require('node:os');
+  const bad = [{ kind: 'unif', a: 0, b: 'Infinity' }, { kind: 'logn', mu: 'NaN', sd: 1 }];
+  for (const [i, dist] of bad.entries()) {
+    const tmp = path.join(os.tmpdir(), `pnl-inf-${process.pid}-${i}.json`);
+    fs.writeFileSync(tmp, JSON.stringify({ format: 'pnl-montecarlo', version: 1, reps: 10, seed: 1, activities: [{ id: 'A', preds: [], dist }] }).replace(/"(Infinity|NaN)"/, '$1'));
+    const r = spawnSync(PYTHON, [PY, tmp], { encoding: 'utf8', timeout: 10000 });
+    fs.unlinkSync(tmp);
+    assert.notEqual(r.status, 0, `${dist.kind}: tiene que fallar`);
+    assert.equal(r.error, undefined, `${dist.kind}: no se cuelga`);
+    assert.match(r.stderr, /not a finite number/);
+  }
+  const tmp = path.join(os.tmpdir(), `pnl-id-${process.pid}.json`);
+  fs.writeFileSync(tmp, JSON.stringify({ format: 'pnl-montecarlo', version: 1, reps: 10, seed: 1, activities: [{ id: 'A\u001b[2J', preds: [], dist: { kind: 'fixed', d: 1 } }] }));
+  const r = spawnSync(PYTHON, [PY, tmp], { encoding: 'utf8' });
+  fs.unlinkSync(tmp);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /id not valid/);
+  const cp = spawnSync(PYTHON, [PY, path.join(CASES, 'klastorin-discrete.json')], { encoding: 'utf8', env: Object.assign({}, process.env, { PYTHONIOENCODING: 'cp1252', PYTHONUTF8: '0' }) });
+  assert.equal(cp.status, 0, cp.stderr);
+});
 
 test('AC7: el informe en texto del .py lleva la media, los percentiles y la tabla de índices', { skip }, () => {
   const r = spawnSync(PYTHON, [PY, path.join(CASES, 'klastorin-discrete.json')], { encoding: 'utf8' });

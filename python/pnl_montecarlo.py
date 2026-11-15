@@ -30,14 +30,24 @@ Only the Python 3 standard library (3.8 or later). / Solo la biblioteca estánda
 Code: MIT licence, Project Network Lab (https://github.com/josemagalan/project-network-lab).
 """
 import argparse
+import heapq
 import json
 import math
+import re
 import sys
 
 FORMAT = 'pnl-montecarlo'
 VERSION = 1
 PATH_LIMIT = 50
 M32 = 0xFFFFFFFF
+ID_RE = re.compile(r'[A-Z0-9]{1,4}')   # the ids the web accepts / los identificadores que acepta la web
+
+
+def _num(v, what):
+    """A finite number, or ValueError (as isNum in core/sim.js). / Un número finito, o ValueError."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        raise ValueError('%s: not a finite number / no es un número finito' % what)
+    return float(v)
 
 
 # ---------- random numbers / números aleatorios ----------
@@ -182,25 +192,27 @@ class Dist:
         self.kind = k = spec['kind']
         self.fixed = False
         if k == 'fixed':
-            self.fixed, self.d = True, float(spec['d'])
+            self.fixed, self.d = True, _num(spec['d'], 'd')
         elif k in ('pert', 'classic', 'tri'):
-            self.a, self.m, self.b = float(spec['a']), float(spec['m']), float(spec['b'])
+            self.a, self.m, self.b = _num(spec['a'], 'a'), _num(spec['m'], 'm'), _num(spec['b'], 'b')
             if not (0 <= self.a <= self.m <= self.b):
                 raise ValueError('a, m, b not valid')
             self.fixed, self.d = not self.b > self.a, self.a
             if not self.fixed and k != 'tri':
                 self.alpha, self.beta = beta_params(k, self.a, self.m, self.b)
         elif k == 'unif':
-            self.a, self.b = float(spec['a']), float(spec['b'])
+            self.a, self.b = _num(spec['a'], 'a'), _num(spec['b'], 'b')
             if not (0 <= self.a <= self.b):
                 raise ValueError('uniform not valid')
             self.fixed, self.d = not self.b > self.a, self.a
         elif k == 'normal':
-            self.mu, self.sd = float(spec['mu']), math.sqrt(float(spec['var']))
-            if spec['var'] < 0:
+            var = _num(spec['var'], 'var')
+            if var < 0:
                 raise ValueError('normal not valid')
+            self.mu, self.sd = _num(spec['mu'], 'mu'), math.sqrt(var)
         elif k == 'logn':
-            mu, sd = float(spec['mu']), float(spec['sd'])
+            mu, sd = _num(spec['mu'], 'mu'), _num(spec['sd'], 'sd')
+            self.mu = mu                         # the mean, as core/mc.js moments / la media, como moments de core/mc.js
             if mu < 0 or sd < 0:
                 raise ValueError('lognormal not valid')
             if not (mu > 0 and sd > 0):
@@ -209,8 +221,9 @@ class Dist:
                 s2 = math.log(1 + (sd / mu) ** 2)
                 self.lm, self.ls = math.log(mu) - s2 / 2, math.sqrt(s2)
         elif k == 'disc':
-            self.x = [float(v) for v in spec['x']]
-            p = [float(v) for v in spec['p']]
+            self.x = [_num(v, 'x') for v in spec['x']]
+            p = [_num(v, 'p') for v in spec['p']]
+            self.p = p
             if not self.x or len(self.x) != len(p) or min(self.x) < 0 or min(p) <= 0 or len(set(self.x)) != len(self.x):
                 raise ValueError('discrete not valid')
             self.c, acc = [], 0.0
@@ -260,7 +273,7 @@ class Dist:
             lam = math.exp(-al * al / 2) / math.sqrt(2 * math.pi) / (1 - phi(al))
             return self.mu + self.sd * lam
         if k == 'logn':
-            return self.d if self.fixed else math.exp(self.lm + self.ls ** 2 / 2)
+            return self.mu
         if self.fixed:
             return self.d
         if k == 'tri':
@@ -268,7 +281,10 @@ class Dist:
         if k == 'unif':
             return (self.a + self.b) / 2
         if k == 'disc':
-            return sum(v * (c - (self.c[j - 1] if j else 0)) for j, (v, c) in enumerate(zip(self.x, self.c)))
+            mu = 0.0                             # same order and bits as core/mc.js / mismo orden y bits que core/mc.js
+            for v, q in zip(self.x, self.p):
+                mu += v * q
+            return mu
         return self.a + (self.b - self.a) * self.alpha / (self.alpha + self.beta)
 
 
@@ -283,6 +299,9 @@ class Project:
         acts = data['activities']
         index = {a['id']: i for i, a in enumerate(acts)}
         self.ids = [a['id'] for a in acts]
+        for a in self.ids:
+            if not isinstance(a, str) or not ID_RE.fullmatch(a):
+                raise ValueError('activity id not valid / identificador no válido: %r' % (a,))
         self.names = [a.get('name', '') for a in acts]
         self.preds = []
         for i, a in enumerate(acts):
@@ -356,7 +375,8 @@ def pearson(x, y):
         sxy += dx * dy
         sx += dx * dx
         sy += dy * dy
-    if not (sx > 0 and sy > 0):
+    # No variation, with a relative threshold as in core/mc.js / sin variación, con umbral relativo como core/mc.js
+    if not (sx / n > 1e-15 * max(1.0, mx * mx + sx / n)) or not (sy / n > 1e-15 * max(1.0, my * my + sy / n)):
         return 0.0
     return max(-1.0, min(1.0, sxy / math.sqrt(sx * sy)))
 
@@ -369,7 +389,7 @@ def ranks(x):
     i = 0
     while i < n:
         j = i
-        while j + 1 < n and x[idx[j + 1]] == x[idx[i]]:
+        while j + 1 < n and x[idx[j + 1]] - x[idx[i]] <= tol(x[idx[i]]):   # ties with tolerance / empates con tolerancia
             j += 1
         v = (i + j) / 2 + 1
         for q in range(i, j + 1):
@@ -385,23 +405,21 @@ def top_paths(project, limit=PATH_LIMIT):
     rest = [0.0] * k
     for i in range(k - 1, -1, -1):
         rest[i] = w[i] + (max(rest[j] for j in project.succ[i]) if project.succ[i] else 0.0)
+    # A binary heap with the same total order as core/mc.js: longest mean first, then the smaller path.
+    # Un montículo binario con el mismo orden total que core/mc.js: más media primero y, con empate, el camino menor.
     heap = []
-
-    def push(e):
-        heap.append(e)
-        heap.sort(key=lambda h: (-h[0], h[2]))
     for i in range(k):
         if not project.preds[i]:
-            push((rest[i], w[i], [i]))
+            heapq.heappush(heap, (-rest[i], [i], w[i]))
     out = []
     while heap and len(out) < limit:
-        key, done, path = heap.pop(0)
+        _, path, done = heapq.heappop(heap)
         last = path[-1]
         if not project.succ[last]:
             out.append((path, done))
             continue
         for j in project.succ[last]:
-            push((done + rest[j], done + w[j], path + [j]))
+            heapq.heappush(heap, (-(done + rest[j]), path + [j], done + w[j]))
     return out
 
 
@@ -465,7 +483,8 @@ def analyse(data, reps=None, seed=None):
         out['percentiles'][str(round(data['percentile'] * 100))] = percentile(st, data['percentile'])
     if data.get('deadline') is not None:
         out['deadline'] = data['deadline']
-        out['p_deadline'] = sum(1 for x in T if x <= data['deadline']) / reps
+        dl = data['deadline']                    # with the exact count's tolerance / con la tolerancia de la cuenta exacta
+        out['p_deadline'] = sum(1 for x in T if x <= dl + tol(dl)) / reps
     out.update(indices(project, T, D, TF, data.get('corr', 'pearson')))
     out['ids'] = project.ids
     out['durations'] = T
@@ -482,7 +501,7 @@ def report(res, unit):
         'Percentiles: ' + ' · '.join('P%s = %.4f' % (k, v) for k, v in res['percentiles'].items()),
     ]
     if 'p_deadline' in res:
-        lines.append('P(duration ≤ %s) / P(duración ≤ %s): %.4f' % (res['deadline'], res['deadline'], res['p_deadline']))
+        lines.append('P(duration <= %s) / P(duración <= %s): %.4f' % (res['deadline'], res['deadline'], res['p_deadline']))
     lines.append('')
     lines.append('%-10s %12s %12s %12s' % ('Activity', 'Criticality', 'Cruciality', 'Significance'))
     lines.append('%-10s %12s %12s %12s' % ('Actividad', 'Criticidad', 'Crucialidad', 'Significación'))
@@ -505,9 +524,12 @@ def main(argv=None):
     ap.add_argument('--seed', type=int, help='seed (default: the file\'s) / semilla (por defecto, la del archivo)')
     ap.add_argument('--json', action='store_true', help='print every result as JSON / escribir todos los resultados en JSON')
     args = ap.parse_args(argv)
-    with open(args.project, encoding='utf-8') as f:
-        data = json.load(f)
-    res = analyse(data, args.reps, args.seed)
+    try:
+        with open(args.project, encoding='utf-8') as f:
+            data = json.load(f)
+        res = analyse(data, args.reps, args.seed)
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        sys.exit('pnl_montecarlo: %s' % e)
     if args.json:
         json.dump(res, sys.stdout)
         sys.stdout.write('\n')

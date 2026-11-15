@@ -203,3 +203,74 @@ test('convergence: las cuatro series (media, P del plazo, percentil y criticidad
   assert.equal(ck.series.crit.ref, null);
   assert.equal(ck.act, 'B', 'A es crítica siempre: la primera que no lo es');
 });
+
+// ---------- Revisión de la F4b (T017, ronda 1): la convergencia y los gráficos de M7 ----------
+
+test('Revisión F4b I-F6: «Convergencia»: las bandas de la media, de P(≤ plazo) y de la criticidad son v ± 1,96·EE en cada punto', () => {
+  const m = M7.model(st({ ue: 'kd', ua: 'C' }), 'es');
+  const res = S.run({ kind: 'project', model: m.sim.model, n: m.sim.n, us: m.sim.us, track: true });
+  const cv = M7.convergence(st({ ue: 'kd', ua: 'C' }), m, res);
+  assert.equal(cv.act, 'C');
+  cv.rows.forEach((r, j) => {
+    const b = (s, v, se) => { const x = cv.series[s].rows[j]; assert.equal(x.n, r.n); close(x.v, v, 1e-12, s); close(x.lo, v - 1.96 * se, 1e-12, `${s} lo`); close(x.hi, v + 1.96 * se, 1e-12, `${s} hi`); };
+    b('mean', r.mean, r.se);
+    b('pT', r.pT, Math.sqrt(r.pT * (1 - r.pT) / r.n));
+    b('crit', r.crit[2], Math.sqrt(r.crit[2] * (1 - r.crit[2]) / r.n));
+    assert.equal(cv.series.q.rows[j].v, r.q);
+  });
+  // Las referencias: la cuenta exacta (el ejemplo es discreto).
+  close(cv.series.mean.ref, m.exact.mean, 1e-12); close(cv.series.pT.ref, m.exact.pLE(m.deadline), 1e-12); close(cv.series.crit.ref, m.exact.crit[2], 1e-12);
+});
+
+// Un DOM mínimo para dibujar en Node los gráficos SVG de views/mc-charts (solo lo que usan: crear, atributos, hijos, texto).
+function fakeDom() {
+  const node = (tag) => ({ tag, attrs: {}, children: [], style: {}, textContent: '',
+    setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k]; },
+    appendChild(c) { this.children.push(c); return c; }, removeChild(c) { this.children.splice(this.children.indexOf(c), 1); },
+    get firstChild() { return this.children[0] || null; } });
+  globalThis.document = { createElementNS: (ns, tag) => node(tag) };
+  return node('div');
+}
+const all = (n) => [n].concat(...n.children.map(all));
+const MCC = require('../js/views/mc-charts.js');
+
+test('Revisión F4b I-F20: la función de distribución: escalones, plazo y percentiles en su sitio, y la normal hasta 1', () => {
+  const holder = fakeDom();
+  const sorted = Float64Array.from([2, 4, 4, 6, 8, 10, 10, 10, 12, 14]);
+  const o = { w: 400, h: 200, x: [0, 16], ticks: [0, 8, 16], fmt: String, yfmt: String, sorted, normal: { mu: 8, sd: 3 }, deadline: 10,
+    marks: [{ p: 0.5, x: 8, label: 'P50' }, { p: 0.9, x: 12, label: 'P90', chosen: true }], label: 'cdf' };
+  MCC.cdf(holder, o);
+  const els = all(holder);
+  const X = (v) => MCC.PAD.l + (v / 16) * (400 - MCC.PAD.l - MCC.PAD.r);
+  const Y = (p) => 200 - MCC.PAD.b - p * (200 - MCC.PAD.t - MCC.PAD.b);
+  const line = els.find((e) => (e.attrs.class || '').includes('v-deadline'));
+  assert.equal(Number(line.attrs.x1), X(10));
+  const circles = els.filter((e) => e.tag === 'circle');
+  assert.deepEqual(circles.map((c) => [Number(c.attrs.cx), Number(c.attrs.cy)]), [[X(8), Y(0.5)], [X(12), Y(0.9)]].map(([a, b]) => [Number(a.toFixed(1)), Number(b.toFixed(1))]));
+  const pathOf = (cls) => els.find((e) => e.attrs.class === cls).attrs.d.split(' ').map((s) => s.slice(1).split(',').map(Number));
+  const cdf = pathOf('mc-cdf');
+  assert.deepEqual(cdf[0], [X(2), Number(Y(0.1).toFixed(1))]);
+  assert.deepEqual(cdf[cdf.length - 1], [X(14), Y(1)]);
+  for (let i = 1; i < cdf.length; i++) assert.ok(cdf[i][1] <= cdf[i - 1][1], 'la escalera no baja');
+  assert.deepEqual(MCC.steps(sorted).map((q) => q[1]).slice(0, 3), [0.1, 0.2, 0.3]);
+  const nrm = pathOf('mc-normal');
+  close(nrm[80][1], Number(Y(0.5).toFixed(1)), 0.06, 'la normal pasa por 0,5 en su media');
+  assert.ok(nrm[nrm.length - 1][1] < Y(0.99), 'y llega casi a 1');
+});
+
+test('Revisión F4b I-F21: el tornado en espejo: criticidad a la izquierda y crucialidad a la derecha, con su anchura y su valor', () => {
+  const holder = fakeDom();
+  const rows = [{ id: 'C', crit: 0.66, cruc: 0.58 }, { id: 'D', crit: 0.39, cruc: -0.05 }];
+  MCC.tornado(holder, { w: 580, rows, left: 'Criticidad', right: 'Crucialidad', fmt: (v) => v.toFixed(2), label: 't' });
+  const els = all(holder);
+  const room = (580 - 40) / 2 - 44; const cx = (580 - 40) / 2;
+  const heads = els.filter((e) => e.attrs.class === 'mc-head').map((e) => e.textContent);
+  assert.deepEqual(heads, ['◀ Criticidad', 'Crucialidad ▶']);
+  const crit = els.filter((e) => e.attrs.class === 'mc-bar crit'); const cruc = els.filter((e) => e.attrs.class === 'mc-bar cruc');
+  assert.deepEqual(crit.map((r) => Number(r.attrs.width)), [Number((0.66 * room).toFixed(1)), Number((0.39 * room).toFixed(1))]);
+  assert.deepEqual(crit.map((r) => Number(r.attrs.x) + Number(r.attrs.width)).map((v) => Math.round(v)), [cx, cx], 'la criticidad crece hacia la izquierda');
+  assert.deepEqual(cruc.map((r) => Number(r.attrs.width)), [Number((0.58 * room).toFixed(1)), 0], 'la crucialidad negativa no tiene barra');
+  assert.ok(cruc.every((r) => Number(r.attrs.x) === cx + 40), 'la crucialidad crece hacia la derecha');
+  assert.deepEqual(els.filter((e) => e.attrs.class === 'mc-val').map((e) => e.textContent), ['0.66', '0.58', '0.39', '-0.05']);
+  delete globalThis.document;
+});

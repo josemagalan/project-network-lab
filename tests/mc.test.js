@@ -220,7 +220,13 @@ test('AC13: con más de 50 caminos, índices de actividad bien, caminos cortados
 test('AC8: percentil = el menor valor con F ≥ p; plazo para una probabilidad coherente con P(≤ t)', () => {
   const x = Float64Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   assert.equal(MC.percentile(x, 0.5), 5);
-  assert.equal(MC.percentile(x, 0.7), 7);   // 0,7 · 10 = 7,000000000000001 en coma flotante
+  assert.equal(MC.percentile(x, 0.7), 7);
+  // El épsilon de ceil(p·n − 1e-9) (revisión de la F4b, N-F5): 0,07 · 100 = 7,000000000000001 y 0,55 · 100 = 55,00000000000001
+  // en coma flotante; sin él saldrían 8 y 56.
+  const c = Float64Array.from({ length: 100 }, (_, i) => i + 1);
+  assert.equal(MC.percentile(c, 0.07), 7);
+  assert.equal(MC.percentile(c, 0.55), 55);
+  assert.equal(MC.percentile(c, 0.56), 56);
   assert.equal(MC.percentile(x, 0.8), 8);
   assert.equal(MC.percentile(x, 0.91), 10);
   assert.equal(MC.percentile(x, 0.01), 1);
@@ -233,7 +239,8 @@ test('AC8: percentil = el menor valor con F ≥ p; plazo para una probabilidad c
   for (const p of [0.5, 0.8, 0.9, 0.95]) {
     const t = MC.deadlineFor(sorted, p);
     assert.ok(s.pLE(t) >= p, `P(≤ ${t}) ≥ ${p}`);
-    assert.ok(s.pLE(t - 1e-9) < p, `justo antes, < ${p}`);
+    // Justo antes: la proporción de réplicas estrictamente menores que t (pLE lleva la tolerancia de la cuenta exacta).
+    assert.ok(sorted.findIndex((v) => v >= t) / sorted.length < p, `justo antes, < ${p}`);
   }
 });
 
@@ -331,4 +338,103 @@ test('Índices a trozos: startIndices/stepIndices/resultIndices dan lo mismo que
     MC.stepIndices(job, { ms: 1e6 });
     assert.deepEqual(MC.resultIndices(job), all);
   }
+});
+
+// ---------- Revisión de la F4b (T017, ronda 1): lo que encontraron los refutadores del núcleo ----------
+
+const fixedModel = (dists) => ({ acts: dists.map((dist, i) => ({ id: String.fromCharCode(65 + i), preds: i ? [i - 1] : [], dist })) });
+
+test('Revisión F4b N-F1: el tope de la cuenta exacta es 100 000 combinaciones por defecto, con 100 000 justas incluidas', () => {
+  const ten = Array.from({ length: 10 }, (_, j) => j + 1);
+  const at = { acts: Array.from({ length: 5 }, (_, i) => ({ id: `A${i}`, preds: [], dist: { kind: 'disc', x: ten, p: ten.map(() => 0.1) } })) };
+  const e = MC.exact(at);
+  assert.equal(MC.EXACT_LIMIT, 100000);
+  assert.equal(e.combos, 100000);
+  assert.ok(!e.tooMany && e.dist, '10⁵ combinaciones se cuentan');
+  const over = { acts: Array.from({ length: 17 }, (_, i) => ({ id: `B${i}`, preds: [], dist: { kind: 'disc', x: [1, 2], p: [0.5, 0.5] } })) };
+  assert.deepEqual(MC.exact(over), { tooMany: true, combos: 131072 });
+});
+
+test('Revisión F4b N-F2: una discreta con el valor 0 es válida (Williams (a)–(c): B = 0 con 0,99)', () => {
+  assert.deepEqual(MC.checkDisc({ x: [0, 100], p: [0.99, 0.01] }), []);
+  assert.deepEqual(MC.checkDisc({ x: [0], p: [1] }), []);
+});
+
+test('Revisión F4b N-F3: rangos con la tolerancia de la criticidad; Spearman no depende del ruido de redondeo', () => {
+  assert.deepEqual(Array.from(MC.ranks([0.1 + 0.2, 0.3, 1, 0.3])), [2, 2, 4, 2]);
+  // La duración del proyecto con ruido de 1 ulp da la misma crucialidad de Spearman que sin él.
+  const d = [1, 2, 3, 4, 5, 6]; const T = [0.3, 0.1 + 0.2, 0.7, 0.7000000000000001, 1.1, 1.1];
+  assert.equal(MC.spearman(d, T), MC.spearman(d, [0.3, 0.3, 0.7, 0.7, 1.1, 1.1]));
+});
+
+test('Revisión F4b N-F4: significación con holgura total 0 y duración 0: el cociente vale 1, en la simulación y en la exacta', () => {
+  const model = fixedModel([{ kind: 'fixed', d: 0 }, { kind: 'fixed', d: 5 }]);
+  assert.deepEqual(MC.indices(sim(model, 50, 1), model).sig, [1, 1]);
+  assert.deepEqual(MC.exact(model).sig, [1, 1]);
+});
+
+test('Revisión F4b N-F6 y N-F9: convergencia en puntos intermedios y P(≤ plazo) con tiempos decimales igual que la exacta', () => {
+  const model = modelOf('kd'); const res = sim(model, 3000, 5);
+  const at = [30, 300, 3000];
+  const cv = MC.convergence(res, model, { at, deadline: 20, p: 0.8 });
+  const T = res.durations;
+  cv.forEach((row, j) => {
+    const m = at[j]; const head = Array.from(T.slice(0, m));
+    assert.equal(row.n, m);
+    close(row.mean, head.reduce((x, y) => x + y, 0) / m, 1e-9, `media con ${m}`);
+    assert.equal(row.pT, head.filter((v) => v <= 20).length / m, `P(≤ 20) con ${m}`);
+    assert.equal(row.q, MC.percentile(Float64Array.from(head).sort(), 0.8), `P80 con ${m}`);
+    row.crit.forEach((c, i) => assert.equal(c, head.filter((_, r) => res.tf[i][r] <= 1e-9 * Math.max(1, T[r])).length / m, `criticidad de ${i} con ${m}`));
+    close(row.seP, Math.sqrt(row.pT * (1 - row.pT) / m), 1e-15);
+  });
+  // Tiempos decimales que suman justo el plazo: la simulada y la exacta cuentan igual (N-F9).
+  const dec = fixedModel([{ kind: 'disc', x: [0.1, 0.2], p: [0.5, 0.5] }, { kind: 'fixed', d: 0.2 }]);
+  const r2 = sim(dec, 4000, 2026); const ex = MC.exact(dec);
+  close(S.summary(r2.durations).pLE(0.3), ex.pLE(0.3), 0.03, 'P(≤ 0,3)');
+  assert.ok(S.summary(r2.durations).pLE(0.3) > 0.4);
+  assert.equal(MC.convergence(r2, dec, { at: [4000], deadline: 0.3 })[0].pT, S.summary(r2.durations).pLE(0.3));
+});
+
+test('Revisión F4b N-F7: réplica a réplica con duraciones continuas: las críticas son las de holgura total 0 con tolerancia', () => {
+  const model = modelOf('kl'); const res = sim(model, 400, 8);
+  for (let k = 0; k < 400; k++) {
+    const r = MC.replicaTrace(res, model, k);
+    const want = model.acts.map((_, i) => i).filter((i) => res.tf[i][k] <= 1e-9 * Math.max(1, res.durations[k]));
+    assert.deepEqual(r.crit, want, `réplica ${k}`);
+    assert.ok(r.crit.length >= 2, `réplica ${k}: un camino crítico entero`);
+  }
+  // Las réplicas 1 y 9 de la semilla 8: sin tolerancia faltaría A, que también es crítica.
+  assert.deepEqual(MC.replicaTrace(res, model, 1).crit.map((i) => model.acts[i].id), ['A', 'C', 'E', 'F']);
+  assert.deepEqual(MC.replicaTrace(res, model, 9).crit.map((i) => model.acts[i].id), ['A', 'B', 'E', 'F']);
+});
+
+test('Revisión F4b N-F15: una actividad fija como 0,1 tiene crucialidad 0, no ±1e-14 (Pearson y Spearman)', () => {
+  const model = fixedModel([{ kind: 'fixed', d: 0.1 }, { kind: 'pert', a: 1, m: 2, b: 6 }]);
+  const res = sim(model, 999, 3);
+  for (const corr of ['pearson', 'spearman']) assert.equal(MC.indices(res, model, { corr }).cruc[0], 0, corr);
+  assert.equal(MC.pearson(Array(10).fill(0.1), [1, 3, 2, 5, 4, 7, 6, 9, 8, 10]), 0);
+});
+
+test('Revisión F4b N-F16: una red de 30 actividades, cada una con todas las anteriores, prepara los índices sin bloquear', { skip: !TIMED }, () => {
+  const model = { acts: Array.from({ length: 30 }, (_, i) => ({ id: `A${i}`, preds: Array.from({ length: i }, (_, j) => j), dist: { kind: 'pert', a: 1, m: 2, b: 4 } })) };
+  const res = sim(model, 2000, 1);
+  const t0 = Date.now();
+  const ix = MC.indices(res, model);
+  assert.ok(Date.now() - t0 < 1000, `${Date.now() - t0} ms`);
+  assert.deepEqual([ix.paths.count, ix.paths.list.length, ix.paths.more], [2 ** 28, 50, 2 ** 28 - 50]);
+});
+
+test('Revisión F4b N-F17: cuenta exacta con soportes de un solo valor, todo fijo y muchos caminos', () => {
+  const fix = fixedModel([{ kind: 'fixed', d: 3 }, { kind: 'normal', mu: 2, var: 0 }, { kind: 'logn', mu: 4, sd: 0 }, { kind: 'unif', a: 1, b: 1 }, { kind: 'pert', a: 2, m: 2, b: 2 }]);
+  const e = MC.exact(fix);
+  assert.deepEqual([e.combos, e.mean, e.var], [1, 12, 0]);
+  assert.deepEqual(e.crit, [1, 1, 1, 1, 1]);
+  assert.deepEqual(e.cruc, [0, 0, 0, 0, 0]);
+  assert.deepEqual(e.sig, [1, 1, 1, 1, 1]);
+  assert.equal(MC.exact(fixedModel([{ kind: 'pert', a: 1, m: 2, b: 3 }])).notDiscrete, true);
+  // Siete etapas de dos discretas en paralelo: 128 caminos; se listan 50.
+  const acts = [];
+  for (let i = 0; i < 7; i++) for (let s = 0; s < 2; s++) acts.push({ id: `S${i}${s}`, preds: i ? [2 * (i - 1), 2 * (i - 1) + 1] : [], dist: { kind: 'disc', x: [1, 2 + s], p: [0.5, 0.5] } });
+  const g = MC.exact({ acts });
+  assert.deepEqual([g.combos, g.paths.count, g.paths.list.length, g.paths.more], [16384, 128, 50, 78]);
 });
