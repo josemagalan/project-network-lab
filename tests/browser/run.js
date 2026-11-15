@@ -6655,6 +6655,26 @@ check('F4b T017 r2 · F4: el cambio de una discreta se guarda en el momento, tam
   assert.equal(await activeId(p), 'm7Q-A-p-2', 'el foco, en la casilla del clic');
   await close(p);
 });
+check('F4b T017 r2 · F4: el repintado del editor llega con el foco a la casilla siguiente (aunque el temporizador tarde) y no se pierde lo que se teclea en ella', async () => {
+  const p = await m7Lab('ue=kl&uf=A-d&ur=2&lang=es');
+  await m7Done(p);
+  await p.locator('#m7PerAct').click();
+  await p.locator('#m7Edit-A').click();
+  // Los temporizadores de 0 ms, a 500 ms: el repintado tiene que llegar con el focusin, no con el temporizador.
+  await p.evaluate(() => { const st = window.setTimeout; window.setTimeout = (f, ms, ...a) => st(f, ms === 0 ? 500 : ms, ...a); });
+  await p.locator('#m7Q-A-x-0').fill('3');
+  await p.keyboard.press('Tab');
+  await p.keyboard.press('Control+A');
+  await p.keyboard.type('0,');
+  await p.waitForTimeout(800);
+  await p.keyboard.type('2');
+  await p.keyboard.press('Enter');
+  await p.waitForFunction(() => { const q = PNL.app.state().uq.A; return q.x[0] === '3' && q.p[0] === '0,2'; }, null, { timeout: 5000 });
+  assert.equal(await activeId(p), 'm7Q-A-p-0');
+  // Con Intro el foco no se mueve: se guarda y se repinta ya (el aviso de la suma, sin esperar al temporizador).
+  assert.equal(await p.locator('#m7QErr-A').count(), 1, 'el aviso de la suma, en el momento');
+  await close(p);
+});
 check('F4b T017 r2 · F7: una discreta que se rompe y vuelve a sus valores a mitad de la simulación (la misma clave) la termina', async () => {
   const rows = Array.from({ length: 30 }, (_, i) => ownRow(`A${i}`, 1 + (i % 3), 3 + (i % 4), 9 + (i % 5), i ? `A${i - 1}${i > 2 ? `, A${i - 3}` : ''}` : ''));
   const p = await uncLab(`${ownUrl(rows, { um: 'm7', ur: 5 })}&uf=A0-d`);

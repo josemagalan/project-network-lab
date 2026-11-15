@@ -331,13 +331,16 @@
       };
       // Al cambiar un valor se guarda en el momento (revisión de la F4b, ronda 2, F4: guardarlo después perdía el cambio con
       // un clic muy rápido), pero el repintado espera a que el foco llegue a donde iba (Tab o clic a otra casilla) y lo
-      // conserva allí (I-F13). Si antes llega otra acción, ella repinta con el cambio ya guardado.
-      const later = () => save(read(), { later: true });
+      // conserva allí (I-F13). Con Intro el foco no se mueve: se guarda y se repinta ya. Una casilla que ya no está en la
+      // página (repintada por Intro) no vuelve a guardar.
+      const changed = (r) => JSON.stringify(r) !== JSON.stringify({ x: q.x, p: q.p });
+      const later = (e) => { if (!e.target.isConnected) return; const r = read(); if (changed(r)) save(r, { later: true }); };
+      const enter = (e) => { if (e.key !== 'Enter') return; e.preventDefault(); const r = read(); if (changed(r)) save(r); };
       const rowsQ = q.x.map((x, j) => h('tr', {}, [
         h('td', {}, [h('input', { id: `m7Q-${a.id}-x-${j}`, 'data-q': 'x', value: x, size: '6', inputmode: 'decimal', 'aria-label': tm('valueN', { id: a.id, n: j + 1 }),
-          'aria-invalid': String(!!a.err), onchange: later })]),
+          'aria-invalid': String(!!a.err), onchange: later, onkeydown: enter })]),
         h('td', {}, [h('input', { id: `m7Q-${a.id}-p-${j}`, 'data-q': 'p', value: q.p[j], size: '6', inputmode: 'decimal', 'aria-label': tm('probN', { id: a.id, n: j + 1 }),
-          'aria-invalid': String(!!a.err), onchange: later })]),
+          'aria-invalid': String(!!a.err), onchange: later, onkeydown: enter })]),
         h('td', {}, [h('button', { type: 'button', class: 'ghost small-btn', id: `m7QDel-${a.id}-${j}`, 'aria-label': tm('removeValue', { id: a.id, n: j + 1 }), disabled: q.x.length <= 1,
           onclick: () => { const r = read(); r.x.splice(j, 1); r.p.splice(j, 1); save(r); focus(`m7QAdd-${a.id}`); } }, ['×'])])]));
       const table = h('table', { class: 'data unc-table m7-q' }, [h('caption', { class: 'muted small' }, [a.edited ? tm('discEdited', { id: a.id }) : tm('discStart', { id: a.id })]),
