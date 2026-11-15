@@ -113,6 +113,9 @@
     out.examModel = examModel;
     out.normal = { mu: e.mu, var: e.var, sd: e.sd, path: e.path };
     out.deadline = UNC.deadlineOf(state, { src, exam: e });
+    // Lo que cambia el resumen sin cambiar la simulación: la normal de M6, el plazo y el percentil (revisión de la F4b,
+    // ronda 2, F3: con una uniforme, cambiar m no cambia la simulación pero sí la normal).
+    out.rkey = JSON.stringify([examModel, out.deadline, out.pct]);
     const simModel = L.simModel({ acts: acts.map((a) => ({ id: a.id, preds: a.preds, dist: a.dist })) });
     const n = 10 ** (state.ur || 4); const us = UNC.seedOf(state);
     out.sim = { model: simModel, n, us, key: JSON.stringify([simModel, n, us]) };
@@ -197,19 +200,20 @@
         if (run.key !== key || run.ikey !== ikey) return;
         if (!MC.stepIndices(run.ijob, { ms: 12 }).done) { run.timer = root.setTimeout(tick, 0); return; }
         run.idx = MC.resultIndices(run.ijob); run.ijob = null; run.timer = null;
-        // Los índices de la última simulación válida, aunque no se esté en «Índices» (revisión de la F4b, I-F26).
-        if (last && last.res === run.res && run.ikey === `${last.m.sim.key}|${last.m.corr}`) last.idx = run.idx;
+        // Los índices de la última simulación válida, aunque no se esté en «Índices» (revisión de la F4b, I-F26), siempre con el
+        // modelo de su correlación (ronda 2, F3): hasta que llegan los de la correlación nueva, en gris se ven los anteriores.
+        if (last && m.ok && last.res === run.res && last.m.rkey === m.rkey && run.ikey === `${m.sim.key}|${m.corr}`) { last.m = m; last.idx = run.idx; }
         if (state().uy === 'idx') hooks.redraw();
       };
       run.timer = root.setTimeout(tick, 0);
     }
     const ready = () => m.ok && run.key === m.sim.key && run.res;
-    // El resumen depende también del plazo y del percentil, que no cambian la simulación: si cambian, se rehace (revisión
-    // de la F4b, I-F1: antes se enseñaba el del plazo anterior con la etiqueta nueva).
+    // El resumen depende también del plazo, del percentil y de la normal de M6, que no cambian la simulación: si cambian, se
+    // rehace (revisión de la F4b, I-F1 y ronda 2, F3). Los índices guardados van con el modelo de su correlación (last.m).
     function current() {
       if (!ready()) return null;
-      if (!(last && last.res === run.res && last.m.deadline === m.deadline && last.m.pct === m.pct)) {
-        last = { m, res: run.res, r: results(m, run.res), idx: last && last.res === run.res ? last.idx : null };
+      if (!(last && last.res === run.res && last.m.rkey === m.rkey)) {
+        last = { m, res: run.res, r: results(m, run.res), idx: last && last.res === run.res && last.m.corr === m.corr ? last.idx : null };
       }
       return { m, res: run.res, r: last.r };
     }
@@ -318,21 +322,22 @@
     }
     function discEditor(a, s) {
       const q = qOf(a, s);
-      const save = (next) => { const uq = Object.assign({}, s.uq || {}); uq[a.id] = next; go({ uq }); };
+      const save = (next, opts) => { const uq = Object.assign({}, s.uq || {}); uq[a.id] = next; go({ uq }, opts); };
       const read = () => {
         const box = root.document.getElementById(`m7Q-${a.id}`);
         const x = [...box.querySelectorAll('input[data-q="x"]')].map((i) => i.value);
         const p = [...box.querySelectorAll('input[data-q="p"]')].map((i) => i.value);
         return { x, p };
       };
-      // Al cambiar un valor se guarda después de que el foco se haya movido (Tab o clic a otra casilla), y el repintado
-      // conserva el foco donde está (revisión de la F4b, I-F13). Si otro botón ya ha guardado (y repintado), no se repite.
-      const later = (el) => root.setTimeout(() => { if (el.isConnected) save(read()); }, 0);
+      // Al cambiar un valor se guarda en el momento (revisión de la F4b, ronda 2, F4: guardarlo después perdía el cambio con
+      // un clic muy rápido), pero el repintado espera a que el foco llegue a donde iba (Tab o clic a otra casilla) y lo
+      // conserva allí (I-F13). Si antes llega otra acción, ella repinta con el cambio ya guardado.
+      const later = () => save(read(), { later: true });
       const rowsQ = q.x.map((x, j) => h('tr', {}, [
         h('td', {}, [h('input', { id: `m7Q-${a.id}-x-${j}`, 'data-q': 'x', value: x, size: '6', inputmode: 'decimal', 'aria-label': tm('valueN', { id: a.id, n: j + 1 }),
-          'aria-invalid': String(!!a.err), onchange: (e) => later(e.target) })]),
+          'aria-invalid': String(!!a.err), onchange: later })]),
         h('td', {}, [h('input', { id: `m7Q-${a.id}-p-${j}`, 'data-q': 'p', value: q.p[j], size: '6', inputmode: 'decimal', 'aria-label': tm('probN', { id: a.id, n: j + 1 }),
-          'aria-invalid': String(!!a.err), onchange: (e) => later(e.target) })]),
+          'aria-invalid': String(!!a.err), onchange: later })]),
         h('td', {}, [h('button', { type: 'button', class: 'ghost small-btn', id: `m7QDel-${a.id}-${j}`, 'aria-label': tm('removeValue', { id: a.id, n: j + 1 }), disabled: q.x.length <= 1,
           onclick: () => { const r = read(); r.x.splice(j, 1); r.p.splice(j, 1); save(r); focus(`m7QAdd-${a.id}`); } }, ['×'])])]));
       const table = h('table', { class: 'data unc-table m7-q' }, [h('caption', { class: 'muted small' }, [a.edited ? tm('discEdited', { id: a.id }) : tm('discStart', { id: a.id })]),
@@ -539,7 +544,7 @@
       if (s.uy === 'conv') { grid.className = mm.ok ? 'm7-convbox' : 'm7-convbox m7-stale'; RV().setModel(m); grid.appendChild(RV().convMain(cur)); m = mm; out.push(grid); return out; }
       if (s.uy === 'idx') {
         const idx = mm.ok ? (run.idx && run.key === m.sim.key && run.ikey === `${m.sim.key}|${m.corr}` ? run.idx : null) : (cur.idx || null);
-        if (mm.ok && idx && last) last.idx = idx;
+        if (mm.ok && idx && last && last.res === run.res) { last.m = mm; last.idx = idx; }
         grid.appendChild(h('div', { class: 'unc-left' }, [idxCard(cur, idx), tornadoCard(idx)]));
         grid.appendChild(h('div', { class: 'unc-side' }, [pathsCard(idx), netCard(idx)]));
       } else {

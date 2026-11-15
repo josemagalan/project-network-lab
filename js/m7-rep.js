@@ -300,7 +300,7 @@
     function convMain(cur) {
       const s = state();
       if (!cur) return h('p', { class: 'card muted', id: 'm7ConvWait' }, [tm('running', { n: big(m.sim.n) })]);
-      const ckey = `${m.sim.key}|${m.deadline}|${m.pct}|${s.ua}`;
+      const ckey = `${m.sim.key}|${m.rkey}|${s.ua}`;   // con la normal de M6 (revisión de la F4b, ronda 2, F3)
       if (convCache.key !== ckey) convCache = { key: ckey, c: convergence(s, m, cur.res) };
       const c = convCache.c; const S4 = c.series; const last = c.rows[c.rows.length - 1];
       const w = narrow() ? 330 : 570; const hgt = 160;

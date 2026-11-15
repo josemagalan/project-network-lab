@@ -507,10 +507,15 @@
       container.appendChild(h('div', { class: 'unc-main' }, [left, side]));
       fill();
     }
+    let pending = null;
     function render(model, opts) {
       const typing = opts && opts.fromEditor && m && !m.m7 && !model.m7 && m.src.kind === 'own' && model.src.kind === 'own' && proj && proj.isConnected && !main
         && model.src.rows.length === m.src.rows.length && model.src.mode === m.src.mode;
       m = model;
+      // Un repintado pendiente lo sustituye este. Con opts.later (el editor de la discreta de M7) se repinta en la vuelta
+      // siguiente, cuando el foco ya ha llegado a donde iba (revisión de la F4b, ronda 2, F4).
+      if (pending) { root.clearTimeout(pending); pending = null; }
+      if (opts && opts.later) { pending = root.setTimeout(() => { pending = null; keepFocus(draw); }, 0); return; }
       // Al teclear se repinta solo lo de M5; si la tabla pasa a ser válida estando en M6, toca la vista de M6 (revisión F4a, F14).
       if (typing && !m6On()) { markOwn(); fill(); return; }
       keepFocus(draw);
@@ -529,7 +534,7 @@
     }
     // Al salir de la pestaña, las simulaciones de M6 y M7 se paran: no siguen en segundo plano ni anuncian su resultado en
     // otra vista (revisión de la F4b, I-F27). Al volver, empiezan otra vez con la misma semilla.
-    function leave() { cancelSim(); if (m7c) m7c.leave(); }
+    function leave() { if (pending) { root.clearTimeout(pending); pending = null; } cancelSim(); if (m7c) m7c.leave(); }
     return { render, debug, leave };
   }
 

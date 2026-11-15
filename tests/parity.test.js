@@ -114,6 +114,20 @@ test('AC7 (revisión de la F4b, N-F10 y N-F13): el .py rechaza valores no finito
   assert.equal(cp.status, 0, cp.stderr);
 });
 
+test('AC7 (revisión de la F4b, ronda 2, F12): el informe en texto no escribe caracteres de control de la unidad', { skip }, () => {
+  const os = require('node:os');
+  for (const [i, unit] of ['\u001b[2Jd\u009b', 7].entries()) {
+    const tmp = path.join(os.tmpdir(), `pnl-unit-${process.pid}-${i}.json`);
+    fs.writeFileSync(tmp, JSON.stringify({ format: 'pnl-montecarlo', version: 1, unit, reps: 10, seed: 1, activities: [{ id: 'A', preds: [], dist: { kind: 'fixed', d: 1 } }] }));
+    const r = spawnSync(PYTHON, [PY, tmp], { encoding: 'utf8' });
+    fs.unlinkSync(tmp);
+    assert.equal(r.status, 0, r.stderr);
+    const ctrl = [...r.stdout].filter((ch) => { const c = ch.codePointAt(0); return (c < 32 && c !== 10 && c !== 13) || (c >= 0x7f && c <= 0x9f); });
+    assert.deepEqual(ctrl, [], `unidad ${JSON.stringify(unit)}`);
+    assert.match(r.stdout, i === 0 ? /: 1\.0000 \[2Jd · sd/ : /: 1\.0000 · sd/);
+  }
+});
+
 test('AC7: el informe en texto del .py lleva la media, los percentiles y la tabla de índices', { skip }, () => {
   const r = spawnSync(PYTHON, [PY, path.join(CASES, 'klastorin-discrete.json')], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);

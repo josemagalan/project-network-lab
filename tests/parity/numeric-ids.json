@@ -1,0 +1,4 @@
+{"format":"pnl-montecarlo","version":1,"unit":"d","reps":300,"seed":11,"deadline":12,"corr":"pearson","activities":[
+{"id":"1","preds":[],"dist":{"kind":"tri","a":2,"m":4,"b":9}},
+{"id":"2B","preds":["1"],"dist":{"kind":"unif","a":3,"b":6}},
+{"id":"10","preds":[],"dist":{"kind":"pert","a":5,"m":8,"b":12}}]}

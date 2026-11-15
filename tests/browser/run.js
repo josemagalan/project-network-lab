@@ -6527,6 +6527,168 @@ check('F4b T017 r1 · I-F3, I-F4 e I-F5: la carga bajo demanda se recupera de un
   for (let i = errors.length - 1; i >= 0; i--) if (/Failed to load resource: net::ERR_FAILED/.test(errors[i])) errors.splice(i, 1);
 });
 
+// ---------- F4b T017, ronda 2 de la revisión ----------
+
+const dropNetErrors = () => { for (let i = errors.length - 1; i >= 0; i--) if (/Failed to load resource: net::ERR_FAILED/.test(errors[i])) errors.splice(i, 1); };
+check('F4b T017 r2 · F1, F2 y F9: un grupo que falla en un script que no es el último se vuelve a pedir entero (pestaña, «Ejercicios», M0 y exportador) y el aviso sigue mientras quede uno roto', async () => {
+  // La pestaña: threept.js (el primero de un) falla una vez; al volver a pulsarla se piden también sim.js y tcl.js.
+  const p = await lab('lang=es');
+  let fail = true;
+  await p.route('**/js/core/threept.js', (r) => (fail ? r.abort() : r.continue()));
+  await p.locator('#navUnc').click();
+  await p.locator('#loadFailed:not([hidden])').waitFor();
+  fail = false;
+  await p.locator('#navUnc').click();
+  await p.waitForFunction(() => PNL.app.state().v === 'unc' && !document.getElementById('uncView').hidden && PNL.unc.state());
+  assert.equal(await p.locator('#loadFailed').isHidden(), true);
+  await p.locator('#uncM7').click();
+  await m7Done(p);
+  await close(p);
+  // «Ejercicios» (F2): grade.js falla una vez; el segundo clic lo vuelve a pedir y la vista se abre entera.
+  const q = await lab('lang=es');
+  fail = true;
+  await q.route('**/js/core/grade.js', (r) => (fail ? r.abort() : r.continue()));
+  await q.locator('#navEx').click();
+  await q.locator('#loadFailed:not([hidden])').waitFor();
+  fail = false;
+  await q.locator('#navEx').click();
+  await q.waitForFunction(() => PNL.app.state().v === 'ex' && PNL.grade && document.getElementById('exView').childElementCount > 0);
+  await close(q);
+  // El exportador después de un fallo de grade.js en «Ejercicios»: grade.js se vuelve a pedir (el script fallido se quitó).
+  const r = await lab('lang=es');
+  fail = true;
+  await r.route('**/js/core/grade.js', (x) => (fail ? x.abort() : x.continue()));
+  await r.locator('#navEx').click();
+  await r.locator('#loadFailed:not([hidden])').waitFor();
+  fail = false;
+  await r.evaluate(() => { location.hash = '#v=moodle&lang=es'; });
+  await r.waitForFunction(() => PNL.app.state().v === 'moodle' && PNL.grade && PNL.moodlePage);
+  await close(r);
+  // M0 (F2 y F9): precheck.js falla y statements.js carga después; el aviso sigue (m0 sigue roto) y el segundo clic abre M0.
+  const m = await lab('lang=es');
+  fail = true;
+  await m.route('**/js/core/precheck.js', (x) => (fail ? x.abort() : x.continue()));
+  await m.locator('#navM0').click();
+  await m.locator('#loadFailed:not([hidden])').waitFor();
+  await m.waitForFunction(() => !!PNL.statements);
+  await m.waitForTimeout(300);
+  assert.equal(await m.locator('#loadFailed').isHidden(), false, 'el aviso sigue mientras m0 está roto');
+  fail = false;
+  await m.locator('#navM0').click();
+  await m.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.precheck && !document.getElementById('m0View').hidden);
+  assert.equal(await m.locator('#loadFailed').isHidden(), true);
+  await close(m);
+  dropNetErrors();
+});
+check('F4b T017 r2 · F3: el resumen y «Convergencia» siguen a la normal de M6 aunque la simulación no cambie; en gris, los índices con su correlación', async () => {
+  const klRows = (mA) => [['A', 2, mA, 14, ''], ['B', 4, 7, 12, 'A'], ['C', 2, 8, 13, 'A'], ['D', 12, 14, 18, 'A'], ['E', 3, 5, 7, 'B, C'], ['F', 3, 4, 7, 'E']].map((x) => ownRow(...x));
+  // A uniforme: su m no cambia la simulación, pero sí la normal de M6 (a, m y b de examen).
+  const url = (mA, uy) => ownUrl(klRows(mA), { um: 'm7', ug: 'pert', uf: { A: 'unif' }, ud: 25, ur: 3, uy });
+  for (const uy of ['dist', 'conv']) {
+    const p = await uncLab(url(6, uy));
+    await m7Done(p);
+    const key = await p.evaluate(() => PNL.unc.state().m7.sim.key);
+    await p.evaluate((h) => { location.hash = `#${h}`; }, url(10, uy));
+    await p.waitForFunction(() => PNL.app.state().ut.rows[0].m === '10');
+    await m7Done(p);
+    assert.equal(await p.evaluate(() => PNL.unc.state().m7.sim.key), key, 'la simulación es la misma');
+    const N = await m7Node(p);
+    if (uy === 'dist') {
+      const rows = await m7ResRows(p);
+      assert.equal(rows['P(duración ≤ 25)'][1], fxEs(N.r.pN, 3), 'P de la normal nueva');
+      assert.equal(rows.P50[1], fxEs(N.r.q.find((q) => q.p === 0.5).normal, 2), 'P50 de la normal nueva');
+    } else {
+      await p.waitForFunction((v) => document.querySelector('#m7Conv-pT .mc-reflabel').textContent.includes(v), fxEs(N.r.pN, 3));
+    }
+    await close(p);
+  }
+  // Pearson → Spearman con la misma simulación y después una discreta con errores: en gris, Spearman con sus valores.
+  const q = await m7Lab('ue=kd&uy=idx&ur=3&lang=es');
+  await m7Done(q, true);
+  await q.locator('#m7Corr-s').check();
+  await q.waitForFunction(() => PNL.app.state().uo === 's' && PNL.unc.state().m7.idx);
+  const cOf = () => q.evaluate(() => ({ head: [...document.querySelectorAll('#m7Idx thead th')].map((x) => x.textContent).join('|'),
+    c: [...document.querySelectorAll('#m7Idx tbody tr')].map((r) => [...r.cells].map((x) => x.textContent)).find((r) => r[0] === 'C') }));
+  await q.waitForFunction(() => /Spearman/.test(document.querySelector('#m7Idx thead').textContent));
+  const live = await cOf();
+  await q.locator('#m7PerAct').click();
+  await q.locator('#m7Edit-A').click();
+  await q.locator('#m7Q-A-p-0').fill('0,9');
+  await q.locator('#m7Q-A-p-0').press('Enter');
+  await q.locator('#m7Blocked').waitFor();
+  await q.locator('.m7-stale #m7Idx').waitFor();
+  const stale = await cOf();
+  assert.match(stale.head, /Crucialidad \(Spearman\)/);
+  assert.deepEqual(stale, live, 'la tabla en gris es la de Spearman');
+  await close(q);
+  // Con la discreta rota antes de que lleguen los índices de Spearman: en gris, los de Pearson con su nombre (no los de
+  // Pearson con el de Spearman, ni «Calculando…» para siempre).
+  const big30 = Array.from({ length: 30 }, (_, i) => ownRow(`A${i}`, 1 + (i % 3), 3 + (i % 4), 9 + (i % 5), i ? `A${i - 1}${i > 2 ? `, A${i - 3}` : ''}` : ''));
+  const w = await uncLab(`${ownUrl(big30, { um: 'm7', ur: 5, uy: 'idx' })}&uf=A0-d`);
+  await m7Done(w, true);
+  await w.waitForFunction(() => /Pearson/.test(document.querySelector('#m7Idx thead').textContent));
+  const cOfW = () => w.evaluate(() => ({ head: [...document.querySelectorAll('#m7Idx thead th')].map((x) => x.textContent).join('|'),
+    c: [...document.querySelectorAll('#m7Idx tbody tr')].map((r) => [...r.cells].map((x) => x.textContent)).find((r) => r[0] === 'A0') }));
+  const pearson = await cOfW();
+  await w.locator('#m7PerAct').click();
+  await w.locator('#m7Edit-A0').click();
+  await w.locator('#m7Corr-s').check();
+  assert.equal(await w.evaluate(() => !!PNL.unc.state().m7.idx), false, 'los de Spearman, todavía sin llegar');
+  await w.locator('#m7Q-A0-p-0').fill('0,9');
+  await w.locator('#m7Q-A0-p-0').press('Enter');
+  await w.locator('.m7-stale #m7Idx').waitFor();
+  assert.deepEqual(await cOfW(), pearson, 'en gris, los de Pearson con su nombre');
+  assert.equal(await w.locator('#m7IdxWait').count(), 0);
+  await close(w);
+});
+check('F4b T017 r2 · F4: el cambio de una discreta se guarda en el momento, también con un clic rápido en otro botón, y el foco va a donde se hace clic', async () => {
+  const p = await m7Lab('ue=kl&uf=A-d&ur=2&lang=es');
+  await m7Done(p);
+  await p.locator('#m7PerAct').click();
+  await p.locator('#m7Edit-A').click();
+  await p.locator('#m7Q-A-x-0').fill('1');
+  await p.locator('#m7View-idx').click();                       // Playwright baja y sube el ratón a la vez
+  await p.waitForFunction(() => { const q = (PNL.app.state().uq || {}).A; return q && q.x[0] === '1'; }, null, { timeout: 5000 });
+  await p.locator('#m7Q-A-x-1').fill('5');
+  await p.locator('#m7Q-A-p-2').click();
+  await p.waitForFunction(() => PNL.app.state().uq.A.x[1] === '5');
+  assert.equal(await activeId(p), 'm7Q-A-p-2', 'el foco, en la casilla del clic');
+  await close(p);
+});
+check('F4b T017 r2 · F7: una discreta que se rompe y vuelve a sus valores a mitad de la simulación (la misma clave) la termina', async () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ownRow(`A${i}`, 1 + (i % 3), 3 + (i % 4), 9 + (i % 5), i ? `A${i - 1}${i > 2 ? `, A${i - 3}` : ''}` : ''));
+  const p = await uncLab(`${ownUrl(rows, { um: 'm7', ur: 5 })}&uf=A0-d`);
+  await p.locator('#m7PerAct').click();
+  await p.locator('#m7Edit-A0').click();
+  const p0 = await p.locator('#m7Q-A0-p-0').inputValue();
+  assert.equal(await p.evaluate(() => PNL.unc.state().m7.done), false, 'todavía simulando');
+  await p.locator('#m7Q-A0-p-0').fill('0,9');
+  await p.locator('#m7Q-A0-p-0').press('Enter');
+  await p.locator('#m7Blocked').waitFor();
+  await p.locator('#m7Q-A0-p-0').fill(p0);
+  await p.locator('#m7Q-A0-p-0').press('Enter');
+  await p.waitForFunction(() => !document.getElementById('m7Blocked'));
+  await m7Done(p);                                               // antes se quedaba en «Simulando 100 000 réplicas…»
+  await close(p);
+});
+check('F4b T017 r2 · F8: al salir de la pestaña la simulación de M7 se para (no sigue en segundo plano) y al volver se hace entera', async () => {
+  const rows = Array.from({ length: 30 }, (_, i) => ownRow(`A${i}`, 1 + (i % 3), 3 + (i % 4), 9 + (i % 5), i ? `A${i - 1}` : ''));
+  const p = await uncLab(ownUrl(rows, { um: 'm7', ur: 5 }));
+  await p.waitForTimeout(150);
+  assert.equal(await p.evaluate(() => PNL.unc.state().m7.done), false, 'todavía simulando');
+  await p.locator('#navWork').click();
+  await p.waitForFunction(() => PNL.app.state().v === 'work');
+  await p.waitForTimeout(3000);
+  assert.equal(await p.evaluate(() => PNL.unc.state().m7.done), false, 'la simulación no siguió fuera de la pestaña');
+  assert.doesNotMatch(await p.locator('#live').innerText(), /réplicas simuladas/);
+  await p.goBack();
+  await p.waitForFunction(() => PNL.app.state().v === 'unc');
+  await m7Done(p);
+  const N = await m7Node(p);
+  assert.equal((await m7St(p)).results.mean, N.r.mean, 'la misma media que en Node');
+  await close(p);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

@@ -41,6 +41,7 @@ VERSION = 1
 PATH_LIMIT = 50
 M32 = 0xFFFFFFFF
 ID_RE = re.compile(r'[A-Z0-9]{1,4}')   # the ids the web accepts / los identificadores que acepta la web
+CTRL_RE = re.compile(r'[\x00-\x1f\x7f-\x9f]')   # control characters / caracteres de control
 
 
 def _num(v, what):
@@ -493,6 +494,9 @@ def analyse(data, reps=None, seed=None):
 
 def report(res, unit):
     """Plain-text report (English / español)."""
+    # Only printable text from the file reaches the terminal (review of F4b, round 2, F12).
+    # Al terminal solo llega texto imprimible del archivo (revisión de la F4b, ronda 2, F12).
+    unit = CTRL_RE.sub('', unit) if isinstance(unit, str) else ''
     u = (' ' + unit) if unit else ''
     lines = [
         'Project Network Lab · Montecarlo (M7)',

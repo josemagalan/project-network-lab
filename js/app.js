@@ -118,7 +118,8 @@
       loading[group] = Promise.all([scripts, ...sheets]).then(() => {
         broken.delete(group);
         if (!READY[group]()) throw new Error(`group ${group}`);
-        $('loadFailed').hidden = true;
+        // El aviso se va solo cuando no queda ningún grupo roto (revisión de la F4b, ronda 2, F9).
+        if (!broken.size) $('loadFailed').hidden = true;
         ensureControllers();
       }).catch((err) => { delete loading[group]; broken.add(group); $('loadFailed').hidden = false; throw err; });
     }
@@ -259,21 +260,22 @@
   function toUnc() {
     stopPlay();
     if (state.v === 'unc') return;
-    if (!G.unc) { need('un').then(toUnc, noop); return; }
+    if (!READY.un()) { need('un').then(toUnc, noop); return; }
     dispatch({ type: 'unc' }, { push: true });
     window.scrollTo(0, 0);
   }
   function toEx() {
     stopPlay();
     if (state.v === 'ex') return;
-    if (!G.ex) { need('ex').then(toEx, noop); return; }
+    if (!READY.ex()) { need('ex').then(toEx, noop); return; }
     dispatch({ type: 'ex', sd: exEntry().sd });
     window.scrollTo(0, 0);
   }
   function toM0() {
     stopPlay();
     // La acción m0 sin paquete propio pasa a ej5: con st=own también hace falta statements.js (revisión de la F3c, F2).
-    if (!G.m0 || (state.st === 'gen' ? !G.stmtgen : !G.statements)) { needAll(['m0', state.st === 'gen' ? 'sg' : 'st']).then(toM0, noop); return; }
+    // Con READY y no con el global: un grupo que falló a medias se vuelve a pedir entero (revisión de la F4b, ronda 2, F2).
+    if (!READY.m0() || !READY[state.st === 'gen' ? 'sg' : 'st']()) { needAll(['m0', state.st === 'gen' ? 'sg' : 'st']).then(toM0, noop); return; }
     // Ya en M0: de la ruta paso a paso vuelve a practicar sin perder la tabla.
     if (state.v === 'm0') { if (state.mm !== 'practice') { dispatch({ type: 'set', key: 'mm', value: 'practice' }); dispatch({ type: 'first' }); } return; }
     dispatch({ type: 'm0', st: state.st, mm: 'practice' });
@@ -781,7 +783,7 @@
 
   // «Aprende más» de un método (AC17): qué hace, qué garantiza, cómo lo aplica el laboratorio y sus referencias.
   function openMethodLearn(m) {
-    if (!G.learn) { need('lr').then(() => openMethodLearn(m), noop); return; }
+    if (!READY.lr()) { need('lr').then(() => openMethodLearn(m), noop); return; }
     const LR = G.learn;
     const L = LR.methods[m];
     const body = clear($('learnBody'));
@@ -938,7 +940,7 @@
   // Con un tema (el de la regla de una ficticia seleccionada), «Aprende más» abre ese tema. Con { topic }, un
   // tema que no es de ningún paso (el del contador): su pseudocódigo es el de colocar la red.
   function openLearn(forTopic) {
-    if (!G.learn) { need('lr').then(() => openLearn(forTopic), noop); return; }
+    if (!READY.lr()) { need('lr').then(() => openLearn(forTopic), noop); return; }
     const LR = G.learn;
     const tr = trace();
     if (!tr) return;
@@ -989,7 +991,7 @@
   // «Aprende más» de «Ejercicios» (F3a, T015): el mismo diálogo, con su tema.
   function openExLearn() { openTopicLearn('ex.learnTitle', 'ex'); }
   function openTopicLearn(titleKey, topic) {
-    if (!G.learn) { need('lr').then(() => openTopicLearn(titleKey, topic), noop); return; }
+    if (!READY.lr()) { need('lr').then(() => openTopicLearn(titleKey, topic), noop); return; }
     const LR = G.learn;
     const body = clear($('learnBody'));
     $('learnTitle').textContent = t(titleKey);
