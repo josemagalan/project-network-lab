@@ -7772,6 +7772,498 @@ check('F3d T014 AC14 · el exportador ofrece las etapas 7 a 10 al abrirlo, marca
   await close(page);
 });
 
+// ---------- F3d, T015: accesibilidad, teclado, pantalla, enlaces y tamaño (AC5, AC8, AC13, AC16–AC19) ----------
+// Las vistas nuevas, cada una con algo hecho y, si toca, comprobada o entregada, en el nivel difícil: claro y oscuro, ES y EN.
+
+const T15 = { sd: EX_CASES.hard.sd, lv: 'hard' };
+// La red ROY a medias (tablero 81): sin las tres últimas actividades.
+function t15RoyHalf(s) {
+  const good = xbGood(s);
+  const nodes = good.nodes.filter((n, i) => n.id === '_E' || i < good.nodes.length - 4);
+  const has = (id) => nodes.some((n) => n.id === id);
+  return { nodes, arcs: good.arcs.filter((e) => has(e.from) && has(e.to)) };
+}
+// La red PERT mínima sin la última actividad (incompleta) o con una ficticia de más (correcta).
+function t15Pert(s, kind) {
+  const m = exModel(Object.assign({ xk: 'pert' }, s));
+  const md = MD0.solve(m.project);
+  const { s: st, id } = xpFrom(md.net, m.project);
+  if (kind === 'extra') return RT0.apply(st, { type: 'addDummy', from: id.get(1), to: id.get(Math.max(...md.net.events.map((e) => e.n))) }).net;
+  const last = m.project.activities[m.project.activities.length - 1].id;
+  return RT0.apply(st, { type: 'clearArc', act: last }).net;
+}
+// Las marcas del detective: la primera bien, la segunda con otro tipo de su grupo y una falsa alarma en un valor o un nodo.
+function t15Marks(s) {
+  const r = dtSeed(s);
+  const [a, b] = r.seeded.errors;
+  const other = U0.DET_TYPES.find((t) => t !== b.type && t.slice(0, 3) === b.type.slice(0, 3));
+  return [{ element: a.element, type: a.type }, { element: b.element, type: other || b.type }];
+}
+const t15Wait = {
+  xb: (p) => p.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().net),
+  score: (p) => p.waitForFunction(() => PNL.exBuild.state().score !== null),
+  pertScore: (p) => p.waitForFunction(() => PNL.exBuild.state().pert && PNL.exBuild.state().pert.score !== null),
+  dtGraded: (p) => p.waitForFunction(() => PNL.exDet.state() && PNL.exDet.state().grading),
+};
+// [nombre, raíz de la vista, alternativa en texto (selector, filas que debe tener como mínimo), abrir con las opciones (lang, scheme, nota, width)].
+const F3D_VIEWS = [
+  // Comprobada, el diagnóstico ocupa el sitio de «Tu red como tabla» (T008): la red se lee en sus nodos y arcos, cada uno con su nombre.
+  ['ROY en Practicar, comprobada', '#exView', ['.xb-svg g[role="button"][aria-label]', 3], async (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota }, T15);
+    const p = await xbLab(Object.assign({ rn: t15RoyHalf(s) }, s), o);
+    await p.locator('#xbCheck').click();
+    await p.locator('#xbDiagTitle').waitFor();
+    return p;
+  }],
+  ['ROY en Examen, sin entregar', '#exView', ['[id^="xbPred-"]', 3], (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota, xm: 'exam' }, T15);
+    return xbLab(Object.assign({ rn: t15RoyHalf(s) }, s), o);
+  }],
+  ['ROY entregada, con la red correcta', '#exView', ['[id^="xbPred-"]', 3], async (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota, xm: 'exam', xd: 1 }, T15);
+    const p = await xbLab(Object.assign({ rn: t15RoyHalf(s) }, s), o);
+    await t15Wait.score(p);
+    return p;
+  }],
+  ['PERT en Practicar, comprobada', '#exView', ['#exView table.reto-tbl tbody tr', 3], async (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota }, T15);
+    const p = await xpLab(Object.assign({ sn: t15Pert(s) }, s), o);
+    await p.locator('#exView [data-k="check"]').click();
+    await p.waitForFunction(() => PNL.exBuild.state().pert.result);
+    return p;
+  }],
+  ['PERT en Examen, sin entregar', '#exView', ['#exView table.reto-tbl tbody tr', 3], (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota, xm: 'exam' }, T15);
+    return xpLab(Object.assign({ sn: t15Pert(s) }, s), o);
+  }],
+  ['PERT entregada, con la red mínima', '#exView', ['#exView table.reto-tbl tbody tr', 3], async (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota, xm: 'exam', xd: 1 }, T15);
+    const p = await xpLab(Object.assign({ sn: t15Pert(s, 'extra') }, s), o);
+    await t15Wait.pertScore(p);
+    await p.locator('#xpSeeMin').click();
+    await p.locator('#exView .reto-solution').waitFor();
+    return p;
+  }],
+  ['detective ROY comprobado, con el menú abierto', '#exView', ['#dtAlt tbody tr', 3], async (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota, dg: 'aon', dk: 'all' }, T15);
+    const p = await dtLab(Object.assign({ dm: t15Marks(s) }, s), o);
+    await p.locator('#dtCheck').click();
+    await p.locator('#dtResult').waitFor();
+    await p.locator('#dtAlt summary').click();
+    const e = dtSeed(s).seeded.errors[2];
+    await p.focus(dtEl(e.element));
+    await p.keyboard.press('Enter');
+    await p.locator('#dtMenu').waitFor();
+    return p;
+  }],
+  ['detective PERT de cálculo, con «Ver los errores»', '#exView', ['#dtAlt tbody tr', 3], async (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota, dg: 'aoa', dk: 'calc' }, T15);
+    const p = await dtLab(Object.assign({ dm: t15Marks(s) }, s), o);
+    await p.locator('#dtCheck').click();
+    await p.locator('#dtResult').waitFor();
+    await p.locator('#dtSee').click();
+    await p.locator('#dtErrors').waitFor();
+    await p.locator('#dtAlt summary').click();
+    return p;
+  }],
+  ['detective PERT entregado', '#exView', ['#dtAlt tbody tr', 3], async (o) => {
+    const s = Object.assign({ lang: o.lang, nota: o.nota, dg: 'aoa', dk: 'all', xm: 'exam', xd: 1 }, T15);
+    const p = await dtLab(Object.assign({ dm: t15Marks(s) }, s), o);
+    await t15Wait.dtGraded(p);
+    await p.locator('#dtAlt summary').click();
+    return p;
+  }],
+  ['reto ROY del taller, comprobado', '#royRetoView', ['.xb-svg g[role="button"][aria-label]', 3], async (o) => {
+    const p = await rrLab({ lang: o.lang, nota: o.nota, rn: ej6Bad(XB0.placeLevels(RC0.fromTable(ej6()))) }, o);
+    await p.locator('#xbCheck').click();
+    await p.locator('#xbDiagTitle').waitFor();
+    return p;
+  }],
+];
+// Cada dibujo de la vista: decorativo, una imagen con nombre o un grupo con nombre cuyos elementos pulsables lo tienen también.
+const t15Svgs = (page, root) => page.evaluate((r) => [...document.querySelectorAll(`${r} svg`)].filter((s) => s.getBoundingClientRect().width > 0).map((s) => {
+  const hidden = !!s.closest('[aria-hidden="true"]');
+  const name = s.getAttribute('aria-label') || (s.getAttribute('aria-labelledby') && document.getElementById(s.getAttribute('aria-labelledby')) ? 'x' : '');
+  const unnamed = [...s.querySelectorAll('[tabindex], [role="button"]')].filter((g) => !g.getAttribute('aria-label')).length;
+  return { id: s.id || s.getAttribute('class'), hidden, role: s.getAttribute('role'), name: !!name, unnamed };
+}), root);
+
+for (const [lang, scheme] of [['es', 'light'], ['es', 'dark'], ['en', 'light'], ['en', 'dark']]) {
+  check(`F3d T015 AC16 y AC17 · axe sin violaciones en las vistas nuevas (${lang.toUpperCase()}, ${scheme === 'light' ? 'claro' : 'oscuro'}${scheme === 'dark' && lang === 'es' ? ', notación española' : ''}): cada red con su alternativa en texto y su nombre; las marcas, con número o símbolo`, async () => {
+    const nota = scheme === 'dark' && lang === 'es' ? 'es' : 'en';
+    for (const [name, root, [alt, rows], openView] of F3D_VIEWS) {
+      const label = `F3d T015 · ${name} (${lang}, ${scheme})`;
+      const page = await openView({ lang, scheme, nota });
+      await axe(page, label);
+      assert.ok(await page.locator(alt).count() >= rows, `${label}: la alternativa en texto (${alt})`);
+      for (const s of await t15Svgs(page, root)) {
+        assert.ok(s.hidden || (s.name && (s.role === 'img' || s.role === 'group' || s.role === 'application')), `${label}: el dibujo ${s.id} sin nombre (${JSON.stringify(s)})`);
+        assert.equal(s.unnamed, 0, `${label}: elementos del dibujo ${s.id} sin nombre`);
+      }
+      // Las marcas de la corrección no dependen solo del color: insignias numeradas y estados con símbolo.
+      if (/ROY.*comprobada/.test(name)) {
+        const badges = await page.locator(`${root} .xb-badge`).allTextContents();
+        assert.ok(badges.length > 0 && badges.every((b) => /^\d+$/.test(b.trim())), `${label}: insignias ${badges}`);
+        assert.equal(await page.locator('#xbDiag li').count(), new Set(badges.map((b) => b.trim())).size, `${label}: una insignia por problema de la lista`);
+      }
+      if (/detective/.test(name)) {
+        const st = await page.locator('#dtResult li .dt-st').allInnerTexts();
+        assert.ok(st.length >= 3 && st.every((x) => /^[✓½✗?] /.test(x)), `${label}: estados ${st}`);
+      }
+      // La notación cambia con la española (AC16): en ninguna vista quedan las siglas inglesas en la leyenda o las cabeceras.
+      if (nota === 'es') {
+        const heads = await page.locator(`${root} th, ${root} .dt-legend, #dtLegend`).allInnerTexts();
+        assert.ok(!heads.some((x) => /\b(ES|EF|LS|LF|TF|FF)\b/.test(x)), `${label}: siglas inglesas con la notación española (${heads.filter((x) => /\b(ES|EF|LS|LF|TF|FF)\b/.test(x))})`);
+      }
+      await close(page);
+    }
+    // El exportador: la vista previa de las etapas 7 a 9 (la 10, en T013).
+    const p = await mqLab(lang, { scheme });
+    for (const st of ['7 ·', '8 ·', '9 ·']) {
+      await mqSelect(p, [st], [lang === 'es' ? 'Difícil' : 'Hard']);
+      await p.waitForFunction((k) => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === k, LAB[['7 ·', '8 ·', '9 ·'].indexOf(st)]);
+      await p.locator('.mq-feedback summary').click();
+      await axe(p, `F3d T015 · exportador, vista previa de la etapa ${st.slice(0, 1)} (${lang}, ${scheme})`);
+    }
+    await close(p);
+  });
+}
+
+// El foco del teclado en un elemento de un dibujo: el contorno se quita y lo marca el trazo de --focus (build.css, det.css, styles.css).
+const t15SvgFocus = (page) => page.evaluate(() => {
+  const el = document.activeElement;
+  if (!el || !el.closest('svg') || !el.matches(':focus-visible')) return false;
+  const probe = document.createElement('span');
+  probe.style.color = 'var(--focus)';
+  document.body.appendChild(probe);
+  const want = getComputedStyle(probe).color;
+  probe.remove();
+  const shape = el.querySelector('rect, circle, .edge, path:not(.hit)');
+  const cs = getComputedStyle(shape || el);
+  return (cs.stroke === want && parseFloat(cs.strokeWidth) >= 3) || (getComputedStyle(el).outlineStyle !== 'none' && parseFloat(getComputedStyle(el).outlineWidth) >= 2);
+});
+
+check('F3d T015 AC5 y AC8 · la PERT en Examen solo con el teclado (fácil, ES): sucesos con N, actividades con A, ficticias con D, numerar, entregar y confirmar; 100 %; el foco se ve en el lienzo', async () => {
+  const s = { sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es', xm: 'exam' };
+  const m = exModel(Object.assign({ xk: 'pert' }, s));
+  const md = MD0.solve(m.project).net;
+  const page = await xpLab(s);
+  await page.locator('#exView [data-k="svg"]').focus();
+  for (let i = 0; i < md.events.length; i++) await page.keyboard.press('n');
+  await page.waitForFunction((k) => PNL.exBuild.state().pert.net.events.length === k, md.events.length);
+  const ids = (await xpSt(page)).net.events.map((e) => e.id);
+  const n2i = new Map(md.events.map((e, i) => [e.n, ids[i]]));
+  const at = async (n, key) => { await page.locator(`#exView [data-k="ev:${n2i.get(n)}"]`).focus(); await page.keyboard.press(key); };
+  // La actividad que se dibuja avanza sola a la siguiente sin dibujar: en el orden de la tabla.
+  const order = m.project.activities.map((a) => a.id);
+  for (const a of [...md.arcs].sort((x, y) => order.indexOf(x.act) - order.indexOf(y.act))) { await at(a.from, 'a'); await at(a.to, 'a'); }
+  assert.ok(await t15SvgFocus(page), 'el foco se ve en un suceso');
+  for (const d of md.dummies) { await at(d.from, 'd'); await at(d.to, 'd'); }
+  await page.locator('#exView .reto-svg [data-k^="arc:"]').first().focus();
+  assert.ok(await t15SvgFocus(page), 'el foco se ve en una actividad');
+  await page.locator('#exView [data-k="autoNumber"]').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.exBuild.state().pert.net.events.every((e) => e.n !== null));
+  await page.locator('#xbDeliver').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'xbConfirmYes', 'la confirmación recibe el foco');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.app.state().xd === 1 && PNL.exBuild.state().pert.score !== null);
+  assert.equal(await page.locator('#xbScore').innerText(), '100 %');
+  assert.equal(await activeId(page), 'xbGradeHead', 'el foco va a la nota');
+  await close(page);
+});
+
+check('F3d T015 AC5 y AC8 · con el teclado, la barra de «Ejercicios», la confirmación de cambiar de tipo, «Entregar» de la ROY y del detective; el foco se ve en cada elemento de los dibujos', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'en' };
+  const page = await exLab(s);
+  // Tab recorre los tipos; Intro abre cada uno y el foco se queda en su botón.
+  await page.locator('#exKind-calc').focus();
+  assert.ok(await focusVisible(page), 'foco visible en el tipo');
+  for (const k of ['roy', 'pert', 'det']) { await page.keyboard.press('Tab'); assert.equal(await activeId(page), `exKind-${k}`); }
+  // El modo y el nivel, también (el foco se quedaba en el cuerpo de la página al repintar; corregido en T015).
+  for (const id of ['exExam', 'exPractice', 'exLv-hard', 'exLv-medium']) {
+    await page.locator(`#${id}`).focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((x) => document.getElementById(x) && document.getElementById(x).getAttribute('aria-pressed') === 'true', id);
+    assert.equal(await activeId(page), id, `el foco sigue en ${id}`);
+  }
+  for (const k of ['roy', 'det']) {
+    await page.locator(`#exKind-${k}`).focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((x) => PNL.app.state().xk === x, k);
+    assert.equal(await activeId(page), `exKind-${k}`, `el foco sigue en ${k}`);
+    assert.ok(await focusVisible(page));
+  }
+  // El detective: Tab llega a cada elemento del dibujo con el foco visible (nodos, arcos y valores).
+  await page.waitForFunction(() => PNL.exDet.state() && PNL.exDet.state().seeded);
+  const kinds = await page.locator('#exView .dt-net [data-el][tabindex="0"]').evaluateAll((xs) => xs.map((x) => x.getAttribute('data-el')));
+  const pick = [kinds.find((x) => !/[>.]/.test(x)), kinds.find((x) => x.includes('>')), kinds.find((x) => x.includes('.'))].filter(Boolean);
+  assert.equal(pick.length, 3, `nodo, arco y valor (${kinds.slice(0, 6)})`);
+  for (const el of pick) { await page.focus(dtEl(el)); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab'); assert.ok(await t15SvgFocus(page), `foco visible en ${el}`); }
+  // Los selectores del detective (Red y Errores) repintan sin perder el foco.
+  for (const id of ['dtKind-calc', 'dtNet-aoa', 'dtNet-aon', 'dtKind-all']) {
+    await page.locator(`#${id}`).focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((x) => document.getElementById(x).getAttribute('aria-pressed') === 'true' && PNL.exDet.state().seeded, id);
+    assert.equal(await activeId(page), id, `el foco sigue en ${id}`);
+  }
+  // Con una marca, cambiar de tipo pide confirmación: «No» con el teclado deja todo igual y el foco vuelve al tipo.
+  const e = dtSeed(Object.assign({ dg: 'aon', dk: 'all' }, s, { sd: (await state(page)).sd })).seeded.errors[0];
+  await dtMark(page, e.element, e.type);
+  await page.locator('#exKind-roy').focus();
+  await page.keyboard.press('Enter');
+  await page.locator('#exLoseNo').waitFor();
+  await page.locator('#exLoseNo').focus();
+  await page.keyboard.press('Enter');
+  assert.equal((await state(page)).xk, 'det');
+  assert.equal((await state(page)).dm.length, 1);
+  // Examen del detective con el teclado.
+  await page.locator('#exExam').click();
+  await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().xm === 'exam' && PNL.exDet.state() && PNL.exDet.state().seeded && document.getElementById('dtDeliver'));
+  await page.locator('#dtDeliver').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'dtConfirmYes', 'la confirmación del detective recibe el foco');
+  await page.keyboard.press('Escape');
+  await close(page);
+  // La ROY: Tab llega a nodos y arcos con el foco visible; «Entregar», la confirmación y la nota, con el teclado.
+  const q = await xbLab(Object.assign({ rn: xbGood(s), xm: 'exam' }, s));
+  await q.focus(xbNode('_S'));
+  await q.keyboard.press('Shift+Tab');
+  await q.keyboard.press('Tab');
+  assert.ok(await t15SvgFocus(q), 'foco visible en Inicio');
+  await q.locator('.xb-svg .xb-arc').first().focus();
+  await q.keyboard.press('Shift+Tab');
+  await q.keyboard.press('Tab');
+  assert.ok(await q.evaluate(() => document.activeElement.matches('.xb-arc')), 'el arco recibe el foco');
+  assert.ok(await t15SvgFocus(q), 'foco visible en un arco');
+  await q.locator('#xbDeliver').focus();
+  await q.keyboard.press('Enter');
+  assert.equal(await activeId(q), 'xbConfirmYes', 'la confirmación recibe el foco');
+  await q.keyboard.press('Enter');
+  await q.waitForFunction(() => PNL.app.state().xd === 1 && PNL.exBuild.state().score !== null);
+  assert.equal(await activeId(q), 'xbGradeHead');
+  assert.equal(await q.locator('#xbScore').innerText(), '100 %');
+  await close(q);
+});
+
+// AC18: el nivel difícil a 1280×720, sin desplazar la página; a 360 px, sin desplazamiento horizontal.
+const t15Fits = (page) => page.evaluate(() => {
+  const v = document.getElementById('exView');
+  return { y: window.scrollY, bottom: Math.round(v.getBoundingClientRect().bottom), w: document.documentElement.scrollWidth };
+});
+
+check('F3d T015 AC18 · 1280×720, nivel difícil: la PERT (Practicar comprobada, con una solución, y Examen entregado con la red mínima) y el detective (ROY y PERT, antes y después de comprobar) caben sin desplazar la página', async () => {
+  const s = Object.assign({ lang: 'es' }, T15);
+  const fit = async (page, what) => {
+    const f = await t15Fits(page);
+    assert.ok(f.y === 0 && f.bottom <= 720 && f.w <= 1280, `${what}: ${JSON.stringify(f)}`);
+  };
+  let page = await xpLab(Object.assign({ sn: t15Pert(s) }, s));
+  await fit(page, 'PERT a medio hacer');
+  for (const k of ['check', 'solution']) {
+    const b = await page.locator(`#exView [data-k="${k}"]`).boundingBox();
+    assert.ok(b && b.y + b.height <= 720, `${k} a la vista`);
+  }
+  await page.locator('#exView [data-k="check"]').click();
+  await page.waitForFunction(() => PNL.exBuild.state().pert.result);
+  await fit(page, 'PERT comprobada');
+  await page.locator('#exView [data-k="solution"]').click();
+  await fit(page, 'PERT con una solución');
+  await close(page);
+  page = await xpLab(Object.assign({ sn: t15Pert(s), xm: 'exam' }, s));
+  await fit(page, 'PERT en Examen');
+  const b = await page.locator('#xbDeliver').boundingBox();
+  assert.ok(b && b.y + b.height <= 720, '«Entregar» a la vista');
+  await xpDeliver(page);
+  await fit(page, 'PERT entregada');
+  await page.locator('#xpSeeMin').click();
+  await fit(page, 'PERT entregada con la red mínima');
+  await close(page);
+  for (const dg of ['aon', 'aoa']) {
+    const d = Object.assign({ dg, dk: 'all' }, s);
+    page = await dtLab(Object.assign({ dm: t15Marks(d) }, d));
+    await fit(page, `detective ${dg}`);
+    const c = await page.locator('#dtCheck').boundingBox();
+    assert.ok(c && c.y + c.height <= 720, '«Comprobar» a la vista');
+    await page.locator('#dtCheck').click();
+    await page.locator('#dtResult').waitFor();
+    await fit(page, `detective ${dg} comprobado`);
+    await close(page);
+  }
+});
+
+check('F3d T015 AC18 · 360 px: ninguna vista nueva desplaza la página de lado (ES y EN), tampoco con el menú del detective, la red correcta o la solución abiertos', async () => {
+  for (const lang of ['es', 'en']) {
+    for (const [name, , , openView] of F3D_VIEWS) {
+      const page = await openView({ lang, scheme: 'light', nota: 'en', width: 360, height: 740 });
+      if (/ROY entregada/.test(name)) await page.locator('#xbCorrect').scrollIntoViewIfNeeded();
+      if (/PERT en Practicar/.test(name)) await page.locator('#exView [data-k="solution"]').click();
+      const w = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, vw: window.innerWidth }));
+      assert.ok(w.w <= w.vw, `${name} (${lang}) a 360 px: ${w.w} px`);
+      await close(page);
+    }
+    const p = await mqLab(lang, { width: 360, height: 800 });
+    for (const [i, st] of ['7 ·', '8 ·', '9 ·'].entries()) {
+      await mqSelect(p, [st], [lang === 'es' ? 'Difícil' : 'Hard']);
+      await p.waitForFunction((k) => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === k, LAB[i]);
+      assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `exportador, etapa ${st} (${lang})`);
+    }
+    await close(p);
+  }
+});
+
+// AC13: el enlace, abierto en otro contexto del navegador (sin nada guardado), da la misma vista.
+async function t15Relink(page, ready) {
+  const href = await page.evaluate(() => location.href);
+  const q = await open(href.slice(BASE.length + 1));
+  await ready(q);
+  return q;
+}
+const t15Decode = (hash) => U0.decode(hash).state;
+
+check('F3d T015 AC13 · los enlaces de las vistas nuevas, con lo hecho con el ratón y el teclado, abren lo mismo en otro contexto del navegador (entregados, corregidos)', async () => {
+  const s = Object.assign({ lang: 'es' }, T15);
+  const m = exModel(s);
+  const [a1, a2] = m.project.activities.filter((a) => !m.project.preds[a.id].length).map((a) => a.id).concat(m.project.activities.map((a) => a.id)).slice(0, 2);
+  // ROY en Practicar: dos actividades y un arco, con el teclado.
+  let page = await xbLab(s);
+  await xbKey(page, `#xb-c-${a1}`, 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await xbKey(page, `#xb-c-${a2}`, 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await xbKey(page, xbNode('_S'), 'u');
+  await xbKey(page, xbNode(a1), 'u');
+  await page.waitForFunction(() => PNL.app.state().rn && PNL.app.state().rn.arcs.length === 1);
+  let q = await t15Relink(page, t15Wait.xb);
+  assert.deepEqual(await xbNet(q), await xbNet(page), 'la red ROY, con sus posiciones');
+  assert.deepEqual(t15Decode(await q.evaluate(() => location.hash)), t15Decode(await page.evaluate(() => location.hash)));
+  await close(q);
+  // Entregada en Examen con el ratón.
+  await page.locator('#exExam').click();
+  if (await page.locator('#exLoseYes').count()) await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().xm === 'exam' && document.getElementById('xbDeliver'));
+  const before = await xbNet(page);
+  if (!before.arcs.length) { await xbKey(page, `#xb-c-${a1}`, 'Enter'); await xbKey(page, xbNode('_S'), 'n'); }
+  await page.locator('#xbDeliver').click();
+  await page.locator('#xbConfirmYes').click();
+  await page.waitForFunction(() => PNL.app.state().xd === 1 && PNL.exBuild.state().score !== null);
+  q = await t15Relink(page, async (x) => { await t15Wait.xb(x); await t15Wait.score(x); });
+  assert.equal(await q.locator('#xbScore').innerText(), await page.locator('#xbScore').innerText());
+  assert.equal(await q.locator('#xbGradeText').innerText(), await page.locator('#xbGradeText').innerText());
+  assert.equal(await q.locator('#xbDiag li').count(), await page.locator('#xbDiag li').count());
+  assert.equal(await q.locator('[data-k^="tool:"]').count(), 0, 'bloqueada');
+  await close(q);
+  await close(page);
+  // PERT: un suceso con el ratón y otro con el teclado; después, entregada.
+  page = await xpLab(Object.assign({ xm: 'exam' }, s));
+  await page.locator('#exView [data-k="tool:event"]').click();
+  await page.locator('#exView .reto-svg').click({ position: { x: 60, y: 60 } });
+  await page.locator('#exView [data-k="svg"]').focus();
+  await page.keyboard.press('n');
+  await page.waitForFunction(() => PNL.app.state().sn && PNL.app.state().sn.events.length === 2);
+  q = await t15Relink(page, (x) => x.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().pert));
+  assert.deepEqual((await xpSt(q)).net, (await xpSt(page)).net, 'la red PERT');
+  await close(q);
+  await xpDeliver(page);
+  q = await t15Relink(page, async (x) => { await x.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().pert); await t15Wait.pertScore(x); });
+  assert.equal(await q.locator('#xbScore').innerText(), await page.locator('#xbScore').innerText());
+  assert.equal(await q.locator('#exView .reto-result').innerText(), await page.locator('#exView .reto-result').innerText());
+  await close(q);
+  await close(page);
+  // Detective: dos marcas (teclado y ratón), en Practicar y entregado.
+  const d = Object.assign({ dg: 'aoa', dk: 'all', xm: 'exam' }, s);
+  const [e1, e2] = dtSeed(d).seeded.errors;
+  page = await dtLab(d);
+  // La marca de crítica se pone desde su actividad («H.crit» se elige en el menú de H).
+  const where = (el) => el.replace(/\.crit$/, '');
+  await dtMark(page, where(e1.element), e1.type);
+  await dtMark(page, where(e2.element), e2.type, 'click');
+  q = await t15Relink(page, (x) => x.waitForFunction(() => PNL.exDet && PNL.exDet.state && PNL.exDet.state() && PNL.exDet.state().seeded));
+  assert.deepEqual((await state(q)).dm, (await state(page)).dm);
+  assert.deepEqual(await q.locator('#dtMarks li').allInnerTexts(), await page.locator('#dtMarks li').allInnerTexts());
+  await close(q);
+  await page.locator('#dtDeliver').click();
+  await page.locator('#dtConfirmYes').click();
+  await t15Wait.dtGraded(page);
+  q = await t15Relink(page, (x) => x.waitForFunction(() => PNL.exDet && PNL.exDet.state && PNL.exDet.state() && PNL.exDet.state().grading));
+  assert.equal(await q.locator('#dtScore').innerText(), await page.locator('#dtScore').innerText());
+  assert.deepEqual(await q.locator('#dtResult li').allInnerTexts(), await page.locator('#dtResult li').allInnerTexts());
+  await close(q);
+  await close(page);
+  // Reto ROY del taller.
+  page = await rrLab({});
+  await xbKey(page, '#xb-c-A', 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await page.waitForFunction(() => PNL.app.state().rn && PNL.app.state().rn.nodes.some((n) => n.id === 'A'));
+  q = await t15Relink(page, (x) => x.waitForFunction(() => PNL.app.royReto && PNL.app.royReto() && PNL.app.royReto().net));
+  assert.deepEqual((await rrSt(q)).net, (await rrSt(page)).net);
+  await close(q);
+  await close(page);
+});
+
+check('F3d T015 AC13 · los enlaces de la F1 a la F4b abren su vista en otro contexto, con el mismo estado', async () => {
+  for (const url of ['cpm.html#v=route&ex=ej6&step=12&lang=en', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=26&graph=aoa&view=side&lang=es',
+    `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es',
+    'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es', exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xm: 'exam' }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }),
+    'cpm.html#v=moodle&lang=en', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=kd&uy=idx&uo=s&lang=en']) {
+    const page = await open(url);
+    await page.waitForLoadState('networkidle');
+    const hash = '#' + url.split('#')[1];
+    assert.deepEqual(t15Decode(await page.evaluate(() => location.hash)), t15Decode(hash), url);
+    const st = await state(page);
+    const want = t15Decode(hash);
+    for (const k of ['v', 'graph', 'view', 'xk', 'um', 'lang']) assert.equal(st[k], want[k], `${url}: ${k}`);
+    await close(page);
+  }
+});
+
+check('F3d T015 AC19 · principio 27: las vistas nuevas con lo hecho, entregadas o con la solución, y cada vista con «Aprende más» abierto, por debajo de 1 MB', async () => {
+  const s = Object.assign({ lang: 'es' }, T15);
+  const measure = async (page, label) => {
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+    console.log(`    ${label}: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${label}: ${bytes} bytes`);
+  };
+  for (const [name, , , openView] of F3D_VIEWS) {
+    const page = await openView({ lang: 'es', scheme: 'light', nota: 'en' });
+    if (/ROY/.test(name) && await page.locator('#xbSee').count()) await page.locator('#xbSee').click();
+    if (/PERT en Practicar/.test(name)) await page.locator('#exView [data-k="solution"]').click();
+    if (/PERT entregada/.test(name)) await page.locator('#xpSeeRules').click();
+    await measure(page, name);
+    await close(page);
+  }
+  // El exportador con la vista previa de cada etapa nueva y el banco descargado.
+  const p = await mqLab('es');
+  for (const [i, st] of ['7 ·', '8 ·', '9 ·', '10 ·'].entries()) {
+    await mqSelect(p, [st], ['Difícil']);
+    await p.waitForFunction((k) => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === k, LAB[i]);
+  }
+  await mqSelect(p, ['7 ·', '8 ·', '9 ·', '10 ·'], ['Difícil'], 1);
+  await mqDownload(p);
+  await measure(p, 'exportador con las etapas 7 a 10 descargadas');
+  await close(p);
+  // «Aprende más» abierto: cada vista que lo tiene (la carga común creció en la F3d).
+  for (const [url, btn] of [[exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), '#exLearn'], ['cpm.html#v=route&ex=ej6&step=0&lang=es', '#btnLearn'],
+    ['cpm.html#graph=aoa&ex=ej6&step=5&lang=es', '#btnLearn'], ['cpm.html#v=work&ex=ej6&lang=es', '#btnLearn'], [`cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, '#cmpView button.ghost'],
+    ['cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es', '#m0Learn'], ['cpm.html#v=unc&ue=hl&uc=1&lang=es', '#uncLearn'],
+    ['cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', '#uncLearn'], ['cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es', '#uncLearn']]) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
+    await page.locator(btn).first().click();
+    await page.locator('dialog[open]').first().waitFor();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(300);
+    await measure(page, `${url.slice(0, 60)} con «Aprende más»`);
+    await ctx.close();
+  }
+  assert.equal(s.lv, 'hard');
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {

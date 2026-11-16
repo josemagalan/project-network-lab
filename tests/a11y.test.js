@@ -236,3 +236,48 @@ test('css/unc.css: sin colores propios; trazos y bordes con tokens de 3:1; el fo
   // --card (separación entre barras del histograma) y --line (borde de una tarjeta, como en styles.css) no llevan información.
   assert.deepEqual([...new Set(used)].filter((tok) => !ok.has(tok) && tok !== 'card' && tok !== 'line'), []);
 });
+
+// F3d (T015): las hojas de construir y del detective (build.css y det.css) solo usan los tokens de styles.css (con --select y
+// --select-soft, que styles.css define aparte, para la red PERT de la F2a). En los dibujos, el contorno del foco se quita solo
+// en los elementos pulsables del SVG, y el mismo archivo los marca con el trazo de --focus (3 px o más) al enfocarlos con el
+// teclado. Los textos sobre fondo de color (insignias numeradas) y los trazos que llevan información, con su contraste.
+function selectTokens() {
+  const css = read('css/styles.css');
+  const light = css.match(/:root \{ --select: (#[0-9a-f]{6}); --select-soft: (#[0-9a-f]{6}); \}/);
+  const dark = css.match(/:root\[data-theme="dark"\] \{ --select: (#[0-9a-f]{6}); --select-soft: (#[0-9a-f]{6}); \}/);
+  assert.ok(light && dark, 'styles.css define --select y --select-soft en los dos temas');
+  return { light: { select: light[1], 'select-soft': light[2] }, dark: { select: dark[1], 'select-soft': dark[2] } };
+}
+
+for (const file of ['css/build.css', 'css/det.css']) {
+  test(`${file}: sin colores propios; el foco del dibujo, con el trazo de --focus; insignias y trazos con contraste`, () => {
+    const css = read(file);
+    assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/, 'sin colores fuera de los tokens');
+    // Cada regla que quita el contorno es la de los elementos pulsables de un SVG, y su trazo de foco está en el mismo archivo.
+    const off = [...css.matchAll(/([^{}]+)\{[^}]*outline:\s*(?:none|0)\b[^}]*\}/g)].map((m) => m[1].trim());
+    assert.ok(off.length >= 1);
+    for (const sel of off) {
+      const box = sel.match(/^(\.[a-z-]+) \[role="button"\]:focus$/);
+      assert.ok(box, `${file}: «${sel}» quita el contorno fuera de un dibujo`);
+      const ring = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s, body]) => s.includes(box[1]) && s.includes(':focus-visible') && /stroke:\s*var\(--focus\)/.test(body));
+      assert.ok(ring.length >= 1, `${file}: ${box[1]} sin trazo de foco`);
+      for (const [, , body] of ring) assert.ok(Number((body.match(/stroke-width:\s*([\d.]+)/) || [])[1]) >= 3, `${file}: trazo de foco de menos de 3`);
+    }
+    const all = (theme) => Object.assign({}, tokens('css/styles.css')[theme], selectTokens()[theme]);
+    const ok = new Set([...PAIRS['css/styles.css'].ui.map(([fg]) => fg), ...PAIRS['css/styles.css'].text.map(([fg]) => fg), 'select']);
+    const used = [...css.matchAll(/(?:stroke|border(?:-left|-color)?|[^-]color):[^;]*var\(--([a-z-]+)\)/g)].map((m) => m[1]);
+    assert.ok(used.length >= 8);
+    // --card (texto de las insignias, que se mide abajo) y --line (borde de una tarjeta) no llevan información sobre la tarjeta.
+    assert.deepEqual([...new Set(used)].filter((tok) => !ok.has(tok) && tok !== 'card' && tok !== 'line'), []);
+    const fails = [];
+    for (const theme of ['light', 'dark']) {
+      const t = all(theme);
+      // Texto de 11 px en negrita: 4,5:1. Trazos: 3:1 sobre la tarjeta y sobre el relleno de lo seleccionado.
+      for (const [fg, bg, min] of [['card', 'select', 4.5], ['card', 'critical', 4.5], ['ink', 'select-soft', 4.5], ['select', 'card', 3], ['select', 'select-soft', 3], ['focus', 'select-soft', 3]]) {
+        const r = contrast(t[fg], t[bg]);
+        if (r < min) fails.push(`${theme} --${fg} sobre --${bg}: ${r.toFixed(2)}`);
+      }
+    }
+    assert.deepEqual(fails, []);
+  });
+}

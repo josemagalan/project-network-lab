@@ -680,7 +680,20 @@
           h('div', { class: 'ex-btns' }, actions)]), h('div', { class: 'ex-side' }, side)])]);
     }
 
+    // F3d (T015): al repintar, el foco que estaba en la vista vuelve al mismo control si nada lo ha llevado a otro sitio
+    // (p. ej., el tipo, el modo o el nivel elegidos con el teclado; sin esto se quedaba en el cuerpo de la página).
     function draw() {
+      const a = root.document.activeElement;
+      const keep = a && a.id && container.contains(a) ? a.id : null;
+      paint();
+      const now = root.document.activeElement;
+      if (keep && (!now || now === root.document.body || !root.document.contains(now))) {
+        const el = root.document.getElementById(keep);
+        if (el && !el.disabled) el.focus({ preventScroll: true });
+      }
+    }
+
+    function paint() {
       clear(container);
       if (!m) return;
       container.appendChild(bar());
