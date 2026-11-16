@@ -1,0 +1,91 @@
+/* F3d · detective en «Ejercicios» (T011; tableros 86 y 87). Hoja del grupo dt: solo la carga xk=det (plan P1). Los
+   estados no dependen solo del color: cada elemento lleva su signo (número, ✓, ½, ✗ o ?) y su trazo. */
+.dt-body h2 { margin: 0; font-size: 16px; }
+.dt-body h3 { margin: 0; font-size: 14px; }
+.dt-body p { margin: 0; }
+.dt-grid { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.dt-grid.dt-with-side { grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); }
+.dt-left, .dt-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dt-given, .dt-marks, .dt-work, .dt-result, .dt-errors { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dt-given table.data th, .dt-given table.data td { padding: 2px 5px; }
+.dt-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.dt-net-box { border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.dt-net { display: block; }
+.dt-net text { font-size: 13px; fill: var(--ink); text-anchor: middle; }
+.dt-net .dt-arc .hit { fill: none; stroke: transparent; stroke-width: 14; }
+.dt-net .edge { fill: none; stroke: var(--edge); stroke-width: 1.6; }
+.dt-net .dt-dummy .edge { stroke-dasharray: 6 4; }
+.dt-net .lbl { font-size: 12px; font-weight: 600; }
+.dt-net .dt-dummy .lbl { font-style: italic; font-weight: 400; }
+.dt-net .mk { fill: var(--edge); }
+.dt-net .mk-bad { fill: var(--critical); }
+.dt-net .mk-warn { fill: var(--warn-line); }
+.dt-net .mk-ok { fill: var(--ok); }
+.dt-net .mk-sel { fill: var(--select); }
+.dt-net .dt-box .frame, .dt-net .dt-node rect, .dt-net .dt-event circle { fill: var(--card); stroke: var(--ink); stroke-width: 1.4; }
+.dt-net .dt-box.crit .frame { stroke-width: 2.6; }
+.dt-net .dt-mid rect, .dt-net .dt-cell rect { fill: transparent; stroke: none; }
+.dt-net .sep { stroke: var(--line); stroke-width: 1; }
+.dt-net .dt-mid text, .dt-net .dt-node text, .dt-net .dt-event text { font-weight: 700; font-size: 14px; }
+.dt-net .dt-term text { font-style: italic; }
+.dt-net .dt-cell text { font-size: 12px; font-variant-numeric: tabular-nums; }
+.dt-net .dt-d { font-size: 11px; fill: var(--muted); }
+.dt-net [role="button"] { cursor: pointer; }
+.dt-net [role="button"]:focus { outline: none; }
+.dt-net [role="button"]:focus-visible rect, .dt-net [role="button"]:focus-visible circle { stroke: var(--focus); stroke-width: 3.5; }
+.dt-net .dt-arc[role="button"]:focus-visible .edge { stroke: var(--focus); stroke-width: 3.5; stroke-dasharray: none; }
+.dt-net [role="button"]:hover .edge { stroke-width: 2.6; }
+/* Estados: marcado, a medias, encontrado, falsa alarma, no encontrado y error a la vista. */
+.dt-net .sel rect, .dt-net .sel circle { stroke: var(--select); stroke-width: 3; }
+.dt-net .marked rect, .dt-net .half rect, .dt-net .marked circle, .dt-net .half circle { fill: var(--select-soft); stroke: var(--select); stroke-width: 2.4; }
+.dt-net .marked .edge, .dt-net .half .edge { stroke: var(--select); stroke-width: 2.4; }
+.dt-net .found rect, .dt-net .found circle { fill: var(--select-soft); stroke: var(--ok); stroke-width: 2.6; }
+.dt-net .found .edge { stroke: var(--ok); stroke-width: 2.6; }
+.dt-net .false rect, .dt-net .false circle { stroke: var(--warn-line); stroke-width: 2.6; stroke-dasharray: 3 3; }
+.dt-net .false .edge { stroke: var(--warn-line); stroke-width: 2.4; stroke-dasharray: 3 3; }
+.dt-net .missed rect, .dt-net .missed circle, .dt-net .reveal rect, .dt-net .reveal circle { stroke: var(--critical); stroke-width: 2.6; stroke-dasharray: 6 3; }
+.dt-net .missed .edge, .dt-net .reveal .edge { stroke: var(--critical); stroke-width: 2.4; stroke-dasharray: 8 3; }
+.dt-net .dt-ghost .edge { stroke: var(--critical); stroke-width: 2.2; stroke-dasharray: 2 4; }
+.dt-net .dt-badge circle { fill: var(--select); }
+.dt-net .dt-badge.found circle { fill: var(--ok); }
+.dt-net .dt-badge.false circle { fill: var(--warn); }
+.dt-net .dt-badge.missed circle, .dt-net .dt-badge.reveal circle { fill: var(--critical); }
+.dt-net .dt-badge text { fill: var(--card); font-size: 11px; font-weight: 700; }
+.dt-menu { border: 1px solid var(--select); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; background: var(--card); }
+.dt-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.dt-opts button { font-size: 13px; padding: 4px 10px; min-height: 32px; }
+.dt-opts button[aria-pressed="true"] { border: 2px solid var(--select); background: var(--select-soft); }
+.dt-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 12px; }
+.dt-foot > p { flex: 1 1 260px; }
+.dt-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.4; }
+.dt-marks .dt-list li { display: flex; gap: 8px; align-items: center; }
+.dt-marks .dt-list li > span:nth-child(2) { flex: 1 1 auto; }
+.dt-chip { flex: none; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; background: var(--select); color: var(--card); }
+.dt-x { font-size: 12px; padding: 2px 8px; min-height: 26px; }
+.dt-results li, .dt-errors li { display: flex; flex-direction: column; gap: 3px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.dt-results li.found { border-left: 4px solid var(--ok); }
+.dt-results li.half { border-left: 4px solid var(--select); }
+.dt-results li.false { border-left: 4px dashed var(--warn-line); }
+.dt-results li.missed { border-left: 4px dashed var(--critical); }
+.dt-st { font-weight: 700; font-size: 12px; }
+.dt-what { font-weight: 600; }
+.dt-grade strong { font-size: 28px; line-height: 1.1; }
+.dt-result h2:focus, .dt-errors h2:focus, .dt-marks h2:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dt-alt summary { font-weight: 600; cursor: pointer; font-size: 14px; }
+.dt-alt .card { border: 0; padding: 6px 0 0; }
+table.data.dt-alt-t { font-size: 13px; margin-top: 6px; }
+
+/* A 1280×720 nada desplaza la página: cada columna se desplaza por dentro y el dibujo se encoge con su recuadro. */
+@media (min-width: 961px) and (min-height: 600px) {
+  .dt-grid { height: calc(100vh - 196px); min-height: 380px; }
+  .dt-left, .dt-side, .dt-work { height: 100%; overflow: auto; }
+  .dt-work .dt-net-box { flex: 1 1 auto; min-height: 220px; position: relative; overflow: hidden; }
+  .dt-work .dt-net-box .dt-net { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0 !important; }
+}
+@media (max-width: 960px) {
+  .dt-grid, .dt-grid.dt-with-side { grid-template-columns: minmax(0, 1fr); }
+  .dt-left { display: contents; }
+  .dt-given { order: 1; } .dt-work { order: 2; } .dt-marks { order: 3; } .dt-alt { order: 4; }
+  .dt-net-box { max-height: 420px; }
+}

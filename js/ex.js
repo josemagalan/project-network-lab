@@ -158,7 +158,7 @@
   // Cálculo (la F3a, sin cambios), construir la ROY o la PERT y detective. Solo se ofrecen los que ya están hechos; la
   // barra con el tipo se ve con un tipo que no es el cálculo (por URL) o cuando se publique (buildPublic, T014).
   const KINDS = ['calc', 'roy', 'pert', 'det'];
-  const kindReady = { calc: true, roy: true, pert: true, det: false };
+  const kindReady = { calc: true, roy: true, pert: true, det: true };
   const kindOf = (state) => (KINDS.includes(state.xk) ? state.xk : 'calc');
   // Lo que se pierde al cambiar de ejercicio: las respuestas del cálculo, la red del alumno o las marcas del detective.
   function hasWork(state) {
@@ -345,13 +345,15 @@
     let tableOpen = false; let textOn = false;
     // F3d (T008): el cuerpo de los otros tipos lo pinta su controlador (construir la ROY: PNL.exBuild, grupo xb).
     let builder = null;
+    // F3d (T011): el detective, PNL.exDet (grupo dt).
+    let detective = null;
 
     const state = () => hooks.state();
     const nota = () => state().nota;
     const vis = () => visibility(state());
     const grading = () => (m && m.grading ? m.grading : checked ? checked.grading : null);
     const marksOn = () => { const v = vis(); return v.marks === 'always' || (v.marks === 'checked' && !!checked && !stale); };
-    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv, kindOf(s)]);
+    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv, kindOf(s), s.dg, s.dk]);
 
     // Un ejercicio nuevo (semilla, nivel, parámetros, lo que se pide o el modo): si hay respuestas, antes se confirma.
     function newExercise(action) {
@@ -364,7 +366,8 @@
     function setKind(k) {
       if (k === kindOf(state()) || !kindReady[k]) return;
       const go = () => newExercise({ xk: k });
-      if (k === 'roy' && hooks.need) hooks.need('xb').then(go, () => {}); else go();
+      const group = { roy: 'xb', det: 'dt' }[k];
+      if (group && hooks.need) hooks.need(group).then(go, () => {}); else go();
     }
     const another = () => newExercise({ sd: hooks.newSeed() });
 
@@ -452,8 +455,15 @@
           button(tt('ex.another'), another, { attrs: { id: 'exAnother' } }),
         ]);
         r1.querySelector('.seg').classList.add('ex-kind-seg');
-        const r2 = h('div', { class: 'ex-row' }, [h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
-          h('span', { class: 'muted small ex-sum' }, [levelSummary(prm, lang())]), kind === 'calc' ? textCtl : null]);
+        // F3d (T011, P5; tableros 86 y 92): en el detective, en vez de la descripción del nivel, «Red» y «Errores».
+        const r2 = kind === 'det'
+          ? h('div', { class: 'ex-row' }, [h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
+            h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), h('span', { class: 'ex-cap' }, [tt('det.net')]),
+            seg(['aon', 'aoa'].map((g) => [tt(`det.graph.${g}`), (s.dg || 'aon') === g, () => { if ((s.dg || 'aon') !== g) newExercise({ dg: g }); }, `dtNet-${g}`]), tt('det.net')),
+            h('span', { class: 'ex-cap' }, [tt('det.errors')]),
+            seg(['net', 'calc', 'all'].map((k) => [tt(`det.kind.${k}`), (s.dk || 'all') === k, () => { if ((s.dk || 'all') !== k) newExercise({ dk: k }); }, `dtKind-${k}`]), tt('det.errors'))])
+          : h('div', { class: 'ex-row' }, [h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
+            h('span', { class: 'muted small ex-sum' }, [levelSummary(prm, lang())]), kind === 'calc' ? textCtl : null]);
         const r3 = kind === 'calc' ? h('div', { class: 'ex-row' }, [asksBox()]) : null;
         return h('section', { class: 'card ex-bar' }, [r1, r2, r3, kind === 'calc' ? textOff : null, customOpen ? customPanel() : null]);
       }
@@ -689,6 +699,18 @@
       }
       // F3d (T008 y T010): construir la ROY o la PERT lo pinta exBuild (grupo xb; la PERT, con el reto, grupo cr); los
       // tipos que aún no están hechos no pintan nada.
+      // F3d (T011): el detective lo pinta exDet (grupo dt).
+      if (m.kind === 'det') {
+        if (!root.PNL.exDet || !root.PNL.detView) { if (hooks.need) hooks.need('dt').then(draw, () => {}); return; }
+        if (!detective) {
+          detective = root.PNL.exDet.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, numFmt, another });
+          root.PNL.exDet.state = () => detective.debug();
+        }
+        const body = h('div', { class: 'dt-body' });
+        container.appendChild(body);
+        detective.draw(body, m);
+        return;
+      }
       if (m.kind !== 'calc') {
         if (m.kind !== 'roy' && m.kind !== 'pert') return;
         const want = m.kind === 'pert' ? ['xb', 'cr'] : ['xb'];
@@ -718,6 +740,7 @@
         // Otro ejercicio: lo que solo vivía en la página se olvida.
         exKey = k; checked = null; stale = false; selKey = null; selAct = null; confirmOpen = false; arcs = false; pending = null; pathFields = 1;
         if (builder) builder.reset();
+        if (detective) detective.reset();
         if (state().lv !== 'custom') draft = null;
       }
       // Con el enunciado, la red y la tabla empiezan plegadas: las dos dejan ver las precedencias (decisión del autor, T008).

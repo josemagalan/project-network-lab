@@ -6962,7 +6962,7 @@ check('F3d T008 · oculto (T014): sin xk no hay tipo ni grupo xb; con xk=roy, el
   await close(page);
   page = await xbLab({ sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' });
   assert.equal(await xbGroups(page), 6, 'el grupo xb entero');
-  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), [I0.t('es', 'ex.kind.calc'), I0.t('es', 'ex.kind.roy'), I0.t('es', 'ex.kind.pert')], 'solo los tipos ya hechos (T010: también la PERT)');
+  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), [I0.t('es', 'ex.kind.calc'), I0.t('es', 'ex.kind.roy'), I0.t('es', 'ex.kind.pert'), I0.t('es', 'ex.kind.det')], 'solo los tipos ya hechos (T010: también la PERT; T011, el detective)');
   // Sin nada hecho, otro ejercicio no pregunta.
   const sd0 = (await state(page)).sd;
   await page.locator('#exAnother').click();
@@ -7209,7 +7209,7 @@ check('F3d T010 AC7 y AC13 · construir la PERT en Practicar (ES, medio): la tab
   const m = exModel(Object.assign({ xk: 'pert' }, s));
   const page = await xpLab(s);
   assert.equal(await page.locator('#exKind-pert').getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), ['calc', 'roy', 'pert'].map((k) => I0.t('es', `ex.kind.${k}`)), 'los tipos hechos');
+  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), ['calc', 'roy', 'pert', 'det'].map((k) => I0.t('es', `ex.kind.${k}`)), 'los tipos hechos');
   assert.ok(await visible(page, '#xbGiven'), 'la tabla de precedencias');
   assert.equal(await page.locator('#xbGiven tbody tr').count(), m.project.activities.length);
   assert.equal(await page.locator('#exView .reto-title').innerText(), I0.t('es', 'reto.title'));
@@ -7335,13 +7335,241 @@ check('F3d T010 · cambiar de tipo: de la ROY a la PERT con algo hecho pide conf
   await close(page);
 });
 
+// ---------- F3d, T011: detective en «Ejercicios» (oculto hasta T014; tableros 86, 87 y 92) ----------
+
+const DT0 = require(path.join(ROOT, 'js', 'core', 'detective.js'));
+require(path.join(ROOT, 'js', 'i18n-det.js'));
+// Al pedirlo (las pruebas en rojo de T011 corrían sin el módulo).
+const XD0 = new Proxy({}, { get: (o, k) => require(path.join(ROOT, 'js', 'ex-det.js'))[k] });
+const dtUrl = (s) => exUrl(Object.assign({ xk: 'det' }, s));
+async function dtLab(s, opts) {
+  const page = await open(dtUrl(s), opts);
+  await page.waitForFunction(() => PNL.exDet && PNL.exDet.state && PNL.exDet.state() && PNL.exDet.state().seeded);
+  return page;
+}
+const dtSt = (page) => page.evaluate(() => PNL.exDet.state());
+// Lo mismo que siembra el navegador, en Node (AC10): la tabla de la semilla (o la siguiente que admite el grupo, H2).
+const dtSeed = (s) => DT0.forSeed(X0.params(exState0(s)), s.sd, { level: s.lv, graph: s.dg || 'aon', kind: s.dk || 'all' });
+const dtFiles = /ex-det\.js|det-view\.js|i18n-det\.js|core\/detective\.js|core\/aoacheck\.js|core\/roycheck\.js|det\.css/;
+const dtGroups = (page) => page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, dtFiles.source);
+const dtEl = (el) => `#exView [data-el="${el}"]`;
+// Marca un elemento con el teclado (foco, Intro y la opción del menú) o con el ratón.
+async function dtMark(page, el, type, how) {
+  if (how === 'click') await page.locator(dtEl(el)).first().click();
+  else { await page.focus(dtEl(el)); await page.keyboard.press('Enter'); }
+  await page.waitForSelector('#dtMenu');
+  await page.locator(`#dtMenu [data-type="${type}"]`).click();
+  await page.waitForFunction((t) => (PNL.app.state().dm || []).some((m) => m.type === t), type);
+}
+const dtCtx = (r, s) => ({ graph: r.seeded.graph, project: r.project, shown: r.seeded.shown, lang: s.lang || 'es', nota: s.nota || 'en', numFmt: (v) => XD0.num(v, s.lang || 'es') });
+
+check('F3d T011 AC9, AC10, AC11 y AC20 · detective ROY en Practicar (ES, medio, todos): los mismos errores que en Node; marcar con el teclado y con el ratón; encontrado, a medias y falsa alarma; nota y explicaciones; grupo dt sin xb', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es', dg: 'aon', dk: 'all' };
+  const r = dtSeed(s);
+  assert.equal(r.moved, false);
+  const page = await dtLab(s);
+  const st = await dtSt(page);
+  assert.deepEqual(st.seeded.errors, r.seeded.errors, 'AC10: la misma semilla siembra lo mismo en el navegador y en Node');
+  assert.equal(st.seeded.count, 2);
+  assert.equal(await page.locator('#exKind-det').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#dtNet-aon').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#dtKind-all').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#dtTitle').innerText(), I0.t('es', 'det.title', { n: 2 }));
+  assert.equal(await page.locator('#dtMoved').count(), 0);
+  assert.equal(await dtGroups(page), 7, 'el grupo dt');
+  assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-build\.js|roy-canvas\.js|i18n-build\.js|\/reto\.js/.test(e.name))), false, 'sin xb ni cr');
+  // La red que se enseña: los arcos de la red con errores y los valores de la tabla verdadera salvo los sembrados (P6).
+  for (const a of r.seeded.shown.roy.arcs) assert.equal(await page.locator(dtEl(`${a.from}>${a.to}`)).count(), 1, `${a.from}>${a.to}`);
+  const [eNet, eCalc] = r.seeded.errors;
+  assert.equal(await page.locator(dtEl(eCalc.element)).textContent(), String(eCalc.wrong), 'el valor sembrado');
+  const other = r.project.activities.map((a) => a.id).find((a) => a !== eCalc.element.split('.')[0] && !eNet.accept.includes(a));
+  assert.equal(await page.locator(dtEl(`${other}.LS`)).textContent(), String(exModel(s).sol.cpm.times[other].LS), 'el valor verdadero');
+  assert.equal(await page.locator('#dtCheck').count(), 1);
+  assert.equal(await page.locator('#dtDeliver').count(), 0);
+  // El menú de un arco: los tres tipos de la red ROY; Esc lo cierra y el foco vuelve al arco.
+  await page.focus(dtEl(eNet.element));
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#dtMenuHead').innerText(), I0.t('es', 'det.menuOf', { x: I0.t('es', 'det.el.arc', { from: eNet.data.from, to: eNet.data.to }) }));
+  assert.deepEqual(await page.locator('#dtMenu [data-type]').evaluateAll((xs) => xs.map((x) => x.getAttribute('data-type'))), ['royFalse', 'royInverted', 'royCycle']);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#dtMenu').count(), 0);
+  assert.equal(await page.evaluate(() => document.activeElement.getAttribute('data-el')), eNet.element);
+  // A medias (otro tipo), encontrado (con el ratón) y una falsa alarma; cada marca con su número, no solo color.
+  await dtMark(page, eNet.element, 'royInverted');
+  await dtMark(page, eCalc.element, 'calcES', 'click');
+  await dtMark(page, `${other}.LS`, 'calcLF');
+  assert.match(await page.evaluate(() => location.hash), /[#&]dm=/);
+  assert.equal(await page.locator('#dtMarks li').count(), 3, 'la lista de marcas (alternativa en texto)');
+  assert.deepEqual((await page.locator('#exView .dt-net [data-el] .dt-badge').allTextContents()).sort(), ['1', '2', '3'], 'insignias numeradas');
+  assert.equal(await page.locator('#dtResult').count(), 0, 'sin corrección hasta comprobar');
+  await page.locator('#dtCheck').click();
+  const g = DT0.grade(r.seeded, (await state(page)).dm);
+  assert.deepEqual(g.perError.map((x) => x.status), ['half', 'found']);
+  assert.equal(g.falseAlarms.length, 1);
+  assert.equal(await page.locator('#dtScore').innerText(), '50 %');
+  assert.equal(await page.locator('#dtResultHead').innerText(), I0.t('es', 'det.res.title', { f: 1, n: 2 }));
+  assert.equal(await activeId(page), 'dtResultHead');
+  assert.deepEqual(await page.locator('#dtResult li .dt-st').allInnerTexts(), ['½ A medias', '✓ Encontrado', '✗ Falsa alarma']);
+  const ctx = dtCtx(r, s);
+  for (const [k, e] of r.seeded.errors.entries()) assert.equal(await page.locator(`#dtResult li[data-error="${e.id}"] .dt-exp`).innerText(), XD0.explainText(e, ctx), `explicación ${k + 1}`);
+  assert.equal(await page.locator(`${dtEl(eNet.element)}.half`).count(), 1, 'la marca del dibujo cambia con la corrección');
+  await axe(page, 'Detective ROY en Practicar, comprobado (ES)');
+  // Cambiar una marca borra la corrección; con el tipo bueno, 75 %.
+  await dtMark(page, eNet.element, 'royFalse');
+  assert.equal(await page.locator('#dtResult').count(), 0);
+  await page.locator('#dtCheck').click();
+  assert.equal(await page.locator('#dtScore').innerText(), '75 %');
+  // Quitar una marca con Supr en el dibujo (la corrección se va) y otra desde la lista de marcas.
+  await page.focus(dtEl(`${other}.LS`));
+  await page.keyboard.press('Delete');
+  await page.waitForFunction(() => PNL.app.state().dm.length === 2);
+  assert.equal(await page.locator('#dtResult').count(), 0);
+  await page.locator(`#dtMarks [data-unmark="${eCalc.element}"]`).click();
+  await page.waitForFunction(() => PNL.app.state().dm.length === 1);
+  assert.equal(await activeId(page), 'dtMarksHead');
+  await close(page);
+});
+
+check('F3d T011 AC9 y AC17 · detective PERT en Practicar (EN, difícil, de la red, oscuro): sin cifras; lo que falta, marcado en su otro extremo; no encontrado con su arco punteado; «Ver los errores»', async () => {
+  const s = { sd: EX_CASES.hard.sd, lv: 'hard', lang: 'en', dg: 'aoa', dk: 'net' };
+  const r = dtSeed(s);
+  const page = await dtLab(s, { scheme: 'dark' });
+  assert.deepEqual((await dtSt(page)).seeded.errors, r.seeded.errors);
+  assert.equal(await page.locator('#dtTitle').innerText(), I0.t('en', 'det.title', { n: 3 }));
+  assert.equal(await page.locator('#exView [data-el*="."]').count(), 0, 'sin cifras ni críticas');
+  assert.equal(await page.locator('#dtLegend').innerText(), I0.t('en', 'det.noFigures'));
+  for (const e of r.seeded.shown.pert.events) assert.equal(await page.locator(dtEl(`e${e.n}`)).count(), 1);
+  const miss = r.seeded.errors.find((e) => e.type === 'pertMissingDummy');
+  const fals = r.seeded.errors.find((e) => e.type === 'pertFalseDummy');
+  const inv = r.seeded.errors.find((e) => e.type === 'pertInvertedDummy');
+  // El menú de un suceso: solo «le falta una ficticia»; el de una actividad, «mismos sucesos».
+  await page.focus(dtEl(miss.accept[1]));
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await page.locator('#dtMenu [data-type]').evaluateAll((xs) => xs.map((x) => x.getAttribute('data-type'))), ['pertMissingDummy']);
+  await page.keyboard.press('Escape');
+  await dtMark(page, miss.accept[1], 'pertMissingDummy');
+  await dtMark(page, fals.element, 'pertFalseDummy');
+  await page.locator('#dtCheck').click();
+  assert.equal(await page.locator('#dtScore').innerText(), '66.7 %');
+  assert.deepEqual(await page.locator('#dtResult li .dt-st').allInnerTexts(), r.seeded.errors.map((e) => (e === inv ? '? Not found' : '✓ Found')));
+  assert.equal(await page.locator(`${dtEl(inv.element)}.missed`).count(), 1, 'lo no encontrado, marcado en el dibujo');
+  await axe(page, 'Detective PERT comprobado (EN, oscuro)');
+  // «Ver los errores»: la lista con su explicación.
+  await page.locator('#dtSee').click();
+  assert.equal(await page.locator('#dtErrors li').count(), 3);
+  assert.equal(await page.locator(`#dtErrors li[data-error="${miss.id}"] .dt-exp`).innerText(), XD0.explainText(miss, dtCtx(r, s)));
+  await close(page);
+});
+
+// Un error de cada tipo (los 16), encontrado al comprobar con las marcas del enlace.
+const DT_TYPES = { aon: DT0.TYPES.aon.net.concat(DT0.TYPES.aon.calc), aoa: DT0.TYPES.aoa.net.concat(DT0.TYPES.aoa.calc) };
+for (const graph of ['aon', 'aoa']) {
+  check(`F3d T011 AC9, AC10 y AC11 · los ocho tipos de la red ${graph === 'aon' ? 'ROY' : 'PERT'}: cada uno encontrado (nota 100) con su explicación, y los mismos errores que en Node`, async () => {
+    const want = new Set(DT_TYPES[graph]);
+    for (let sd = 1; want.size && sd < 400; sd++) {
+      const s = { sd, lv: 'hard', lang: sd % 2 ? 'es' : 'en', dg: graph, dk: 'all' };
+      const r = dtSeed(s);
+      if (!r || r.moved || !r.seeded.errors.some((e) => want.has(e.type))) continue;
+      const dm = r.seeded.errors.map((e) => ({ element: e.accept[e.accept.length - 1], type: e.type }));
+      const page = await dtLab(Object.assign({ dm }, s));
+      assert.deepEqual((await dtSt(page)).seeded.errors, r.seeded.errors, `semilla ${sd}`);
+      await page.locator('#dtCheck').click();
+      assert.equal(await page.locator('#dtScore').innerText(), '100 %', `semilla ${sd}`);
+      for (const e of r.seeded.errors) {
+        assert.equal(await page.locator(`#dtResult li[data-error="${e.id}"] .dt-exp`).innerText(), XD0.explainText(e, dtCtx(r, s)), `${e.type} (semilla ${sd})`);
+        want.delete(e.type);
+      }
+      await close(page);
+    }
+    assert.deepEqual([...want], [], 'todos los tipos');
+  });
+}
+
+check('F3d T011 AC8 y AC13 · Examen (EN, fácil, ROY, de cálculo): marcas sin corrección; «Entregar» con confirmación; bloqueado; nota; al recargar, igual', async () => {
+  const s = { sd: EX_CASES.easy.sd, lv: 'easy', lang: 'en', dg: 'aon', dk: 'calc', xm: 'exam' };
+  const r = dtSeed(s);
+  const [e] = r.seeded.errors;
+  const page = await dtLab(s);
+  for (const id of ['#dtCheck', '#dtSee', '#dtScore']) assert.equal(await page.locator(id).count(), 0, `Examen sin ${id}`);
+  assert.equal(await page.locator('#dtNote').innerText(), I0.t('en', 'det.exam.note'));
+  assert.equal(await page.locator('#exView .dt-net [data-el*=">"]').count(), r.seeded.shown.roy.arcs.length, 'los arcos se ven');
+  // Con errores de cálculo, el menú de un arco no tiene nada que ofrecer: los arcos no se pueden pulsar.
+  assert.equal(await page.locator('#exView .dt-net g[data-el*=">"][tabindex]').count(), 0);
+  await dtMark(page, e.element, e.type);
+  assert.equal(await page.locator(`${dtEl(e.element)}.marked`).count(), 1, 'marcado, sin decir si está bien');
+  await page.locator('#dtDeliver').click();
+  assert.equal(await page.locator('#dtConfirmText').innerText(), I0.t('en', 'det.exam.confirm'));
+  await page.locator('#dtConfirmYes').click();
+  await page.waitForFunction(() => PNL.app.state().xd === 1);
+  assert.equal(await page.locator('#dtScore').innerText(), '100 %');
+  assert.equal(await activeId(page), 'dtResultHead');
+  await page.locator(dtEl(e.element)).first().click();
+  assert.equal(await page.locator('#dtMenu').count(), 0, 'entregado: sin menú');
+  assert.equal(await page.locator('#dtMarks [data-unmark]').count(), 0);
+  await axe(page, 'Detective entregado (EN)');
+  await page.reload();
+  await page.waitForFunction(() => PNL.exDet && PNL.exDet.state && PNL.exDet.state() && PNL.exDet.state().grading);
+  assert.equal(await page.locator('#dtScore').innerText(), '100 %');
+  assert.equal((await dtSt(page)).grading.score, 100);
+  await close(page);
+});
+
+check('F3d T011 H2 · la tabla de la semilla no admite ningún error del grupo (fácil, PERT, de la red): se usa la de la semilla siguiente y el enunciado lo dice', async () => {
+  let sd = 1;
+  while (!dtSeed({ sd, lv: 'easy', dg: 'aoa', dk: 'net' }).moved) sd++;
+  const s = { sd, lv: 'easy', lang: 'es', dg: 'aoa', dk: 'net' };
+  const r = dtSeed(s);
+  const page = await dtLab(s);
+  const st = await dtSt(page);
+  assert.equal(st.used, r.sd);
+  assert.deepEqual(st.seeded.errors, r.seeded.errors);
+  assert.equal(await page.locator('#dtMoved').innerText(), I0.t('es', 'det.moved', { sd, used: r.sd }));
+  assert.equal(await page.locator('#dtGiven tbody tr').count(), r.project.activities.length);
+  assert.equal((await state(page)).sd, sd, 'el enlace guarda la semilla pedida');
+  await close(page);
+});
+
+check('F3d T011 P5 · los dos selectores (Red y Errores) y el tipo: cambiar con marcas pide confirmación y las borra; de otro tipo al detective', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' };
+  const page = await dtLab(Object.assign({ dg: 'aon', dk: 'all' }, s));
+  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), ['calc', 'roy', 'pert', 'det'].map((k) => I0.t('es', `ex.kind.${k}`)), 'los cuatro tipos');
+  const e = dtSeed(Object.assign({ dg: 'aon', dk: 'all' }, s)).seeded.errors[0];
+  await dtMark(page, e.element, e.type);
+  await page.locator('#dtNet-aoa').click();
+  assert.equal(await page.locator('#exLoseText').innerText(), I0.t('es', 'ex.loseWork'));
+  await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().dg === 'aoa' && PNL.exDet.state().seeded && PNL.exDet.state().seeded.graph === 'aoa');
+  assert.equal((await state(page)).dm, null);
+  await page.locator('#dtKind-calc').click();
+  await page.waitForFunction(() => PNL.app.state().dk === 'calc' && PNL.exDet.state().seeded.kind === 'calc');
+  assert.deepEqual((await dtSt(page)).seeded.errors, dtSeed(Object.assign({ dg: 'aoa', dk: 'calc' }, s)).seeded.errors);
+  await page.locator('#exKind-roy').click();
+  await page.waitForFunction(() => PNL.app.state().xk === 'roy' && PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state());
+  await page.locator('#exKind-det').click();
+  await page.waitForFunction(() => PNL.app.state().xk === 'det' && PNL.exDet.state() && PNL.exDet.state().seeded);
+  await close(page);
+});
+
+check('F3d T011 AC16 y AC17 · notación española y 360 px: la leyenda con tᵢ y fᵢ; sin desplazamiento horizontal de la página; la red como tabla', async () => {
+  const s = { sd: EX_CASES.hard.sd, lv: 'hard', lang: 'es', dg: 'aon', dk: 'all', nota: 'es' };
+  let page = await dtLab(s);
+  assert.equal(await page.locator('#dtLegend').innerText(), I0.t('es', 'det.legendAon', I0.notation('es')));
+  await page.locator('#dtAlt summary').click();
+  assert.equal(await page.locator('#dtAlt tbody tr').count(), dtSeed(s).project.activities.length + 2, 'Inicio, actividades y Fin');
+  await close(page);
+  page = await dtLab(s, { width: 360, height: 740 });
+  assert.ok((await page.evaluate(() => document.documentElement.scrollWidth)) <= 360, 'sin desplazamiento horizontal');
+  await axe(page, 'Detective a 360 px (ES)');
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aon', dk: 'all' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -7365,11 +7593,15 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo (grupo cr), solo con view=cmp, view=reto o m=prog.
     // F3d (T009 y T010): el reto ROY (view=reto sin graph=aoa) no carga el grupo cr; construir la PERT, sí.
     const cr = (/graph=aoa/.test(url) && /view=(cmp|reto)|m=prog/.test(url)) || url.includes('xk=pert');
+    // F3d (T011, H1): el detective usa aoacheck (y roycheck) sin el resto de cr ni de xb.
     for (const re of [/core\/aoacheck\.js/, /core\/aoamethods\.js/, /core\/compare\.js/, /compare-view\.js/, /\/reto\.js/, /reto-canvas\.js/, /reto-table\.js/]) {
-      assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), cr, `${url}: ${re.source}`);
+      const want = cr || (re.source.includes('aoacheck') && url.includes('xk=det'));
+      assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), want, `${url}: ${re.source}`);
     }
+    // F3d (plan P1, T011): el detective (grupo dt), solo con xk=det.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-det\.js|det-view\.js|i18n-det\.js|core\/detective\.js|det\.css/.test(e.name))), url.includes('xk=det'), `${url}: grupo dt`);
     // F3d (plan P1, T008 y T009): construir la ROY (grupo xb), solo con xk=roy o con el reto ROY del taller.
-    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || url.includes('xk=pert') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : 0, `${url}: grupo xb`);
+    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || url.includes('xk=pert') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : url.includes('xk=det') ? 1 : 0, `${url}: grupo xb (con el detective, solo roycheck)`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);

@@ -182,7 +182,7 @@ test('T008 · ex: el tipo de ejercicio y lo que se pierde al cambiar (respuestas
   assert.equal(X.kindOf(s({ xk: 'roy' })), 'roy');
   assert.equal(X.kindOf(s({ xk: 'zz' })), 'calc');
   assert.deepEqual(X.KINDS, ['calc', 'roy', 'pert', 'det']);
-  assert.deepEqual(Object.keys(X.kindReady).filter((k) => X.kindReady[k]), ['calc', 'roy', 'pert'], 'T008 y T010: el cálculo y construir la ROY y la PERT');
+  assert.deepEqual(Object.keys(X.kindReady).filter((k) => X.kindReady[k]), ['calc', 'roy', 'pert', 'det'], 'T008, T010 y T011: los cuatro tipos');
   assert.equal(X.buildPublic, false, 'oculto hasta T014');
   assert.equal(X.hasWork(s({ xk: 'roy', rn: null })), false);
   assert.equal(X.hasWork(s({ xk: 'roy', rn: XB.start() })), false);

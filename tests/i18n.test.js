@@ -247,3 +247,18 @@ test('F3d T008: los textos de construir (i18n-build) están en los dos idiomas, 
   assert.equal(I.t('es', 'ex.kind.roy'), 'Construir la ROY');
   assert.equal(I.t('en', 'view.retoRoy'), 'AON challenge');
 });
+
+test('F3d T011: los textos del detective (i18n-det) están en los dos idiomas, con los mismos parámetros; una explicación por tipo de error', () => {
+  const ID = require('../js/i18n-det.js');
+  const D = require('../js/core/detective.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(ID.es), keysDeep(ID.en));
+  for (const k of keysDeep(ID.es)) assert.deepEqual(params(get(ID.es, k)), params(get(ID.en, k)), `det.${k}`);
+  for (const lang of I.languages) assert.equal(I.dict[lang].det, ID[lang]);
+  const types = [...D.TYPES.aon.net, ...D.TYPES.aon.calc, ...D.TYPES.aoa.net, ...D.TYPES.aoa.calc];
+  for (const lang of I.languages) {
+    for (const t of types.filter((x) => x !== 'calcCrit')) assert.ok(ID[lang].exp[t], `${lang} det.exp.${t}`);
+    assert.ok(ID[lang].exp.calcCritOn && ID[lang].exp.calcCritOff);
+  }
+});
