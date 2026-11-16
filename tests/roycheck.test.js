@@ -326,3 +326,19 @@ test('T002 · AC22 y H4: PERT incorrecta, precedencias inmediatas representadas 
   assert.ok(c.result.problems.some((x) => x.code === 'cycle'));
   assert.equal(RC.scorePert(c.net, p6, c.result), 60);
 });
+
+test('T010 · pertHits: las precedencias inmediatas representadas que cuenta scorePert, sin el tope del 60 %', () => {
+  const { s, id } = fromAoa(min6.net, p6);
+  assert.deepEqual(RC.pertHits(s.net, p6), { hits: 14, total: 14 });
+  let t = s;
+  for (const act of ['I', 'J', 'K']) t = RT.apply(t, { type: 'arc', act, from: null, to: null });
+  assert.deepEqual(RC.pertHits(t.net, p6), { hits: 7, total: 14 });
+  t = RT.apply(s, { type: 'arc', act: 'K', from: null, to: null });
+  assert.deepEqual(RC.pertHits(t.net, p6), { hits: 11, total: 14 });
+  const c = RT.check(t, p6, min6);
+  assert.equal(RC.scorePert(c.net, p6, c.result), Math.min(60, 100 * 11 / 14));
+  // Con un ciclo la cuenta sigue: todas representadas.
+  const last = id.get(Math.max(...min6.net.events.map((e) => e.n)));
+  t = RT.apply(s, { type: 'addDummy', from: last, to: id.get(1) });
+  assert.deepEqual(RC.pertHits(t.net, p6), { hits: 14, total: 14 });
+});

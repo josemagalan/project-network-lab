@@ -6962,7 +6962,7 @@ check('F3d T008 · oculto (T014): sin xk no hay tipo ni grupo xb; con xk=roy, el
   await close(page);
   page = await xbLab({ sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' });
   assert.equal(await xbGroups(page), 6, 'el grupo xb entero');
-  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), [I0.t('es', 'ex.kind.calc'), I0.t('es', 'ex.kind.roy')], 'solo los tipos ya hechos');
+  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), [I0.t('es', 'ex.kind.calc'), I0.t('es', 'ex.kind.roy'), I0.t('es', 'ex.kind.pert')], 'solo los tipos ya hechos (T010: también la PERT)');
   // Sin nada hecho, otro ejercicio no pregunta.
   const sd0 = (await state(page)).sd;
   await page.locator('#exAnother').click();
@@ -7174,13 +7174,174 @@ check('F3d T009 · oculto (T014) y lo demás igual: sin view=reto no hay botón 
   await close(page);
 });
 
+// ---------- F3d, T010: construir la PERT en «Ejercicios» (oculto hasta T014; tableros 84 y 85) ----------
+
+const RT0 = require(path.join(ROOT, 'js', 'reto.js'));
+const MD0 = require(path.join(ROOT, 'js', 'core', 'mindummy.js'));
+const xpUrl = (s) => exUrl(Object.assign({ xk: 'pert' }, s));
+async function xpLab(s, opts) {
+  const page = await open(xpUrl(s), opts);
+  await page.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().pert);
+  return page;
+}
+const xpSt = (page) => page.evaluate(() => PNL.exBuild.state().pert);
+// La red PERT del alumno (la del reto, js/reto) que dibuja una red de sucesos numerados (la mínima o la de las reglas).
+function xpFrom(net, p) {
+  let s = RT0.start(p); const id = new Map();
+  for (const ev of net.events) { s = RT0.apply(s, { type: 'addEvent', x: 40 + ev.n * 60, y: 40 }); id.set(ev.n, s.net.events[s.net.events.length - 1].id); }
+  for (const ev of net.events) s = RT0.apply(s, { type: 'number', id: id.get(ev.n), n: ev.n });
+  for (const a of net.arcs) s = RT0.apply(s, { type: 'arc', act: a.act, from: id.get(a.from), to: id.get(a.to) });
+  for (const d of net.dummies) s = RT0.apply(s, { type: 'addDummy', from: id.get(d.from), to: id.get(d.to) });
+  return { s, id };
+}
+const xpMin = (m) => ({ value: m.info.dummies, lower: m.info.dummies, exact: true });
+const xpPct = (v, lang) => { const r = Math.round(v * 10) / 10; return `${lang === 'es' ? String(r).replace('.', ',') : r} %`; };
+async function xpDeliver(page) {
+  await page.locator('#xbDeliver').click();
+  assert.equal(await page.locator('#xbConfirmText').count(), 1);
+  await page.locator('#xbConfirmYes').click();
+  await page.waitForFunction(() => PNL.app.state().xd === 1);
+  await page.waitForFunction(() => PNL.exBuild.state().pert && PNL.exBuild.state().pert.score !== null);
+}
+
+check('F3d T010 AC7 y AC13 · construir la PERT en Practicar (ES, medio): la tabla dada, la de sucesos y el lienzo; «Comprobar» da el diagnóstico del reto sin nota; «Ver una solución»; grupos xb y cr', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' };
+  const m = exModel(Object.assign({ xk: 'pert' }, s));
+  const page = await xpLab(s);
+  assert.equal(await page.locator('#exKind-pert').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), ['calc', 'roy', 'pert'].map((k) => I0.t('es', `ex.kind.${k}`)), 'los tipos hechos');
+  assert.ok(await visible(page, '#xbGiven'), 'la tabla de precedencias');
+  assert.equal(await page.locator('#xbGiven tbody tr').count(), m.project.activities.length);
+  assert.equal(await page.locator('#exView .reto-title').innerText(), I0.t('es', 'reto.title'));
+  assert.equal(await page.locator('#exView table.reto-tbl tbody th').count(), m.project.activities.length, 'la tabla de sucesos');
+  assert.ok(await visible(page, '#exView .reto-svg'), 'el lienzo');
+  assert.ok(await visible(page, '#exView [data-k="solution"]'));
+  assert.equal(await page.locator('#xbDeliver').count(), 0);
+  assert.equal(await crGroups(page), 4, 'el grupo cr');
+  for (const re of [/ex-build\.js/, /core\/roycheck\.js/, /i18n-build\.js/]) {
+    assert.ok(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), re.source);
+  }
+  // Una actividad con el lienzo: va al enlace (sn).
+  await page.locator('#exView [data-k="tool:event"]').click();
+  await page.locator('#exView .reto-svg').click({ position: { x: 60, y: 60 } });
+  await page.waitForFunction(() => PNL.app.state().sn && PNL.app.state().sn.events.length === 1);
+  assert.match(await page.evaluate(() => location.hash), /[#&]sn=/);
+  await close(page);
+  // La red mínima: correcta, sin nota.
+  const { s: st } = xpFrom(MD0.solve(m.project).net, m.project);
+  const page2 = await xpLab(Object.assign({ sn: st.net }, s));
+  await page2.locator('#exView [data-k="check"]').click();
+  await page2.waitForFunction(() => PNL.exBuild.state().pert.result);
+  assert.match(await page2.locator('#exView .reto-result').innerText(), /^Red correcta/);
+  assert.equal((await xpSt(page2)).result.min.value, m.info.dummies, 'el mínimo de la tabla generada');
+  assert.equal(await page2.locator('#xbScore').count(), 0, 'en Practicar no hay nota');
+  await page2.locator('#exView [data-k="solution"]').click();
+  assert.ok(await visible(page2, '#exView .reto-solution'));
+  await page2.locator('#exView [data-k="back"]').click();
+  assert.ok(await visible(page2, '#exView .reto-svg'));
+  await axe(page2, 'Construir la PERT en Practicar (ES)');
+  await close(page2);
+});
+
+check('F3d T010 AC7, AC8 y AC22 · Examen (ES, medio): sin «Ver una solución» ni diagnóstico; entregada con una ficticia de más, 95 %; bloqueada; la red mínima y la de las reglas; al recargar, igual', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es', xm: 'exam' };
+  const m = exModel(Object.assign({ xk: 'pert' }, s));
+  const md = MD0.solve(m.project);
+  const { s: base, id } = xpFrom(md.net, m.project);
+  const last = id.get(Math.max(...md.net.events.map((e) => e.n)));
+  const st = RT0.apply(base, { type: 'addDummy', from: id.get(1), to: last });
+  const c = RT0.check(st, m.project, xpMin(m)).result;
+  assert.equal(c.correct, true);
+  assert.equal(c.extra, 1);
+  const page = await xpLab(Object.assign({ sn: st.net }, s));
+  for (const k of ['solution', 'check']) assert.equal(await page.locator(`#exView [data-k="${k}"]`).count(), 0, `Examen sin ${k}`);
+  assert.equal(await page.locator('#exView .reto-res').innerText(), I0.t('es', 'xb.exam.note'));
+  assert.equal(await page.locator('#xbScore').count(), 0);
+  await xpDeliver(page);
+  assert.equal(await page.locator('#xbScore').innerText(), '95 %');
+  assert.equal(await page.locator('#xbGradeText').innerText(), I0.t('es', 'xb.pert.extra', { k: c.dummies, e: 1, min: m.info.dummies, pct: 95 }));
+  assert.equal(await activeId(page), 'xbGradeHead');
+  assert.match(await page.locator('#exView .reto-result').innerText(), /^Red correcta/, 'la corrección del reto');
+  assert.equal(await page.locator('#exView [data-k^="tool:"]').count(), 0, 'entregada: sin herramientas');
+  assert.equal(await page.locator('#exView [data-k="addDummy"]').count(), 0);
+  assert.equal(await page.locator('#exView input.reto-cell:not([readonly])').count(), 0, 'la tabla de sucesos, solo de lectura');
+  await page.locator('#xpSeeMin').click();
+  assert.match(await page.locator('#exView .reto-solution .reto-count').innerText(), new RegExp(`^${m.info.dummies} `));
+  assert.equal(await page.locator('#exView select[data-k="method"]').inputValue(), 'min');
+  await page.locator('#xpSeeRules').click();
+  assert.equal(await page.locator('#exView select[data-k="method"]').inputValue(), 'rules');
+  await page.locator('#exView [data-k="back"]').click();
+  assert.ok(await visible(page, '#exView .reto-svg'));
+  await axe(page, 'Construir la PERT entregada (ES)');
+  await page.reload();
+  await page.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().pert && PNL.exBuild.state().pert.score !== null);
+  assert.equal(await page.locator('#xbScore').innerText(), '95 %');
+  assert.equal((await xpSt(page)).score, 95);
+  await close(page);
+});
+
+for (const [lv, lang, kind] of [['easy', 'es', 'min'], ['hard', 'en', 'wrong']]) {
+  check(`F3d T010 AC7 y AC22 · Examen (${lang.toUpperCase()}, ${lv}): ${kind === 'min' ? 'la red mínima da 100' : 'una red incorrecta da como mucho 60, con las precedencias representadas'}`, async () => {
+    const s = { sd: EX_CASES[lv].sd, lv, lang, xm: 'exam' };
+    const m = exModel(Object.assign({ xk: 'pert' }, s));
+    const { s: base } = xpFrom(MD0.solve(m.project).net, m.project);
+    const last = m.sol.cpm.order[m.sol.cpm.order.length - 1];
+    const st = kind === 'min' ? base : RT0.apply(base, { type: 'arc', act: last, from: null, to: null });
+    const c = RT0.check(st, m.project, xpMin(m)).result;
+    const score = RC0.scorePert(st.net, m.project, c);
+    const page = await xpLab(Object.assign({ sn: st.net }, s));
+    await xpDeliver(page);
+    assert.equal(await page.locator('#xbScore').innerText(), xpPct(score, lang));
+    const want = kind === 'min' ? I0.t(lang, 'xb.pert.min', { min: m.info.dummies })
+      : I0.t(lang, 'xb.pert.wrong', Object.assign(RC0.pertHits(st.net, m.project), { pct: xpPct(score, lang).replace(' %', '') }));
+    assert.equal(await page.locator('#xbGradeText').innerText(), want);
+    if (kind === 'min') assert.equal(score, 100); else assert.ok(score <= 60 && score > 0, String(score));
+    await close(page);
+  });
+}
+
+check('F3d T010 AC7 y H3 · «Personalizar» sin rango de ficticias y sin mínimo exacto (ES): el mejor conocido, con el aviso; Examen entregado, 100', async () => {
+  const s = { sd: 5, lv: 'custom', gp: { n: [24, 24], pred: 2.2, dummies: null, critical: [1, 3], dmax: 9 }, lang: 'es', xm: 'exam' };
+  const m = exModel(Object.assign({ xk: 'pert' }, s));
+  assert.equal(m.info.dummies, null);
+  const md = MD0.solve(m.project);
+  assert.equal(md.exact, false);
+  const { s: st } = xpFrom(md.net, m.project);
+  const page = await xpLab(Object.assign({ sn: st.net }, s));
+  await xpDeliver(page);
+  assert.equal(await page.locator('#xbScore').innerText(), '100 %');
+  assert.equal(await page.locator('#xbGradeText').innerText(), `${I0.t('es', 'xb.pert.min', { min: md.value })} ${I0.t('es', 'xb.pert.notExact', { min: md.value })}`);
+  await close(page);
+});
+
+check('F3d T010 · cambiar de tipo: de la ROY a la PERT con algo hecho pide confirmación y borra rn; el reto de ficticias del taller sigue igual (sin xb)', async () => {
+  const s = { sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es' };
+  let page = await xbLab(s);
+  const a = exModel(s).project.activities[0].id;
+  await xbKey(page, `#xb-c-${a}`, 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await page.locator('#exKind-pert').click();
+  assert.equal(await page.locator('#exLoseText').innerText(), I0.t('es', 'ex.loseKind'));
+  await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().xk === 'pert' && PNL.exBuild.state() && PNL.exBuild.state().pert);
+  assert.equal((await state(page)).rn, null);
+  assert.ok(await visible(page, '#exView .reto-svg'));
+  assert.equal(await page.locator('#xb-n-_S').count(), 0, 'sin el lienzo ROY');
+  await close(page);
+  page = await retoLab('ex=ej6&lang=es');
+  assert.ok(await visible(page, '#retoView .reto-svg'));
+  assert.ok(await visible(page, '#retoView [data-k="solution"]'));
+  assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-build\.js/.test(e.name))), false);
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -7202,13 +7363,13 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo (grupo cr), solo con view=cmp, view=reto o m=prog.
-    // F3d (T009): el reto ROY (view=reto sin graph=aoa) no carga el grupo cr.
-    const cr = /graph=aoa/.test(url) && /view=(cmp|reto)|m=prog/.test(url);
+    // F3d (T009 y T010): el reto ROY (view=reto sin graph=aoa) no carga el grupo cr; construir la PERT, sí.
+    const cr = (/graph=aoa/.test(url) && /view=(cmp|reto)|m=prog/.test(url)) || url.includes('xk=pert');
     for (const re of [/core\/aoacheck\.js/, /core\/aoamethods\.js/, /core\/compare\.js/, /compare-view\.js/, /\/reto\.js/, /reto-canvas\.js/, /reto-table\.js/]) {
       assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), cr, `${url}: ${re.source}`);
     }
     // F3d (plan P1, T008 y T009): construir la ROY (grupo xb), solo con xk=roy o con el reto ROY del taller.
-    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : 0, `${url}: grupo xb`);
+    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || url.includes('xk=pert') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : 0, `${url}: grupo xb`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);

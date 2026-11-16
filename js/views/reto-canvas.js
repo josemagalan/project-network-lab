@@ -7,7 +7,7 @@
  * ficticia en el suceso enfocado; las flechas lo mueven; Supr borra; Esc cancela.
  * No calcula: las operaciones son las de js/reto (onOp) y la colocación, reto.place. Todo texto con textContent.
  *   render(container, ctx): ctx = el de reto-table (reto, project, lang, onOp) más removable (ficticias que sobran
- *     tras comprobar, por nombre).
+ *     tras comprobar, por nombre) y locked (F3d, T010: red entregada; sin herramientas ni acciones, solo el dibujo).
  *   takeFocus(): el elemento que debe recibir el foco tras repintar (un suceso recién creado), o null.
  *   state(): herramienta, actividad elegida y operación a medias, para las pruebas de navegador.
  */
@@ -51,6 +51,7 @@
     const nextAct = () => { const i = acts.indexOf(act); return [...acts.slice(i + 1), ...acts.slice(0, i)].find((x) => !drawn(x)) || act; };
 
     clear(container);
+    const locked = !!ctx.locked;
     // ---- Herramientas ----
     const TOOLS = ['event', 'activity', 'dummy', 'move', 'delete'];
     const bar = h('div', { class: 'reto-tools' }, [
@@ -63,14 +64,16 @@
     const sel = h('select', { id: selId, 'data-k': 'act', onchange: (e) => { act = e.target.value; again(); } },
       acts.map((x) => h('option', { value: x, selected: x === act }, [drawn(x) ? t('reto.actDrawn', { x }) : x])));
     bar.appendChild(h('p', { class: 'reto-act' }, [h('label', { for: selId }, [t('reto.actPick')]), sel]));
-    container.appendChild(bar);
-    container.appendChild(h('p', { class: 'small muted reto-hint' }, [t(`reto.hint.${tool}`)]));
+    if (!locked) {
+      container.appendChild(bar);
+      container.appendChild(h('p', { class: 'small muted reto-hint' }, [t(`reto.hint.${tool}`)]));
+    }
 
     // ---- Lienzo ----
     const places = R.place(net);
     const { w, hgt } = (() => { const e = R.extent(places); return { w: e.w, hgt: e.h }; })();
     const svg = s('svg', { class: 'net reto-svg', viewBox: `0 0 ${w} ${hgt}`, width: '100%', role: 'group', 'aria-label': t('reto.canvas'),
-      tabindex: '0', 'data-k': 'svg', 'aria-describedby': 'pnl-rc-keys' });
+      tabindex: locked ? null : '0', 'data-k': 'svg', 'aria-describedby': locked ? null : 'pnl-rc-keys' });
     svg.appendChild(s('defs', {}, [
       s('marker', { id: 'pnl-rc-mk', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto' }, [s('path', { d: 'M0 0L10 5L0 10z', class: 'mk' })]),
       s('marker', { id: 'pnl-rc-mx', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto' }, [s('path', { d: 'M0 0L10 5L0 10z', class: 'mk-x' })]),
@@ -88,7 +91,7 @@
     // Pulsar fuera de un suceso o una flecha (también en el margen, fuera de la rejilla dibujada).
     svg.addEventListener('click', (ev) => {
       const p = point(ev);
-      if (!p) return;
+      if (!p || locked) return;
       if (tool === 'event') { say('reto.did.event', { x: R.label({ events: [{ id: reto.seq, n: null }] }, reto.seq) }); run({ type: 'addEvent', x: p.x, y: p.y }); return; }
       if (pending && pending.kind === 'move') { const id = pending.from; pending = null; say('reto.did.move', { x: lbl(id) }); focusNext = `ev:${id}`; run({ type: 'moveEvent', id, x: p.x, y: p.y }); return; }
       if (pending) { pending = null; say('reto.did.cancel'); again(); }
@@ -150,18 +153,19 @@
       const bad = e.dummy && rm.has(e.label);
       const vertical = Math.abs(dx) < 4;
       const aria = t(e.dummy ? 'reto.ariaDummy' : 'reto.ariaArc', { x: e.label, from: lbl(e.from), to: lbl(e.to) });
-      const g = s('g', { class: 'reto-edge', tabindex: '0', role: 'button', 'aria-label': aria, 'data-k': e.k }, [
+      const g = s('g', { class: 'reto-edge', tabindex: locked ? null : '0', role: locked ? 'img' : 'button', 'aria-label': aria, 'data-k': e.k }, [
         s('path', { d, class: 'hit' }),
         s('path', { d, class: `edge${e.dummy ? ' dummy' : ''}${bad ? ' rm' : ''}`, 'marker-end': `url(#${bad ? 'pnl-rc-mx' : 'pnl-rc-mk'})` }),
         s('text', { x: mid.x + (vertical ? 9 : 0), y: mid.y + (vertical ? 4 : -7), 'text-anchor': vertical ? 'start' : 'middle',
           class: `elabel${e.dummy ? ' dummy' : ''}${bad ? ' rm' : ''}` }, [e.label]),
       ]);
       const hit = () => {
+        if (locked) return;
         if (tool === 'delete') { say('reto.did.removeEdge', { x: e.label }); focusNext = 'svg'; run(e.dummy ? { type: 'removeDummy', i: e.i } : { type: 'clearArc', act: e.label }); return; }
         if (tool === 'activity' && !e.dummy && e.label !== act) { const from = e.label; const to = act; say('reto.did.reassign', { a: from, b: to }); focusNext = `arc:${to}`; act = from; run({ type: 'reassign', act: from, to }); }
       };
       g.addEventListener('click', (ev) => { ev.stopPropagation(); hit(); });
-      g.addEventListener('keydown', (ev) => {
+      if (!locked) g.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); hit(); } else if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); const was = tool; tool = 'delete'; hit(); tool = was; }
       });
       eg.appendChild(g);
@@ -203,12 +207,12 @@
       if (outs.length) aria += `, ${t('reto.ariaOut', { list: L(outs) })}`;
       if (pending && pending.from === e.id) aria += `, ${t('reto.ariaPicked')}`;
       const g = s('g', { class: `ev reto-ev${pending && pending.from === e.id ? ' picked' : ''}${e.n == null ? ' nonum' : ''}`, transform: `translate(${p.x},${p.y})`,
-        tabindex: '0', role: 'button', 'aria-label': aria, 'data-k': `ev:${e.id}` }, [
+        tabindex: locked ? null : '0', role: locked ? 'img' : 'button', 'aria-label': aria, 'data-k': `ev:${e.id}` }, [
         s('circle', { r: R0 }),
         s('text', { class: 'nid', y: 5 }, [name]),
       ]);
-      g.addEventListener('click', (ev) => { ev.stopPropagation(); click(e.id); });
-      g.addEventListener('keydown', (ev) => {
+      g.addEventListener('click', (ev) => { ev.stopPropagation(); if (!locked) click(e.id); });
+      if (!locked) g.addEventListener('keydown', (ev) => {
         const k = ev.key;
         const move = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k];
         if (move) {
@@ -224,6 +228,7 @@
     }
     // Teclas del lienzo: N crea un suceso junto al enfocado (o en el primer hueco); Esc cancela.
     svg.addEventListener('keydown', (ev) => {
+      if (locked) return;
       if (ev.key === 'n' || ev.key === 'N') {
         ev.preventDefault();
         const k = root.document.activeElement && root.document.activeElement.dataset ? root.document.activeElement.dataset.k : '';
@@ -239,8 +244,10 @@
     const box = h('div', { class: 'reto-canvas-box' });
     box.appendChild(svg);
     container.appendChild(box);
-    container.appendChild(h('p', { class: 'reto-status small' }, [status ? t(status.key, status.params) : '']));
-    container.appendChild(h('p', { class: 'small muted', id: 'pnl-rc-keys' }, [t('reto.keys')]));
+    if (!locked) {
+      container.appendChild(h('p', { class: 'reto-status small' }, [status ? t(status.key, status.params) : '']));
+      container.appendChild(h('p', { class: 'small muted', id: 'pnl-rc-keys' }, [t('reto.keys')]));
+    }
 
     function again() { if (ctx.onRepaint) ctx.onRepaint(); }
   }

@@ -98,3 +98,8 @@ span.xb-badge.warn { background: var(--warn); }
 }
 /* Reto ROY del taller (T009): el título encima de la misma rejilla de «Ejercicios». */
 .xb-reto { display: flex; flex-direction: column; gap: 10px; }
+/* Construir la PERT en «Ejercicios» (T010): la tabla dada, siempre arriba; el reto empieza debajo de la barra. */
+.xb-pert .xb-given { order: -1; }
+@media (min-width: 861px) and (min-height: 600px) {
+  .xb-pert .reto-grid { height: calc(100vh - 287px); }
+}

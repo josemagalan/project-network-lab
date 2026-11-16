@@ -8,6 +8,12 @@
  * hasta «Entregar» (xd=1), y la red entregada se corrige al abrir el enlace. «Ver la red correcta» dibuja la de la F1
  * (roycheck.fromTable) colocada por niveles, sin tocar rn.
  *
+ * Con xk=pert (T010, AC7, AC8 y AC22; tableros 84 y 85), construir la PERT: el reto de ficticias (grupo cr: js/reto,
+ * views/reto-table y views/reto-canvas) con la tabla generada; la red del alumno en sn, como en el taller. Practicar es el
+ * reto («Comprobar», «Ver una solución»); en Examen no hay ni lo uno ni lo otro hasta «Entregar», y la entregada se
+ * corrige con reto.check, el mínimo de la tabla generada (info.dummies; sin él, el mejor conocido de mindummy, H3) y
+ * roycheck.scorePert.
+ *
  * Con hooks.reto, el reto ROY del taller (T009, AC12; tablero 88): la misma vista con la tabla del taller, siempre en
  * Practicar y sin nota; hooks.key() da la clave del lienzo (la estructura de la tabla), en vez de la semilla.
  *
@@ -242,6 +248,18 @@
     const count = I.t(lang, `xb.grade.${k}`, { hits: c.hits, total: c.total, f: c.falseArcs, raw: fmt(raw) });
     return c.cycle ? `${count} ${I.t(lang, 'xb.grade.cycle')}` : count;
   }
+  // Nota de la PERT en palabras (bloque 1): correcta con el mínimo, con ficticias de más (sin bajar de 80) o incorrecta
+  // (como mucho 60, con las precedencias inmediatas representadas); sin mínimo exacto, el aviso (H3).
+  const fmtPct = (v, lang) => (lang === 'es' ? String(pctOf(v)).replace('.', ',') : String(pctOf(v)));
+  function pertGradeText(res, hits, lang) {
+    const t = (k, p) => I.t(lang, `xb.pert.${k}`, p);
+    if (!res.correct) return t('wrong', { hits: hits.hits, total: hits.total, pct: fmtPct(Math.min(60, hits.total ? 100 * hits.hits / hits.total : 100), lang) });
+    const min = res.min.value;
+    const e = res.extra;
+    const pct = 100 - 5 * e;
+    const text = e <= 0 ? t('min', { min }) : pct >= 80 ? t('extra', { k: res.dummies, e, min, pct }) : t('extraFloor', { k: res.dummies, e, min });
+    return res.min.exact ? text : `${text} ${t('notExact', { min })}`;
+  }
   const scoreText = (r, lang) => `${lang === 'es' ? String(pctOf(RC.score(r))).replace('.', ',') : pctOf(RC.score(r))} %`;
 
   // ---------- Vista ----------
@@ -259,8 +277,15 @@
     let tableMsg = null;       // { key, params, id }: lo último que no valió en «Tu red como tabla»
     let last = null;           // { container, m }
     let lastNet = null;
+    // Construir la PERT (T010): la red del reto, la solución a la vista, el mínimo y las soluciones calculadas.
+    let pst = null;            // { key, st }: estado de js/reto (red, secuencia y último diagnóstico)
+    let sol = null;            // método de la solución a la vista (o null)
+    let solMethod = 'min';
+    let lastPert = null;       // { result, score } de lo último pintado (pruebas)
+    const minCache = { key: null, v: null };
+    const solCache = new Map();
 
-    function reset() { checked = null; showCorrect = false; confirmOpen = false; tableMsg = null; G.royCanvas.reset(); }
+    function reset() { checked = null; showCorrect = false; confirmOpen = false; tableMsg = null; pst = null; sol = null; if (G.royCanvas) G.royCanvas.reset(); }
 
     function onOp(op) {
       const m = last.m;
@@ -334,6 +359,7 @@
 
     function draw(container, m) {
       last = { container, m };
+      if (m.kind === 'pert') { drawPert(container, m); return; }
       const s = hooks.state();
       const p = m.project;
       const net = normalize(s.rn, p);
@@ -398,13 +424,126 @@
       if (want) { const el = root.document.getElementById(want); if (el && !el.disabled) el.focus(); }
     }
 
+    // ---------- Construir la PERT (T010) ----------
+
+    const structKey = (p) => JSON.stringify(p.activities.map((a) => [a.id, p.succs[a.id]]));
+    const isStart = (net) => !net.events.length && !net.dummies.length && net.arcs.every((a) => a.from === null && a.to === null);
+    // El mínimo de la tabla generada (exacto por construcción) o, sin él, el mejor conocido de mindummy, calculado después
+    // de pintar como en el taller (null mientras tanto).
+    function pertMin(m) {
+      if (m.info && m.info.dummies != null) return { value: m.info.dummies, lower: m.info.dummies, exact: true };
+      const key = structKey(m.project);
+      if (minCache.key === key) return minCache.v;
+      minCache.key = key; minCache.v = null;
+      root.setTimeout(() => {
+        if (minCache.key !== key) return;
+        const r = G.mindummy.solve(m.project);
+        minCache.v = { value: r.value, lower: r.lower, exact: !!r.exact };
+        redraw();
+      }, 0);
+      return null;
+    }
+    // La red del alumno sale de sn ajustada a la tabla (reto.fromUrl); se conserva el diagnóstico mientras no cambie.
+    function pertState(m) {
+      const s = hooks.state();
+      const key = JSON.stringify([s.sd, s.lv, s.gp, s.xm, structKey(m.project)]);
+      const fresh = G.reto.fromUrl(m.project, s.sn);
+      if (!pst || pst.key !== key || JSON.stringify(pst.st.net) !== JSON.stringify(fresh.net)) pst = { key, st: fresh };
+      return pst.st;
+    }
+    function solutionOf(p, method) {
+      const k = `${structKey(p)}|${method}`;
+      if (!solCache.has(k)) {
+        // La mínima, con mindummy (compare la deja pendiente de la búsqueda); las demás, con su método.
+        const c = method === 'min' ? G.mindummy.solve(p).net : G.compare.run(p, { methods: [method] }).cards[0].net;
+        solCache.set(k, { method, net: c, dummies: c.dummies.length, events: c.events.length });
+      }
+      return solCache.get(k);
+    }
+    function onPertOp(op) {
+      const next = G.reto.apply(pst.st, op);
+      if (next === pst.st) return false;
+      pst.st = next;
+      hooks.dispatch({ type: 'sn', value: isStart(next.net) ? null : next.net }, { fromEx: true });
+      redraw();
+      return true;
+    }
+    function deliverPert() {
+      confirmOpen = false;
+      focusAfter = 'xbGradeHead';
+      hooks.dispatch({ type: 'exDeliver' });
+      if (lastPert && lastPert.score !== null) hooks.announce(`${tt('xb.grade.label')}: ${fmtPct(lastPert.score, lang())} %`);
+    }
+
+    function drawPert(container, m) {
+      const s = hooks.state();
+      const p = m.project;
+      const exam = s.xm === 'exam';
+      const delivered = exam && !!s.xd;
+      let st = pertState(m);
+      const min = pertMin(m);
+      // Si se comprobó antes de tener el mínimo, al tenerlo se completa la comparación (como en el taller).
+      if (!delivered && st.result && !st.result.min && min) st = pst.st = G.reto.check(st, p, min);
+      const shown = delivered ? G.reto.check(st, p, min) : st;
+      const res = shown.result;
+      const pending = delivered && res.correct && !min;
+      const score = delivered && !pending ? RC.scorePert(shown.net, p, res) : null;
+      lastPert = { result: res, score, min };
+      // Por si se viene del reto de ficticias del taller: un solo lienzo con sus ids y marcadores.
+      const other = root.document.getElementById('retoView');
+      if (other && other.firstChild) G.dom.clear(other);
+
+      const top = [];
+      if (delivered) {
+        top.push(h('section', { class: 'card xb-grade', id: 'xbGrade', 'aria-labelledby': 'xbGradeHead' }, [
+          h('h2', { id: 'xbGradeHead', tabindex: '-1', class: 'xb-grade-head' }, [h('span', { class: 'muted small' }, [tt('xb.grade.label')]), ' ',
+            h('strong', { id: 'xbScore' }, [pending ? tt('cmp.pending') : `${fmtPct(score, lang())} %`]), ' ', h('span', { class: 'muted small' }, [tt('xb.grade.of')])]),
+          h('p', { id: 'xbGradeText' }, [pending ? tt('cmp.pending') : pertGradeText(res, RC.pertHits(shown.net, p), lang())]),
+          h('p', { class: 'muted small' }, [tt('xb.exam.delivered')])]));
+        top.push(h('details', { class: 'xb-alt' }, [h('summary', {}, [tt('xb.table')]), givenCard(p)]));
+      } else top.push(givenCard(p));
+
+      let actions;
+      if (delivered) {
+        actions = [button(tt('xb.pert.seeMin'), () => { sol = 'min'; solMethod = 'min'; redraw(); }, { attrs: { id: 'xpSeeMin' } }),
+          button(tt('xb.pert.seeRules'), () => { sol = 'rules'; solMethod = 'rules'; redraw(); }, { attrs: { id: 'xpSeeRules' } }),
+          button(tt('ex.another'), hooks.another, { primary: true, attrs: { id: 'xbAnother2' } })];
+      } else if (exam) {
+        actions = [button(tt('xb.deliver'), () => { confirmOpen = true; focusAfter = 'xbConfirmYes'; redraw(); }, { primary: true, attrs: { id: 'xbDeliver' } })];
+        if (confirmOpen) {
+          actions.push(h('div', { class: 'ex-confirm', role: 'alertdialog', 'aria-labelledby': 'xbConfirmText' }, [
+            h('p', { id: 'xbConfirmText' }, [tt('xb.exam.confirm')]),
+            h('div', { class: 'ex-btns' }, [button(tt('xb.exam.confirmYes'), deliverPert, { primary: true, attrs: { id: 'xbConfirmYes' } }),
+              button(tt('xb.exam.confirmNo'), () => { confirmOpen = false; focusAfter = 'xbDeliver'; redraw(); }, { attrs: { id: 'xbConfirmNo' } })])]));
+        }
+      }
+
+      clear(container);
+      const holder = h('div', { class: 'reto xb-pert' });
+      container.appendChild(holder);
+      G.retoTable.render(holder, {
+        reto: Object.assign({}, st, { result: delivered ? res : st.result }), project: p, lang: lang(), nota: s.nota, numFmt: hooks.numFmt,
+        name: `${tt('ex.seed')} ${s.sd}`, methods: G.compare.METHODS, solution: sol && (!exam || delivered) ? solutionOf(p, sol) : null, solutionMethod: solMethod,
+        live: { set textContent(v) { hooks.announce(v); } },
+        onOp: (op) => (delivered ? false : onPertOp(op)),
+        onCheck: () => { if (exam) return; pst.st = G.reto.check(pst.st, p, pertMin(m)); redraw(); },
+        onSolution: (x) => { sol = x; if (x) solMethod = x; redraw(); },
+        onRepaint: redraw,
+        extra: { top, locked: delivered, note: exam ? tt('xb.exam.note') : null, actions },
+      });
+      const want = focusAfter;
+      focusAfter = null;
+      if (want) { const el = root.document.getElementById(want); if (el && !el.disabled) el.focus(); }
+    }
+
     function debug() {
       const s = hooks.state();
       const m = last && last.m;
       const net = m ? normalize(s.rn, m.project) : null;
       const delivered = !reto && s.xm === 'exam' && !!s.xd;
       const r = m ? (delivered ? RC.diagnose(m.project, net) : checked ? checked.r : null) : null;
-      return { net, result: r, score: delivered && r ? RC.score(r) : null, showCorrect, confirmOpen, canvas: G.royCanvas.state() };
+      const pert = m && m.kind === 'pert' && lastPert ? { net: pst ? pst.st.net : null, result: lastPert.result, score: lastPert.score, min: lastPert.min, solution: sol } : null;
+      return { net, result: r, score: delivered && r ? RC.score(r) : null, showCorrect, confirmOpen, canvas: G.royCanvas.state(), pert };
     }
 
     return { draw, reset, debug };
@@ -430,7 +569,7 @@
     };
   }
 
-  const api = { GEO, start, normalize, placeLevels, spot, snap, joinError, apply, hasWork, nameOf, predsText, parsePreds, issueText, warnText, marks, gradeText, scoreText, create, workshop };
+  const api = { GEO, start, normalize, placeLevels, spot, snap, joinError, apply, hasWork, nameOf, predsText, parsePreds, issueText, warnText, marks, gradeText, scoreText, pertGradeText, create, workshop };
   root.PNL = root.PNL || {};
   root.PNL.exBuild = api;
   if (isNode) module.exports = api;

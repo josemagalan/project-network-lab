@@ -131,11 +131,12 @@
   // F4b (T002): el grupo cr hace falta con la red PERT en el comparador, en el reto o en el dibujo progresivo.
   // Solo en la ruta y el taller, como groupsOf: un enlace de otra vista con graph=aoa&view=cmp no lo carga (revisión de la
   // F4b, I-F4: con M7 pasaba de 1 MB).
-  const needsCr = (s) => (!s.v || s.v === 'route' || s.v === 'work') && s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog');
+  // F3d (T010, H1): construir la PERT en «Ejercicios» usa el reto (cr), además de ex y xb.
+  const needsCr = (s) => ((!s.v || s.v === 'route' || s.v === 'work') && s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog')) || (s.v === 'ex' && s.xk === 'pert');
   // F3d (T009, H6): el reto ROY es la red ROY con view=reto, en la ruta o el taller.
   const royRetoOf = (s) => (!s.v || s.v === 'route' || s.v === 'work') && s.graph !== 'aoa' && s.view === 'reto';
   // F3d (T008 y T009, H1): construir la ROY en «Ejercicios» y el reto ROY necesitan el grupo xb.
-  const needsXb = (s) => (s.v === 'ex' && s.xk === 'roy') || royRetoOf(s);
+  const needsXb = (s) => (s.v === 'ex' && (s.xk === 'roy' || s.xk === 'pert')) || royRetoOf(s);
   // F4b (T010): M7 necesita su grupo (u7) además del de la pestaña (un), en ese orden.
   const needsU7 = (s) => s.v === 'unc' && s.um === 'm7';
   const needsU7r = (s) => needsU7(s) && (s.uy === 'rep' || s.uy === 'conv');
@@ -152,7 +153,7 @@
     // necesita (revisión de la F3c, F1).
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
     // F3d (H1): el tipo de ejercicio; xt=1 solo pide el generador de enunciados con el cálculo.
-    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
+    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb'] : xk === 'pert' ? ['xb', 'cr'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
     if (royRetoOf({ v, graph: q.get('graph'), view: q.get('view') })) return ['xb'];
     if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);
@@ -772,6 +773,9 @@
 
   function renderReto() {
     const project = model.project;
+    // F3d (T010): un solo reto en la página (ids y marcadores): el de «Ejercicios» se vacía.
+    const exBody = document.querySelector('#exView .xb-body');
+    if (exBody) clear(exBody);
     let st = retoState(project);
     // Si se comprobó mientras se calculaba el mínimo, al tenerlo se completa la comparación.
     if (st.result && !st.result.min) {

@@ -9,6 +9,9 @@
  *     solution: { method, net, dummies, events } | null, solutionMethod, live (región que anuncia los avisos),
  *     onOp(op) → true si la red cambia (y repinta), onCheck(), onSolution(method | null), onRepaint() }.
  *   El lienzo (views/reto-canvas) va en la columna de la derecha, sobre «Comprobar» (T022).
+ *   F3d (T010, construir la PERT en «Ejercicios»): ctx.extra, opcional = { top: nodos encima de la columna izquierda (la
+ *     tabla dada, la nota), note: texto en vez de «No se marca nada…», actions: botones en vez de «Ver una solución» y
+ *     «Comprobar» («Volver a mi red» sigue con la solución a la vista), locked: red entregada, solo de lectura }.
  *   state(): el mensaje de la tabla y la casilla con el foco, para las pruebas de navegador.
  */
 (function (root) {
@@ -24,6 +27,8 @@
     const R = G.reto;
     const { lang, reto } = ctx;
     const t = (k, p) => G.i18n.t(lang, k, p);
+    const extra = ctx.extra || {};
+    const locked = !!extra.locked;
     const net = reto.net;
     // Si el foco estaba en una casilla, vuelve a ella después de pintar (las ediciones repintan la tabla).
     const active = root.document.activeElement;
@@ -39,10 +44,10 @@
     // Sin nombre propio: la región con desplazamiento de dentro ya se llama «Tabla de sucesos» (axe, landmark-unique).
     const tableBox = h('section', { class: 'card reto-table' }, [
       h('h2', { id: 'pnl-reto-th' }, [t('reto.tableTitle')]),
-      h('p', { class: 'small muted' }, [t('reto.tableHint')]),
+      locked ? null : h('p', { class: 'small muted' }, [t('reto.tableHint')]),
     ]);
     // A la izquierda, el resultado de «Comprobar» (si lo hay) sobre la tabla; a la derecha, el lienzo (T022).
-    const left = h('div', { class: 'reto-left' });
+    const left = h('div', { class: 'reto-left' }, extra.top || []);
     grid.appendChild(left);
     const resBox = h('div', { class: 'reto-res' });
     left.appendChild(resBox);
@@ -65,7 +70,7 @@
     };
     const cell = (k, target, side, value, label) => {
       const input = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', spellcheck: 'false', class: 'reto-cell',
-        size: '4', maxlength: '4', 'data-k': k, 'aria-label': label, value });
+        size: '4', maxlength: '4', 'data-k': k, 'aria-label': label, value, readonly: locked });
       input.defaultValue = value;
       input.addEventListener('change', () => commit(input, endOp(target, side, input.value), 'reto.badCell'));
       return input;
@@ -91,18 +96,18 @@
       tableBox.appendChild(h('table', { class: 'data reto-tbl' }, [
         h('thead', {}, [h('tr', {}, [
           h('th', { scope: 'col' }, [t('legend.dummy')]), h('th', { scope: 'col' }, [t('reto.colFrom')]), h('th', { scope: 'col' }, [t('reto.colTo')]),
-          h('th', { scope: 'col' }, [h('span', { class: 'sr-only' }, [t('reto.remove')])]),
+          locked ? null : h('th', { scope: 'col' }, [h('span', { class: 'sr-only' }, [t('reto.remove')])]),
         ])]),
         h('tbody', {}, named.map((d, i) => h('tr', {}, [
           h('th', { scope: 'row' }, [d.name]),
           h('td', {}, [cell(`d:${i}:from`, { i }, 'from', lbl(d.from), t('reto.cellFrom', { x: d.name }))]),
           h('td', {}, [cell(`d:${i}:to`, { i }, 'to', lbl(d.to), t('reto.cellTo', { x: d.name }))]),
-          h('td', {}, [h('button', { type: 'button', class: 'ghost small-btn', 'data-k': `dx:${i}`, 'aria-label': t('reto.removeDummy', { x: d.name }),
+          locked ? null : h('td', {}, [h('button', { type: 'button', class: 'ghost small-btn', 'data-k': `dx:${i}`, 'aria-label': t('reto.removeDummy', { x: d.name }),
             onclick: () => { msg = null; ctx.onOp({ type: 'removeDummy', i }); } }, [t('reto.remove')])]),
         ]))),
       ]));
     }
-    tableBox.appendChild(h('div', { class: 'row-wrap' }, [
+    if (!locked) tableBox.appendChild(h('div', { class: 'row-wrap' }, [
       h('button', { type: 'button', class: 'ghost', 'data-k': 'addDummy', onclick: () => { msg = null; ctx.onOp({ type: 'addDummy' }); } }, [t('reto.addDummy')]),
     ]));
 
@@ -115,7 +120,7 @@
         const name = e.n == null ? t('reto.unnumbered', { x: R.label(net, e.id) }) : String(e.n);
         const value = e.n == null ? '' : String(e.n);
         const input = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', class: 'reto-cell', size: '4', maxlength: '3',
-          'data-k': `e:${e.id}`, 'aria-label': t('reto.eventNumber', { x: name }), value });
+          'data-k': `e:${e.id}`, 'aria-label': t('reto.eventNumber', { x: name }), value, readonly: locked });
         input.defaultValue = value;
         input.addEventListener('change', () => {
           const v = input.value.trim();
@@ -124,12 +129,12 @@
         });
         return h('li', {}, [
           e.n == null ? h('span', { class: 'muted small' }, [name]) : null, input,
-          h('button', { type: 'button', class: 'ghost small-btn', 'data-k': `ex:${e.id}`, 'aria-label': t('reto.removeEventLabel', { x: name }),
+          locked ? null : h('button', { type: 'button', class: 'ghost small-btn', 'data-k': `ex:${e.id}`, 'aria-label': t('reto.removeEventLabel', { x: name }),
             onclick: () => { msg = null; ctx.onOp({ type: 'removeEvent', id: e.id }); } }, [t('reto.removeEvent')]),
         ]);
       })));
     }
-    tableBox.appendChild(h('div', { class: 'row-wrap' }, [
+    if (!locked) tableBox.appendChild(h('div', { class: 'row-wrap' }, [
       h('button', { type: 'button', class: 'ghost', 'data-k': 'autoNumber', disabled: !net.events.length, onclick: () => {
         msg = null;
         if (!ctx.onOp({ type: 'autoNumber' })) say('reto.autoNumberCycle');
@@ -142,7 +147,7 @@
 
     // ---- Resultado ----
     const res = reto.result;
-    if (!res) resBox.appendChild(h('p', { class: 'small muted' }, [t('reto.noHints')]));
+    if (!res) resBox.appendChild(h('p', { class: 'small muted' }, [extra.note || t('reto.noHints')]));
     else {
       const o = G.narrate.retoResult(Object.assign({}, res, { problems: R.shown(res.problems, net) }), { lang });
       const head = h('h2', { tabindex: '-1', id: 'pnl-reto-res', 'data-k': 'result' }, [o.title]);
@@ -161,11 +166,11 @@
     else {
       const canvas = h('div', { class: 'reto-canvas' });
       work.appendChild(canvas);
-      G.retoCanvas.render(canvas, Object.assign({}, ctx, { removable: res && res.correct ? res.removable.map((r) => r.name) : [] }));
+      G.retoCanvas.render(canvas, Object.assign({}, ctx, { locked, removable: res && res.correct ? res.removable.map((r) => r.name) : [] }));
     }
-    work.appendChild(h('div', { class: 'row-wrap reto-actions' }, [
-      ctx.solution
-        ? h('button', { type: 'button', class: 'ghost', 'data-k': 'back', onclick: () => ctx.onSolution(null) }, [t('reto.back')])
+    const back = h('button', { type: 'button', class: 'ghost', 'data-k': 'back', onclick: () => ctx.onSolution(null) }, [t('reto.back')]);
+    work.appendChild(h('div', { class: 'row-wrap reto-actions' }, extra.actions ? [ctx.solution ? back : null].concat(extra.actions) : [
+      ctx.solution ? back
         : h('button', { type: 'button', class: 'ghost', 'data-k': 'solution', onclick: () => ctx.onSolution(ctx.solutionMethod) }, [t('reto.solution')]),
       h('button', { type: 'button', class: 'ghost primary', 'data-k': 'check', onclick: () => { focusResult = true; ctx.onCheck(); } }, [t('reto.check')]),
     ]));

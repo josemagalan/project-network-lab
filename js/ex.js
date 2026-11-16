@@ -158,7 +158,7 @@
   // Cálculo (la F3a, sin cambios), construir la ROY o la PERT y detective. Solo se ofrecen los que ya están hechos; la
   // barra con el tipo se ve con un tipo que no es el cálculo (por URL) o cuando se publique (buildPublic, T014).
   const KINDS = ['calc', 'roy', 'pert', 'det'];
-  const kindReady = { calc: true, roy: true, pert: false, det: false };
+  const kindReady = { calc: true, roy: true, pert: true, det: false };
   const kindOf = (state) => (KINDS.includes(state.xk) ? state.xk : 'calc');
   // Lo que se pierde al cambiar de ejercicio: las respuestas del cálculo, la red del alumno o las marcas del detective.
   function hasWork(state) {
@@ -687,10 +687,12 @@
         if (text) container.appendChild(h('p', { class: 'banner', role: 'status' }, [text]));
         return;
       }
-      // F3d (T008): construir la ROY lo pinta exBuild (grupo xb); los tipos que aún no están hechos no pintan nada.
+      // F3d (T008 y T010): construir la ROY o la PERT lo pinta exBuild (grupo xb; la PERT, con el reto, grupo cr); los
+      // tipos que aún no están hechos no pintan nada.
       if (m.kind !== 'calc') {
-        if (m.kind !== 'roy') return;
-        if (!root.PNL.exBuild) { if (hooks.need) hooks.need('xb').then(draw, () => {}); return; }
+        if (m.kind !== 'roy' && m.kind !== 'pert') return;
+        const want = m.kind === 'pert' ? ['xb', 'cr'] : ['xb'];
+        if (!root.PNL.exBuild || (m.kind === 'pert' && !root.PNL.retoTable)) { if (hooks.need) Promise.all(want.map((g) => hooks.need(g))).then(draw, () => {}); return; }
         if (!builder) {
           builder = root.PNL.exBuild.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, numFmt, another, need: hooks.need });
           root.PNL.exBuild.state = () => builder.debug();

@@ -19,6 +19,7 @@
  * scorePert(net, p, check): check es el resultado de reto.check. Correcta: 80 + 20 en el mínimo (el mejor conocido si no
  *   es exacto, H3) y máx(80, 100 − 5k) con k ficticias de más. Incorrecta: mín(60, 100 · inmediatas representadas /
  *   inmediatas), contadas con su propio recorrido sobre los sucesos, que vale con ciclos y con arcos a medias (H4).
+ * pertHits(net, p): { hits, total } de ese recuento, para el texto de la nota (T010).
  * Sin DOM ni azar.
  */
 (function (root) {
@@ -161,8 +162,9 @@
     return c.cycle ? Math.min(raw, 50) : raw;
   }
 
-  function scorePert(net, p, check) {
-    if (check && check.correct) return check.extra === null || check.extra === undefined ? 100 : Math.max(80, 100 - 5 * Math.max(0, check.extra));
+  // Precedencias inmediatas de la tabla representadas en la red PERT del alumno (vale con ciclos y con actividades sin
+  // arco, que cuentan como no representadas; H4). T010: la nota de una red incorrecta las cita.
+  function pertHits(net, p) {
     const keys = net.events.map((e) => (e.id !== undefined ? e.id : e.n));
     const exists = new Set(keys);
     const complete = (e) => e.from !== null && e.to !== null && exists.has(e.from) && exists.has(e.to);
@@ -178,10 +180,16 @@
       const u = arcOf[a]; const v = arcOf[b];
       if (u && v && complete(u) && complete(v) && (u.to === v.from || reach.get(u.to).has(v.from))) hits++;
     }
+    return { hits, total };
+  }
+
+  function scorePert(net, p, check) {
+    if (check && check.correct) return check.extra === null || check.extra === undefined ? 100 : Math.max(80, 100 - 5 * Math.max(0, check.extra));
+    const { hits, total } = pertHits(net, p);
     return Math.min(60, total ? 100 * hits / total : 100);
   }
 
-  const api = { START, END, fromTable, diagnose, score, scorePert };
+  const api = { START, END, fromTable, diagnose, score, scorePert, pertHits };
   root.PNL = root.PNL || {};
   root.PNL.roycheck = api;
   if (isNode) module.exports = api;

@@ -182,7 +182,7 @@ test('T008 · ex: el tipo de ejercicio y lo que se pierde al cambiar (respuestas
   assert.equal(X.kindOf(s({ xk: 'roy' })), 'roy');
   assert.equal(X.kindOf(s({ xk: 'zz' })), 'calc');
   assert.deepEqual(X.KINDS, ['calc', 'roy', 'pert', 'det']);
-  assert.deepEqual(Object.keys(X.kindReady).filter((k) => X.kindReady[k]), ['calc', 'roy'], 'T008: solo el cálculo y construir la ROY');
+  assert.deepEqual(Object.keys(X.kindReady).filter((k) => X.kindReady[k]), ['calc', 'roy', 'pert'], 'T008 y T010: el cálculo y construir la ROY y la PERT');
   assert.equal(X.buildPublic, false, 'oculto hasta T014');
   assert.equal(X.hasWork(s({ xk: 'roy', rn: null })), false);
   assert.equal(X.hasWork(s({ xk: 'roy', rn: XB.start() })), false);
@@ -196,4 +196,17 @@ test('T008 · ex: el tipo de ejercicio y lo que se pierde al cambiar (respuestas
   assert.equal(m.kind, 'roy');
   assert.deepEqual(m.rows, X.model(s({}), 'es').rows);
   assert.equal(m.grading, null);
+});
+
+test('T010 · pertGradeText: mínimo, ficticias de más (con el suelo de 80), incorrecta y sin mínimo exacto', () => {
+  const I = require('../js/i18n.js');
+  const ok = (dummies, value, exact = true) => ({ correct: true, dummies, extra: dummies - value, min: { value, lower: value, exact } });
+  assert.equal(XB.pertGradeText(ok(3, 3), null, 'es'), I.t('es', 'xb.pert.min', { min: 3 }));
+  assert.equal(XB.pertGradeText(ok(4, 3), null, 'en'), I.t('en', 'xb.pert.extra', { k: 4, e: 1, min: 3, pct: 95 }));
+  assert.equal(XB.pertGradeText(ok(7, 3), null, 'es'), I.t('es', 'xb.pert.extra', { k: 7, e: 4, min: 3, pct: 80 }));
+  assert.equal(XB.pertGradeText(ok(8, 3), null, 'es'), I.t('es', 'xb.pert.extraFloor', { k: 8, e: 5, min: 3 }));
+  assert.equal(XB.pertGradeText(ok(2, 2, false), null, 'es'), `${I.t('es', 'xb.pert.min', { min: 2 })} ${I.t('es', 'xb.pert.notExact', { min: 2 })}`);
+  assert.equal(XB.pertGradeText({ correct: false }, { hits: 11, total: 14 }, 'es'), I.t('es', 'xb.pert.wrong', { hits: 11, total: 14, pct: '60' }));
+  assert.equal(XB.pertGradeText({ correct: false }, { hits: 5, total: 14 }, 'es'), I.t('es', 'xb.pert.wrong', { hits: 5, total: 14, pct: '35,7' }));
+  assert.equal(XB.pertGradeText({ correct: false }, { hits: 5, total: 14 }, 'en'), I.t('en', 'xb.pert.wrong', { hits: 5, total: 14, pct: '35.7' }));
 });
