@@ -16,7 +16,8 @@
     tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: [0, 1],   // F2c: M0
   };
   // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
-  const VIEW_OK = { aon: ['net', 'matrix'], aoa: ['net', 'side', 'cmp', 'reto'] };   // el comparador y el reto también son de la PERT (F2b)
+  // El comparador y el reto de ficticias son de la PERT (F2b); el reto ROY, de la ROY (F3d, H6).
+  const VIEW_OK = { aon: ['net', 'matrix', 'reto'], aoa: ['net', 'side', 'cmp', 'reto'] };
   const structureOnly = (s) => !s.t && U.STRUCTURE_ONLY.includes(s.ex);
   // F4a: al cambiar de proyecto, el plazo vuelve al del proyecto y la probabilidad, si se pedía, al 95 %.
   const resetAsk = (s) => { s.ud = null; if (typeof s.up === 'number') s.up = 0.95; };
@@ -48,6 +49,7 @@
       }
       // F2b: la red del alumno del reto (la ajusta js/reto a la tabla); null es la de partida.
       case 'sn': {
+        if (s.v === 'ex' && s.xd) break;   // F3d: entregada, la red no cambia
         const v = action.value;
         if (v === null) s.sn = null;
         else if (v && ['events', 'arcs', 'dummies'].every((k) => Array.isArray(v[k]))) s.sn = v;
@@ -57,7 +59,8 @@
         // Cambiar de red cambia de traza: app calcula el paso equivalente (equivalentStep) y lo pasa aquí.
         if (!VIEW_OK[action.value] || (action.value === 'aon' && structureOnly(s))) break;
         s.graph = action.value;
-        if (!VIEW_OK[s.graph].includes(s.view)) s.view = 'net';
+        // Desde un reto se vuelve a la red (F3d: lo que haga el botón con el reto ROY lo deciden los bocetos, T007).
+        if (s.view === 'reto' || !VIEW_OK[s.graph].includes(s.view)) s.view = 'net';
         s.step = Number.isInteger(action.step) && action.step >= 0 ? action.step : 0;
         break;
       case 'route': s.v = 'route'; s.step = 0; break;
@@ -96,34 +99,39 @@
       // F2c: la tabla depurada de M0 se abre en la ruta (ROY o PERT) o en el taller, desde el principio (AC15).
       case 'open':
         if (!['route', 'work'].includes(action.v) || !VIEW_OK[action.graph]) break;
-        s.v = action.v; s.graph = action.graph; s.ex = null; s.step = 0; s.wi = null; s.view = 'net'; s.min = 0; s.m = 'rules'; s.sn = null;
+        s.v = action.v; s.graph = action.graph; s.ex = null; s.step = 0; s.wi = null; s.view = 'net'; s.min = 0; s.m = 'rules'; s.sn = null; s.rn = null;
         s.t = (action.rows || []).map((r) => Object.assign({}, r));
         if (SETTABLE.mode.includes(action.mode)) s.mode = action.mode;
         break;
       case 'work':
-        s.v = 'work'; s.ex = null; s.step = 0; s.wi = null;
+        s.v = 'work'; s.ex = null; s.step = 0; s.wi = null; s.rn = null;
         s.t = (action.rows || []).map((r) => Object.assign({}, r));
         if (SETTABLE.mode.includes(action.mode)) s.mode = action.mode;
         break;
       case 'example':
         if (U.EXAMPLES.includes(action.id)) {
-          s.ex = action.id; s.t = null; s.step = 0; s.wi = null; s.sn = null;
+          s.ex = action.id; s.t = null; s.step = 0; s.wi = null; s.sn = null; s.rn = null;
           if (structureOnly(s) && s.graph !== 'aoa') { s.graph = 'aoa'; if (s.view === 'matrix') s.view = 'net'; }
         }
         break;
       case 'table':
-        s.t = (action.rows || []).map((r) => Object.assign({}, r)); s.ex = null; s.wi = null;
+        s.t = (action.rows || []).map((r) => Object.assign({}, r)); s.ex = null; s.wi = null; s.rn = null;
         s.step = clamp(s.step, action.total == null ? total : action.total);
         break;
       // F3a: ejercicio nuevo (semilla, nivel, parámetros, qué se pide, modo): sin respuestas, sin entregar.
       case 'ex': {
         s.v = 'ex'; s.ex = null; s.t = null; s.step = 0; s.wi = null; s.ans = null; s.xd = 0; s.gv = null;
+        // F3d: otro ejercicio o cambiar de tipo borra lo hecho (red ROY o PERT del alumno y marcas del detective).
+        s.rn = null; s.sn = null; s.dm = null;
+        if (['calc', 'roy', 'pert', 'det'].includes(action.xk)) s.xk = action.xk;
+        if (['aon', 'aoa'].includes(action.dg)) s.dg = action.dg;
+        if (['net', 'calc', 'all'].includes(action.dk)) s.dk = action.dk;
         if (Number.isInteger(action.sd) && action.sd >= 1 && action.sd <= U.EX.seed) s.sd = action.sd;
         if (['easy', 'medium', 'hard'].includes(action.lv)) { s.lv = action.lv; s.gp = null; }
         else if (action.lv === 'custom') { const gp = U.cleanGp(action.gp); if (gp) { s.lv = 'custom'; s.gp = gp; } }
         if (action.ask !== undefined) { const ask = U.cleanAsk(action.ask); if (ask) s.ask = ask; }
         if (['practice', 'exam'].includes(action.xm)) s.xm = action.xm;
-        if (s.lv === 'custom') s.xt = 0;   // F3c (P8): con «Personalizar» no hay enunciado
+        if (s.lv === 'custom' || (s.xk && s.xk !== 'calc')) s.xt = 0;   // F3c (P8): con «Personalizar» no hay enunciado; F3d: ni fuera del cálculo
         s.sv = U.STMT_VERSION;   // un ejercicio nuevo es de la versión actual (como gv; revisión de la F3c, ronda 2, F2)
         break;
       }
@@ -141,6 +149,21 @@
         { const a = U.cleanAns(action.ans); if (a || !action.ans) s.ans = a; }
         break;
       case 'exDeliver': if (s.xm === 'exam') s.xd = 1; break;
+      // F3d: la red ROY del alumno (reto ROY o xk=roy) y las marcas del detective; entregada, no cambian.
+      case 'rn': {
+        if (s.v === 'ex' && s.xd) break;
+        if (action.value === null) { s.rn = null; break; }
+        const rn = U.cleanRn(action.value);
+        if (rn) s.rn = rn;
+        break;
+      }
+      case 'dm': {
+        if (s.xd) break;
+        if (action.value === null || (Array.isArray(action.value) && !action.value.length)) { s.dm = null; break; }
+        const dm = U.cleanDm(action.value);
+        if (dm) s.dm = dm;
+        break;
+      }
       // F4a (plan f4a-tres-tiempos-tcl, §3): la pestaña de tres tiempos y el TCL. Solo se aceptan valores válidos; cambiar de
       // apartado, proyecto, actividad, caso, plazo, probabilidad o deslizadores vuelve al paso 0. El ejemplo de la ruta y la
       // tabla del taller se conservan para volver a ellos. Otro proyecto vuelve a su plazo por defecto y, si se pedía el

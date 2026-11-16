@@ -204,7 +204,6 @@ test('F2b: una red del alumno de 30 actividades con posiciones cabe en el límit
 test('F2b: listas blancas y combinaciones imposibles vuelven a lo de siempre con aviso', () => {
   const bad = [
     ['#v=route&graph=aon&view=cmp', (s) => s.view === 'net'],
-    ['#v=route&graph=aon&view=reto', (s) => s.view === 'net'],
     ['#v=route&graph=aoa&m=nope', (s) => s.m === 'rules'],
     ['#v=route&graph=aoa&view=cmp&ms=rules,nope', (s) => s.ms.join() === 'prog,rules,min'],
     ['#v=route&graph=aoa&view=cmp&pair=rules,rules', (s) => s.pair === null],
@@ -770,3 +769,124 @@ test('F4b T011: uh guarda qué se predice en «Réplica a réplica» (t la durac
   assert.equal(r.warning, 'malformed');
   assert.equal(r.state.uh, 't');
 });
+
+// ---------- F3d T006: construir y detectar (plan §3; análisis H6 y H12) ----------
+
+const RN = { nodes: [{ id: '_S', x: 10, y: 200 }, { id: 'A', x: 120, y: 80 }, { id: 'B' }, { id: '_E', x: 900, y: 200 }],
+  arcs: [{ from: '_S', to: 'A' }, { from: '_S', to: 'B' }, { from: 'A', to: '_E' }, { from: 'B', to: '_E' }] };
+
+test('F3d T006: xk, rn, dg, dk y dm hacen ida y vuelta en «Ejercicios»', () => {
+  const roy = Object.assign(U.defaults(), { v: 'ex', sd: 41, lv: 'hard', xk: 'roy', rn: RN, xm: 'exam', xd: 1 });
+  const r1 = U.decode(U.encode(roy));
+  assert.equal(r1.warning, undefined);
+  assert.deepEqual([r1.state.xk, r1.state.rn, r1.state.xm, r1.state.xd], ['roy', RN, 'exam', 1]);
+  const dm = [{ element: 'F>I', type: 'royFalse' }, { element: 'd:3-5', type: 'pertMissingDummy' }, { element: 'e3.TE', type: 'calcTE' },
+    { element: 'K.ES', type: 'calcES' }, { element: 'A.crit', type: 'calcCrit' }, { element: '_S', type: 'royMissing' }, { element: 'e12', type: 'pertMissingDummy' }];
+  const det = Object.assign(U.defaults(), { v: 'ex', sd: 7, xk: 'det', dg: 'aoa', dk: 'calc', dm });
+  const r2 = U.decode(U.encode(det));
+  assert.equal(r2.warning, undefined);
+  assert.deepEqual([r2.state.xk, r2.state.dg, r2.state.dk, r2.state.dm], ['det', 'aoa', 'calc', dm]);
+  const pert = Object.assign(U.defaults(), { v: 'ex', sd: 9, xk: 'pert', sn: { events: [{ id: 0, n: 1 }], arcs: [{ act: 'A', from: 0, to: null }], dummies: [] } });
+  const r3 = U.decode(U.encode(pert));
+  assert.deepEqual([r3.state.xk, r3.state.sn], ['pert', pert.sn]);
+  // Por defecto no se escriben: el enlace de un cálculo de la F3a no cambia.
+  const q = new URLSearchParams(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 41 })).slice(1));
+  for (const k of ['xk', 'rn', 'dg', 'dk', 'dm']) assert.ok(!q.has(k), k);
+  const q2 = new URLSearchParams(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 7, xk: 'det' })).slice(1));
+  assert.deepEqual([q2.get('xk'), q2.has('dg'), q2.has('dk')], ['det', false, false]);
+});
+
+test('F3d T006: ask, ans y xt solo cuentan con xk=calc; rn solo con xk=roy o el reto ROY; dg, dk y dm solo con xk=det', () => {
+  const ans = U.decode('#v=ex&sd=5&ask=t&xt=1&xk=roy').state;
+  assert.deepEqual([ans.ask, ans.xt], [U.DEFAULT_ASK, 0]);
+  const enc = new URLSearchParams(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 5, xk: 'pert', ask: ['times'], xt: 1, ans: { ES: { A: 0 } } })).slice(1));
+  for (const k of ['ask', 'xt', 'ans', 'sv']) assert.ok(!enc.has(k), k);
+  const rn = encodeURIComponent('_S,A,_E|_S-A,A-_E');
+  assert.equal(U.decode(`#v=ex&sd=5&xk=det&rn=${rn}`).state.rn, null);
+  assert.equal(U.decode(`#v=ex&sd=5&xk=calc&rn=${rn}`).state.rn, null);
+  assert.ok(U.decode(`#v=ex&sd=5&xk=roy&rn=${rn}`).state.rn);
+  const d = U.decode('#v=ex&sd=5&xk=roy&dg=aoa&dk=net&dm=A%3AroyFalse').state;
+  assert.deepEqual([d.dg, d.dk, d.dm], ['aon', 'all', null]);
+  // Fuera de «Ejercicios», xk vuelve a calc.
+  assert.equal(U.decode('#v=route&xk=roy').state.xk, 'calc');
+});
+
+test('F3d T006 (H6): graph=aon&view=reto abre el reto ROY con su red; ya no es malformado', () => {
+  const s = Object.assign(U.defaults(), { v: 'work', graph: 'aon', view: 'reto', rn: RN });
+  const r = U.decode(U.encode(s));
+  assert.equal(r.warning, undefined);
+  assert.deepEqual([r.state.graph, r.state.view, r.state.rn], ['aon', 'reto', RN]);
+  assert.equal(U.decode('#v=route&graph=aon&view=reto').warning, undefined);
+  // La red ROY del alumno no se lee en el reto de ficticias ni en la red normal.
+  const rn = encodeURIComponent('_S,A,_E|_S-A,A-_E');
+  assert.equal(U.decode(`#v=work&graph=aoa&view=reto&rn=${rn}`).state.rn, null);
+  assert.equal(U.decode(`#v=work&graph=aon&view=net&rn=${rn}`).state.rn, null);
+  assert.equal(U.decode('#v=route&graph=aon&view=cmp').warning, 'malformed', 'el comparador sigue siendo de la PERT');
+});
+
+test('F3d T006 (H12): rn, dg, dk, dm y xk malformados vuelven a lo de siempre con aviso', () => {
+  const bad = [
+    ['xk=nope', (s) => s.xk === 'calc'],
+    ['xk=det&dg=x', (s) => s.dg === 'aon'],
+    ['xk=det&dk=x', (s) => s.dk === 'all'],
+    ['xk=roy&rn=' + encodeURIComponent('_S,A,A|'), (s) => s.rn === null],                // nodo repetido
+    ['xk=roy&rn=' + encodeURIComponent('_S,A|A-A'), (s) => s.rn === null],               // bucle
+    ['xk=roy&rn=' + encodeURIComponent('_S,A|_S-A,_S-A'), (s) => s.rn === null],         // arco repetido
+    ['xk=roy&rn=' + encodeURIComponent('_S,A|A-B'), (s) => s.rn === null],               // extremo que no está
+    ['xk=roy&rn=' + encodeURIComponent('_S,a|'), (s) => s.rn === null],                  // id no válido
+    ['xk=roy&rn=' + encodeURIComponent('_S,A:1.2.3|'), (s) => s.rn === null],            // posición mal escrita
+    ['xk=roy&rn=' + encodeURIComponent('_S,A:99999.1|'), (s) => s.rn === null],          // posición fuera de rango
+    ['xk=roy&rn=' + encodeURIComponent('_S,A'), (s) => s.rn === null],                   // sin «|»
+    ['xk=det&dm=' + encodeURIComponent('A:nope'), (s) => s.dm === null],                 // tipo desconocido
+    ['xk=det&dm=' + encodeURIComponent('A<B:royFalse'), (s) => s.dm === null],           // elemento desconocido
+    ['xk=det&dm=' + encodeURIComponent('A:royFalse,A:royMissing'), (s) => s.dm === null], // dos marcas en un elemento
+  ];
+  for (const [tail, ok] of bad) {
+    const { state, warning } = U.decode(`#v=ex&sd=3&${tail}`);
+    assert.equal(warning, 'malformed', tail);
+    assert.ok(ok(state), tail);
+  }
+  // Más de 42 nodos (40 actividades, Inicio y Fin), de 200 arcos o de 40 marcas: malformado.
+  const ids = Array.from({ length: 43 }, (_, i) => `N${i}`);
+  assert.equal(U.decode(`#v=ex&xk=roy&rn=${encodeURIComponent(`${ids.join(',')}|`)}`).warning, 'malformed');
+  const marks = Array.from({ length: 41 }, (_, i) => `e${i + 1}:calcTE`).join(',');
+  assert.equal(U.decode(`#v=ex&xk=det&dm=${encodeURIComponent(marks)}`).warning, 'malformed');
+});
+
+test('F3d T006: la red ROY más grande (40 actividades, Inicio, Fin, posiciones y 200 arcos) cabe en 8000', () => {
+  const acts = Array.from({ length: 40 }, (_, i) => `AB${String(i).padStart(2, '0')}`);
+  const nodes = [{ id: '_S', x: 9999, y: 9999 }, ...acts.map((id) => ({ id, x: 9999, y: 9999 })), { id: '_E', x: 9999, y: 9999 }];
+  const arcs = [];
+  for (let i = 0; i < acts.length && arcs.length < 200; i++) for (let j = i + 1; j < acts.length && arcs.length < 200; j++) arcs.push({ from: acts[i], to: acts[j] });
+  const s = Object.assign(U.defaults(), { v: 'ex', sd: 999999, lv: 'hard', xk: 'roy', xm: 'exam', xd: 1, rn: { nodes, arcs } });
+  const hash = U.encode(s);
+  assert.ok(hash.length < U.LIMITS.hash, `${hash.length}`);
+  assert.deepEqual(U.decode(hash).state.rn, { nodes, arcs });
+  const marks = Array.from({ length: 40 }, (_, i) => ({ element: `d:${100 + i}-${200 + i}`, type: 'pertInvertedDummy' }));
+  const h2 = U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 999999, xk: 'det', dg: 'aoa', dk: 'net', dm: marks }));
+  assert.ok(h2.length < U.LIMITS.hash, `${h2.length}`);
+  assert.deepEqual(U.decode(h2).state.dm, marks);
+});
+
+test('F3d T006: los enlaces de las fases anteriores no cambian', () => {
+  for (const h of ['#v=ex&sd=41&lv=hard&ask=tfc&xm=exam&xd=1', '#v=ex&sd=12&xt=1&sv=2', '#v=work&graph=aoa&view=reto&sn=' + encodeURIComponent('0.1|A:0-|'),
+    '#v=route&ex=roy10&graph=aon&view=matrix', '#v=moodle', '#v=unc&um=m7&uy=idx']) {
+    const r = U.decode(h);
+    assert.equal(r.warning, undefined, h);
+    assert.equal(r.state.xk, 'calc');
+    assert.equal(U.decode(U.encode(r.state)).state.xk, 'calc');
+    const q = new URLSearchParams(U.encode(r.state).slice(1));
+    for (const k of ['xk', 'rn', 'dg', 'dk', 'dm']) assert.ok(!q.has(k), `${h} ${k}`);
+  }
+});
+
+test('F3d T006: cleanRn y cleanDm aceptan solo redes y marcas válidas', () => {
+  assert.deepEqual(U.cleanRn(RN), RN);
+  assert.equal(U.cleanRn({ nodes: [{ id: 'A' }, { id: 'A' }], arcs: [] }), null);
+  assert.equal(U.cleanRn({ nodes: [{ id: 'A' }], arcs: [{ from: 'A', to: 'B' }] }), null);
+  assert.equal(U.cleanRn(null), null);
+  assert.deepEqual(U.cleanDm([{ element: 'A>B', type: 'royFalse' }]), [{ element: 'A>B', type: 'royFalse' }]);
+  assert.equal(U.cleanDm([{ element: 'A>B', type: 'nope' }]), null);
+  assert.deepEqual(U.DET_TYPES.length, 15);
+});
+

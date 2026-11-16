@@ -30,10 +30,13 @@
     uz: ['c', 'u'],
     // F4b (T011): qué se predice en «Réplica a réplica», la duración (t) o el camino crítico (p).
     uh: ['t', 'p'],
+    // F3d (plan f3d-construir-detectar, §3): tipo de ejercicio y, en el detective, la red y los errores que se buscan.
+    xk: ['calc', 'roy', 'pert', 'det'], dg: ['aon', 'aoa'], dk: ['net', 'calc', 'all'],
   };
   const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
-    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh'];
+    'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh',
+    'xk', 'rn', 'dg', 'dk', 'dm'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -62,8 +65,75 @@
       sd: null, lv: 'medium', gp: null, ask: DEFAULT_ASK.slice(), xm: 'practice', ans: null, xd: 0, gv: null,
       cx: null, sv: null, xt: 0,
       um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
-      ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c', uh: 't' };
+      ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c', uh: 't',
+      xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null };
   }
+
+  // F3d: red ROY del alumno (rn) y marcas del detective (dm) (plan §3; análisis H12). Nodos: actividad, Inicio (_S) o
+  // Fin (_E), cada uno una vez, con posición opcional; arcos sin bucles, sin repetir y entre nodos que están.
+  const RN = { nodes: 42, arcs: 200, pos: /^\d{1,4}$/ };
+  const RN_ID = /^(?:[A-Z0-9]{1,4}|_S|_E)$/;
+  const DM_MAX = 40;
+  const DET_TYPES = ['royMissing', 'royFalse', 'royInverted', 'royCycle', 'pertFalseDummy', 'pertMissingDummy', 'pertInvertedDummy', 'pertParallel',
+    'calcES', 'calcLF', 'calcFloat', 'calcCrit', 'calcTE', 'calcTL', 'calcSlack'];
+  const DM_EL = /^(?:[A-Z0-9]{1,4}|_S|_E|(?:[A-Z0-9]{1,4}|_S)>(?:[A-Z0-9]{1,4}|_E)|e\d{1,3}|d:\d{1,3}-\d{1,3}|[A-Z0-9]{1,4}\.(?:ES|EF|LS|LF|TF|crit)|e\d{1,3}\.(?:TE|TL|slack))$/;
+  const posOk = (v) => Number.isInteger(v) && RN.pos.test(String(v));
+
+  function cleanRn(net) {
+    if (!net || !Array.isArray(net.nodes) || !Array.isArray(net.arcs) || net.nodes.length > RN.nodes || net.arcs.length > RN.arcs) return null;
+    const ids = new Set();
+    const nodes = [];
+    for (const n of net.nodes) {
+      if (!n || typeof n.id !== 'string' || !RN_ID.test(n.id) || ids.has(n.id)) return null;
+      ids.add(n.id);
+      const hasPos = n.x !== undefined || n.y !== undefined;
+      if (hasPos && !(posOk(n.x) && posOk(n.y))) return null;
+      nodes.push(hasPos ? { id: n.id, x: n.x, y: n.y } : { id: n.id });
+    }
+    const seen = new Set();
+    const arcs = [];
+    for (const a of net.arcs) {
+      const k = a && `${a.from}>${a.to}`;
+      if (!a || !ids.has(a.from) || !ids.has(a.to) || a.from === a.to || seen.has(k)) return null;
+      seen.add(k);
+      arcs.push({ from: a.from, to: a.to });
+    }
+    return { nodes, arcs };
+  }
+  const encodeRn = (net) => `${net.nodes.map((n) => (n.x !== undefined ? `${n.id}:${n.x}.${n.y}` : n.id)).join(',')}|${net.arcs.map((a) => `${a.from}-${a.to}`).join(',')}`;
+  function decodeRn(text) {
+    const parts = String(text).split('|');
+    if (parts.length !== 2) return null;
+    const list = (x) => (x === '' ? [] : x.split(','));
+    const nodes = [];
+    for (const item of list(parts[0])) {
+      const m = item.match(/^([^:]+)(?::(\d+)\.(\d+))?$/);
+      if (!m) return null;
+      nodes.push(m[2] === undefined ? { id: m[1] } : { id: m[1], x: Number(m[2]), y: Number(m[3]) });
+    }
+    const arcs = [];
+    for (const item of list(parts[1])) { const m = item.match(/^([^-]+)-([^-]+)$/); if (!m) return null; arcs.push({ from: m[1], to: m[2] }); }
+    return cleanRn({ nodes, arcs });
+  }
+
+  function cleanDm(marks) {
+    if (!Array.isArray(marks) || marks.length > DM_MAX) return null;
+    const seen = new Set();
+    const out = [];
+    for (const m of marks) {
+      if (!m || typeof m.element !== 'string' || !DM_EL.test(m.element) || !DET_TYPES.includes(m.type) || seen.has(m.element)) return null;
+      seen.add(m.element);
+      out.push({ element: m.element, type: m.type });
+    }
+    return out;
+  }
+  const encodeDm = (marks) => marks.map((m) => `${m.element}:${m.type}`).join(',');
+  function decodeDm(text) {
+    const marks = String(text).split(',').map((item) => { const i = item.lastIndexOf(':'); return i < 0 ? null : { element: item.slice(0, i), type: item.slice(i + 1) }; });
+    return marks.some((m) => m === null) ? null : cleanDm(marks);
+  }
+  // El reto ROY del taller (H6): la red ROY con view=reto, en la ruta o el taller.
+  const royReto = (s) => (s.v === 'route' || s.v === 'work') && s.graph === 'aon' && s.view === 'reto';
 
   const enc = (s) => encodeURIComponent(String(s == null ? '' : s));
   const cut = (s, n) => String(s == null ? '' : s).slice(0, n);
@@ -496,6 +566,9 @@
       q.set('sn', sn);
       if (sp) q.set('sp', sp);
     }
+    // F3d: la red ROY del alumno, en el reto ROY del taller y en «Ejercicios» con xk=roy.
+    const rn = (royReto(s) || (exV && s.xk === 'roy')) && s.rn ? cleanRn(s.rn) : null;
+    if (rn) q.set('rn', encodeRn(rn));
     // F2c: M0, solo lo que no vale lo de siempre.
     if (m0) {
       q.set('st', s.st || DEFAULT_ST);
@@ -518,15 +591,24 @@
       const gp = s.lv === 'custom' ? cleanGp(s.gp) : null;
       if (s.lv !== 'medium' && (s.lv !== 'custom' || gp)) q.set('lv', s.lv);
       if (gp) q.set('gp', encodeGp(gp));
+      // F3d: el tipo de ejercicio; qué se pide, las respuestas y el enunciado solo son del cálculo (xk=calc).
+      const xk = ENUMS.xk.includes(s.xk) ? s.xk : 'calc';
+      if (xk !== 'calc') q.set('xk', xk);
       const ask = cleanAsk(s.ask) || DEFAULT_ASK;
-      if (ask.join() !== DEFAULT_ASK.join()) q.set('ask', ask.map((x) => ASK_CODE[x]).join(''));
+      if (xk === 'calc' && ask.join() !== DEFAULT_ASK.join()) q.set('ask', ask.map((x) => ASK_CODE[x]).join(''));
       if (s.xm === 'exam') q.set('xm', 'exam');
-      const ans = cleanAns(s.ans);
+      const ans = xk === 'calc' ? cleanAns(s.ans) : null;
       if (ans) q.set('ans', packAns(ans));
+      if (xk === 'det') {
+        if (s.dg === 'aoa') q.set('dg', 'aoa');
+        if (ENUMS.dk.includes(s.dk) && s.dk !== 'all') q.set('dk', s.dk);
+        const dm = s.dm ? cleanDm(s.dm) : null;
+        if (dm && dm.length) q.set('dm', encodeDm(dm));
+      }
       if (s.xd) q.set('xd', '1');
       if (Number.isInteger(s.gv) && s.gv >= 1) q.set('gv', String(s.gv));
       // Con el enunciado, también la versión de su generador (plan P7; revisión de la F3c, ronda 2, F2).
-      if (s.xt && s.lv !== 'custom') { q.set('xt', '1'); q.set('sv', String(verOk(s.sv) ? s.sv : STMT_VERSION)); }
+      if (s.xt && s.lv !== 'custom' && xk === 'calc') { q.set('xt', '1'); q.set('sv', String(verOk(s.sv) ? s.sv : STMT_VERSION)); }
     }
     return '#' + q.toString();
   }
@@ -647,7 +729,8 @@
       }
     }
     // El comparador y el reto son de la red PERT (F2b, plan §3).
-    if ((state.view === 'cmp' || state.view === 'reto') && state.graph !== 'aoa') { state.view = 'net'; malformed = true; }
+    // F3d (H6): el reto también es de la red ROY (el reto ROY); el comparador sigue siendo solo de la PERT.
+    if (state.view === 'cmp' && state.graph !== 'aoa') { state.view = 'net'; malformed = true; }
     // La matriz es de la red ROY y la vista lado a lado, de la PERT (F2a, plan §3).
     if ((state.view === 'matrix' && state.graph === 'aoa') || (state.view === 'side' && state.graph === 'aon')) {
       state.view = 'net'; malformed = true;
@@ -657,15 +740,26 @@
     let structure = false;
     if (!state.t && STRUCTURE_ONLY.includes(state.ex) && state.graph === 'aon') {
       state.graph = 'aoa'; structure = true;
-      if (state.view === 'matrix') state.view = 'net';
+      if (state.view === 'matrix' || state.view === 'reto') state.view = 'net';
     }
+    // F3d (plan §3): el tipo de ejercicio solo cuenta en «Ejercicios»; ask, ans y xt, solo con el cálculo; la red ROY del
+    // alumno, con xk=roy o en el reto ROY; la red y los errores del detective y sus marcas, solo con xk=det.
+    if (state.v !== 'ex') state.xk = 'calc';
+    if (state.xk !== 'calc') { state.ask = DEFAULT_ASK.slice(); state.ans = null; state.xt = 0; }
+    if (q.has('rn') && (royReto(state) || (state.v === 'ex' && state.xk === 'roy'))) {
+      const rn = decodeRn(q.get('rn'));
+      if (rn) state.rn = rn; else malformed = true;
+    }
+    if (state.v === 'ex' && state.xk === 'det') {
+      if (q.has('dm')) { const dm = decodeDm(q.get('dm')); if (dm && dm.length) state.dm = dm; else malformed = true; }
+    } else { state.dg = 'aon'; state.dk = 'all'; }
     const out = { state };
     if (malformed) out.warning = 'malformed'; else if (unknown) out.warning = 'unknownParam'; else if (structure) out.warning = 'structureOnly';
     return out;
   }
 
   const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
-    ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns,
+    ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns, DET_TYPES, cleanRn, cleanDm,
     UNC: { M6_ONLY: UNC_M6_ONLY, M7_ONLY: UNC_M7_ONLY, cleanUf, cleanUq, pctOk, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk } };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;

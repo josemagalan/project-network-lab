@@ -156,7 +156,8 @@ test('F2b (T021): el reto es una vista de la red PERT; la red del alumno se camb
   let s = Object.assign(U.defaults(), { graph: 'aoa' });
   s = S.reduce(s, { type: 'set', key: 'view', value: 'reto' }, 32);
   assert.equal(s.view, 'reto');
-  assert.equal(S.reduce(Object.assign({}, s, { graph: 'aon', view: 'net' }), { type: 'set', key: 'view', value: 'reto' }, 32).view, 'net', 'no en la red ROY');
+  // F3d (H6): el reto también existe en la red ROY (el reto ROY).
+  assert.equal(S.reduce(Object.assign({}, s, { graph: 'aon', view: 'net' }), { type: 'set', key: 'view', value: 'reto' }, 32).view, 'reto', 'reto ROY');
   assert.equal(S.reduce(s, { type: 'graph', value: 'aon', step: 0 }, 32).view, 'net', 'al pasar a ROY se deja el reto');
   const sn = { events: [{ id: 0, n: 1 }], arcs: [{ act: 'A', from: 0, to: null }], dummies: [] };
   s = S.reduce(s, { type: 'sn', value: sn }, 32);
@@ -406,3 +407,51 @@ test('F4b T011: la acción unc acepta qué se predice (uh) y vuelve al paso 0 al
   s = S.reduce(s, { type: 'unc', uh: 'x' }, 20);
   assert.equal(s.uh, 'p');
 });
+
+// ---------- F3d T006: construir y detectar ----------
+
+const RN1 = { nodes: [{ id: '_S' }, { id: 'A', x: 5, y: 6 }, { id: '_E' }], arcs: [{ from: '_S', to: 'A' }, { from: 'A', to: '_E' }] };
+
+test('F3d T006: otro ejercicio o cambiar de tipo borra la red del alumno (rn, sn) y las marcas (dm); xk, dg y dk con lista blanca', () => {
+  let s = Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'roy', rn: RN1, sn: { events: [], arcs: [], dummies: [] },
+    dm: [{ element: 'A', type: 'royMissing' }], ans: { ES: { A: 1 } }, xd: 1 });
+  s = S.reduce(s, { type: 'ex', sd: 4 }, 1);
+  assert.deepEqual([s.xk, s.rn, s.sn, s.dm, s.ans, s.xd, s.sd], ['roy', null, null, null, null, 0, 4]);
+  s = S.reduce(Object.assign({}, s, { rn: RN1 }), { type: 'ex', xk: 'det', dg: 'aoa', dk: 'net' }, 1);
+  assert.deepEqual([s.xk, s.dg, s.dk, s.rn], ['det', 'aoa', 'net', null]);
+  s = S.reduce(s, { type: 'ex', xk: 'nope', dg: 'x', dk: 'y' }, 1);
+  assert.deepEqual([s.xk, s.dg, s.dk], ['det', 'aoa', 'net']);
+  // Con un tipo de construcción o de detective no hay enunciado (xt).
+  s = S.reduce(Object.assign({}, s, { xt: 1 }), { type: 'ex', xk: 'roy' }, 1);
+  assert.equal(s.xt, 0);
+});
+
+test('F3d T006: rn, sn y dm se cambian mientras no se ha entregado; entregar fija xd=1 solo en Examen', () => {
+  let s = Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'roy', xm: 'exam' });
+  s = S.reduce(s, { type: 'rn', value: RN1 }, 1);
+  assert.deepEqual(s.rn, RN1);
+  assert.deepEqual(S.reduce(s, { type: 'rn', value: { nodes: [{ id: 'A' }, { id: 'A' }], arcs: [] } }, 1).rn, RN1, 'una red no válida no entra');
+  s = S.reduce(s, { type: 'exDeliver' }, 1);
+  assert.equal(s.xd, 1);
+  assert.deepEqual(S.reduce(s, { type: 'rn', value: null }, 1).rn, RN1, 'entregada, no cambia');
+  const sn = { events: [{ id: 0, n: 1 }], arcs: [], dummies: [] };
+  assert.equal(S.reduce(Object.assign({}, s, { xk: 'pert', sn: null }), { type: 'sn', value: sn }, 1).sn, null);
+  let d = Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'det' });
+  d = S.reduce(d, { type: 'dm', value: [{ element: 'K.ES', type: 'calcES' }] }, 1);
+  assert.deepEqual(d.dm, [{ element: 'K.ES', type: 'calcES' }]);
+  assert.equal(S.reduce(d, { type: 'dm', value: [] }, 1).dm, null);
+  assert.deepEqual(S.reduce(d, { type: 'dm', value: [{ element: 'K.ES', type: 'nope' }] }, 1).dm, d.dm);
+  assert.deepEqual(S.reduce(Object.assign({}, d, { xd: 1 }), { type: 'dm', value: null }, 1).dm, d.dm, 'entregada, no cambia');
+});
+
+test('F3d T006 (H6): en el taller, otra tabla, otro ejemplo o abrir una tabla borran rn como borran sn; salir del reto va a la red', () => {
+  const s = Object.assign(U.defaults(), { v: 'work', graph: 'aon', view: 'reto', rn: RN1 });
+  assert.equal(S.reduce(s, { type: 'rn', value: null }, 1).rn, null);
+  assert.equal(S.reduce(s, { type: 'example', id: 'roy10' }, 1).rn, null);
+  assert.equal(S.reduce(s, { type: 'table', rows: [{ id: 'A', duration: '1', links: '', name: '' }], total: 1 }, 1).rn, null);
+  assert.equal(S.reduce(s, { type: 'open', v: 'work', graph: 'aon', rows: [] }, 1).rn, null);
+  assert.equal(S.reduce(s, { type: 'work', rows: [] }, 1).rn, null);
+  // Cambiar de red desde un reto vuelve a la red (lo que haga el botón lo deciden los bocetos, T007).
+  assert.equal(S.reduce(s, { type: 'graph', value: 'aoa', step: 0 }, 1).view, 'net');
+});
+
