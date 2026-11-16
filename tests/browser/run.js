@@ -7027,13 +7027,160 @@ check('F3d T008 AC18 · 1280×720, nivel difícil a medio hacer y tras comprobar
   await close(page);
 });
 
+// ---------- F3d, T009: reto ROY en el taller (oculto hasta T014; tableros 88 y 92) ----------
+
+const EXS0 = require(path.join(ROOT, 'js', 'core', 'examples.js'));
+const PRJ0 = require(path.join(ROOT, 'js', 'core', 'project.js'));
+const ej6 = () => { const e = EXS0.get('ej6'); return PRJ0.parse(e.rows, e.mode).project; };
+const rrState = (s) => Object.assign(U0.defaults(), { v: 'route', ex: 'ej6', step: 0, view: 'reto', lang: 'es' }, s);
+const rrUrl = (s) => `cpm.html${U0.encode(rrState(s))}`;
+async function rrLab(s, opts) {
+  const page = await open(rrUrl(s), opts);
+  await page.waitForFunction(() => PNL.app.royReto && PNL.app.royReto() && PNL.app.royReto().net);
+  return page;
+}
+const rrSt = (page) => page.evaluate(() => PNL.app.royReto());
+const crFiles = /core\/aoacheck\.js|\/reto\.js|reto-canvas\.js|reto-table\.js/;
+const crGroups = (page) => page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, crFiles.source);
+// El caso comprobado a mano en T002 (Ejercicio 6): falta F → I, sobra C → F y K → H va al revés.
+const ej6Bad = (good) => ({ nodes: good.nodes,
+  arcs: good.arcs.filter((e) => !(e.from === 'F' && e.to === 'I') && !(e.from === 'H' && e.to === 'K')).concat([{ from: 'C', to: 'F' }, { from: 'K', to: 'H' }]) });
+
+check('F3d T009 AC12 y AC13 · reto ROY del taller (ES, Ejercicio 6 en la ruta): «Reto ROY» pulsado junto a Red y Matriz; empieza con Inicio y Fin; lo colocado va al enlace y vuelve al recargar; sin nota ni Examen; grupo xb entero y sin cr', async () => {
+  const page = await rrLab({});
+  assert.equal((await state(page)).view, 'reto');
+  assert.ok(await visible(page, '#btnRetoRoy'), 'el botón, pulsado, junto a Red y Matriz');
+  assert.equal(await page.locator('#btnRetoRoy').innerText(), I0.t('es', 'view.retoRoy'));
+  assert.equal(await page.locator('#btnRetoRoy').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#btnNet').getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.locator('#btnMatrix').getAttribute('aria-pressed'), 'false');
+  assert.ok(await visible(page, '#btnMatrix'));
+  assert.ok(!(await visible(page, '#btnReto')), 'el reto de ficticias es de la red PERT');
+  assert.equal(await page.locator('#btnAon').getAttribute('aria-pressed'), 'true');
+  assert.ok(await visible(page, '#royRetoView'));
+  assert.equal(await page.locator('#royRetoView').getAttribute('aria-label'), I0.t('es', 'xb.reto.region'));
+  for (const id of ['#netView', '#side', '#retoView', '#cmpView', '#matrixView']) assert.ok(!(await visible(page, id)), `sin ${id}`);
+  assert.equal(await page.locator('#xbRetoTitle').innerText(), I0.t('es', 'xb.reto.title'));
+  assert.deepEqual((await rrSt(page)).net.nodes.map((n) => n.id), ['_S', '_E'], 'Inicio y Fin ya puestos');
+  assert.equal(await page.locator('#royRetoView .xb-chip').count(), ej6().activities.length, 'todas por colocar');
+  // Sin nota ni Examen: «Ver la red correcta» y «Comprobar».
+  for (const id of ['#xbDeliver', '#xbScore', '#xbGrade', '#xbAnother2']) assert.equal(await page.locator(id).count(), 0, `sin ${id}`);
+  assert.ok(await visible(page, '#xbCheck'));
+  assert.ok(await visible(page, '#xbSee'));
+  // Colocar A con el teclado: va al enlace (rn) y vuelve al recargar.
+  await xbKey(page, '#xb-c-A', 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await page.waitForFunction(() => PNL.app.state().rn && PNL.app.state().rn.nodes.some((n) => n.id === 'A'));
+  assert.match(await page.evaluate(() => location.hash), /[#&]rn=/);
+  await xbKey(page, xbNode('_S'), 'u');
+  await xbKey(page, xbNode('A'), 'u');
+  await page.waitForFunction(() => PNL.app.state().rn.arcs.length === 1);
+  await page.reload();
+  await page.waitForFunction(() => PNL.app.royReto && PNL.app.royReto() && PNL.app.royReto().net);
+  const net = (await rrSt(page)).net;
+  assert.deepEqual(net.nodes.map((n) => n.id).sort(), ['A', '_E', '_S']);
+  assert.deepEqual(arcSet(net), ['_S>A']);
+  assert.equal(await xbGroups(page), 6, 'el grupo xb entero');
+  assert.equal(await crGroups(page), 0, 'sin el grupo del reto de ficticias');
+  await axe(page, 'Reto ROY del taller (ES)');
+  await close(page);
+});
+
+check('F3d T009 AC12 · reto ROY en el taller con el Ejercicio 6 (EN, oscuro): la red de la F1 es correcta; con errores, «Comprobar» da el diagnóstico de roycheck numerado y sin nota; una edición lo borra', async () => {
+  const p = ej6();
+  const good = XB0.placeLevels(RC0.fromTable(p));
+  let page = await rrLab({ v: 'work', lang: 'en', rn: good }, { scheme: 'dark' });
+  assert.deepEqual(arcSet((await rrSt(page)).net), arcSet(good));
+  await page.locator('#xbCheck').click();
+  assert.equal(await page.locator('#xbDiagTitle').innerText(), I0.t('en', 'xb.diag.ok'));
+  assert.equal(await activeId(page), 'xbDiagTitle');
+  assert.equal(await page.locator('#xbDiag li').count(), 0);
+  assert.equal(await page.locator('#xbScore').count(), 0, 'sin nota');
+  await page.locator('#xbSee').click();
+  assert.equal(await page.locator('#xbCorrect svg .xb-node').count(), p.activities.length + 2, 'la red correcta');
+  await close(page);
+
+  const bad = ej6Bad(good);
+  const r = RC0.diagnose(p, bad);
+  assert.ok(r.issues.length >= 3, 'el caso tiene sus tres problemas');
+  page = await rrLab({ v: 'work', lang: 'en', rn: bad }, { scheme: 'dark' });
+  assert.equal(await page.locator('#royRetoView .xb-svg .xb-badge').count(), 0, 'sin marcas hasta comprobar');
+  await page.locator('#xbCheck').click();
+  assert.equal(await page.locator('#xbDiagTitle').innerText(), I0.t('en', 'xb.diag.title', { n: r.issues.length }));
+  assert.deepEqual(await page.locator('#xbDiag li > span:last-child').allInnerTexts(), r.issues.map((i) => XB0.issueText(i, p, 'en')));
+  assert.equal(await page.locator('#xbWarn li').count(), r.warnings.length);
+  assert.equal(await page.locator('#xb-a-K-H').getAttribute('class'), 'xb-arc bad');
+  assert.equal(await page.locator('#xbScore').count(), 0, 'sin nota');
+  assert.equal((await rrSt(page)).score, null);
+  await axe(page, 'Reto ROY tras comprobar (EN, oscuro)');
+  await xbKey(page, xbNode('C'), 'ArrowDown');
+  assert.equal(await page.locator('#xbDiagTitle').count(), 0, 'una edición borra el diagnóstico');
+  assert.equal(await page.locator('#royRetoView .xb-svg .xb-badge').count(), 0);
+  await close(page);
+});
+
+check('F3d T009 AC12 · tabla con errores en el taller: el reto ROY no se abre, salen los mensajes de la F1 y el aviso; con la tabla corregida, se abre', async () => {
+  const rows = [{ id: 'A', name: '', duration: '2', links: 'B' }, { id: 'B', name: '', duration: '3', links: 'A' }, { id: 'C', name: '', duration: '1', links: '' }];
+  const page = await open(rrUrl({ v: 'work', ex: null, t: rows, mode: 'succ' }));
+  await page.waitForFunction(() => document.getElementById('royRetoBad') && !document.getElementById('royRetoBad').hidden);
+  assert.equal(await page.locator('#royRetoBad').innerText(), I0.t('es', 'xb.reto.bad'));
+  assert.ok(await visible(page, '#workshop .issues.err'), 'los mensajes de la F1');
+  assert.ok(!(await visible(page, '#stage')), 'el reto no se abre');
+  assert.equal(await page.locator('#royRetoView .xb-svg').count(), 0);
+  const ok = [{ id: 'A', name: '', duration: '2', links: 'B' }, { id: 'B', name: '', duration: '3', links: '' }, { id: 'C', name: '', duration: '1', links: '' }];
+  await setHash(page, U0.encode(rrState({ v: 'work', ex: null, t: ok, mode: 'succ' })));
+  await page.waitForFunction(() => PNL.app.royReto && PNL.app.royReto() && PNL.app.royReto().net);
+  assert.ok(await visible(page, '#royRetoView'));
+  assert.ok(!(await visible(page, '#royRetoBad')));
+  assert.equal(await page.locator('#royRetoView .xb-chip').count(), 3);
+  await close(page);
+});
+
+check('F3d T009 · oculto (T014) y lo demás igual: sin view=reto no hay botón ni grupo xb; «Red» y «Red PERT» vuelven a la red; el reto de ficticias no ve el botón; de «Ejercicios» al reto ROY, un solo lienzo', async () => {
+  let page = await lab('v=route&ex=ej6&step=0&lang=es');
+  assert.equal(await page.locator('#btnRetoRoy').count(), 1);
+  assert.ok(!(await visible(page, '#btnRetoRoy')), 'el botón no se ve hasta la publicación');
+  assert.equal(await xbGroups(page), 0, 'sin el grupo xb');
+  await close(page);
+  const good = XB0.placeLevels(RC0.fromTable(ej6()));
+  page = await rrLab({ rn: good });
+  await page.locator('#btnNet').click();
+  await page.waitForFunction(() => PNL.app.state().view === 'net');
+  assert.ok(await visible(page, '#netView'));
+  assert.ok(!(await visible(page, '#royRetoView')));
+  assert.equal(await page.locator('#royRetoView *').count(), 0, 'el reto ROY se vacía al salir');
+  assert.ok(!(await visible(page, '#btnRetoRoy')));
+  await setHash(page, U0.encode(rrState({ rn: good })));
+  await page.waitForFunction(() => PNL.app.royReto() && PNL.app.royReto().net.nodes.length > 2);
+  assert.ok(await visible(page, '#btnRetoRoy'));
+  await page.locator('#btnAoa').click();
+  await page.waitForFunction(() => PNL.app.state().graph === 'aoa');
+  assert.equal((await state(page)).view, 'net', 'desde el reto, la red PERT');
+  assert.ok(!(await visible(page, '#btnRetoRoy')));
+  await close(page);
+  page = await retoLab('ex=ej6&lang=es');
+  assert.ok(await visible(page, '#retoView'));
+  assert.ok(!(await visible(page, '#btnRetoRoy')), 'el reto de ficticias no ve el botón');
+  assert.equal(await xbGroups(page), 0, 'ni carga xb');
+  await close(page);
+  // De construir la ROY en «Ejercicios» al reto ROY del taller: un solo lienzo con sus ids.
+  page = await xbLab({ sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es' });
+  await setHash(page, U0.encode(rrState({ rn: good })));
+  await page.waitForFunction(() => PNL.app.royReto && PNL.app.royReto() && PNL.app.royReto().net && PNL.app.royReto().net.nodes.length > 2);
+  assert.equal(await page.locator('[id="xbCheck"]').count(), 1);
+  assert.equal(await page.locator('[id="xb-n-_S"]').count(), 1);
+  await page.locator('#xbCheck').click();
+  assert.equal(await page.locator('#xbDiagTitle').innerText(), I0.t('es', 'xb.diag.ok'));
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -7055,12 +7202,13 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo (grupo cr), solo con view=cmp, view=reto o m=prog.
-    const cr = /view=(cmp|reto)|m=prog/.test(url);
+    // F3d (T009): el reto ROY (view=reto sin graph=aoa) no carga el grupo cr.
+    const cr = /graph=aoa/.test(url) && /view=(cmp|reto)|m=prog/.test(url);
     for (const re of [/core\/aoacheck\.js/, /core\/aoamethods\.js/, /core\/compare\.js/, /compare-view\.js/, /\/reto\.js/, /reto-canvas\.js/, /reto-table\.js/]) {
       assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), cr, `${url}: ${re.source}`);
     }
-    // F3d (plan P1, T008): construir la ROY (grupo xb), solo con xk=roy.
-    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') ? 6 : 0, `${url}: grupo xb`);
+    // F3d (plan P1, T008 y T009): construir la ROY (grupo xb), solo con xk=roy o con el reto ROY del taller.
+    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : 0, `${url}: grupo xb`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);

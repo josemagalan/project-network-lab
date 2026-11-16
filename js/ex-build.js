@@ -8,6 +8,9 @@
  * hasta «Entregar» (xd=1), y la red entregada se corrige al abrir el enlace. «Ver la red correcta» dibuja la de la F1
  * (roycheck.fromTable) colocada por niveles, sin tocar rn.
  *
+ * Con hooks.reto, el reto ROY del taller (T009, AC12; tablero 88): la misma vista con la tabla del taller, siempre en
+ * Practicar y sin nota; hooks.key() da la clave del lienzo (la estructura de la tabla), en vez de la semilla.
+ *
  * La parte sin DOM (start, normalize, apply, joinError, spot, placeLevels, parsePreds, predsText, hasWork, marks,
  * issueText, warnText, gradeText) se prueba en Node (tests/ex-build.test.js); create() pinta la vista. Para las pruebas
  * de navegador, PNL.exBuild.state() da la red, el diagnóstico, la nota y lo que se ve.
@@ -248,6 +251,7 @@
     const { h, clear } = G.dom;
     const lang = () => hooks.lang();
     const tt = (k, p) => I.t(lang(), k, p);
+    const reto = !!hooks.reto;
     let checked = null;        // Practicar: { r } de la última comprobación (solo en la página)
     let showCorrect = false;   // Practicar: «Ver la red correcta» abierta
     let confirmOpen = false;   // Examen: confirmación de «Entregar»
@@ -334,7 +338,7 @@
       const p = m.project;
       const net = normalize(s.rn, p);
       lastNet = net;
-      const exam = s.xm === 'exam';
+      const exam = !reto && s.xm === 'exam';
       const delivered = exam && !!s.xd;
       const r = delivered ? RC.diagnose(p, net) : checked ? checked.r : null;
       const sideOn = delivered || !!r || (showCorrect && !exam);
@@ -344,7 +348,7 @@
 
       // ---- Lienzo ----
       const canvasHolder = h('div', { class: 'xb-canvas' });
-      G.royCanvas.render(canvasHolder, { key: JSON.stringify([s.sd, s.lv, s.gp, s.xm]), project: p, net, lang: lang(), locked: delivered,
+      G.royCanvas.render(canvasHolder, { key: reto ? `reto:${hooks.key()}` : JSON.stringify([s.sd, s.lv, s.gp, s.xm]), project: p, net, lang: lang(), locked: delivered,
         marks: r ? marks(p, r) : null, onOp, onRepaint: redraw, announce: hooks.announce });
       const actions = [];
       if (!exam) actions.push(button(showCorrect ? tt('xb.hide') : tt('xb.see'), () => { showCorrect = !showCorrect; focusAfter = 'xbSee'; redraw(); },
@@ -365,6 +369,7 @@
         delivered ? h('div', { class: 'xb-diag-in' }, diagList(p, r)) : null,
         delivered ? h('details', { class: 'xb-alt' }, [h('summary', {}, [tt('xb.yourTable')]), tableCard(p, net, true)]) : null, foot, confirm]);
 
+      if (reto) container.appendChild(h('p', { id: 'xbRetoTitle' }, [tt('xb.reto.title')]));
       if (!sideOn) {
         container.appendChild(h('div', { class: 'xb-grid' }, [h('div', { class: 'xb-left' }, [givenCard(p), tableCard(p, net, false)]), canvasCard]));
       } else {
@@ -397,7 +402,7 @@
       const s = hooks.state();
       const m = last && last.m;
       const net = m ? normalize(s.rn, m.project) : null;
-      const delivered = s.xm === 'exam' && !!s.xd;
+      const delivered = !reto && s.xm === 'exam' && !!s.xd;
       const r = m ? (delivered ? RC.diagnose(m.project, net) : checked ? checked.r : null) : null;
       return { net, result: r, score: delivered && r ? RC.score(r) : null, showCorrect, confirmOpen, canvas: G.royCanvas.state() };
     }
@@ -405,7 +410,27 @@
     return { draw, reset, debug };
   }
 
-  const api = { GEO, start, normalize, placeLevels, spot, snap, joinError, apply, hasWork, nameOf, predsText, parsePreds, issueText, warnText, marks, gradeText, scoreText, create };
+  // Reto ROY del taller (T009): el controlador con hooks.reto, la clave del lienzo por la estructura de la tabla (otra tabla
+  // empieza de cero: se olvida el diagnóstico) y un solo lienzo con sus ids (el de «Ejercicios» se vacía; ex.js lo vuelve
+  // a pintar al volver). La región toma su nombre de xb.reto.region.
+  function workshop(hooks) {
+    let key = null;
+    const b = create(Object.assign({ reto: true, key: () => key }, hooks));
+    const doc = root.document;
+    return {
+      draw(container, project, k) {
+        if (k !== key) { key = k; b.reset(); }
+        const exBody = doc.querySelector('#exView .xb-body');
+        if (exBody) root.PNL.dom.clear(exBody);
+        container.setAttribute('aria-label', I.t(hooks.lang(), 'xb.reto.region'));
+        b.draw(container, { project });
+      },
+      leave(container) { if (!container.firstChild) return; root.PNL.dom.clear(container); b.reset(); key = null; },
+      debug: (container) => (container.firstChild ? b.debug() : null),
+    };
+  }
+
+  const api = { GEO, start, normalize, placeLevels, spot, snap, joinError, apply, hasWork, nameOf, predsText, parsePreds, issueText, warnText, marks, gradeText, scoreText, create, workshop };
   root.PNL = root.PNL || {};
   root.PNL.exBuild = api;
   if (isNode) module.exports = api;

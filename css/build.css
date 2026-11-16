@@ -76,6 +76,8 @@ span.xb-badge.warn { background: var(--warn); }
 /* A 1280×720 nada desplaza la página: cada columna se desplaza por dentro y el dibujo se encoge con su recuadro (AC18). */
 @media (min-width: 961px) and (min-height: 600px) {
   .xb-grid { height: calc(100vh - 196px); min-height: 380px; }
+  /* En el taller, la rejilla empieza más abajo (botones de la red y título del reto). */
+  .xb-reto .xb-grid { height: calc(100vh - 254px); }
   .xb-left, .xb-side, .xb-work { height: 100%; overflow: auto; }
   .xb-work .xb-canvas { flex: 1 1 auto; min-height: 0; }
   .xb-work .xb-canvas-box { flex: 1 1 auto; min-height: 200px; position: relative; overflow: hidden; }
@@ -94,3 +96,5 @@ span.xb-badge.warn { background: var(--warn); }
   .xb-halves { flex-direction: column; gap: 0; }
   .xb-hint { margin-left: 0 !important; }
 }
+/* Reto ROY del taller (T009): el título encima de la misma rejilla de «Ejercicios». */
+.xb-reto { display: flex; flex-direction: column; gap: 10px; }

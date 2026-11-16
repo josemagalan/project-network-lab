@@ -51,6 +51,7 @@
   let mqc = null;           // controlador del exportador de Moodle (F3b)
   let uncc = null;          // controlador de «Duraciones inciertas» (F4a)
   const UNC_PUBLIC = true;  // F4a: la pestaña se publica en T013
+  const RETO_ROY_PUBLIC = false;  // F3d: el botón «Reto ROY» del taller se publica en T014
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
   // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al
@@ -131,8 +132,10 @@
   // Solo en la ruta y el taller, como groupsOf: un enlace de otra vista con graph=aoa&view=cmp no lo carga (revisión de la
   // F4b, I-F4: con M7 pasaba de 1 MB).
   const needsCr = (s) => (!s.v || s.v === 'route' || s.v === 'work') && s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog');
-  // F3d (T008, H1): construir la ROY en «Ejercicios» necesita el grupo xb, además del de la vista (ex).
-  const needsXb = (s) => s.v === 'ex' && s.xk === 'roy';
+  // F3d (T009, H6): el reto ROY es la red ROY con view=reto, en la ruta o el taller.
+  const royRetoOf = (s) => (!s.v || s.v === 'route' || s.v === 'work') && s.graph !== 'aoa' && s.view === 'reto';
+  // F3d (T008 y T009, H1): construir la ROY en «Ejercicios» y el reto ROY necesitan el grupo xb.
+  const needsXb = (s) => (s.v === 'ex' && s.xk === 'roy') || royRetoOf(s);
   // F4b (T010): M7 necesita su grupo (u7) además del de la pestaña (un), en ese orden.
   const needsU7 = (s) => s.v === 'unc' && s.um === 'm7';
   const needsU7r = (s) => needsU7(s) && (s.uy === 'rep' || s.uy === 'conv');
@@ -151,6 +154,7 @@
     // F3d (H1): el tipo de ejercicio; xt=1 solo pide el generador de enunciados con el cálculo.
     if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
+    if (royRetoOf({ v, graph: q.get('graph'), view: q.get('view') })) return ['xb'];
     if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);
     if (v === 'unc') return ['un', 'u56'];
     return [groupOf(v)];
@@ -362,6 +366,9 @@
     if (needsXb(state) && !READY.xb()) { need('xb').then(() => render(opts), noop); return; }
     if (missingU7(state)) { needU7(state).then(() => { compute(); render(opts); }, noop); return; }
     renderTexts();
+    // F3d (T009): el reto ROY se vacía al salir (un solo lienzo con sus ids).
+    $('royRetoBad').hidden = true;
+    if (!royRetoOf(state)) leaveRoyReto();
     const m0On = state.v === 'm0';
     const exOn = state.v === 'ex';
     const mqOn = state.v === 'moodle';
@@ -384,6 +391,8 @@
     const sol = model.solution;
     const tr = trace();
     $('stage').hidden = !tr;
+    // F3d (T009, AC12): con errores en la tabla, el reto ROY no se abre (mensajes del taller y este aviso).
+    if (!tr && royRetoOf(state)) { leaveRoyReto(); $('royRetoBad').textContent = t('xb.reto.bad'); $('royRetoBad').hidden = false; }
     if (!tr) return;
 
     const isPert = pert();
@@ -391,17 +400,24 @@
     // «Lado a lado» (T024 y T026).
     const cmpOn = isPert && state.view === 'cmp';
     const retoOn = isPert && state.view === 'reto';
+    const royRetoOn = !isPert && state.view === 'reto';
+    // Oculto hasta T014: solo se ve, pulsado, al llegar por un enlace.
+    $('btnRetoRoy').hidden = isPert || (!RETO_ROY_PUBLIC && !royRetoOn);
+    $('btnRetoRoy').setAttribute('aria-pressed', String(royRetoOn));
+    $('royRetoView').hidden = !royRetoOn;
     $('btnCmp').hidden = !isPert;
     $('btnCmp').setAttribute('aria-pressed', String(cmpOn));
     $('btnReto').hidden = !isPert;
     $('btnReto').setAttribute('aria-pressed', String(retoOn));
     $('cmpView').hidden = !cmpOn;
     $('retoView').hidden = !retoOn;
-    $('side').hidden = cmpOn || retoOn;
-    for (const id of ['netView', 'selInfo', 'altTable', 'resultsView', 'ganttView', 'matrixView']) if (cmpOn || retoOn) $(id).hidden = true;
-    $('boxHint').parentNode.hidden = cmpOn || retoOn;
+    const ownView = cmpOn || retoOn || royRetoOn;
+    $('side').hidden = ownView;
+    for (const id of ['netView', 'selInfo', 'altTable', 'resultsView', 'ganttView', 'matrixView']) if (ownView) $(id).hidden = true;
+    $('boxHint').parentNode.hidden = ownView;
     if (cmpOn) { $('methodLine').hidden = true; renderCompare(); return; }
     if (retoOn) { $('methodLine').hidden = true; renderReto(); return; }
+    if (royRetoOn) { $('methodLine').hidden = true; renderRoyReto(); return; }
     $('netView').hidden = false;
     const k = Math.min(state.step, tr.length - 1);
     const step = tr[k];
@@ -788,6 +804,20 @@
     $('btnAon').disabled = !model.solution;
   }
 
+  // F3d (T009, AC12; tablero 88): el reto ROY del taller, con el controlador de ex-build (grupo xb), sin nota.
+  let royW = null;
+  function renderRoyReto() {
+    if (!royW) royW = G.exBuild.workshop({ state: () => state, lang, dispatch, numFmt, announce: (x) => { if (x !== lastAnnounced) { $('live').textContent = x; lastAnnounced = x; } } });
+    royW.draw($('royRetoView'), model.project, structKey(model.project));
+    $('stage').classList.add('wide');
+    $('unitLine').textContent = t('view.unitLine', { name: model.name, n: model.project.activities.length, unit: model.unit || '—' });
+    for (const [id, on] of [['btnNet', 0], ['btnMatrix', 0], ['btnAon', 1], ['btnAoa', 0]]) $(id).setAttribute('aria-pressed', String(!!on));
+    $('btnMatrix').hidden = false;
+    $('btnSide').hidden = true;
+    $('btnAon').disabled = false;
+  }
+  const leaveRoyReto = () => { if (royW) royW.leave($('royRetoView')); };
+
   // «Aprende más» de un método (AC17): qué hace, qué garantiza, cómo lo aplica el laboratorio y sus referencias.
   function openMethodLearn(m) {
     if (!READY.lr()) { need('lr').then(() => openMethodLearn(m), noop); return; }
@@ -1077,6 +1107,7 @@
     // «Red» y «Lado a lado» dejan la comparación con la red mínima.
     $('btnNet').addEventListener('click', () => { if (state.min) dispatch({ type: 'set', key: 'min', value: 0 }); dispatch({ type: 'set', key: 'view', value: 'net' }); });
     $('btnMatrix').addEventListener('click', () => dispatch({ type: 'set', key: 'view', value: 'matrix' }));
+    $('btnRetoRoy').addEventListener('click', () => openView('reto'));
     $('btnSide').addEventListener('click', () => { if (state.min) dispatch({ type: 'set', key: 'min', value: 0 }); dispatch({ type: 'set', key: 'view', value: 'side' }); });
     $('btnCmp').addEventListener('click', openCompare);
     $('btnReto').addEventListener('click', () => openView('reto'));
@@ -1120,7 +1151,7 @@
       const m0Route = state.v === 'm0' && state.mm === 'route';
       // F4a (T011): el paso a paso de «Duraciones inciertas» usa el reproductor de la página con su propia botonera.
       const uncRoute = state.v === 'unc' && !!trace();
-      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route && !uncRoute) || !$('cmpView').hidden || !$('retoView').hidden) return;
+      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route && !uncRoute) || !$('cmpView').hidden || !$('retoView').hidden || !$('royRetoView').hidden) return;
       // El texto en modo «Subrayar» y la matriz de M0 usan las flechas para moverse (F2c, plan §0).
       if (e.target.closest && e.target.closest('[data-own-keys]')) return;
       if ((tag === 'button' || tag === 'summary') && (e.key === ' ' || e.key === 'Enter')) return;   // «Ajustes» es un summary (F4a, T013)
@@ -1264,7 +1295,8 @@
   function start() {
     init();
     G.app = { state: () => Object.assign({ sel: selected }, state), step: () => { const tr = trace(); return tr ? tr[state.step] : null; }, go: (n) => dispatch({ type: 'go', n }), model: () => model,
-      reto: () => (reto ? { net: reto.st.net, result: reto.st.result, solution: retoSol } : null) };
+      reto: () => (reto ? { net: reto.st.net, result: reto.st.result, solution: retoSol } : null),
+      royReto: () => (royW ? royW.debug($('royRetoView')) : null) };
   }
   needAll(groupsOf(location.hash)).then(start, start);
 })();
