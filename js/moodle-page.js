@@ -32,7 +32,7 @@
   const stagesOf = (pub) => (pub ? ['stmt', ...M.STAGES] : M.STAGES.slice());
   /** Cuántas preguntas y categorías da una selección (contando solo las etapas que se ofrecen). */
   function summary(sel, stages) {
-    const c = (stages || M.STAGES_ALL).filter((s) => sel.stages.has(s)).length * M.LEVELS.filter((l) => sel.levels.has(l)).length;
+    const c = (stages || stagesOf(true)).filter((s) => sel.stages.has(s)).length * M.LEVELS.filter((l) => sel.levels.has(l)).length;
     return { categories: c, questions: c * sel.count };
   }
   /** El resumen, con el singular cuando hay una sola categoría o una sola pregunta. */

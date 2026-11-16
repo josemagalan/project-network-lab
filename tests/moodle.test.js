@@ -552,7 +552,12 @@ test('T016: textos del banco (i18n-moodle) aprobados en T006', () => {
   assert.doesNotMatch(es('stem.early'), /tardí/); assert.doesNotMatch(en('stem.early'), /late/);
   // Los parámetros de cada texto, los mismos en los dos idiomas y los que pasa core/moodle.
   const params = { 'stem.late': ['dur'], 'stem.critAct': ['dur'], 'stem.critPath': ['dur'], 'sol.critical': ['acts'],
-    'sol.paths': ['dur', 'paths'], 'fb.pathNot': ['len'], dummy: ['name'] };
+    'sol.paths': ['dur', 'paths'], 'fb.pathNot': ['len'], dummy: ['name'],
+    // F3d (T012): etapas 7 a 10.
+    'sol.minDummy': ['n'], 'sol.added': ['list'], 'sol.det': ['text'], critMarked: ['acts'], 'alt.aon': ['m', 'n'], 'alt.aoa': ['k', 'm', 'n'],
+    'opt.royMissing': ['a', 'b'], 'opt.royFalse': ['a', 'b'], 'opt.royInverted': ['a', 'b'], 'opt.royCycle': ['a', 'b'], 'opt.pertFalseDummy': ['a', 'b'],
+    'opt.pertMissingDummy': ['a', 'b'], 'opt.pertInvertedDummy': ['a', 'b'], 'opt.pertParallel': ['a', 'b'], 'opt.calcES': ['a', 'f'], 'opt.calcLF': ['a', 'f'],
+    'opt.calcFloat': ['a', 'f'], 'opt.calcCrit': ['a'], 'opt.calcTE': ['a', 'f'], 'opt.calcTL': ['a', 'f'], 'opt.calcSlack': ['a'] };
   const I = require('../js/i18n.js');
   const walk = (o, pre, out) => { for (const [k, v] of Object.entries(o)) { if (k === 'page') continue; if (typeof v === 'string') out[pre + k] = v; else walk(v, `${pre}${k}.`, out); } return out; };
   const keysOf = (s) => [...new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].sort();
@@ -585,10 +590,11 @@ test('F3c: las siete etapas de la F3b dan el mismo XML que antes de la F3c (huel
 });
 
 test('F3c: la etapa stmt va al final y no mueve las semillas de las demás', () => {
-  assert.deepEqual(M.STAGES_ALL, [...M.STAGES, 'stmt']);
+  // F3d (T012): después de stmt van las cuatro etapas nuevas; aquí se comprueban las ocho de antes.
+  assert.deepEqual(M.STAGES_ALL.slice(0, 8), [...M.STAGES, 'stmt']);
   const o = { lang: 'es', nota: 'en', sf: false, labels: LABELS, levels: M.LEVELS, count: 2, seed: 77 };
   const seven = M.generate(Object.assign({}, o, { stages: M.STAGES }), tr).questions;
-  const eight = M.generate(Object.assign({}, o, { stages: M.STAGES_ALL }), tr).questions;
+  const eight = M.generate(Object.assign({}, o, { stages: [...M.STAGES, 'stmt'] }), tr).questions;
   assert.deepEqual(eight.filter((q) => q.stage !== 'stmt').map((q) => q.name), seven.map((q) => q.name));
   assert.equal(eight.filter((q) => q.stage === 'stmt').length, 6);
 });
@@ -671,4 +677,242 @@ test('F3c: un ejemplar sin enunciado posible se descarta; el XML lleva MULTIRESP
       assert.ok(xml.includes('%ninguna}'));
     }
   }
+});
+
+// ---------- F3d, T012: etapas 7 a 10 (spec f3d-construir-detectar, AC14, AC16 y AC21; plan §0, P4, P8, P9, H5, H9 y H10) ----------
+const NS = require('../js/views/net-svg.js');
+const MD = require('../js/core/mindummy.js');
+const AO = require('../js/core/aoa.js');
+const DT = require('../js/core/detective.js');
+const NEW = ['minDummy', 'succ', 'immPred', 'detective'];
+const ej6 = () => M.fromRows(E.get('ej6').rows, E.get('ej6').mode);
+const ctxSvg = (extra) => ctx(Object.assign({ svg: NS.render }, extra || {}));
+const hashOf = (s) => require('crypto').createHash('sha256').update(s).digest('hex');
+const decodeLink = (href) => U.decode(href.slice(href.indexOf('#'))).state;
+const mrOf = (q) => q.text.filter((b) => b.table).flatMap((b) => b.table.rows.flatMap((r) => r.filter((c) => c && typeof c === 'object' && 'mr' in c)));
+
+test('F3d T012: las cuatro etapas van al final de STAGES_ALL y las ocho de antes dan el mismo XML (instantánea sobre 698cdff)', () => {
+  assert.deepEqual(M.STAGES_ALL, [...M.STAGES, 'stmt', ...NEW]);
+  const IM = require('../js/i18n-moodle.js');
+  const OLD = [...M.STAGES, 'stmt'];
+  const HUELLA = {   // M.generate con las ocho etapas de la F3b y la F3c, calculadas sobre 698cdff antes de tocar STAGES_ALL
+    '1|es|en': '0751bf4ca50fdb60e4abdac54f43a94d29e8e60a006e51212936f9cf94c997e1',
+    '123456789|en|es': '07f41f809a925d093741e1f3e5cc6ec401d4d4f1b11e77f8388aecd1ccf804b5',
+    '4242|es|es': '341a1076954252822c90679cfe676a539b295bd59ae736a63b1a23fa221d2a05',
+  };
+  for (const [k, h] of Object.entries(HUELLA)) {
+    const [seed, lang, nota] = k.split('|');
+    const o = { lang, nota, sf: true, labels: IM.labels(nota), levels: M.LEVELS, count: 2, seed: Number(seed) };
+    const bank = M.generate(Object.assign({ stages: OLD }, o), IM.tr(lang));
+    assert.equal(hashOf(M.toXml(bank, IM.tr(lang))), h, k);
+    // Con las doce marcadas, las de antes salen iguales y en el mismo orden.
+    const all = M.generate(Object.assign({ stages: M.STAGES_ALL, svg: NS.render }, o), IM.tr(lang));
+    assert.deepEqual(all.questions.filter((q) => OLD.includes(q.stage)).map((q) => q.name), bank.questions.map((q) => q.name));
+    assert.equal(all.questions.filter((q) => NEW.includes(q.stage)).length, NEW.length * 3 * 2);
+  }
+});
+
+test('F3d T012 · minDummy, Ej. 6 de los apuntes: 3 ficticias (Tema 6a), numérica con tolerancia 0 y el enlace del enunciado a «Construir la PERT» en Examen', () => {
+  const q = M.question('minDummy', ej6(), ctx(), tr);
+  assert.equal(q.qtype, 'cloze');
+  assert.deepEqual(q.answers, { dummies: 3 });
+  assert.deepEqual(holes(q), { dummies: 3 });
+  for (const lv of M.LEVELS) for (const sd of [2, 9, 31]) {
+    const ex = M.exercise(lv, sd);
+    const g = G.generate(sd, G.LEVELS[lv]);
+    const m = M.question('minDummy', ex, ctx(), tr);
+    assert.equal(m.answers.dummies, g.info.dummies, `${lv}/${sd}`);
+    assert.equal(m.answers.dummies, MD.solve(ex.sol.project).value);
+    // El enlace del enunciado (P8): «Construir la PERT» con la misma tabla, en modo Examen y en el idioma del banco.
+    const link = m.text.find((b) => b.link);
+    const s = decodeLink(link.link.href);
+    assert.deepEqual([s.v, s.xk, s.sd, s.lv, s.xm, s.lang], ['ex', 'pert', sd, lv, 'exam', 'es']);
+    assert.equal(link.link.key, 'link.buildExam');
+    // En la retroalimentación: el ejercicio (en Practicar) y la red mínima en el comparador.
+    const e = decodeLink(m.links.ex); const st = decodeLink(m.links.step);
+    assert.deepEqual([e.v, e.xk, e.sd, e.lv, e.xm], ['ex', 'pert', sd, lv, 'practice']);
+    assert.deepEqual([st.v, st.graph, st.view], ['route', 'aoa', 'cmp']);
+    assert.deepEqual(st.t, ex.rows.map((r) => Object.assign({}, r)).map((r) => st.t.find((x) => x.id === r.id)));
+  }
+  const xml = M.toXml({ seed: 1, questions: [q] }, tr);
+  assert.ok(xml.includes('{1:NUMERICAL:=3:0}'));
+  assert.deepEqual(X.check(xml), { ok: true });
+});
+
+test('F3d T012 · succ, Ej. 6 de los apuntes: la red de las reglas (numeración de M2), lo que llega a cada suceso y una fila de casillas por suceso salvo el final', () => {
+  const ex = ej6();
+  const q = M.question('succ', ex, ctx(), tr);
+  // Red PERT de las reglas del Ejercicio 6 (Tema 6a): F1 de 2 a 3, F2 de 2 a 4 y F3 de 5 a 6.
+  const want = { 1: ['A', 'B', 'C', 'D'], 2: ['F', 'F1', 'F2'], 3: ['E'], 4: ['G'], 5: ['H', 'F3'], 6: ['I'], 7: ['J'], 8: ['K'] };
+  assert.deepEqual(q.answers, Object.fromEntries(Object.entries(want).map(([n, v]) => [`e${n}.succ`, v])));
+  // Primero las actividades y después las ficticias, como las casillas.
+  const t = q.text.filter((b) => b.table)[1].table;
+  assert.deepEqual(t.rows.map((r) => [r[0], r[1]]), [[1, tr('none')], [2, 'B'], [3, 'A, F1'], [4, 'C, F2'], [5, 'E, F'], [6, 'G, F3'], [7, 'I'], [8, 'D, H, J']]);
+  const opts = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'F1', 'F2', 'F3'];
+  for (const c of mrOf(q)) {
+    const n = Number(c.key.slice(1, c.key.indexOf('.')));
+    const k = want[n].length;
+    assert.deepEqual(c.mr.map((o) => o.label), opts);
+    for (const o of c.mr) assert.equal(o.fraction, want[n].includes(o.label) ? MR_OK[k - 1] : `-${MR_OK[k - 1]}`, `${n}/${o.label}`);
+  }
+  assert.deepEqual(q.general.find((b) => b.table).table.rows, Object.entries(want).map(([n, v]) => [Number(n), v.join(', ')]));
+  // En tablas generadas: la red es la de grade.solve (la de M2) y cada suceso con salida tiene su fila.
+  for (const lv of M.LEVELS) for (const sd of [4, 17]) {
+    const e = M.exercise(lv, sd);
+    const s = M.question('succ', e, ctx(), tr);
+    const net = e.sol.net;
+    assert.deepEqual(net, AO.build(e.sol.project, { method: 'rules' }), 'la red de las reglas (H9)');
+    const withOut = net.events.map((x) => x.n).filter((n) => net.arcs.some((a) => a.from === n) || net.dummies.some((d) => d.from === n));
+    assert.equal(mrOf(s).length, withOut.length);
+    const st = decodeLink(s.links.step);
+    assert.deepEqual([st.v, st.graph], ['route', 'aoa']);
+    assert.equal(s.text.find((b) => b.link), undefined, 'P8: sin enlace en el enunciado');
+  }
+});
+
+test('F3d T012 · immPred: 1, 2 o 3 precedencias redundantes según el nivel; inmediata +100/c, redundante −100/c (P9); «ninguna» solo sin predecesoras', () => {
+  const K = { easy: 1, medium: 2, hard: 3 };
+  for (const lv of M.LEVELS) for (const sd of [1, 5, 12, 40]) {
+    const q = M.question('immPred', M.exercise(lv, sd), ctx(), tr);
+    const ex = M.exercise(lv, q.seed);
+    assert.ok(q.seed >= sd && q.seed < sd + 50, 'la misma semilla o la siguiente que tiene bastantes');
+    const p = ex.sol.project;
+    const red = AO._reduce(p);
+    const t = q.text.find((b) => b.table).table;
+    let added = 0;
+    t.rows.forEach((r, i) => {
+      const id = p.activities[i].id;
+      const listed = r[2] === tr('none') ? [] : r[2].split(', ');
+      for (const x of p.preds[id]) assert.ok(listed.includes(x), `${id}: ${x} sigue en la tabla`);
+      const extra = listed.filter((x) => !p.preds[id].includes(x));
+      for (const x of extra) assert.ok(red.reach[x].has(id) && !red.direct[x].includes(id), `${x} → ${id} es redundante`);
+      added += extra.length;
+      const c = r[3];
+      const P = p.preds[id].filter((x) => red.direct[x].includes(id));
+      if (!listed.length) assert.deepEqual(c.mr, [{ label: tr('noneOpt'), fraction: '100' }]);
+      else {
+        assert.deepEqual(c.mr.map((o) => o.label), listed);
+        for (const o of c.mr) assert.equal(o.fraction, P.includes(o.label) ? MR_OK[P.length - 1] : `-${MR_OK[P.length - 1]}`);
+      }
+      assert.deepEqual(q.answers[c.key], P.slice().sort());
+    });
+    assert.equal(added, K[lv], `${lv}/${sd}`);
+    if (q.seed === sd) assert.deepEqual(q, M.question('immPred', M.exercise(lv, sd), ctx(), tr), 'determinista');
+  }
+  // Una tabla sin precedencias transitivas no sirve: con semilla, la siguiente; sin semilla (ejemplo), null.
+  const chain = M.fromRows([{ id: 'A', duration: '1', links: '' }, { id: 'B', duration: '1', links: 'A' }], 'pred');
+  assert.equal(M.question('immPred', chain, ctx(), tr), null);
+  const q6 = M.question('immPred', ej6(), ctx(), tr);
+  assert.ok(q6, 'el Ejercicio 6 tiene precedencias transitivas (B antes que H, por ejemplo)');
+  const s = decodeLink(q6.links.ex);
+  assert.equal(s.v, 'work', 'la tabla con las redundantes, en el taller (que las avisa)');
+});
+
+test('F3d T012 · immPred: en el banco, una tabla que se toma de la semilla siguiente no se repite en su categoría', () => {
+  const bank = M.generate({ lang: 'es', nota: 'en', sf: false, labels: LABELS, stages: ['immPred'], levels: M.LEVELS, count: 30, seed: 99 }, tr);
+  for (const lv of M.LEVELS) {
+    const seeds = bank.questions.filter((q) => q.level === lv).map((q) => q.seed);
+    assert.equal(new Set(seeds).size, seeds.length, lv);
+    assert.equal(seeds.length, 30);
+  }
+});
+
+test('F3d T012 · detective: un error de la red sembrada por core/detective, cuatro opciones (la buena y tres afirmaciones falsas), una sola respuesta (H5), imagen SVG y tabla', () => {
+  let graphs = new Set();
+  for (const lv of M.LEVELS) for (let sd = 1; sd <= 12; sd++) {
+    const ex = M.exercise(lv, sd);
+    const q = M.question('detective', ex, ctxSvg(), tr);
+    if (!q) continue;
+    graphs.add(q.graph);
+    assert.equal(q.qtype, 'multichoice');
+    assert.equal(q.single, true);
+    assert.equal(q.options.length, 4);
+    assert.deepEqual(q.options.map((o) => o.fraction).sort(), ['0', '0', '0', '100']);
+    assert.equal(new Set(q.options.map((o) => o.text)).size, 4);
+    // El error es el que siembra el núcleo con esta semilla.
+    const seeded = DT.seed(ex.sol.project, { sd, graph: q.graph, kind: 'all', count: 1 });
+    assert.deepEqual(q.error, seeded.errors[0]);
+    // La imagen va como archivo con su texto alternativo, y debajo la misma red como tabla.
+    assert.equal(q.files.length, 1);
+    assert.equal(q.files[0].name, `pnl-detective-s${sd}.svg`);
+    assert.ok(q.files[0].svg.startsWith('<svg') && q.files[0].svg.includes('</svg>'));
+    const img = q.text.find((b) => b.img);
+    assert.equal(img.img.src, q.files[0].name);
+    assert.ok(img.img.alt && q.files[0].svg.includes(`<desc id="d">${img.img.alt.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</desc>`));
+    const ti = q.text.indexOf(img);
+    assert.ok(q.text.slice(ti + 1).some((b) => b.table), 'la tabla, después de la imagen');
+  }
+  assert.deepEqual([...graphs].sort(), ['aoa', 'aon'], 'ROY o PERT según la semilla');
+  // Sin ctx.svg, solo la tabla.
+  const q = M.question('detective', M.exercise('medium', 3), ctx(), tr);
+  assert.ok(q && !q.files && !q.text.some((b) => b.img));
+});
+
+test('F3d T012 · detective, Ej. 6: las tres opciones falsas son afirmaciones falsas sobre la red que se enseña', () => {
+  const ex = ej6();
+  const q = M.question('detective', ex, ctxSvg(), tr);
+  assert.ok(q);
+  const right = q.options.find((o) => o.fraction === '100');
+  assert.equal(right.claim.type, q.error.type);
+  for (const o of q.options.filter((x) => x.fraction === '0')) {
+    assert.equal(M.claimHolds(o.claim, q.shown, ex.sol.project), false, o.text);
+    assert.notEqual(o.claim.element, q.error.element);
+  }
+  assert.equal(M.claimHolds(right.claim, q.shown, ex.sol.project), true);
+  // Con un error de la red, no se dan los tiempos; la tabla de la red tiene una fila por nodo (ROY) o por arco (PERT).
+  const t = q.text.filter((b) => b.table).pop().table;
+  if (q.graph === 'aon') assert.equal(t.rows.length, 12);
+  else assert.equal(t.rows.length, q.shown.pert.arcs.length + q.shown.pert.dummies.length);
+});
+
+test('F3d T012 · detective: en 300 ejemplares, la opción buena describe el error y ninguna de las falsas se cumple', () => {
+  let n = 0;
+  for (const lv of M.LEVELS) for (let sd = 100; sd < 200; sd++) {
+    const ex = M.exercise(lv, sd);
+    const q = M.question('detective', ex, ctx(), tr);
+    if (!q) continue;
+    n++;
+    for (const o of q.options) assert.equal(M.claimHolds(o.claim, q.shown, ex.sol.project), o.fraction === '100', `${lv}/${sd}: ${o.text}`);
+  }
+  assert.ok(n > 250, `${n}`);
+});
+
+test('F3d T012: el XML lleva la imagen como archivo (<file> y @@PLUGINFILE@@), <single>true</single> en el detective y está bien formado', () => {
+  const IM = require('../js/i18n-moodle.js');
+  for (const [lang, nota] of [['es', 'en'], ['en', 'es']]) {
+    const t = IM.tr(lang);
+    const bank = M.generate({ lang, nota, sf: false, labels: IM.labels(nota), stages: NEW, levels: M.LEVELS, count: 2, seed: 7, svg: NS.render }, t);
+    assert.equal(bank.questions.length, 24);
+    const xml = M.toXml(bank, t);
+    assert.deepEqual(X.check(xml), { ok: true });
+    const det = bank.questions.filter((q) => q.stage === 'detective');
+    for (const q of det) {
+      const name = q.files[0].name;
+      assert.ok(xml.includes(`<img src="@@PLUGINFILE@@/${name}" alt="`), name);
+      const m = xml.match(new RegExp(`<file name="${name}" path="/" encoding="base64">([A-Za-z0-9+/=]+)</file>`));
+      assert.ok(m, `archivo ${name}`);
+      assert.equal(Buffer.from(m[1], 'base64').toString('utf8'), q.files[0].svg);
+    }
+    // Las preguntas de detective, de una sola respuesta; la 4b sigue con varias (F3b).
+    const blocks = xml.split('<question type="multichoice">').slice(1);
+    assert.equal(blocks.length, det.length);
+    for (const b of blocks) assert.ok(b.includes('<single>true</single>'));
+    const xml4b = M.toXml(M.generate({ lang, nota, sf: false, labels: IM.labels(nota), stages: ['critPath'], levels: ['easy'], count: 1, seed: 7 }, t), t);
+    assert.ok(xml4b.includes('<single>false</single>'));
+    for (const st of NEW) assert.ok(xml.includes(`$course$/top/${t('root')}/${t(`stage.${st}`)}/`), st);
+    assert.ok(/\{1:MULTIRESPONSE_H:/.test(xml) && /\{1:NUMERICAL:=\d+:0\}/.test(xml));
+    if (lang === 'en') assert.ok(!/Ficticias|ninguna|Falta el arco/.test(xml));
+  }
+});
+
+test('F3d T012: los textos de las etapas nuevas (bloque 3) están en los dos idiomas', () => {
+  const IM = require('../js/i18n-moodle.js');
+  for (const lang of ['es', 'en']) {
+    const t = IM.tr(lang);
+    for (const st of NEW) { assert.notEqual(t(`stage.${st}`), `mq.stage.${st}`); assert.notEqual(t(`page.stageHint.${st}`), `mq.page.stageHint.${st}`); }
+    for (const k of ['stem.minDummy', 'stem.succ', 'stem.immPred', 'stem.detAon', 'stem.detAoa', 'page.labNote', 'fb.detOk', 'fb.detNo']) assert.notEqual(t(k), `mq.${k}`, k);
+    for (const ty of Object.values(DT.TYPES).flatMap((g) => [...g.net, ...g.calc])) assert.notEqual(t(`opt.${ty}`), `mq.opt.${ty}`, ty);
+  }
+  assert.deepEqual(NEW.map((s) => IM.tr('es')(`stage.${s}`)), ['7 · Mínimo de ficticias', '8 · Sucesores de cada suceso', '9 · Precedencias inmediatas', '10 · Detective']);
+  assert.deepEqual(NEW.map((s) => IM.tr('en')(`stage.${s}`)), ['7 · Fewest dummies', '8 · What leaves each event', '9 · Immediate predecessors', '10 · Detective']);
 });
