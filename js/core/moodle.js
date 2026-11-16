@@ -12,7 +12,8 @@
  * semillas de las anteriores: minDummy (cuántas ficticias tiene la red PERT mínima; numérica, y el único enunciado con
  * enlace, a «Construir la PERT» en Examen), succ (la red de las reglas de M2 suceso a suceso: se marca lo que sale de
  * cada uno, ±100/c), immPred (la tabla con 1, 2 o 3 precedencias redundantes según el nivel: inmediata +100/c,
- * redundante −100/c; si la tabla no tiene bastantes, la de la semilla siguiente) y detective (un error sembrado por
+ * redundante −100/c, con casillas solo en las filas que listan dos o más; si la tabla no tiene bastantes, la de la
+ * semilla siguiente) y detective (un error sembrado por
  * core/detective en la ROY o la PERT según la semilla; cuatro opciones de una sola respuesta: la buena y tres
  * afirmaciones falsas sobre la red que se enseña; la red como imagen, si llega ctx.svg, y como tabla).
  * Los textos llegan con tr(key, params) (catálogo i18n-moodle) y los encabezados con ctx.labels (la notación).
@@ -177,16 +178,19 @@
       const added = ex.added;
       const red = A._reduce(ex.sol.project);
       const listed = (id) => preds[id].concat(added.filter((x) => x.to === id).map((x) => x.from)).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+      // Moodle no importa un hueco de casillas con una sola opción (importación en UBUVirtual, T013): una fila con una
+      // predecesora listada (que entonces es inmediata) o ninguna no tiene nada que decidir y va como dato, sin nota.
+      // Cada redundante añadida cae en una fila con dos o más (ella y la inmediata por la que pasa).
       const mr = (id) => {
         const imm = preds[id].filter((x) => red.direct[x].includes(id));
         const fr = MR_FRACTIONS[imm.length];
         const all = listed(id);
-        return { mr: all.length ? all.map((x) => ({ label: x, fraction: imm.includes(x) ? fr : `-${fr}` })) : [{ label: tr('noneOpt'), fraction: '100' }],
-          key: `${id}.imm`, answer: imm.slice().sort() };
+        if (all.length < 2) return all.length ? all[0] : tr('none');
+        return hole({ mr: all.map((x) => ({ label: x, fraction: imm.includes(x) ? fr : `-${fr}` })), key: `${id}.imm`, answer: imm.slice().sort() });
       };
       if (acts.some((id) => preds[id].filter((x) => red.direct[x].includes(id)).length > 8)) return null;
       text = [{ p: tr('stem.immPred') },
-        table([tr('col.act'), tr('col.dur'), tr('col.preds'), tr('col.immPreds')], acts.map((id) => [id, dur[id], listed(id).length ? listed(id).join(', ') : tr('none'), hole(mr(id))]))];
+        table([tr('col.act'), tr('col.dur'), tr('col.preds'), tr('col.immPreds')], acts.map((id) => [id, dur[id], listed(id).length ? listed(id).join(', ') : tr('none'), mr(id)]))];
       sol = [{ p: tr('sol.added', { list: added.map((x) => `${x.from} → ${x.to}`).join(', ') }) },
         table([tr('col.act'), tr('col.immPreds')], acts.map((id) => [id, preds[id].length ? preds[id].join(', ') : tr('none')]))];
       const withAdded = ex.rows.map((r) => { const extra = added.filter((x) => x.to === r.id).map((x) => x.from); return extra.length ? Object.assign({}, r, { links: [r.links, ...extra].filter(Boolean).join(', ') }) : Object.assign({}, r); });

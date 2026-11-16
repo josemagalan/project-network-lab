@@ -69,6 +69,13 @@ function check(xml) {
   }
   if (stack.length) return fail(`<${stack[stack.length - 1]}> sin cerrar`, xml.length);
   if (roots !== 1) return fail(`${roots} elementos raíz`, 0);
+  // Huecos cloze de opciones (MULTIRESPONSE, MULTICHOICE, MR, MC y sus variantes): Moodle no importa uno con menos de
+  // dos opciones (importación en UBUVirtual, F3d T013). El «~» escapado (\~) no separa opciones.
+  for (const m of xml.matchAll(/\{\d*:(MULTIRESPONSE|MULTICHOICE|MR|MC)[A-Z_]*:((?:\\.|[^}\\])*)\}/g)) {
+    let seps = 0;
+    for (let k = 0; k < m[2].length; k++) { if (m[2][k] === '\\') k++; else if (m[2][k] === '~') seps++; }
+    if (!seps) return fail(`hueco cloze ${m[1]} con menos de dos opciones`, m.index);
+  }
   return { ok: true };
 }
 module.exports = { check };

@@ -7631,8 +7631,11 @@ check('F3d T013 AC14 y AC16 · la vista previa de cada etapa nueva es la pregunt
         assert.deepEqual(await p.$$eval('.mq-preview > p > a', (as) => as.map((a) => [a.getAttribute('href'), a.textContent])), [[link.href, tr(link.key)]]);
       }
       if (stage === 'succ' || stage === 'immPred') {
-        const rows = q.text.filter((b) => b.table).pop().table.rows;
+        // En immPred, solo las filas que listan dos o más predecesoras llevan casillas (importación en UBUVirtual).
+        const rows = q.text.filter((b) => b.table).pop().table.rows.filter((r) => typeof r[r.length - 1] === 'object');
+        assert.ok(rows.length >= 1);
         assert.equal(await p.locator('.mq-preview .mq-mr').count(), rows.length);
+        assert.ok(await p.$$eval('.mq-preview .mq-mr', (ms) => ms.every((m) => m.querySelectorAll('input').length >= 2)), 'dos casillas o más por fila');
         assert.equal(await p.locator('.mq-preview .mq-mr input:not([disabled])').count(), 0);
       }
       if (stage === 'detective') {

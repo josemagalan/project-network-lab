@@ -264,6 +264,19 @@ test('comprobador de XML: acepta lo bien formado y rechaza lo que no lo está', 
   }
 });
 
+// F3d (T013, importación en UBUVirtual): Moodle rechaza un hueco de opciones (MULTIRESPONSE, MULTICHOICE y sus
+// variantes) con menos de dos; el «~» escapado (\~) no separa opciones.
+test('comprobador de XML: un hueco cloze de opciones necesita al menos dos', () => {
+  const q = (cloze) => `<quiz><question type="cloze"><questiontext format="html"><text><![CDATA[<p>${cloze}</p>]]></text></questiontext></question></quiz>`;
+  assert.deepEqual(X.check(q('{1:MULTIRESPONSE_H:%100%A~%-100%B} {1:MULTICHOICE:=Sí~No} {1:NUMERICAL:=3:0}')), { ok: true });
+  assert.deepEqual(X.check(q('{1:MULTICHOICE:=S\\\\~No}')), { ok: true }, 'una barra escapada antes del separador');
+  for (const bad of ['{1:MULTIRESPONSE_H:%100%A}', '{1:MULTIRESPONSE:%100%A\\~B}', '{1:MULTICHOICE:=Sí}', '{1:MCH:=x}']) {
+    const r = X.check(q(bad));
+    assert.equal(r.ok, false, bad);
+    assert.match(r.error, /menos de dos opciones/, bad);
+  }
+});
+
 test('AC1: misma semilla y selección → el mismo banco, con cualquier reparto de pasos', () => {
   const a = M.toXml(M.generate(OPTS(), tr), tr);
   const r = M.runner(OPTS(), tr);
@@ -770,7 +783,7 @@ test('F3d T012 · succ, Ej. 6 de los apuntes: la red de las reglas (numeración 
   }
 });
 
-test('F3d T012 · immPred: 1, 2 o 3 precedencias redundantes según el nivel; inmediata +100/c, redundante −100/c (P9); «ninguna» solo sin predecesoras', () => {
+test('F3d T012 · immPred: 1, 2 o 3 precedencias redundantes según el nivel; inmediata +100/c, redundante −100/c (P9); casillas solo en las filas con dos o más predecesoras listadas', () => {
   const K = { easy: 1, medium: 2, hard: 3 };
   for (const lv of M.LEVELS) for (const sd of [1, 5, 12, 40]) {
     const q = M.question('immPred', M.exercise(lv, sd), ctx(), tr);
@@ -789,14 +802,21 @@ test('F3d T012 · immPred: 1, 2 o 3 precedencias redundantes según el nivel; in
       added += extra.length;
       const c = r[3];
       const P = p.preds[id].filter((x) => red.direct[x].includes(id));
-      if (!listed.length) assert.deepEqual(c.mr, [{ label: tr('noneOpt'), fraction: '100' }]);
-      else {
+      // Importación en UBUVirtual (T013): Moodle pide dos opciones por hueco. Una fila con una predecesora listada
+      // (siempre inmediata) o ninguna no tiene nada que decidir: va como dato, sin casillas ni nota.
+      if (listed.length < 2) {
+        assert.equal(c, listed.length ? listed[0] : tr('none'), `${id}: dato`);
+        assert.deepEqual(P, listed);
+        assert.equal(q.answers[`${id}.imm`], undefined);
+      } else {
         assert.deepEqual(c.mr.map((o) => o.label), listed);
         for (const o of c.mr) assert.equal(o.fraction, P.includes(o.label) ? MR_OK[P.length - 1] : `-${MR_OK[P.length - 1]}`);
+        assert.deepEqual(q.answers[c.key], P.slice().sort());
       }
-      assert.deepEqual(q.answers[c.key], P.slice().sort());
     });
     assert.equal(added, K[lv], `${lv}/${sd}`);
+    // Cada redundante añadida cae en una fila con casillas (con ella y la inmediata por la que pasa).
+    assert.ok(Object.keys(q.answers).length >= 1, 'al menos una fila con casillas');
     if (q.seed === sd) assert.deepEqual(q, M.question('immPred', M.exercise(lv, sd), ctx(), tr), 'determinista');
   }
   // Una tabla sin precedencias transitivas no sirve: con semilla, la siguiente; sin semilla (ejemplo), null.
