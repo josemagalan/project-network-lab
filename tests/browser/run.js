@@ -3821,7 +3821,8 @@ async function mqSelect(page, stages, levels, count) {
 }
 
 check('F3b AC8 · v=moodle: título, resumen y vista previa igual al modelo del núcleo, en ES y EN', async () => {
-  for (const [lang, sum, h1] of [['es', 'Se generarán 70 preguntas en 7 categorías.', 'Bancos de preguntas para Moodle'], ['en', '70 questions will be generated in 7 categories.', 'Question banks for Moodle']]) {
+  // F3d (T014): con las etapas 7 a 10 publicadas, once categorías sin la 0.
+  for (const [lang, sum, h1] of [['es', 'Se generarán 110 preguntas en 11 categorías.', 'Bancos de preguntas para Moodle'], ['en', '110 questions will be generated in 11 categories.', 'Question banks for Moodle']]) {
     const page = await mqOpen(lang);
     assert.equal(await page.locator('#mqView h1').textContent(), h1);
     // F3c (T013): la etapa 0 va marcada al abrir; sin ella, las siete etapas de la F3b como antes.
@@ -3949,6 +3950,9 @@ check('F3b T016 · tras editar los ejemplares, el primer clic en «Descargar» d
   await mqSelect(page, ['1 ·'], ['Fácil']);
   // Sin salir del campo: el clic (con su mousedown y mouseup) es lo que dispara el cambio.
   await page.locator('#mqCount').fill('2');
+  // F3d (T014): con doce etapas, desmarcar las de abajo desplaza la página; se trae el botón a la vista sin mover el foco.
+  await page.locator('#mqDownload').evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'mqCount', 'el foco sigue en el campo');
   const box = await page.locator('#mqDownload').boundingBox();
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 5000 }),
     page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)]);
@@ -4336,9 +4340,10 @@ async function mqStmt(lang, opts) {
 }
 const xmlOf = async (dl) => fs.readFileSync(await dl.path(), 'utf8');
 
-check('F3c P6 · sin publicar (stmtPublic falso), el exportador no ofrece la etapa 0 ni la mete en el banco; el banco carga el generador de enunciados', async () => {
+check('F3c P6 · sin publicar (stmtPublic falso, y sin las etapas de la F3d), el exportador no ofrece la etapa 0 ni la mete en el banco; el banco carga el generador de enunciados', async () => {
   const p = await mqOpen('en');
-  await p.evaluate(() => { PNL.moodlePage.stmtPublic = false; });
+  // F3d (T014): sin las etapas 7 a 10, para seguir probando solo las siete de la F3b.
+  await p.evaluate(() => { PNL.moodlePage.stmtPublic = false; PNL.moodlePage.f3dPublic = false; });
   await setCtl(p, '#selLang', 'es');
   await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'early');
   const labels = await p.$$eval('#mqView .mq-stages .mq-check', (ls) => ls.map((l) => l.textContent));
@@ -4358,8 +4363,8 @@ check('F3c P6 · sin publicar (stmtPublic falso), el exportador no ofrece la eta
 
 check('F3c AC10 · con la etapa 0 publicada: la primera y marcada; la vista previa es su pregunta, con la cita del enunciado y las casillas desactivadas (ES y EN)', async () => {
   for (const [lang, first, sum, none, links] of [
-    ['es', '0 · Enunciado → tabla', 'Se generarán 80 preguntas en 8 categorías.', 'ninguna', ['Abrir este enunciado en el laboratorio', 'Ver la ruta paso a paso del enunciado']],
-    ['en', '0 · Statement → table', '80 questions will be generated in 8 categories.', 'none', ['Open this statement in the lab', 'See the step-by-step route of the statement']]]) {
+    ['es', '0 · Enunciado → tabla', 'Se generarán 120 preguntas en 12 categorías.', 'ninguna', ['Abrir este enunciado en el laboratorio', 'Ver la ruta paso a paso del enunciado']],
+    ['en', '0 · Statement → table', '120 questions will be generated in 12 categories.', 'none', ['Open this statement in the lab', 'See the step-by-step route of the statement']]]) {
     const p = await mqStmt(lang);
     const box = p.locator('#mqView .mq-stages .mq-check').first();
     assert.equal(await box.textContent(), first);
@@ -4468,7 +4473,7 @@ check('F3c T014 AC12 · exportador con el teclado: Espacio en la etapa 0 la desm
   await p.keyboard.press('Space');
   assert.equal(await box.isChecked(), false);
   assert.ok(await box.evaluate((el) => el === document.activeElement), 'el foco sigue en la casilla');
-  assert.equal(await p.locator('.mq-summary').textContent(), 'Se generarán 70 preguntas en 7 categorías.');
+  assert.equal(await p.locator('.mq-summary').textContent(), 'Se generarán 110 preguntas en 11 categorías.');
   assert.equal((await mq(p)).preview.stage, 'early');
   await p.keyboard.press('Space');
   assert.equal((await mq(p)).preview.stage, 'stmt');
@@ -6954,10 +6959,10 @@ check('F3d T008 AC8 y AC22 · Examen con un ciclo (ES, oscuro): sin marcas hasta
   await close(page);
 });
 
-check('F3d T008 · oculto (T014): sin xk no hay tipo ni grupo xb; con xk=roy, el grupo entero; cambiar de tipo con algo hecho pide confirmación y vuelve al cálculo de siempre', async () => {
+check('F3d T008 · sin xk, el cálculo con el tipo en la barra (publicado en T014) y sin el grupo xb; con xk=roy, el grupo entero; cambiar de tipo con algo hecho pide confirmación y vuelve al cálculo de siempre', async () => {
   let page = await exLab({ sd: EX_CASES.medium.sd, lv: 'medium' });
-  assert.equal(await page.locator('#exKind-roy').count(), 0, 'el tipo no se ve hasta la publicación');
-  assert.equal(await page.locator('#exKindSel').count(), 0);
+  assert.equal(await page.locator('#exKind-calc').getAttribute('aria-pressed'), 'true', 'el tipo, publicado en T014');
+  assert.equal(await page.locator('#exKindSel').count(), 1);
   assert.equal(await xbGroups(page), 0, 'sin el grupo xb');
   await close(page);
   page = await xbLab({ sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' });
@@ -6987,7 +6992,7 @@ check('F3d T008 · oculto (T014): sin xk no hay tipo ni grupo xb; con xk=roy, el
   const st = await state(page);
   assert.equal(st.rn, null);
   assert.ok(await visible(page, 'table.ex-ans'), 'el cálculo de siempre');
-  assert.equal(await page.locator('#exKind-roy').count(), 0, 'con el cálculo, la barra de siempre');
+  assert.equal(await page.locator('#exKind-calc').getAttribute('aria-pressed'), 'true', 'con el cálculo, el tipo sigue en la barra (T014)');
   assert.ok(!(await page.evaluate(() => location.hash)).includes('xk='));
   await close(page);
 });
@@ -7136,10 +7141,11 @@ check('F3d T009 AC12 · tabla con errores en el taller: el reto ROY no se abre, 
   await close(page);
 });
 
-check('F3d T009 · oculto (T014) y lo demás igual: sin view=reto no hay botón ni grupo xb; «Red» y «Red PERT» vuelven a la red; el reto de ficticias no ve el botón; de «Ejercicios» al reto ROY, un solo lienzo', async () => {
+check('F3d T009 · sin view=reto, el botón sin pulsar (publicado en T014) y sin grupo xb; «Red» y «Red PERT» vuelven a la red; el reto de ficticias no ve el botón; de «Ejercicios» al reto ROY, un solo lienzo', async () => {
   let page = await lab('v=route&ex=ej6&step=0&lang=es');
   assert.equal(await page.locator('#btnRetoRoy').count(), 1);
-  assert.ok(!(await visible(page, '#btnRetoRoy')), 'el botón no se ve hasta la publicación');
+  assert.ok(await visible(page, '#btnRetoRoy'), 'el botón, publicado en T014');
+  assert.equal(await page.locator('#btnRetoRoy').getAttribute('aria-pressed'), 'false');
   assert.equal(await xbGroups(page), 0, 'sin el grupo xb');
   await close(page);
   const good = XB0.placeLevels(RC0.fromTable(ej6()));
@@ -7149,7 +7155,7 @@ check('F3d T009 · oculto (T014) y lo demás igual: sin view=reto no hay botón 
   assert.ok(await visible(page, '#netView'));
   assert.ok(!(await visible(page, '#royRetoView')));
   assert.equal(await page.locator('#royRetoView *').count(), 0, 'el reto ROY se vacía al salir');
-  assert.ok(!(await visible(page, '#btnRetoRoy')));
+  assert.equal(await page.locator('#btnRetoRoy').getAttribute('aria-pressed'), 'false');
   await setHash(page, U0.encode(rrState({ rn: good })));
   await page.waitForFunction(() => PNL.app.royReto() && PNL.app.royReto().net.nodes.length > 2);
   assert.ok(await visible(page, '#btnRetoRoy'));
@@ -7569,11 +7575,9 @@ const MQ0 = require(path.join(ROOT, 'js', 'core', 'moodle.js'));
 const IM0 = require(path.join(ROOT, 'js', 'i18n-moodle.js'));
 const NS0 = require(path.join(ROOT, 'js', 'views', 'net-svg.js'));
 const LAB = ['minDummy', 'succ', 'immPred', 'detective'];
-// Sin publicar (T014), las pruebas las enseñan como hará la publicación: f3dPublic y un cambio de idioma que redibuja.
+// Publicadas en T014: el exportador las ofrece al abrirlo.
 async function mqLab(lang, opts) {
-  const p = await mqOpen(lang === 'es' ? 'en' : 'es', opts);
-  await p.evaluate(() => { PNL.moodlePage.f3dPublic = true; });
-  await setCtl(p, '#selLang', lang);
+  const p = await mqOpen(lang, opts);
   await p.waitForFunction((n) => document.querySelectorAll('#mqView .mq-stages .mq-check').length === n, 12);
   return p;
 }
@@ -7586,9 +7590,10 @@ function mqPreview0(stage, level, lang, nota) {
 const mqFiles = /core\/aoacheck\.js|core\/roycheck\.js|core\/detective\.js|views\/net-svg\.js/;
 
 check('F3d T013 · sin publicar (f3dPublic falso), el exportador no ofrece las etapas 7 a 10 ni su aviso; con ellas, al final, marcadas, con su descripción y el aviso del laboratorio (ES y EN)', async () => {
-  const p0 = await mqOpen('es');
-  assert.equal(await p0.evaluate(() => PNL.moodlePage.f3dPublic), false);
-  assert.equal(await p0.locator('#mqView .mq-stages .mq-check').count(), 8);
+  const p0 = await mqOpen('en');
+  await p0.evaluate(() => { PNL.moodlePage.f3dPublic = false; });
+  await setCtl(p0, '#selLang', 'es');
+  await p0.waitForFunction(() => document.querySelectorAll('#mqView .mq-stages .mq-check').length === 8);
   assert.equal(await p0.locator('#mqView .mq-labnote').count(), 0);
   assert.equal(await p0.locator('.mq-summary').textContent(), 'Se generarán 80 preguntas en 8 categorías.');
   // El grupo mq ya trae lo que necesitan las etapas nuevas (H1): aoacheck, roycheck, detective y net-svg.
@@ -7691,6 +7696,80 @@ check('F3d T013 AC16 · el exportador con las etapas nuevas: axe en claro y oscu
     assert.ok(box.width <= pv.width, 'la imagen cabe en la vista previa');
     await close(p);
   }
+});
+
+// ---------- F3d, T014: publicación (P7; tableros 89, 90 y 92) ----------
+// Sin claves ocultas en la URL: se entra por la pestaña, por la barra o por la vista del taller, como un visitante.
+
+check('F3d T014 AC13 y AC19 · «Ejercicios» desde la pestaña: el tipo en la barra (Cálculo pulsado) y cada tipo se abre con un clic, con su grupo solo entonces (ES y EN)', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await lab(`v=route&ex=ej6&step=0&lang=${lang}`);
+    await page.locator('#navEx').click();
+    await page.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state() && PNL.ex.state().seed);
+    assert.equal((await state(page)).xk, 'calc');
+    assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), ['calc', 'roy', 'pert', 'det'].map((k) => I0.t(lang, `ex.kind.${k}`)));
+    assert.equal(await page.locator('#exKind-calc').getAttribute('aria-pressed'), 'true');
+    assert.ok(await visible(page, 'table.ex-ans'), 'el cálculo de siempre');
+    assert.equal(await xbGroups(page), 0, 'sin xb hasta elegir otro tipo');
+    assert.equal(await dtGroups(page), 0, 'sin dt');
+    await page.locator('#exKind-roy').click();
+    await page.waitForFunction(() => PNL.app.state().xk === 'roy' && PNL.exBuild && document.querySelector('#xbCheck'));
+    assert.equal(await page.locator('#exKind-roy').getAttribute('aria-pressed'), 'true');
+    assert.equal(await xbGroups(page), 6);
+    await page.locator('#exKind-pert').click();
+    await page.waitForFunction(() => PNL.app.state().xk === 'pert' && document.querySelector('#exView .reto-table, #exView table'));
+    assert.equal(await page.locator('#exKind-pert').getAttribute('aria-pressed'), 'true');
+    await page.locator('#exKind-det').click();
+    await page.waitForFunction(() => PNL.app.state().xk === 'det' && PNL.exDet && PNL.exDet.state && PNL.exDet.state() && PNL.exDet.state().seeded);
+    assert.ok(await visible(page, '#dtNet-aon') && await visible(page, '#dtKind-all'), 'Red y Errores en la segunda fila');
+    await page.locator('#exKind-calc').click();
+    await page.waitForFunction(() => PNL.app.state().xk === 'calc');
+    assert.ok(await visible(page, 'table.ex-ans'));
+    await close(page);
+  }
+});
+
+check('F3d T014 · a 360 px, el tipo en un desplegable que abre el detective', async () => {
+  const page = await lab('v=route&ex=ej6&step=0&lang=es', { width: 360, height: 800 });
+  await page.locator('#navEx').click();
+  await page.waitForFunction(() => PNL.ex && PNL.ex.state && PNL.ex.state() && PNL.ex.state().seed);
+  assert.ok(await visible(page, '#exKindSel'));
+  assert.ok(!(await visible(page, '.ex-kind-seg')));
+  await page.locator('#exKindSel').selectOption('det');
+  await page.waitForFunction(() => PNL.app.state().xk === 'det' && PNL.exDet && PNL.exDet.state && PNL.exDet.state() && PNL.exDet.state().seeded);
+  assert.equal(await page.locator('#exKindSel').inputValue(), 'det');
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await close(page);
+});
+
+check('F3d T014 AC12 · taller con la red ROY: «Reto ROY» junto a Red y Matriz, sin pulsar; un clic abre el reto; con la PERT no está (ES y EN)', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await lab(`v=route&ex=ej6&step=0&lang=${lang}`);
+    await page.locator('#navWork').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'work');
+    assert.ok(await visible(page, '#btnRetoRoy'));
+    assert.equal(await page.locator('#btnRetoRoy').innerText(), I0.t(lang, 'view.retoRoy'));
+    assert.equal(await page.locator('#btnRetoRoy').getAttribute('aria-pressed'), 'false');
+    assert.equal(await xbGroups(page), 0);
+    await page.locator('#btnRetoRoy').click();
+    await page.waitForFunction(() => PNL.app.state().view === 'reto' && PNL.app.royReto && PNL.app.royReto());
+    assert.ok(await visible(page, '#royRetoView'));
+    assert.equal(await page.locator('#btnRetoRoy').getAttribute('aria-pressed'), 'true');
+    await page.locator('#btnAoa').click();
+    await page.waitForFunction(() => PNL.app.state().graph === 'aoa');
+    assert.ok(!(await visible(page, '#btnRetoRoy')));
+    await close(page);
+  }
+});
+
+check('F3d T014 AC14 · el exportador ofrece las etapas 7 a 10 al abrirlo, marcadas, con el aviso del laboratorio', async () => {
+  const page = await mqOpen('es');
+  assert.equal(await page.evaluate(() => PNL.moodlePage.f3dPublic), true);
+  assert.equal(await page.locator('#mqView .mq-stages .mq-check').count(), 12);
+  assert.equal(await page.locator('#mqView .mq-lab .mq-check input:checked').count(), 4);
+  assert.equal(await page.locator('.mq-summary').textContent(), 'Se generarán 120 preguntas en 12 categorías.');
+  assert.ok(await visible(page, '#mqView .mq-labnote'));
+  await close(page);
 });
 
 // ---------- Principio 27: presupuesto de 1 MB ----------

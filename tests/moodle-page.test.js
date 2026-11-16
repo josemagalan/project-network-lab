@@ -47,7 +47,7 @@ test('etapas que ofrece el exportador con las de la F3d: al final, en el orden d
   assert.deepEqual(MP.stagesOf(true, false), ['stmt', ...M.STAGES]);
   assert.deepEqual(MP.stagesOf(true, true), ['stmt', ...M.STAGES, 'minDummy', 'succ', 'immPred', 'detective']);
   assert.deepEqual(MP.stagesOf(false, true), [...M.STAGES, 'minDummy', 'succ', 'immPred', 'detective']);
-  assert.equal(MP.f3dPublic, false, 'oculto hasta T014');
+  assert.equal(MP.f3dPublic, true, 'publicadas en T014');
   const sel = { stages: new Set(M.STAGES_ALL), levels: new Set(['medium', 'hard']), count: 10 };
   assert.deepEqual(MP.summary(sel, MP.stagesOf(true, true)), { categories: 24, questions: 240 });
   assert.deepEqual(MP.summary(sel), { categories: 16, questions: 160 }, 'por defecto, sin las etapas de la F3d');

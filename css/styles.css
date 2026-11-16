@@ -512,21 +512,23 @@ table.m0-rtable tr.new th { box-shadow: inset 4px 0 0 var(--ok); }
 /* ---------- «Ejercicios» (F3a, T011; tableros 37–48) ---------- */
 .ex { display: flex; flex-direction: column; gap: 12px; }
 .ex h2 { margin: 0; font-size: 14px; }
-.ex-bar { padding: 8px 14px; display: flex; flex-direction: column; gap: 6px; }
+/* F3d (T014): con la fila del tipo, algo más compacta (relleno, separación y controles de 30 px), para que «Ejercicios»
+   difícil con todo pedido siga cabiendo en 1280×720. */
+.ex-bar { padding: 5px 14px; display: flex; flex-direction: column; gap: 4px; }
 .ex-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 .ex-cap { font-size: 12px; color: var(--muted); }
-.ex-bar .seg button { padding: 4px 12px; min-height: 32px; font-size: 13px; }
+.ex-bar .seg button { padding: 3px 12px; min-height: 30px; font-size: 13px; }
 .ex-sum { flex: 1 1 260px; min-width: 0; font-size: 12px; line-height: 16px; }
 .ex-seed { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-left: auto; }
-.ex-seed input { width: 84px; height: 32px; padding: 0 6px; font-variant-numeric: tabular-nums; }
-.ex-bar button.ghost { min-height: 32px; padding: 4px 12px; }
+.ex-seed input { width: 84px; height: 30px; padding: 0 6px; font-variant-numeric: tabular-nums; }
+.ex-bar button.ghost { min-height: 30px; padding: 3px 12px; }
 .ex-sep { width: 1px; height: 22px; background: var(--line); }
 /* F3d (tableros 89 y 92): el tipo de ejercicio, en botones o, a 360 px, en un desplegable. */
-.ex-kind-sel { display: none; height: 32px; padding: 0 6px; }
+.ex-kind-sel { display: none; height: 30px; padding: 0 6px; }
 @media (max-width: 720px) { .ex-kind-seg { display: none; } .ex-kind-sel { display: block; } }
 .ex-ask { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 14px; }
 .ex-ask legend { float: left; padding: 0; margin-right: 2px; }
-.ex-ask label { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; }
+.ex-ask label { display: inline-flex; align-items: center; gap: 5px; min-height: 30px; }
 .ex-custom { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
 .ex-fields { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: flex-start; }
 .ex-field { display: flex; flex-direction: column; gap: 3px; }
@@ -632,7 +634,8 @@ table.data.ex-ans .d { text-align: right; padding-right: 8px; color: var(--muted
   .ex-btns { flex-direction: column; }
 }
 /* A 1280×720 la red cabe sin desplazar la página: se encoge con la altura de la ventana (AC16). */
-@media (min-width: 961px) and (min-height: 600px) { .ex-net svg.net { max-height: calc(100vh - 490px); } .ex-net svg.net.pert { max-height: calc(100vh - 520px); } }
+/* F3d (T014): la barra gana la fila del tipo; el dibujo de la red cede 38 px. */
+@media (min-width: 961px) and (min-height: 600px) { .ex-net svg.net { max-height: calc(100vh - 528px); } .ex-net svg.net.pert { max-height: calc(100vh - 558px); } }
 .ex-net-card .linklike { align-self: flex-start; }
 /* «Tabla al azar» en el taller (F3a, T013; tablero 46). */
 .work-random { display: inline-flex; align-self: flex-start; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 10px; background: var(--accent-soft); }

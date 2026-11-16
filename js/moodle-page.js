@@ -17,7 +17,7 @@
  * vista previa ni en el banco. En el núcleo sigue al final de STAGES_ALL.
  * F3d (spec f3d-construir-detectar, AC14–AC16 y AC21; plan §4 y H1; tablero 90): las etapas 7 a 10 (LAB_STAGES) van
  * al final de la lista, aparte, cada una con su descripción y con el aviso de que piden trabajar en el laboratorio; se
- * ofrecen con f3dPublic (T014). La imagen de la red de «Detective» la da views/net-svg (ctx.svg, plan P4), en el banco y
+ * ofrecen con f3dPublic (publicadas en T014). La imagen de la red de «Detective» la da views/net-svg (ctx.svg, plan P4), en el banco y
  * en la vista previa.
  */
 (function (root) {
@@ -269,7 +269,7 @@
     return { render, leave, debug };
   }
 
-  const api = { stmtPublic: true, f3dPublic: false, LAB_STAGES, stagesOf, summary, summaryText, fileName, missingText, create, CHUNK_MS };
+  const api = { stmtPublic: true, f3dPublic: true, LAB_STAGES, stagesOf, summary, summaryText, fileName, missingText, create, CHUNK_MS };
   root.PNL = root.PNL || {};
   root.PNL.moodlePage = api;
   if (isNode) module.exports = api;

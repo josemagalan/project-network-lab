@@ -156,7 +156,7 @@
 
   // ---------- Tipo de ejercicio (F3d, T008; tableros 81 y 92) ----------
   // Cálculo (la F3a, sin cambios), construir la ROY o la PERT y detective. Solo se ofrecen los que ya están hechos; la
-  // barra con el tipo se ve con un tipo que no es el cálculo (por URL) o cuando se publique (buildPublic, T014).
+  // barra con el tipo se ve con buildPublic (publicado en T014) o, sin él, con un tipo que no es el cálculo (por URL).
   const KINDS = ['calc', 'roy', 'pert', 'det'];
   const kindReady = { calc: true, roy: true, pert: true, det: true };
   const kindOf = (state) => (KINDS.includes(state.xk) ? state.xk : 'calc');
@@ -763,7 +763,7 @@
     return { render, debug };
   }
 
-  const api = { textPublic: true, buildPublic: false, KINDS, kindReady, kindOf, hasWork, ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
+  const api = { textPublic: true, buildPublic: true, KINDS, kindReady, kindOf, hasWork, ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
     forUrl, hasAnswers, seedFrom, visibility, stepState, blanks, counts, scoreText, countText, usedVal, keyLabel, origin, explain, pathExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.ex = api;

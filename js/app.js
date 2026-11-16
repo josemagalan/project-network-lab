@@ -51,7 +51,6 @@
   let mqc = null;           // controlador del exportador de Moodle (F3b)
   let uncc = null;          // controlador de «Duraciones inciertas» (F4a)
   const UNC_PUBLIC = true;  // F4a: la pestaña se publica en T013
-  const RETO_ROY_PUBLIC = false;  // F3d: el botón «Reto ROY» del taller se publica en T014
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
   // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al
@@ -411,8 +410,8 @@
     const cmpOn = isPert && state.view === 'cmp';
     const retoOn = isPert && state.view === 'reto';
     const royRetoOn = !isPert && state.view === 'reto';
-    // Oculto hasta T014: solo se ve, pulsado, al llegar por un enlace.
-    $('btnRetoRoy').hidden = isPert || (!RETO_ROY_PUBLIC && !royRetoOn);
+    // F3d (publicado en T014): junto a «Red» y «Matriz», solo con la red ROY.
+    $('btnRetoRoy').hidden = isPert;
     $('btnRetoRoy').setAttribute('aria-pressed', String(royRetoOn));
     $('royRetoView').hidden = !royRetoOn;
     $('btnCmp').hidden = !isPert;
