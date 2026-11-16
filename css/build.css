@@ -1,0 +1,96 @@
+/* F3d · construir la red ROY en «Ejercicios» (T008; tableros 81–83 y 89). Hoja del grupo xb: solo la cargan xk=roy y el
+   reto ROY del taller, para no sumar a la carga común (plan P1). Las marcas no dependen solo del color: número y trazo. */
+.xb-body h2 { margin: 0; font-size: 16px; }
+.xb-grid { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.xb-grid.xb-with-side { grid-template-columns: minmax(0, 1fr) minmax(300px, 420px); }
+.xb-left, .xb-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.xb-given, .xb-yours, .xb-work, .xb-diag, .xb-grade, .xb-correct { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.xb-body p { margin: 0; }
+.xb-yours-body { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.xb-halves { display: flex; gap: 10px; }
+table.data.xb-ptable { font-size: 13px; flex: 1 1 0; min-width: 0; }
+table.data.xb-ptable th, table.data.xb-ptable td { padding: 2px 4px; text-align: left; }
+table.data.xb-ptable td { width: 100%; }
+table.data.xb-ptable th.term { font-style: italic; }
+table.data.xb-ptable tr.off th[scope="row"] { color: var(--muted); }
+.xb-pred { width: 100%; min-width: 4.5em; height: 26px; padding: 1px 6px; font-size: 13px; }
+.xb-pred[readonly] { background: var(--soft); }
+.xb-pred[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
+.xb-msg { min-height: 1.2em; color: var(--critical-text); }
+
+.xb-canvas { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.xb-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.xb-tools .seg { flex-wrap: wrap; }
+.xb-tools .seg button, .xb-tools button.ghost { font-size: 13px; padding: 4px 10px; min-height: 32px; }
+.xb-hint { margin-left: auto !important; }
+.xb-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 30px; }
+.xb-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 2px 10px; border-radius: 6px; border: 1.5px dashed var(--edge);
+  background: var(--card); color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; }
+.xb-chip[aria-pressed="true"] { border: 2px solid var(--select); background: var(--select-soft); }
+.xb-chip.bad { border: 2px dashed var(--critical); }
+.xb-canvas-box { border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.xb-svg { display: block; }
+.xb-svg .xb-dot { fill: var(--line); }
+.xb-svg .xb-bg { cursor: crosshair; }
+.xb-svg [role="button"] { cursor: pointer; }
+.xb-svg [role="button"]:focus { outline: none; }
+.xb-svg .xb-node rect { fill: var(--card); stroke: var(--ink); stroke-width: 1.5; }
+.xb-svg .xb-node text { text-anchor: middle; font-weight: 700; font-size: 14px; fill: var(--ink); }
+.xb-svg .xb-node.xb-term text { font-style: italic; }
+.xb-svg .xb-node.picked rect { fill: var(--select-soft); stroke: var(--select); stroke-width: 3.5; }
+.xb-svg .xb-node.bad rect { stroke: var(--critical); stroke-width: 2.5; stroke-dasharray: 5 3; }
+.xb-svg .xb-node:focus-visible rect { stroke: var(--focus); stroke-width: 4; stroke-dasharray: none; }
+.xb-svg .xb-arc .hit { fill: none; stroke: transparent; stroke-width: 14; }
+.xb-svg .xb-arc .edge, .xb-svg .xb-ghost .edge { fill: none; stroke: var(--edge); stroke-width: 1.6; }
+.xb-svg .xb-arc.bad .edge { stroke: var(--critical); stroke-width: 2.4; stroke-dasharray: 8 3; }
+.xb-svg .xb-arc.warn .edge { stroke: var(--warn-line); stroke-width: 2.2; stroke-dasharray: 2 3; }
+.xb-svg .xb-ghost.bad .edge { stroke: var(--critical); stroke-width: 2.2; stroke-dasharray: 2 4; }
+.xb-svg .xb-arc:focus-visible .edge { stroke: var(--focus); stroke-width: 3.5; stroke-dasharray: none; }
+.xb-svg .mk { fill: var(--edge); }
+.xb-svg .mk-bad { fill: var(--critical); }
+.xb-svg .mk-warn { fill: var(--warn-line); }
+.xb-svg .xb-badge circle { fill: var(--critical); }
+.xb-svg .xb-badge.warn circle { fill: var(--warn); }
+.xb-svg .xb-badge text { fill: var(--card); font-size: 11px; font-weight: 700; text-anchor: middle; }
+.xb-status { min-height: 1.3em; font-weight: 600; }
+.xb-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 12px; }
+.xb-foot > p { flex: 1 1 260px; }
+.xb-left-out { color: var(--critical-text); }
+
+.xb-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.4; }
+.xb-list li { display: flex; gap: 8px; align-items: flex-start; }
+span.xb-badge { flex: none; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; background: var(--critical); color: var(--card); }
+span.xb-badge.warn { background: var(--warn); }
+.xb-diag { border-color: var(--critical); }
+.xb-diag.ok { border-color: var(--ok); }
+.xb-diag h2:focus, .xb-grade h2:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.xb-diag-in { display: flex; flex-direction: column; gap: 8px; }
+.xb-grade { border-color: var(--warn-line); }
+.xb-grade-head { display: flex; align-items: baseline; gap: 10px; }
+.xb-grade-head strong { font-size: 30px; line-height: 1.1; }
+.xb-alt summary { font-weight: 600; cursor: pointer; font-size: 14px; }
+.xb-alt .card { border: 0; padding: 6px 0 0; }
+.xb-canvas-box.static { overflow: auto; }
+
+/* A 1280×720 nada desplaza la página: cada columna se desplaza por dentro y el dibujo se encoge con su recuadro (AC18). */
+@media (min-width: 961px) and (min-height: 600px) {
+  .xb-grid { height: calc(100vh - 196px); min-height: 380px; }
+  .xb-left, .xb-side, .xb-work { height: 100%; overflow: auto; }
+  .xb-work .xb-canvas { flex: 1 1 auto; min-height: 0; }
+  .xb-work .xb-canvas-box { flex: 1 1 auto; min-height: 200px; position: relative; overflow: hidden; }
+  .xb-work .xb-canvas-box .xb-svg { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0 !important; }
+  .xb-side .xb-svg { max-height: calc(100vh - 420px); min-width: 0 !important; }
+  .xb-left .xb-yours { flex: 1 1 auto; }
+}
+@media (max-width: 960px) {
+  .xb-grid, .xb-grid.xb-with-side { grid-template-columns: minmax(0, 1fr); }
+  /* Tablero 89: la tabla de precedencias, el lienzo y después «Tu red como tabla». */
+  .xb-left { display: contents; }
+  .xb-given { order: 1; } .xb-work { order: 2; } .xb-yours { order: 3; }
+  .xb-canvas-box:not(.static) { max-height: 340px; }
+}
+@media (max-width: 720px) {
+  .xb-halves { flex-direction: column; gap: 0; }
+  .xb-hint { margin-left: 0 !important; }
+}

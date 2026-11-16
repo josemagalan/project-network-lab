@@ -74,6 +74,8 @@
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo de la F2b, solo con view=cmp, view=reto o m=prog
     // (la carga común baja unos 88 KiB y deja sitio a M7).
     cr: ['js/core/aoacheck.js', 'js/core/aoamethods.js', 'js/core/compare.js', 'js/compare-view.js', 'js/reto.js', 'js/views/reto-canvas.js', 'js/views/reto-table.js'],
+    // F3d (plan P1, T008): construir la ROY en «Ejercicios» (xk=roy), con su núcleo, sus textos, sus vistas y su hoja.
+    xb: ['css/build.css', 'js/core/roycheck.js', 'js/i18n-build.js', 'js/views/roy-canvas.js', 'js/views/roy-table.js', 'js/ex-build.js'],
     un: ['css/unc.css', 'js/core/threept.js', 'js/core/sim.js', 'js/core/tcl.js', 'js/core/stochex.js', 'js/i18n-unc.js', 'js/views/dist-chart.js', 'js/unc.js'],
     // F4b (plan P4, T010): M7, solo con um=m7 y siempre después de un (usa su núcleo y su vista).
     u7: ['css/m7.css', 'js/core/mc.js', 'js/i18n-m7.js', 'js/views/mc-charts.js', 'js/m7.js'],
@@ -82,7 +84,7 @@
     // F4b (T012, reserva 2 de T001): la vista de M5 y M6, aparte de unc.js, para no cargarla con um=m7; después de un.
     u56: ['js/unc-m56.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -129,6 +131,8 @@
   // Solo en la ruta y el taller, como groupsOf: un enlace de otra vista con graph=aoa&view=cmp no lo carga (revisión de la
   // F4b, I-F4: con M7 pasaba de 1 MB).
   const needsCr = (s) => (!s.v || s.v === 'route' || s.v === 'work') && s.graph === 'aoa' && (s.view === 'cmp' || s.view === 'reto' || s.m === 'prog');
+  // F3d (T008, H1): construir la ROY en «Ejercicios» necesita el grupo xb, además del de la vista (ex).
+  const needsXb = (s) => s.v === 'ex' && s.xk === 'roy';
   // F4b (T010): M7 necesita su grupo (u7) además del de la pestaña (un), en ese orden.
   const needsU7 = (s) => s.v === 'unc' && s.um === 'm7';
   const needsU7r = (s) => needsU7(s) && (s.uy === 'rep' || s.uy === 'conv');
@@ -144,7 +148,8 @@
     // Con st=own también se pide statements.js: un enunciado propio dañado o sin paquete pasa a Electrona (ej5), que sí lo
     // necesita (revisión de la F3c, F1).
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
-    if (v === 'ex' && q.get('xt') === '1') return ['ex', 'sg'];
+    // F3d (H1): el tipo de ejercicio; xt=1 solo pide el generador de enunciados con el cálculo.
+    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
     if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);
     if (v === 'unc') return ['un', 'u56'];
@@ -287,9 +292,10 @@
     const next = S.reduce(state, action, total());
     // F4b (T002): el comparador, el reto y el dibujo progresivo esperan a su grupo (cr) antes de cambiar nada.
     if (needsCr(next) && !READY.cr()) { need('cr').then(() => dispatch(action, opts), noop); return; }
+    if (needsXb(next) && !READY.xb()) { need('xb').then(() => dispatch(action, opts), noop); return; }
     if (missingU7(next)) { needU7(next).then(() => dispatch(action, opts), noop); return; }
     state = next;
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'xk', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
@@ -353,6 +359,7 @@
   function render(opts) {
     // F4b (T002): red de seguridad; dispatch y los enlaces ya piden el grupo cr antes de llegar aquí.
     if (needsCr(state) && !READY.cr()) { need('cr').then(() => render(opts), noop); return; }
+    if (needsXb(state) && !READY.xb()) { need('xb').then(() => render(opts), noop); return; }
     if (missingU7(state)) { needU7(state).then(() => { compute(); render(opts); }, noop); return; }
     renderTexts();
     const m0On = state.v === 'm0';

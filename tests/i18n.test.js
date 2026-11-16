@@ -230,3 +230,20 @@ test('F4b T011: los textos de «Réplica a réplica» y «Convergencia» (js/m7-
   for (const k of keysDeep(R.TEXTS.es)) assert.deepEqual(params(get(R.TEXTS.es, k)), params(get(R.TEXTS.en, k)), `m7.${k}`);
   for (const lang of I.languages) { assert.equal(I.dict[lang].m7.rep, R.TEXTS[lang].rep); assert.equal(I.dict[lang].m7.conv, R.TEXTS[lang].conv); }
 });
+
+test('F3d T008: los textos de construir (i18n-build) están en los dos idiomas, con los mismos parámetros; el tipo de ejercicio y «Reto ROY», en i18n', () => {
+  const IB = require('../js/i18n-build.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(IB.es), keysDeep(IB.en));
+  for (const k of keysDeep(IB.es)) assert.deepEqual(params(get(IB.es, k)), params(get(IB.en, k)), `xb.${k}`);
+  for (const lang of I.languages) assert.equal(I.dict[lang].xb, IB[lang]);
+  for (const lang of I.languages) {
+    for (const k of ['label', 'calc', 'roy', 'pert', 'det']) assert.ok(I.dict[lang].ex.kind[k], `${lang} ex.kind.${k}`);
+    for (const k of ['loseKind', 'loseKindYes', 'loseWork']) assert.ok(I.dict[lang].ex[k], `${lang} ex.${k}`);
+    assert.ok(I.dict[lang].view.retoRoy);
+    for (const t of ['activity', 'join', 'move', 'delete']) { assert.ok(IB[lang].tool[t]); assert.ok(IB[lang].hint[t]); }
+  }
+  assert.equal(I.t('es', 'ex.kind.roy'), 'Construir la ROY');
+  assert.equal(I.t('en', 'view.retoRoy'), 'AON challenge');
+});

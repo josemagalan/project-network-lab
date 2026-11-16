@@ -521,6 +521,9 @@ table.m0-rtable tr.new th { box-shadow: inset 4px 0 0 var(--ok); }
 .ex-seed input { width: 84px; height: 32px; padding: 0 6px; font-variant-numeric: tabular-nums; }
 .ex-bar button.ghost { min-height: 32px; padding: 4px 12px; }
 .ex-sep { width: 1px; height: 22px; background: var(--line); }
+/* F3d (tableros 89 y 92): el tipo de ejercicio, en botones o, a 360 px, en un desplegable. */
+.ex-kind-sel { display: none; height: 32px; padding: 0 6px; }
+@media (max-width: 720px) { .ex-kind-seg { display: none; } .ex-kind-sel { display: block; } }
 .ex-ask { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 14px; }
 .ex-ask legend { float: left; padding: 0; margin-right: 2px; }
 .ex-ask label { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; }

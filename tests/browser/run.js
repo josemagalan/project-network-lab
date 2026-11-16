@@ -6713,13 +6713,327 @@ check('F4b T017 r2 · F8: al salir de la pestaña la simulación de M7 se para (
   await close(p);
 });
 
+// ---------- F3d, T008: construir la ROY en «Ejercicios» (oculto hasta T014; tableros 81–83, 89 y 92) ----------
+
+const RC0 = require(path.join(ROOT, 'js', 'core', 'roycheck.js'));
+const XB0 = require(path.join(ROOT, 'js', 'ex-build.js'));
+const xbUrl = (s) => exUrl(Object.assign({ xk: 'roy' }, s));
+async function xbLab(s, opts) {
+  const page = await open(xbUrl(s), opts);
+  await page.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().net);
+  return page;
+}
+const xbSt = (page) => page.evaluate(() => PNL.exBuild.state());
+const xbNet = async (page) => (await xbSt(page)).net;
+const xbFiles = /ex-build\.js|roy-canvas\.js|roy-table\.js|i18n-build\.js|core\/roycheck\.js|build\.css/;
+const xbGroups = (page) => page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source);
+const xbGood = (s) => XB0.placeLevels(RC0.fromTable(exModel(s).project));
+const arcSet = (net) => net.arcs.map((a) => `${a.from}>${a.to}`).sort();
+const xbNode = (id) => `#xb-n-${id}`;
+// Con el teclado: el foco va al elemento (como con Tab) y se pulsa la tecla.
+async function xbKey(page, id, key) { await page.focus(id); await page.keyboard.press(key); }
+
+for (const lv of ['easy', 'medium', 'hard']) {
+  const lang = lv === 'medium' ? 'en' : 'es';
+  check(`F3d T008 AC1, AC8 y AC22 · nivel ${lv} en ${lang.toUpperCase()}: la red de la F1 es correcta en Practicar y da 100 al entregarla en Examen; al recargar sigue entregada`, async () => {
+    const s = { sd: EX_CASES[lv].sd, lv, lang };
+    const good = xbGood(s);
+    let page = await xbLab(Object.assign({ rn: good }, s));
+    assert.equal(await page.locator('#exKind-roy').getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(arcSet(await xbNet(page)), arcSet(good));
+    assert.equal(await page.locator('#xbDiagTitle').count(), 0, 'sin diagnóstico hasta comprobar');
+    await page.locator('#xbCheck').click();
+    assert.equal(await page.locator('#xbDiagTitle').innerText(), I0.t(lang, 'xb.diag.ok'));
+    assert.equal(await activeId(page), 'xbDiagTitle');
+    assert.equal(await page.locator('#xbDiag li').count(), 0);
+    assert.equal(await page.locator('#xbScore').count(), 0, 'en Practicar no hay nota');
+    await close(page);
+
+    page = await xbLab(Object.assign({ rn: good, xm: 'exam' }, s));
+    for (const id of ['#xbCheck', '#xbSee', '#xbScore', '#xbDiagTitle']) assert.equal(await page.locator(id).count(), 0, `Examen sin ${id}`);
+    await page.locator('#xbDeliver').click();
+    assert.equal(await page.locator('#xbConfirmText').innerText(), I0.t(lang, 'xb.exam.confirm'));
+    await page.locator('#xbConfirmYes').click();
+    await page.waitForFunction(() => PNL.app.state().xd === 1);
+    assert.equal(await page.locator('#xbScore').innerText(), '100 %');
+    assert.equal(await page.locator('#xbGradeText').innerText(), XB0.gradeText(RC0.diagnose(exModel(s).project, good), lang));
+    assert.equal(await page.locator('[data-k^="tool:"]').count(), 0, 'entregada: sin herramientas');
+    assert.equal(await page.locator('#xbCorrect svg .xb-node').count(), exModel(s).project.activities.length + 2, 'la red correcta al lado');
+    await page.reload();
+    await page.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().score !== null);
+    assert.equal(await page.locator('#xbScore').innerText(), '100 %');
+    assert.equal((await xbSt(page)).score, 100);
+    await close(page);
+  });
+}
+
+check('F3d T008 AC5 y AC6 · una red entera solo con el teclado (nivel fácil): colocar con N, unir con U, mover con las flechas, quitar con Supr; la tabla cambia al momento', async () => {
+  const s = { sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es' };
+  const { project: p, sol } = exModel(s);
+  const good = RC0.fromTable(p);
+  const page = await xbLab(s);
+  assert.deepEqual((await xbNet(page)).nodes.map((n) => n.id), ['_S', '_E'], 'Inicio y Fin ya puestos');
+  // Colocar: la ficha con Intro y N junto al nodo enfocado (cada actividad tras la anterior).
+  let near = '_S';
+  for (const a of sol.cpm.order) {
+    await xbKey(page, `#xb-c-${a}`, 'Enter');
+    assert.equal(await page.locator(`#xb-c-${a}`).getAttribute('aria-pressed'), 'true');
+    await xbKey(page, xbNode(near), 'n');
+    assert.ok((await xbNet(page)).nodes.some((n) => n.id === a), `${a} colocada`);
+    assert.equal(await activeId(page), `xb-n-${a}`, 'el foco pasa al nodo nuevo');
+    assert.equal(await page.locator(`#xbPred-${a}`).getAttribute('aria-label'), I0.t('es', 'xb.predsOf', { x: a }));
+    near = a;
+  }
+  assert.equal(await page.locator('.xb-chip').count(), 0);
+  // Unir: U en el origen y U en el destino; la fila del destino en «Tu red como tabla» cambia al momento.
+  for (const e of good.arcs) {
+    await xbKey(page, xbNode(e.from), 'u');
+    await xbKey(page, xbNode(e.to), 'u');
+    assert.ok(arcSet(await xbNet(page)).includes(`${e.from}>${e.to}`), `${e.from} → ${e.to}`);
+    assert.equal(await page.locator(`#xbPred-${e.to}`).inputValue(), XB0.predsText(await xbNet(page), e.to, 'es'));
+  }
+  assert.deepEqual(arcSet(await xbNet(page)), arcSet(good));
+  // Esc cancela un arco a medias; un arco de un nodo a sí mismo no se crea.
+  const a0 = sol.cpm.order[0];
+  await xbKey(page, xbNode(a0), 'u');
+  assert.equal((await xbSt(page)).canvas.pending.from, a0);
+  await page.keyboard.press('Escape');
+  assert.equal((await xbSt(page)).canvas.pending, null);
+  await xbKey(page, xbNode(a0), 'u');
+  await page.keyboard.press('u');
+  assert.equal((await xbSt(page)).canvas.status, 'xb.bad.same');
+  assert.deepEqual(arcSet(await xbNet(page)), arcSet(good));
+  // Mover con las flechas (20 por pulsación) sin cambiar los arcos.
+  const x0 = (await xbNet(page)).nodes.find((n) => n.id === a0).x;
+  await xbKey(page, xbNode(a0), 'ArrowRight');
+  assert.equal((await xbNet(page)).nodes.find((n) => n.id === a0).x, x0 + 20);
+  assert.equal(await activeId(page), `xb-n-${a0}`);
+  // Supr en un arco lo quita; Supr en Inicio no hace nada; Supr en una actividad la devuelve a «Por colocar».
+  const e0 = good.arcs.find((e) => e.from !== '_S' && e.to !== '_E');
+  await xbKey(page, `#xb-a-${e0.from}-${e0.to}`, 'Delete');
+  assert.ok(!arcSet(await xbNet(page)).includes(`${e0.from}>${e0.to}`));
+  await xbKey(page, xbNode('_S'), 'Delete');
+  assert.equal((await xbSt(page)).canvas.status, 'xb.bad.fixed');
+  await xbKey(page, xbNode(e0.from), 'u');
+  await xbKey(page, xbNode(e0.to), 'u');
+  // Comprobar con el teclado: la red es correcta.
+  await xbKey(page, '#xbCheck', 'Enter');
+  assert.equal(await page.locator('#xbDiagTitle').innerText(), I0.t('es', 'xb.diag.ok'));
+  // Una edición borra el diagnóstico y vuelve a la tabla.
+  await xbKey(page, xbNode(a0), 'ArrowLeft');
+  assert.equal(await page.locator('#xbDiagTitle').count(), 0);
+  assert.ok(await visible(page, '#xbGiven'));
+  // Supr en una actividad: vuelve a «Por colocar» con sus arcos fuera.
+  await xbKey(page, xbNode(a0), 'Delete');
+  assert.ok(!(await xbNet(page)).nodes.some((n) => n.id === a0));
+  assert.ok(!(await xbNet(page)).arcs.some((e) => e.from === a0 || e.to === a0));
+  assert.equal(await page.locator(`#xb-c-${a0}`).count(), 1);
+  await axe(page, 'Construir la ROY a medio hacer (ES, claro)');
+  await close(page);
+});
+
+check('F3d T008 AC6 · la red entera desde «Tu red como tabla» (EN, medio): cada fila cambia el lienzo; lo que no es una actividad se avisa y no cambia nada', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'en' };
+  const { project: p } = exModel(s);
+  const good = RC0.fromTable(p);
+  const page = await xbLab(s);
+  for (const id of p.activities.map((a) => a.id).concat(['_E'])) {
+    const preds = good.arcs.filter((e) => e.to === id).map((e) => (e.from === '_S' ? 'Start' : e.from));
+    await page.locator(`#xbPred-${id}`).fill(preds.join(', '));
+    await page.keyboard.press('Tab');
+    await page.waitForFunction(([x, n]) => PNL.exBuild.state().net.arcs.filter((e) => e.to === x).length === n, [id, preds.length]);
+  }
+  const net = await xbNet(page);
+  assert.deepEqual(arcSet(net), arcSet(good));
+  assert.equal(net.nodes.length, p.activities.length + 2, 'todas en el lienzo');
+  assert.equal(await page.locator('.xb-chip').count(), 0);
+  // «Inicio» también vale en inglés; lo que no es una actividad se avisa.
+  const a = p.activities.find((x) => !p.preds[x.id].length).id;
+  await page.locator(`#xbPred-${a}`).fill('ZZ');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.locator(`#xbPred-${a}`).getAttribute('aria-invalid'), 'true');
+  assert.equal(await page.locator('#xbTableMsg').innerText(), I0.t('en', 'xb.bad.unknown', { v: 'ZZ' }));
+  assert.deepEqual(arcSet(await xbNet(page)), arcSet(good), 'sin cambios');
+  await page.locator(`#xbPred-${a}`).fill('Inicio');
+  await page.keyboard.press('Tab');
+  await page.waitForFunction((x) => !document.getElementById(`xbPred-${x}`).hasAttribute('aria-invalid'), a);
+  assert.equal(await page.locator(`#xbPred-${a}`).inputValue(), 'Start');
+  await page.locator('#xbCheck').click();
+  assert.equal(await page.locator('#xbDiagTitle').innerText(), I0.t('en', 'xb.diag.ok'));
+  await close(page);
+});
+
+check('F3d T008 AC5 · «Colocar por niveles» no cambia los arcos: cada arco va hacia la derecha y no hay dos nodos en el mismo sitio', async () => {
+  const s = { sd: EX_CASES.hard.sd, lv: 'hard', lang: 'es' };
+  const good = xbGood(s);
+  // Todos los nodos amontonados en una columna.
+  const messy = { nodes: good.nodes.map((n, i) => ({ id: n.id, x: 60, y: 40 + 20 * i })), arcs: good.arcs };
+  const page = await xbLab(Object.assign({ rn: messy }, s));
+  await page.locator('#xbPlace').click();
+  const net = await xbNet(page);
+  assert.deepEqual(arcSet(net), arcSet(good));
+  const at = Object.fromEntries(net.nodes.map((n) => [n.id, n]));
+  for (const e of net.arcs) assert.ok(at[e.from].x < at[e.to].x, `${e.from} → ${e.to} hacia la derecha`);
+  assert.equal(new Set(net.nodes.map((n) => `${n.x},${n.y}`)).size, net.nodes.length);
+  assert.equal((await xbSt(page)).canvas.status, 'xb.did.place');
+  await close(page);
+});
+
+check('F3d T008 AC2–AC4 · Practicar con errores (EN, oscuro): «Comprobar» numera los problemas de roycheck en la lista y en el dibujo; el aviso de redundancia; una edición los borra', async () => {
+  const s = { sd: EX_CASES.hard.sd, lv: 'hard', lang: 'en' };
+  const { project: p } = exModel(s);
+  const good = xbGood(s);
+  const acts = good.arcs.filter((e) => e.from !== '_S' && e.to !== '_E');
+  const [drop, flip] = acts;
+  const red = require(path.join(ROOT, 'js', 'core', 'aoa.js'))._reduce(p);
+  const ids = p.activities.map((a) => a.id);
+  const transitive = ids.flatMap((x) => [...red.reach[x]].filter((y) => !red.direct[x].includes(y)).map((y) => ({ from: x, to: y })))
+    .find((e) => e.from !== drop.from && e.from !== flip.from && e.from !== flip.to);
+  const rn = { nodes: good.nodes, arcs: good.arcs.filter((e) => e !== drop && e !== flip).concat([{ from: flip.to, to: flip.from }, transitive]) };
+  const r = RC0.diagnose(p, rn);
+  assert.ok(r.issues.length >= 2 && r.warnings.length >= 1, 'el caso tiene problemas y un aviso');
+  const page = await xbLab(Object.assign({ rn }, s), { scheme: 'dark' });
+  assert.equal(await page.locator('.xb-svg .xb-badge').count(), 0, 'sin marcas hasta comprobar');
+  await page.locator('#xbCheck').click();
+  assert.equal(await page.locator('#xbDiagTitle').innerText(), r.issues.length === 1 ? I0.t('en', 'xb.diag.titleOne') : I0.t('en', 'xb.diag.title', { n: r.issues.length }));
+  assert.deepEqual(await page.locator('#xbDiag li > span:last-child').allInnerTexts(), r.issues.map((i) => XB0.issueText(i, p, 'en')));
+  assert.deepEqual(await page.locator('#xbDiag li .xb-badge').allInnerTexts(), r.issues.map((i, k) => String(k + 1)));
+  assert.equal(await page.locator('#xbWarn li').count(), r.warnings.length);
+  // Cada problema se marca con su número en el dibujo, con trazo discontinuo (no solo color).
+  const badges = await page.locator('.xb-svg .xb-badge.bad text').allTextContents();
+  for (let k = 1; k <= r.issues.length; k++) if (r.issues[k - 1].code !== 'missingNode') assert.ok(badges.includes(String(k)), `marca ${k}`);
+  assert.equal(await page.locator(`#xb-a-${flip.to}-${flip.from}`).getAttribute('class'), 'xb-arc bad');
+  assert.equal(await page.locator(`#xb-a-${transitive.from}-${transitive.to}`).getAttribute('class'), 'xb-arc warn');
+  assert.match(await page.locator(`#xb-a-${flip.to}-${flip.from}`).getAttribute('aria-label'), /problem \d/);
+  assert.ok(!(await visible(page, '#xbGiven')), 'con el diagnóstico, la tabla va plegada');
+  await axe(page, 'Construir la ROY tras comprobar (EN, oscuro)');
+  await xbKey(page, xbNode(drop.from), 'ArrowDown');
+  assert.equal(await page.locator('#xbDiagTitle').count(), 0);
+  assert.equal(await page.locator('.xb-svg .xb-badge').count(), 0);
+  await close(page);
+});
+
+check('F3d T008 AC8 y AC22 · Examen con un ciclo (ES, oscuro): sin marcas hasta entregar; nota con el tope del 50 %, lista numerada y la red correcta; al recargar, igual y bloqueada', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' };
+  const { project: p } = exModel(s);
+  const good = xbGood(s);
+  const red = require(path.join(ROOT, 'js', 'core', 'aoa.js'))._reduce(p);
+  const ids = p.activities.map((a) => a.id);
+  let back = null;
+  for (const x of ids) { const y = [...red.reach[x]].find((z) => !red.direct[x].includes(z)); if (y) { back = { from: y, to: x }; break; } }
+  const rn = { nodes: good.nodes, arcs: good.arcs.concat([back]) };
+  const r = RC0.diagnose(p, rn);
+  assert.ok(r.counts.cycle);
+  const page = await xbLab(Object.assign({ rn, xm: 'exam' }, s), { scheme: 'dark' });
+  assert.equal(await page.locator('.xb-svg .xb-badge').count(), 0);
+  assert.equal(await page.locator('.xb-foot p').first().innerText(), I0.t('es', 'xb.exam.note'));
+  await page.locator('#xbDeliver').click();
+  await page.locator('#xbConfirmNo').click();
+  assert.equal(await activeId(page), 'xbDeliver');
+  assert.equal((await state(page)).xd, 0);
+  await page.locator('#xbDeliver').click();
+  await page.locator('#xbConfirmYes').click();
+  await page.waitForFunction(() => PNL.app.state().xd === 1);
+  const want = async () => {
+    assert.equal(await page.locator('#xbScore').innerText(), XB0.scoreText(r, 'es'));
+    assert.equal(RC0.score(r), Math.min(50, RC0.score(r)));
+    assert.equal(await page.locator('#xbGradeText').innerText(), XB0.gradeText(r, 'es'));
+    assert.ok((await page.locator('#xbGradeText').innerText()).includes(I0.t('es', 'xb.grade.cycle')));
+    assert.equal(await page.locator('#xbDiag li').count(), r.issues.length);
+    assert.equal(await page.locator('.xb-svg [role="button"]').count(), 0, 'entregada: nada que pulsar en el dibujo');
+    assert.equal(await page.locator('#xbCorrect .xb-node').count(), ids.length + 2);
+    assert.equal(await page.locator('#xbPred-_E').getAttribute('readonly'), 'readonly');
+    assert.equal(await page.locator('#xbAnother2').count(), 1);
+  };
+  await want();
+  await axe(page, 'Construir la ROY entregada (ES, oscuro)');
+  await page.reload();
+  await page.waitForFunction(() => PNL.exBuild && PNL.exBuild.state && PNL.exBuild.state() && PNL.exBuild.state().score !== null);
+  await want();
+  assert.deepEqual(arcSet(await xbNet(page)), arcSet(rn), 'la red entregada no cambia');
+  await close(page);
+});
+
+check('F3d T008 · oculto (T014): sin xk no hay tipo ni grupo xb; con xk=roy, el grupo entero; cambiar de tipo con algo hecho pide confirmación y vuelve al cálculo de siempre', async () => {
+  let page = await exLab({ sd: EX_CASES.medium.sd, lv: 'medium' });
+  assert.equal(await page.locator('#exKind-roy').count(), 0, 'el tipo no se ve hasta la publicación');
+  assert.equal(await page.locator('#exKindSel').count(), 0);
+  assert.equal(await xbGroups(page), 0, 'sin el grupo xb');
+  await close(page);
+  page = await xbLab({ sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' });
+  assert.equal(await xbGroups(page), 6, 'el grupo xb entero');
+  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), [I0.t('es', 'ex.kind.calc'), I0.t('es', 'ex.kind.roy')], 'solo los tipos ya hechos');
+  // Sin nada hecho, otro ejercicio no pregunta.
+  const sd0 = (await state(page)).sd;
+  await page.locator('#exAnother').click();
+  await page.waitForFunction((x) => PNL.app.state().sd !== x, sd0);
+  assert.equal(await page.locator('#exLoseText').count(), 0);
+  assert.equal((await state(page)).xk, 'roy');
+  // Con una actividad colocada, cambiar de tipo pide confirmación.
+  const a = exModel({ sd: (await state(page)).sd, lv: 'medium' }).project.activities[0].id;
+  await xbKey(page, `#xb-c-${a}`, 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await page.locator('#exKind-calc').click();
+  assert.equal(await page.locator('#exLoseText').innerText(), I0.t('es', 'ex.loseKind'));
+  assert.equal(await page.locator('#exLoseYes').innerText(), I0.t('es', 'ex.loseKindYes'));
+  await page.locator('#exLoseNo').click();
+  assert.equal((await state(page)).xk, 'roy');
+  await page.locator('#exAnother').click();
+  assert.equal(await page.locator('#exLoseText').innerText(), I0.t('es', 'ex.loseWork'));
+  await page.locator('#exLoseNo').click();
+  await page.locator('#exKind-calc').click();
+  await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().xk === 'calc');
+  const st = await state(page);
+  assert.equal(st.rn, null);
+  assert.ok(await visible(page, 'table.ex-ans'), 'el cálculo de siempre');
+  assert.equal(await page.locator('#exKind-roy').count(), 0, 'con el cálculo, la barra de siempre');
+  assert.ok(!(await page.evaluate(() => location.hash)).includes('xk='));
+  await close(page);
+});
+
+check('F3d T008 AC18 · 360 px: el tipo en un desplegable, la tabla, el lienzo con desplazamiento propio y «Tu red como tabla», sin desplazar la página de lado', async () => {
+  const s = { sd: EX_CASES.hard.sd, lv: 'hard', lang: 'es', rn: xbGood({ sd: EX_CASES.hard.sd, lv: 'hard' }) };
+  const page = await xbLab(s, { width: 360, height: 740 });
+  assert.ok(await visible(page, '#exKindSel'));
+  assert.equal(await page.locator('#exKindSel').inputValue(), 'roy');
+  assert.ok(!(await visible(page, '#exKind-roy')));
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'sin desplazamiento horizontal de la página');
+  const order = await page.evaluate(() => ['xbGiven', 'xbSvg', 'xbPred-A'].map((id) => document.getElementById(id).getBoundingClientRect().top));
+  assert.ok(order[0] < order[1] && order[1] < order[2], 'tabla, lienzo y «Tu red como tabla», en ese orden');
+  assert.ok(await page.locator('.xb-canvas-box').evaluate((b) => b.scrollWidth > b.clientWidth), 'el lienzo se desplaza dentro de su recuadro');
+  await axe(page, 'Construir la ROY a 360 px');
+  await close(page);
+});
+
+check('F3d T008 AC18 · 1280×720, nivel difícil a medio hacer y tras comprobar: la página no se desplaza', async () => {
+  const s = { sd: 15, lv: 'hard', lang: 'es' };
+  const good = xbGood(s);
+  // Tablero 81: tres actividades por colocar.
+  const nodes = good.nodes.filter((n, i) => n.id === '_E' || i < good.nodes.length - 4);
+  const has = (id) => nodes.some((n) => n.id === id);
+  const page = await xbLab(Object.assign({ rn: { nodes, arcs: good.arcs.filter((e) => has(e.from) && has(e.to)) } }, s));
+  // El criterio de la F3a (AC16): «Ejercicios» acaba dentro de la ventana, sin desplazar la página.
+  const fits = () => page.evaluate(() => window.scrollY === 0 && document.getElementById('exView').getBoundingClientRect().bottom <= 720 && document.documentElement.scrollWidth <= 1280);
+  assert.ok(await fits(), 'a medio hacer');
+  for (const id of ['#xbCheck', '#xbSee', '#xbPlace', '.xb-chip']) {
+    const b = await page.locator(id).first().boundingBox();
+    assert.ok(b && b.y + b.height <= 720, `${id} a la vista`);
+  }
+  await page.locator('#xbCheck').click();
+  assert.ok(await fits(), 'tras comprobar');
+  await page.locator('#xbSee').click();
+  assert.ok(await fits(), 'con la red correcta');
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -6745,6 +7059,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     for (const re of [/core\/aoacheck\.js/, /core\/aoamethods\.js/, /core\/compare\.js/, /compare-view\.js/, /\/reto\.js/, /reto-canvas\.js/, /reto-table\.js/]) {
       assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), cr, `${url}: ${re.source}`);
     }
+    // F3d (plan P1, T008): construir la ROY (grupo xb), solo con xk=roy.
+    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') ? 6 : 0, `${url}: grupo xb`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);

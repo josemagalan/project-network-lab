@@ -1061,6 +1061,17 @@
     learnTitle: 'Exercises: carried errors and how cells are marked',
   };
 
+  // ---------- F3d · tipo de ejercicio en «Ejercicios» y «Reto ROY» del taller (T008, bloque 1; H11) ----------
+  // Solo lo que se ve sin el grupo xb: lo demás de construir la ROY está en i18n-build (plan P1).
+  Object.assign(dict.es.ex, { kind: { label: 'Tipo', calc: 'Cálculo', roy: 'Construir la ROY', pert: 'Construir la PERT', det: 'Detective' },
+    loseKind: 'Se perderá lo que llevas en este ejercicio. ¿Cambiar de tipo?', loseKindYes: 'Sí, cambiar de tipo',
+    loseWork: 'Tienes trabajo hecho: el ejercicio nuevo lo borra.' });
+  Object.assign(dict.en.ex, { kind: { label: 'Type', calc: 'Calculation', roy: 'Build the AON', pert: 'Build the AOA', det: 'Detective' },
+    loseKind: 'What you have done in this exercise will be lost. Change the type?', loseKindYes: 'Yes, change the type',
+    loseWork: 'You have work done: the new exercise clears it.' });
+  dict.es.view.retoRoy = 'Reto ROY';
+  dict.en.view.retoRoy = 'AON challenge';
+
   // ---------- F3c · enunciado al azar en M0 (T009) ----------
   dict.es.m0.gen = {
     random: 'Enunciado al azar', levels: 'Nivel del enunciado', context: 'Contexto', any: 'Al azar', drawn: 'Ha salido: {ctx}',
@@ -1086,7 +1097,7 @@
   };
 
   const SAME_IN_BOTH = ['app.subtitle', 'ctl.notaEn', 'ctl.notaEs', 'formula.TF', 'results.ganttTitle', 'cmp.names.kim', 'cmp.names.spinrad', 'cmp.selDummy', 'm0.diag.errorsOne',
-    'unc.legend.pert', 'unc.cmp.pert', 'unc.legend.tri', 'unc.cmp.tri', 'unc.exam.tie', 'unc.sim.colNormal'];
+    'unc.legend.pert', 'unc.cmp.pert', 'unc.legend.tri', 'unc.cmp.tri', 'unc.exam.tie', 'unc.sim.colNormal', 'ex.kind.det'];
 
   function lookup(lang, key) {
     const table = dict[lang] || dict.es;

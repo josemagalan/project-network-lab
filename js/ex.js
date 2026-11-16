@@ -62,7 +62,7 @@
     const chk = GEN.check(prm);
     const ask = U.cleanAsk(state.ask) || U.DEFAULT_ASK.slice();
     const base = { params: prm, issues: chk.issues, notFound: null, rows: null, project: null, sol: null, ask, ans: answersOf(state),
-      mode: state.xm === 'exam' ? 'exam' : 'practice', delivered: state.xm === 'exam' && !!state.xd, seed: state.sd, lang,
+      mode: state.xm === 'exam' ? 'exam' : 'practice', delivered: state.xm === 'exam' && !!state.xd, seed: state.sd, lang, kind: kindOf(state),
       oldVersion: state.gv != null && state.gv !== GEN.VERSION, grading: null, text: null, textPending: false, textOld: false };
     if (!chk.ok || !state.sd) return base;
     const gen = generated(state.sd, prm);
@@ -81,7 +81,7 @@
         m.textOld = state.sv != null && state.sv !== G3.VERSION;
       }
     }
-    if (m.delivered) m.grading = GR.grade(m.sol, m.ans, ask);
+    if (m.delivered && m.kind === 'calc') m.grading = GR.grade(m.sol, m.ans, ask);
     return m;
   }
 
@@ -153,6 +153,21 @@
     return U.cleanAns(out);
   }
   const hasAnswers = (state) => !!state.ans && !!forUrl(answersOf(state));
+
+  // ---------- Tipo de ejercicio (F3d, T008; tableros 81 y 92) ----------
+  // Cálculo (la F3a, sin cambios), construir la ROY o la PERT y detective. Solo se ofrecen los que ya están hechos; la
+  // barra con el tipo se ve con un tipo que no es el cálculo (por URL) o cuando se publique (buildPublic, T014).
+  const KINDS = ['calc', 'roy', 'pert', 'det'];
+  const kindReady = { calc: true, roy: true, pert: false, det: false };
+  const kindOf = (state) => (KINDS.includes(state.xk) ? state.xk : 'calc');
+  // Lo que se pierde al cambiar de ejercicio: las respuestas del cálculo, la red del alumno o las marcas del detective.
+  function hasWork(state) {
+    const k = kindOf(state);
+    if (k === 'calc') return hasAnswers(state);
+    if (k === 'roy') return !!state.rn && (state.rn.arcs.length > 0 || state.rn.nodes.some((n) => n.id !== '_S' && n.id !== '_E'));
+    if (k === 'pert') return !!state.sn;
+    return !!(state.dm && state.dm.length);
+  }
 
   const seedFrom = (u32) => 1 + (Math.floor(Math.abs(Number(u32) || 0)) % SEED_MAX);
 
@@ -328,20 +343,28 @@
     let lay = { key: null, roy: null, pert: null };
     // F3c (T010): «Ver la tabla» abierta o cerrada (solo en la página) y si el enunciado ya estaba puesto.
     let tableOpen = false; let textOn = false;
+    // F3d (T008): el cuerpo de los otros tipos lo pinta su controlador (construir la ROY: PNL.exBuild, grupo xb).
+    let builder = null;
 
     const state = () => hooks.state();
     const nota = () => state().nota;
     const vis = () => visibility(state());
     const grading = () => (m && m.grading ? m.grading : checked ? checked.grading : null);
     const marksOn = () => { const v = vis(); return v.marks === 'always' || (v.marks === 'checked' && !!checked && !stale); };
-    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv]);
+    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv, kindOf(s)]);
 
     // Un ejercicio nuevo (semilla, nivel, parámetros, lo que se pide o el modo): si hay respuestas, antes se confirma.
     function newExercise(action) {
       const s = state();
       const full = Object.assign({ type: 'ex', sd: s.sd, lv: s.lv, gp: s.gp, ask: s.ask, xm: s.xm }, action);
-      if (hasAnswers(s) && !(s.xm === 'exam' && s.xd)) { pending = full; draw(); focus('exLoseYes'); return; }
+      if (hasWork(s) && !(s.xm === 'exam' && s.xd)) { pending = full; draw(); focus('exLoseYes'); return; }
       hooks.dispatch(full, { push: true });
+    }
+    // Otro tipo de ejercicio: la misma tabla (semilla y nivel), sin lo hecho; si hay algo hecho, antes se confirma.
+    function setKind(k) {
+      if (k === kindOf(state()) || !kindReady[k]) return;
+      const go = () => newExercise({ xk: k });
+      if (k === 'roy' && hooks.need) hooks.need('xb').then(go, () => {}); else go();
     }
     const another = () => newExercise({ sd: hooks.newSeed() });
 
@@ -414,6 +437,26 @@
           'aria-describedby': custom ? 'exTextOff' : null, onchange: (e) => toggleText(e.target.checked) }), ' ', tt('ex.text.asText')]);
         if (custom) textOff = h('p', { class: 'muted small ex-textoff', id: 'exTextOff' }, [tt('ex.text.customOff')]);
       }
+      const kind = kindOf(s);
+      const modeSeg = seg([[tt('ex.practice'), s.xm !== 'exam', () => { if (s.xm === 'exam') newExercise({ xm: 'practice' }); }, 'exPractice'], [tt('ex.exam'), s.xm === 'exam', () => { if (s.xm !== 'exam') newExercise({ xm: 'exam' }); }, 'exExam']], tt('ex.mode'));
+      // F3d (tablero 92): con el tipo a la vista, primera fila Tipo y Modo; segunda, Nivel; con «Cálculo», debajo «Qué se pide».
+      // A 360 px el tipo va en un desplegable (tablero 89; css/styles.css elige uno de los dos).
+      if (api.buildPublic || kind !== 'calc') {
+        const kinds = KINDS.filter((k) => kindReady[k] || k === kind);
+        const kindSel = h('select', { id: 'exKindSel', class: 'ex-kind-sel', 'aria-label': tt('ex.kind.label'), onchange: (e) => { const v = e.target.value; e.target.value = kind; setKind(v); } },
+          kinds.map((k) => h('option', { value: k, selected: k === kind }, [tt(`ex.kind.${k}`)])));
+        const r1 = h('div', { class: 'ex-row' }, [
+          h('span', { class: 'ex-cap' }, [tt('ex.kind.label')]), seg(kinds.map((k) => [tt(`ex.kind.${k}`), k === kind, () => setKind(k), `exKind-${k}`]), tt('ex.kind.label')), kindSel,
+          h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), h('span', { class: 'ex-cap' }, [tt('ex.mode')]), modeSeg,
+          h('label', { class: 'ex-seed' }, [tt('ex.seed'), seedIn]),
+          button(tt('ex.another'), another, { attrs: { id: 'exAnother' } }),
+        ]);
+        r1.querySelector('.seg').classList.add('ex-kind-seg');
+        const r2 = h('div', { class: 'ex-row' }, [h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
+          h('span', { class: 'muted small ex-sum' }, [levelSummary(prm, lang())]), kind === 'calc' ? textCtl : null]);
+        const r3 = kind === 'calc' ? h('div', { class: 'ex-row' }, [asksBox()]) : null;
+        return h('section', { class: 'card ex-bar' }, [r1, r2, r3, kind === 'calc' ? textOff : null, customOpen ? customPanel() : null]);
+      }
       const row1 = h('div', { class: 'ex-row' }, [
         h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
         h('span', { class: 'muted small ex-sum' }, [levelSummary(prm, lang())]),
@@ -421,19 +464,21 @@
         h('label', { class: 'ex-seed' }, [tt('ex.seed'), seedIn]),
         button(tt('ex.another'), another, { attrs: { id: 'exAnother' } }),
       ]);
-      const ask = U.cleanAsk(s.ask) || U.DEFAULT_ASK;
-      const asks = h('fieldset', { class: 'ex-ask' }, [h('legend', { class: 'ex-cap' }, [tt('ex.ask')])].concat(U.ASK.map((k) => {
+      const row2 = h('div', { class: 'ex-row' }, [
+        h('span', { class: 'ex-cap' }, [tt('ex.mode')]), modeSeg,
+        h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), asksBox(),
+      ]);
+      // Sin nombre propio: la vista entera ya es la región «Ejercicios» (axe, landmark-unique; T016).
+      return h('section', { class: 'card ex-bar' }, [row1, row2, textOff, customOpen ? customPanel() : null]);
+    }
+
+    function asksBox() {
+      const ask = U.cleanAsk(state().ask) || U.DEFAULT_ASK;
+      return h('fieldset', { class: 'ex-ask' }, [h('legend', { class: 'ex-cap' }, [tt('ex.ask')])].concat(U.ASK.map((k) => {
         const off = k === 'sf' && !ask.includes('floats');
         return h('label', { class: off ? 'muted' : '' }, [h('input', { type: 'checkbox', id: `exAsk-${k}`, checked: ask.includes(k), disabled: off,
           onchange: (e) => { const next = U.ASK.filter((x) => (x === k ? e.target.checked : ask.includes(x))); const clean = U.cleanAsk(next); if (clean) newExercise({ ask: clean }); else e.target.checked = true; } }), ' ', tt(`ex.asks.${k}`)]);
       })));
-      const row2 = h('div', { class: 'ex-row' }, [
-        h('span', { class: 'ex-cap' }, [tt('ex.mode')]),
-        seg([[tt('ex.practice'), s.xm !== 'exam', () => { if (s.xm === 'exam') newExercise({ xm: 'practice' }); }, 'exPractice'], [tt('ex.exam'), s.xm === 'exam', () => { if (s.xm !== 'exam') newExercise({ xm: 'exam' }); }, 'exExam']], tt('ex.mode')),
-        h('span', { class: 'ex-sep', 'aria-hidden': 'true' }), asks,
-      ]);
-      // Sin nombre propio: la vista entera ya es la región «Ejercicios» (axe, landmark-unique; T016).
-      return h('section', { class: 'card ex-bar' }, [row1, row2, textOff, customOpen ? customPanel() : null]);
     }
 
     function toggleText(on) {
@@ -630,14 +675,29 @@
       if (!m) return;
       container.appendChild(bar());
       if (pending) {
-        container.appendChild(h('div', { class: 'banner ex-lose', role: 'alertdialog', 'aria-labelledby': 'exLoseText' }, [h('span', { id: 'exLoseText' }, [tt('ex.lose')]),
-          button(tt('ex.loseYes'), () => { const a = pending; pending = null; hooks.dispatch(a, { push: true }); }, { primary: true, attrs: { id: 'exLoseYes' } }),
+        const toKind = pending.xk && pending.xk !== kindOf(state());
+        const text = toKind ? tt('ex.loseKind') : kindOf(state()) === 'calc' ? tt('ex.lose') : tt('ex.loseWork');
+        container.appendChild(h('div', { class: 'banner ex-lose', role: 'alertdialog', 'aria-labelledby': 'exLoseText' }, [h('span', { id: 'exLoseText' }, [text]),
+          button(toKind ? tt('ex.loseKindYes') : tt('ex.loseYes'), () => { const a = pending; pending = null; hooks.dispatch(a, { push: true }); }, { primary: true, attrs: { id: 'exLoseYes' } }),
           button(tt('ex.loseNo'), () => { pending = null; draw(); focus('exAnother'); }, { attrs: { id: 'exLoseNo' } })]));
       }
       if (m.oldVersion) container.appendChild(h('p', { class: 'banner', role: 'status' }, [tt('ex.oldVersion')]));
       if (!m.rows) {
         const text = m.notFound ? notFoundText(m.notFound, lang()) : m.issues.length ? issueText(m.issues[0], m.params, lang()) : '';
         if (text) container.appendChild(h('p', { class: 'banner', role: 'status' }, [text]));
+        return;
+      }
+      // F3d (T008): construir la ROY lo pinta exBuild (grupo xb); los tipos que aún no están hechos no pintan nada.
+      if (m.kind !== 'calc') {
+        if (m.kind !== 'roy') return;
+        if (!root.PNL.exBuild) { if (hooks.need) hooks.need('xb').then(draw, () => {}); return; }
+        if (!builder) {
+          builder = root.PNL.exBuild.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, numFmt, another, need: hooks.need });
+          root.PNL.exBuild.state = () => builder.debug();
+        }
+        const body = h('div', { class: 'xb-body' });
+        container.appendChild(body);
+        builder.draw(body, m);
         return;
       }
       if (m.textPending && hooks.need) hooks.need('sg').then(() => hooks.dispatch({ type: 'exText', value: 1 }));
@@ -655,6 +715,7 @@
       if (k !== exKey) {
         // Otro ejercicio: lo que solo vivía en la página se olvida.
         exKey = k; checked = null; stale = false; selKey = null; selAct = null; confirmOpen = false; arcs = false; pending = null; pathFields = 1;
+        if (builder) builder.reset();
         if (state().lv !== 'custom') draft = null;
       }
       // Con el enunciado, la red y la tabla empiezan plegadas: las dos dejan ver las precedencias (decisión del autor, T008).
@@ -670,14 +731,14 @@
     }
 
     function debug() {
-      return { seed: m && m.seed, rows: m && m.rows, params: m && m.params, ask: m && m.ask, ans: m && m.ans, grading: grading(), marks: marksOn(), stale, view, folded, selKey,
+      return { seed: m && m.seed, kind: m && m.kind, rows: m && m.rows, params: m && m.params, ask: m && m.ask, ans: m && m.ans, grading: grading(), marks: marksOn(), stale, view, folded, selKey,
         text: !!(m && m.text), ctx: m && m.text ? m.text.ctx : null, tableOpen };
     }
 
     return { render, debug };
   }
 
-  const api = { textPublic: true, ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
+  const api = { textPublic: true, buildPublic: false, KINDS, kindReady, kindOf, hasWork, ACT_F, EV_F, params, model, answersOf, levelSummary, issueText, notFoundText, columns, empty, setCell, toggleCrit, addPath, setPath, removePath,
     forUrl, hasAnswers, seedFrom, visibility, stepState, blanks, counts, scoreText, countText, usedVal, keyLabel, origin, explain, pathExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.ex = api;
