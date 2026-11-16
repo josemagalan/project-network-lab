@@ -41,6 +41,18 @@ test('etapas que ofrece el exportador: sin publicar, las siete de la F3b; public
   assert.equal(MP.stmtPublic, true, 'publicada en T013');
 });
 
+// F3d (T013; plan §4; tablero 90): las etapas 7 a 10 van al final de la lista, ocultas hasta la publicación (T014).
+test('etapas que ofrece el exportador con las de la F3d: al final, en el orden del núcleo, y solo con f3dPublic', () => {
+  assert.deepEqual(MP.LAB_STAGES, ['minDummy', 'succ', 'immPred', 'detective']);
+  assert.deepEqual(MP.stagesOf(true, false), ['stmt', ...M.STAGES]);
+  assert.deepEqual(MP.stagesOf(true, true), ['stmt', ...M.STAGES, 'minDummy', 'succ', 'immPred', 'detective']);
+  assert.deepEqual(MP.stagesOf(false, true), [...M.STAGES, 'minDummy', 'succ', 'immPred', 'detective']);
+  assert.equal(MP.f3dPublic, false, 'oculto hasta T014');
+  const sel = { stages: new Set(M.STAGES_ALL), levels: new Set(['medium', 'hard']), count: 10 };
+  assert.deepEqual(MP.summary(sel, MP.stagesOf(true, true)), { categories: 24, questions: 240 });
+  assert.deepEqual(MP.summary(sel), { categories: 16, questions: 160 }, 'por defecto, sin las etapas de la F3d');
+});
+
 test('resumen con la etapa 0: cuenta solo las etapas que se ofrecen', () => {
   const sel = { stages: new Set(M.STAGES_ALL), levels: new Set(['medium']), count: 10 };
   assert.deepEqual(MP.summary(sel), { categories: 8, questions: 80 });

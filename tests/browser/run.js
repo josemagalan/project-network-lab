@@ -7563,6 +7563,133 @@ check('F3d T011 AC16 y AC17 · notación española y 360 px: la leyenda con tᵢ
   await close(page);
 });
 
+// ---------- F3d, T013: las etapas 7 a 10 en el exportador (oculto hasta T014; tableros 90 y 91) ----------
+
+const MQ0 = require(path.join(ROOT, 'js', 'core', 'moodle.js'));
+const IM0 = require(path.join(ROOT, 'js', 'i18n-moodle.js'));
+const NS0 = require(path.join(ROOT, 'js', 'views', 'net-svg.js'));
+const LAB = ['minDummy', 'succ', 'immPred', 'detective'];
+// Sin publicar (T014), las pruebas las enseñan como hará la publicación: f3dPublic y un cambio de idioma que redibuja.
+async function mqLab(lang, opts) {
+  const p = await mqOpen(lang === 'es' ? 'en' : 'es', opts);
+  await p.evaluate(() => { PNL.moodlePage.f3dPublic = true; });
+  await setCtl(p, '#selLang', lang);
+  await p.waitForFunction((n) => document.querySelectorAll('#mqView .mq-stages .mq-check').length === n, 12);
+  return p;
+}
+// La pregunta de la vista previa, en Node: la primera semilla desde 1 que da pregunta (como moodle-page), con la imagen.
+function mqPreview0(stage, level, lang, nota) {
+  const ctx = { lang, nota, sf: false, labels: IM0.labels(nota), svg: NS0.render };
+  for (let sd = 1; sd < 50; sd++) { const q = MQ0.question(stage, MQ0.exercise(level, sd), ctx, IM0.tr(lang)); if (q) return JSON.parse(JSON.stringify(q)); }
+  return null;
+}
+const mqFiles = /core\/aoacheck\.js|core\/roycheck\.js|core\/detective\.js|views\/net-svg\.js/;
+
+check('F3d T013 · sin publicar (f3dPublic falso), el exportador no ofrece las etapas 7 a 10 ni su aviso; con ellas, al final, marcadas, con su descripción y el aviso del laboratorio (ES y EN)', async () => {
+  const p0 = await mqOpen('es');
+  assert.equal(await p0.evaluate(() => PNL.moodlePage.f3dPublic), false);
+  assert.equal(await p0.locator('#mqView .mq-stages .mq-check').count(), 8);
+  assert.equal(await p0.locator('#mqView .mq-labnote').count(), 0);
+  assert.equal(await p0.locator('.mq-summary').textContent(), 'Se generarán 80 preguntas en 8 categorías.');
+  // El grupo mq ya trae lo que necesitan las etapas nuevas (H1): aoacheck, roycheck, detective y net-svg.
+  assert.equal(await p0.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, mqFiles.source), 4);
+  await close(p0);
+  for (const [lang, sum] of [['es', 'Se generarán 120 preguntas en 12 categorías.'], ['en', '120 questions will be generated in 12 categories.']]) {
+    const p = await mqLab(lang);
+    const tr = IM0.tr(lang);
+    const st = await mq(p);
+    assert.deepEqual(st.sel.stages, ['stmt', ...MQ0.STAGES, ...LAB]);
+    assert.equal(await p.locator('.mq-summary').textContent(), sum);
+    // Las cuatro, aparte de las de la F3b y la F3c (tablero 90), cada una con su descripción.
+    const lab = p.locator('#mqView .mq-lab .mq-check');
+    assert.equal(await lab.count(), 4);
+    for (let i = 0; i < 4; i++) {
+      assert.equal(await lab.nth(i).locator('input').isChecked(), true);
+      assert.equal(await lab.nth(i).textContent(), tr(`stage.${LAB[i]}`) + I0.t(lang, `mq.page.stageHint.${LAB[i]}`));
+      assert.equal(await lab.nth(i).locator('.mq-hint').textContent(), I0.t(lang, `mq.page.stageHint.${LAB[i]}`));
+    }
+    assert.equal(await p.locator('#mqView .mq-labnote').textContent(), I0.t(lang, 'mq.page.labNote'));
+    await close(p);
+  }
+});
+
+check('F3d T013 AC14 y AC16 · la vista previa de cada etapa nueva es la pregunta del núcleo (ES y EN, las dos notaciones)', async () => {
+  for (const [lang, nota, level, lvName] of [['es', 'es', 'medium', 'Media'], ['en', 'en', 'easy', 'Easy']]) {
+    const p = await mqLab(lang);
+    await setCtl(p, '#selNota', nota);
+    const tr = IM0.tr(lang);
+    for (let i = 0; i < 4; i++) {
+      const stage = LAB[i];
+      await mqSelect(p, [tr(`stage.${stage}`).split(' ')[0] + ' ·'], [lvName]);
+      await p.waitForFunction((s) => PNL.moodlePage.state().preview.stage === s, stage);
+      const q = (await mq(p)).preview;
+      assert.deepEqual(q, mqPreview0(stage, level, lang, nota), `${stage} ${lang}: el modelo del núcleo`);
+      assert.equal(await p.locator('.mq-qname').textContent(), q.name);
+      if (stage === 'minDummy') {
+        assert.equal(await p.locator('.mq-preview input.mq-hole').count(), 1);
+        const link = q.text.find((b) => b.link).link;
+        assert.deepEqual(await p.$$eval('.mq-preview > p > a', (as) => as.map((a) => [a.getAttribute('href'), a.textContent])), [[link.href, tr(link.key)]]);
+      }
+      if (stage === 'succ' || stage === 'immPred') {
+        const rows = q.text.filter((b) => b.table).pop().table.rows;
+        assert.equal(await p.locator('.mq-preview .mq-mr').count(), rows.length);
+        assert.equal(await p.locator('.mq-preview .mq-mr input:not([disabled])').count(), 0);
+      }
+      if (stage === 'detective') {
+        // La imagen es el archivo SVG de la pregunta (el mismo que va en el XML), con su texto alternativo (AC21).
+        const img = q.text.find((b) => b.img).img;
+        const file = q.files.find((f) => f.name === img.src);
+        assert.equal(await p.locator('.mq-preview img').count(), 1);
+        assert.equal(await p.locator('.mq-preview img').getAttribute('alt'), img.alt);
+        assert.equal(await p.locator('.mq-preview img').getAttribute('src'), `data:image/svg+xml;base64,${MQ0.base64(file.svg)}`);
+        assert.ok(await p.locator('.mq-preview img').evaluate((el) => el.complete && el.naturalWidth > 0), 'la imagen se dibuja');
+        // Cuatro opciones de una sola respuesta: botones de radio desactivados con el texto de cada una.
+        assert.equal(await p.locator('.mq-preview .mq-options input[type="radio"][disabled]').count(), 4);
+        assert.deepEqual(await p.$$eval('.mq-preview .mq-options li', (ls) => ls.map((l) => l.textContent.trim())), q.options.map((o) => o.text));
+      }
+      await p.locator('.mq-feedback summary').click();
+      assert.ok(await p.locator('.mq-feedback a').count() >= 1, 'enlaces de la retroalimentación');
+    }
+    await close(p);
+  }
+});
+
+check('F3d T013 AC14, AC16 y AC21 · el banco descargado con las etapas 7 a 10 es el de Node con la misma semilla, bien formado y con la imagen (ES y EN)', async () => {
+  for (const [lang, nota, levels, lvNames] of [['es', 'en', ['easy'], ['Fácil']], ['en', 'es', ['hard'], ['Hard']]]) {
+    const p = await mqLab(lang);
+    await setCtl(p, '#selNota', nota);
+    const tr = IM0.tr(lang);
+    await mqSelect(p, LAB.map((s) => tr(`stage.${s}`).split(' ')[0] + ' ·'), lvNames, 2);
+    const { name, xml } = await mqDownload(p);
+    const seed = Number(/-s(\d+)\.xml$/.exec(name)[1]);
+    const bank = MQ0.generate({ lang, nota, sf: false, labels: IM0.labels(nota), stages: LAB, levels, count: 2, seed, svg: NS0.render }, tr);
+    assert.equal(xml, MQ0.toXml(bank, tr), 'el XML del navegador es el de Node');
+    assert.deepEqual(require('../xml-check.js').check(xml), { ok: true });
+    for (const s of LAB) assert.ok(xml.includes(`$course$/top/${tr('root')}/${tr(`stage.${s}`)}/${tr(`level.${levels[0]}`)}`), s);
+    const det = bank.questions.filter((q) => q.stage === 'detective');
+    assert.equal(det.length, 2);
+    assert.equal((xml.match(/<file name="pnl-detective-s\d+\.svg" path="\/" encoding="base64">/g) || []).length, 2);
+    assert.equal((xml.match(/<img src="@@PLUGINFILE@@\/pnl-detective-s\d+\.svg" alt="[^"]+">/g) || []).length, 2);
+    assert.equal((xml.match(/<single>true<\/single>/g) || []).length, 2);
+    await close(p);
+  }
+});
+
+check('F3d T013 AC16 · el exportador con las etapas nuevas: axe en claro y oscuro, ES y EN, con la vista previa de «Detective»; a 360 px sin desplazamiento horizontal', async () => {
+  for (const [lang, scheme, width] of [['es', 'light', 1280], ['en', 'dark', 1280], ['es', 'dark', 360], ['en', 'light', 360]]) {
+    const p = await mqLab(lang, { scheme, width, height: width === 360 ? 800 : 720 });
+    await mqSelect(p, ['10 ·'], [lang === 'es' ? 'Difícil' : 'Hard']);
+    await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'detective');
+    await p.locator('.mq-feedback summary').click();
+    await axe(p, `F3d · exportador con «Detective» (${lang}, ${scheme}, ${width} px)`);
+    assert.ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${lang} ${width}`);
+    const box = await p.locator('.mq-preview img').boundingBox();
+    const pv = await p.locator('.mq-preview').boundingBox();
+    assert.ok(box.width <= pv.width, 'la imagen cabe en la vista previa');
+    await close(p);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
@@ -7595,13 +7722,16 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     const cr = (/graph=aoa/.test(url) && /view=(cmp|reto)|m=prog/.test(url)) || url.includes('xk=pert');
     // F3d (T011, H1): el detective usa aoacheck (y roycheck) sin el resto de cr ni de xb.
     for (const re of [/core\/aoacheck\.js/, /core\/aoamethods\.js/, /core\/compare\.js/, /compare-view\.js/, /\/reto\.js/, /reto-canvas\.js/, /reto-table\.js/]) {
-      const want = cr || (re.source.includes('aoacheck') && url.includes('xk=det'));
+      // F3d (T013, H1): el exportador también, para las etapas 7 a 10.
+      const want = cr || (re.source.includes('aoacheck') && (url.includes('xk=det') || url.includes('v=moodle')));
       assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').some((e) => new RegExp(src).test(e.name)), re.source), want, `${url}: ${re.source}`);
     }
-    // F3d (plan P1, T011): el detective (grupo dt), solo con xk=det.
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-det\.js|det-view\.js|i18n-det\.js|core\/detective\.js|det\.css/.test(e.name))), url.includes('xk=det'), `${url}: grupo dt`);
+    // F3d (plan P1, T011): el detective (grupo dt), solo con xk=det; su núcleo, también en el exportador (T013, H1), con net-svg.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-det\.js|det-view\.js|i18n-det\.js|det\.css/.test(e.name))), url.includes('xk=det'), `${url}: grupo dt`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /core\/detective\.js/.test(e.name))), url.includes('xk=det') || url.includes('v=moodle'), `${url}: core/detective`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /views\/net-svg\.js/.test(e.name))), url.includes('v=moodle'), `${url}: net-svg`);
     // F3d (plan P1, T008 y T009): construir la ROY (grupo xb), solo con xk=roy o con el reto ROY del taller.
-    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || url.includes('xk=pert') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : url.includes('xk=det') ? 1 : 0, `${url}: grupo xb (con el detective, solo roycheck)`);
+    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || url.includes('xk=pert') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : url.includes('xk=det') || url.includes('v=moodle') ? 1 : 0, `${url}: grupo xb (con el detective y el exportador, solo roycheck)`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);

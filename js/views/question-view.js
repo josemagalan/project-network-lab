@@ -6,6 +6,9 @@
  * desactivadas; la retroalimentación general va plegada en un <details>.
  * F3c (etapa stmt; tablero 62): la cita del enunciado va en un <blockquote> y cada celda de predecesoras inmediatas,
  * como una fila de casillas desactivadas (las demás actividades y «ninguna»), igual que MULTIRESPONSE_H en Moodle.
+ * F3d (T013; tableros 90 y 91): la imagen de «Detective» es el mismo archivo SVG que va en el XML, como
+ * data:image/svg+xml;base64 y con su texto alternativo; el enlace suelto del enunciado de la etapa 7 va en su párrafo,
+ * y las opciones de una sola respuesta (single), como botones de radio desactivados.
  */
 (function (root) {
   'use strict';
@@ -38,7 +41,11 @@
           const a = (href, key) => h('a', { href, target: '_blank', rel: 'noopener' }, [tr(key)]);
           const step = a(b.links.step, b.links.stepKey || 'link.step');
           out.push(h('p', {}, b.links.ex ? [a(b.links.ex, b.links.exKey || 'link.ex'), ' · ', step] : [step]));
-        } else if (b.quote) out.push(h('blockquote', { class: 'mq-quote' }, b.quote.map((x) => h('p', {}, [x]))));
+        } else if (b.img) {
+          const f = (q.files || []).find((x) => x.name === b.img.src);
+          if (f) out.push(h('p', { class: 'mq-img' }, [h('img', { src: `data:image/svg+xml;base64,${root.PNL.moodle.base64(f.svg)}`, alt: b.img.alt })]));
+        } else if (b.link) out.push(h('p', {}, [h('a', { href: b.link.href, target: '_blank', rel: 'noopener' }, [tr(b.link.key)])]));
+        else if (b.quote) out.push(h('blockquote', { class: 'mq-quote' }, b.quote.map((x) => h('p', {}, [x]))));
         else if (b.strong) out.push(h('p', {}, [h('strong', {}, [b.strong])]));
         else out.push(h('p', {}, b.hole ? [b.p, ' ', cell(b.hole)] : [b.p]));
       }
@@ -46,7 +53,7 @@
       return out;
     };
     const options = q.options ? [h('ul', { class: 'mq-options' }, q.options.map((op) => h('li', {}, [
-      h('label', {}, [h('input', { type: 'checkbox', disabled: true }), ' ', op.path]),
+      h('label', {}, [h('input', q.single ? { type: 'radio', name: 'mqPreviewOption', disabled: true } : { type: 'checkbox', disabled: true }), ' ', op.text != null ? op.text : op.path]),
     ])))] : [];
     const feedback = h('details', { class: 'mq-feedback', open: opts.open ? true : null }, [
       h('summary', {}, [opts.feedbackLabel || '']),

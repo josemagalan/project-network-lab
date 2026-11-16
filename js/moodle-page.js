@@ -15,6 +15,10 @@
  * F3c (spec f3c-enunciados, plan §4 y P6; tablero 62): la etapa «0 · Enunciado → tabla» va la primera de la lista y
  * marcada al abrir, y se ofrece con stmtPublic (publicada en T013); si no se ofreciera, no entraría en el resumen, en la
  * vista previa ni en el banco. En el núcleo sigue al final de STAGES_ALL.
+ * F3d (spec f3d-construir-detectar, AC14–AC16 y AC21; plan §4 y H1; tablero 90): las etapas 7 a 10 (LAB_STAGES) van
+ * al final de la lista, aparte, cada una con su descripción y con el aviso de que piden trabajar en el laboratorio; se
+ * ofrecen con f3dPublic (T014). La imagen de la red de «Detective» la da views/net-svg (ctx.svg, plan P4), en el banco y
+ * en la vista previa.
  */
 (function (root) {
   'use strict';
@@ -28,8 +32,11 @@
   const CHUNK_MS = 40;
   const pt = (lang, k, p) => I.t(lang, `mq.page.${k}`, p);
 
-  /** Las etapas que ofrece el formulario, en su orden: la 0 la primera, solo si está publicada (F3c, P6). */
-  const stagesOf = (pub) => (pub ? ['stmt', ...M.STAGES] : M.STAGES.slice());
+  /** Las etapas de la F3d (7 a 10), en el orden del núcleo: las que siguen a la 0 en STAGES_ALL. */
+  const LAB_STAGES = M.STAGES_ALL.slice(M.STAGES_ALL.indexOf('stmt') + 1);
+  /** Las etapas que ofrece el formulario, en su orden: la 0 la primera, solo si está publicada (F3c, P6); las 7 a 10
+   *  al final, solo si están publicadas (F3d, T014). */
+  const stagesOf = (pub, lab) => [...(pub ? ['stmt'] : []), ...M.STAGES, ...(lab ? LAB_STAGES : [])];
   /** Cuántas preguntas y categorías da una selección (contando solo las etapas que se ofrecen). */
   function summary(sel, stages) {
     const c = (stages || stagesOf(true)).filter((s) => sel.stages.has(s)).length * M.LEVELS.filter((l) => sel.levels.has(l)).length;
@@ -58,7 +65,9 @@
     const nota = () => hooks.state().nota;
     const t = (k, p) => pt(lang(), k, p);
     const sel = { stages: new Set(M.STAGES_ALL), sf: false, levels: new Set(['medium']), count: M.DEFAULT_COUNT };
-    const shown = () => stagesOf(api.stmtPublic);
+    const shown = () => stagesOf(api.stmtPublic, api.f3dPublic);
+    // La imagen de la red (F3d, plan P4): views/net-svg llega con el grupo mq.
+    const svg = (model) => root.PNL.netSvg.render(model);
     const chosen = () => shown().filter((s) => sel.stages.has(s));
     let run = null;          // { runner, seed, lang, nota, made, total, timer }
     let status = null;       // último estado: { key: 'done' | 'doneOne' | 'cancelled', file, q, seed, missing }
@@ -75,7 +84,7 @@
     function start() {
       const L = lang(); const N = nota();
       const seed = newSeed();
-      const runner = M.runner({ lang: L, nota: N, sf: sel.sf, labels: IM.labels(N), stages: chosen(), levels: [...sel.levels], count: sel.count, seed }, IM.tr(L));
+      const runner = M.runner({ lang: L, nota: N, sf: sel.sf, labels: IM.labels(N), stages: chosen(), levels: [...sel.levels], count: sel.count, seed, svg }, IM.tr(L));
       run = { runner, seed, lang: L, nota: N, made: 0, total: summary(sel, shown()).questions, timer: null };
       status = null;
       focusAfter = 'cancel';
@@ -184,7 +193,7 @@
       const st = chosen()[0];
       const lv = M.LEVELS.find((l) => sel.levels.has(l));
       if (!st || !lv) return null;
-      const ctx = { lang: lang(), nota: nota(), sf: sel.sf, labels: IM.labels(nota()) };
+      const ctx = { lang: lang(), nota: nota(), sf: sel.sf, labels: IM.labels(nota()), svg };
       // Semilla fija 1 (plan §4); en la 4b (o en la 0, si la tabla no admite enunciado) se prueba la siguiente.
       for (let sd = 1; sd < 50; sd++) { const q = M.question(st, M.exercise(lv, sd), ctx, IM.tr(lang())); if (q) return q; }
       return null;
@@ -201,9 +210,16 @@
       drawn = { lang: lang(), nota: nota() };
       summaryEl = null; downloadEl = null;
       container.setAttribute('aria-label', t('title'));
+      const stageCheck = (s, o) => check(tr(`stage.${s}`), sel.stages.has(s), (on) => { if (on) sel.stages.add(s); else sel.stages.delete(s); refresh(); }, o);
+      // F3d (tablero 90): las etapas 7 a 10, aparte, con su descripción y el aviso de trabajar en el laboratorio.
+      const lab = shown().filter((s) => LAB_STAGES.includes(s));
       const stages = fieldset(t('stagesTitle'), [
         h('p', { class: 'mq-hint' }, [t('stagesHint')]),
-        h('div', { class: 'mq-stages' }, shown().map((s) => check(tr(`stage.${s}`), sel.stages.has(s), (on) => { if (on) sel.stages.add(s); else sel.stages.delete(s); refresh(); }))),
+        h('div', { class: 'mq-stages' }, shown().filter((s) => !LAB_STAGES.includes(s)).map((s) => stageCheck(s))),
+        ...(lab.length ? [
+          h('div', { class: 'mq-stages mq-lab' }, lab.map((s) => stageCheck(s, { hint: t(`stageHint.${s}`) }))),
+          h('p', { class: 'mq-labnote' }, [t('labNote')]),
+        ] : []),
         check(t('sf'), sel.sf, (on) => { sel.sf = on; refresh(); }),
       ]);
       const levels = fieldset(t('levelsTitle'), M.LEVELS.map((l) => check(tr(`level.${l}`), sel.levels.has(l), (on) => { if (on) sel.levels.add(l); else sel.levels.delete(l); refresh(); }, { hint: t(`levelHint.${l}`) })));
@@ -253,7 +269,7 @@
     return { render, leave, debug };
   }
 
-  const api = { stmtPublic: true, stagesOf, summary, summaryText, fileName, missingText, create, CHUNK_MS };
+  const api = { stmtPublic: true, f3dPublic: false, LAB_STAGES, stagesOf, summary, summaryText, fileName, missingText, create, CHUNK_MS };
   root.PNL = root.PNL || {};
   root.PNL.moodlePage = api;
   if (isNode) module.exports = api;

@@ -63,7 +63,9 @@
     sg: ['js/core/contexts.js', 'js/core/stmtgen.js'],
     ex: ['js/core/grade.js', 'js/views/answer-table.js', 'js/ex.js'],
     // F3b (plan P5 y P7): el banco de Moodle, sus textos y su vista; F3c (P5): con el generador de enunciados (etapa 0).
-    mq: ['js/core/grade.js', 'js/core/contexts.js', 'js/core/stmtgen.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/question-view.js', 'js/moodle-page.js'],
+    // F3d (T013, H1): las etapas 7 a 10 piden aoacheck y roycheck (antes que detective, que los toma al cargarse),
+    // detective y la imagen SVG de la red (net-svg, que usa layout y aoa-layout de la carga común).
+    mq: ['js/core/grade.js', 'js/core/contexts.js', 'js/core/stmtgen.js', 'js/core/aoacheck.js', 'js/core/roycheck.js', 'js/core/detective.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/net-svg.js', 'js/views/question-view.js', 'js/moodle-page.js'],
     // F4a (plan P3): «Duraciones inciertas», con su núcleo (tres tiempos, simulación, TCL y ejemplos), textos y vista.
     // Con su hoja de estilos: M0 ya roza el presupuesto de 1 MB y no debe pagarla.
     // F4a (decisión del autor, 2026-11-13): «Aprende más» (learn.js, 57 KB) se carga al abrir el diálogo, en todas las vistas.

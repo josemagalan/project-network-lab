@@ -678,6 +678,10 @@ select.mq-hole { width: auto; }
 .mq-mr { display: inline-flex; flex-wrap: wrap; gap: 2px 8px; text-align: left; }
 .mq-mr label { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; white-space: nowrap; }
 .mq-mr input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent); }
+/* F3d (T013; tablero 90): las etapas 7 a 10, aparte y con su aviso; la imagen de «Detective», sobre blanco y sin desbordar. */
+.mq-lab { grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line); padding-top: 6px; }
+.mq-labnote { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 12.5px; line-height: 1.45; }
+.mq-img img { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
 .mq-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .mq-feedback { border-top: 1px solid var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 6px; }
 .mq-feedback summary { font-weight: 600; cursor: pointer; }
