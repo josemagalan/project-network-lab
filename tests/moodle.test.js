@@ -936,3 +936,30 @@ test('F3d T012: los textos de las etapas nuevas (bloque 3) están en los dos idi
   assert.deepEqual(NEW.map((s) => IM.tr('es')(`stage.${s}`)), ['7 · Mínimo de ficticias', '8 · Sucesores de cada suceso', '9 · Precedencias inmediatas', '10 · Detective']);
   assert.deepEqual(NEW.map((s) => IM.tr('en')(`stage.${s}`)), ['7 · Fewest dummies', '8 · What leaves each event', '9 · Immediate predecessors', '10 · Detective']);
 });
+
+// ---------- revisión de nivel 2 (T018) ----------
+
+// N-F3: con un error royCycle, un distractor «El arco a → b cierra un ciclo» no puede ser un arco que también está en el
+// ciclo de la red que se enseña (sería tan cierto como la respuesta). Comprobado con un recorrido propio, sin claimHolds.
+test('T018 · N-F3: ningún distractor royCycle es un arco que está en un ciclo de la red que se enseña (difícil 143 y 500 semillas por nivel)', () => {
+  const onCycle = (arcs, a, b) => {
+    const out = new Map(); for (const e of arcs) { if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e.to); }
+    const seen = new Set([b]); const st = [b];
+    while (st.length) { const x = st.pop(); if (x === a) return true; for (const y of out.get(x) || []) if (!seen.has(y)) { seen.add(y); st.push(y); } }
+    return false;
+  };
+  let cyc = 0;
+  const cases = [['hard', 143]];
+  for (const lv of M.LEVELS) for (let sd = 1; sd <= 500; sd++) cases.push([lv, sd]);
+  for (const [lv, sd] of cases) {
+    const q = M.question('detective', M.exercise(lv, sd), ctx(), tr);
+    if (!q || q.graph !== 'aon' || q.error.type !== 'royCycle') continue;
+    cyc++;
+    const arcs = q.shown.roy.arcs.filter((e) => e.from !== '_S' && e.to !== '_E');
+    for (const o of q.options) {
+      if (o.claim.type !== 'royCycle') continue;
+      assert.equal(onCycle(arcs, o.claim.a, o.claim.b), o.fraction === '100', `${lv}/${sd}: ${o.text}`);
+    }
+  }
+  assert.ok(cyc > 50, `${cyc} preguntas con royCycle`);
+});

@@ -210,3 +210,30 @@ test('T010 · pertGradeText: mínimo, ficticias de más (con el suelo de 80), in
   assert.equal(XB.pertGradeText({ correct: false }, { hits: 5, total: 14 }, 'es'), I.t('es', 'xb.pert.wrong', { hits: 5, total: 14, pct: '35,7' }));
   assert.equal(XB.pertGradeText({ correct: false }, { hits: 5, total: 14 }, 'en'), I.t('en', 'xb.pert.wrong', { hits: 5, total: 14, pct: '35.7' }));
 });
+
+// ---------- revisión de nivel 2 (T018) ----------
+
+test('T018 · I-F1 e I-F4: la frase de la nota sale del núcleo, sin bajar de 0; con un ciclo, «se queda en el 50 %» solo si pasaba de 50', () => {
+  const good = RC.fromTable(ej6);
+  // Solo Inicio → Fin: ningún acierto y un arco de más (la unión imposible), 0 % y no −5,3 %.
+  const none = RC.diagnose(ej6, { nodes: good.nodes, arcs: [{ from: '_S', to: '_E' }] });
+  assert.equal(none.counts.hits, 0);
+  assert.match(XB.gradeText(none, 'es'), /: 0 %\.$/);
+  // Un ciclo con la nota por encima de 50: se queda en el 50 %.
+  const high = RC.diagnose(ej6, { nodes: good.nodes, arcs: good.arcs.concat([{ from: 'K', to: 'H' }]) });
+  assert.ok(high.counts.cycle && RC.rawScore(high) > 50);
+  assert.ok(XB.gradeText(high, 'es').endsWith(I.t('es', 'xb.grade.cycle')));
+  // Un ciclo con la nota por debajo (solo A → B y B → A): la frase no dice que se queda en el 50 %.
+  const low = RC.diagnose(ej6, { nodes: good.nodes, arcs: [{ from: 'A', to: 'B' }, { from: 'B', to: 'A' }] });
+  assert.ok(low.counts.cycle && RC.rawScore(low) <= 50);
+  for (const lang of ['es', 'en']) {
+    assert.ok(XB.gradeText(low, lang).endsWith(I.t(lang, 'xb.grade.cycleBelow')), lang);
+    assert.ok(!XB.gradeText(low, lang).includes(I.t(lang, 'xb.grade.cycle')), lang);
+  }
+  // La PERT: el porcentaje de la frase es el de scorePert (6 ficticias de más: 70 → suelo de 80; incorrecta, hasta 60).
+  const res = { correct: true, dummies: 9, extra: 6, min: { value: 3, exact: true } };
+  assert.equal(XB.pertGradeText(res, null, 'es'), I.t('es', 'xb.pert.extraFloor', { k: 9, e: 6, min: 3 }));
+  const one = { correct: true, dummies: 4, extra: 1, min: { value: 3, exact: true } };
+  assert.equal(XB.pertGradeText(one, null, 'en'), I.t('en', 'xb.pert.extra', { k: 4, e: 1, min: 3, pct: RC.pertExtraPct(1) }));
+  assert.equal(XB.pertGradeText({ correct: false }, { hits: 3, total: 10 }, 'es'), I.t('es', 'xb.pert.wrong', { hits: 3, total: 10, pct: '30' }));
+});

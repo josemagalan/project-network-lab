@@ -242,21 +242,22 @@
   const pctOf = (v) => Math.round(v * 10) / 10;
   function gradeText(r, lang) {
     const c = r.counts;
-    const raw = pctOf(c.total ? 100 * Math.max(0, c.hits - c.falseArcs) / c.total : (c.falseArcs ? 0 : 100));
+    const raw = pctOf(RC.rawScore(r));
     const fmt = (v) => (lang === 'es' ? String(v).replace('.', ',') : String(v));
     const k = c.falseArcs === 0 ? 'countNone' : c.falseArcs === 1 ? 'countOne' : 'count';
     const count = I.t(lang, `xb.grade.${k}`, { hits: c.hits, total: c.total, f: c.falseArcs, raw: fmt(raw) });
-    return c.cycle ? `${count} ${I.t(lang, 'xb.grade.cycle')}` : count;
+    // Con un ciclo, la nota es mín(nota, 50): «se queda en el 50 %» solo si pasaba de 50 (revisión de T018, I-F4).
+    return c.cycle ? `${count} ${I.t(lang, RC.rawScore(r) > 50 ? 'xb.grade.cycle' : 'xb.grade.cycleBelow')}` : count;
   }
   // Nota de la PERT en palabras (bloque 1): correcta con el mínimo, con ficticias de más (sin bajar de 80) o incorrecta
   // (como mucho 60, con las precedencias inmediatas representadas); sin mínimo exacto, el aviso (H3).
   const fmtPct = (v, lang) => (lang === 'es' ? String(pctOf(v)).replace('.', ',') : String(pctOf(v)));
   function pertGradeText(res, hits, lang) {
     const t = (k, p) => I.t(lang, `xb.pert.${k}`, p);
-    if (!res.correct) return t('wrong', { hits: hits.hits, total: hits.total, pct: fmtPct(Math.min(60, hits.total ? 100 * hits.hits / hits.total : 100), lang) });
+    if (!res.correct) return t('wrong', { hits: hits.hits, total: hits.total, pct: fmtPct(RC.pertWrongPct(hits), lang) });
     const min = res.min.value;
     const e = res.extra;
-    const pct = 100 - 5 * e;
+    const pct = RC.pertExtraPct(e);
     const text = e <= 0 ? t('min', { min }) : pct >= 80 ? t('extra', { k: res.dummies, e, min, pct }) : t('extraFloor', { k: res.dummies, e, min });
     return res.min.exact ? text : `${text} ${t('notExact', { min })}`;
   }
@@ -337,7 +338,8 @@
     function tableCard(p, net, locked) {
       const holder = h('div', { class: 'xb-yours-body' });
       G.royTable.render(holder, { project: p, net, lang: lang(), locked, msg: tableMsg,
-        onOp: (op) => { const ok = onOp(op); if (ok) hooks.announce(tt('xb.did.table', { x: nameOf(op.id, lang()), list: predsText(normalize(hooks.state().rn, p), op.id, lang()) || '—' })); return ok; },
+        // Una entrada válida en la fila del aviso lo borra también aquí, aunque no cambie la red (revisión de T018, I-F2).
+        onOp: (op) => { if (tableMsg && op.id && tableMsg.id === `xbPred-${op.id}`) tableMsg = null; const ok = onOp(op); if (ok) hooks.announce(tt('xb.did.table', { x: nameOf(op.id, lang()), list: predsText(normalize(hooks.state().rn, p), op.id, lang()) || '—' })); return ok; },
         onBad: (msg) => { tableMsg = msg; hooks.announce(tt(msg.key, msg.params)); } });
       return h('section', { class: 'card xb-yours', 'aria-labelledby': 'xbYoursHead' }, [h('h2', { id: 'xbYoursHead' }, [tt('xb.yourTable')]),
         locked ? null : h('p', { class: 'muted small' }, [tt('xb.yourTableHint')]), holder]);

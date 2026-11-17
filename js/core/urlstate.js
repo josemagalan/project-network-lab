@@ -758,7 +758,7 @@
     return out;
   }
 
-  const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
+  const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, MAX_DM: DM_MAX, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
     ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns, DET_TYPES, cleanRn, cleanDm,
     UNC: { M6_ONLY: UNC_M6_ONLY, M7_ONLY: UNC_M7_ONLY, cleanUf, cleanUq, pctOk, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk } };
   root.PNL = root.PNL || {};

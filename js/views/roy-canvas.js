@@ -233,8 +233,11 @@
         if (mv) {
           ev.preventDefault();
           const step = XB.GEO.grid * (ev.shiftKey ? 4 : 1);
+          const op = { type: 'move', id: n.id, x: n.x + mv[0] * step, y: n.y + mv[1] * step };
+          // En el borde no se mueve: no se anuncia «movido» (revisión de T018, I-F8).
+          if (XB.apply(net, op, ctx.project) === net) return;
           focusNext = nodeId('xb', n.id); say('xb.did.move', { x: name(n.id) });
-          run({ type: 'move', id: n.id, x: n.x + mv[0] * step, y: n.y + mv[1] * step });
+          run(op);
         } else if (k === 'Enter' || k === ' ') { ev.preventDefault(); click(n.id); }
         else if (k === 'u' || k === 'U' || k === 'j' || k === 'J') { ev.preventDefault(); ev.stopPropagation(); joinStep(n.id); }
         else if (k === 'n' || k === 'N') { ev.preventDefault(); ev.stopPropagation(); pending = null; place(XB.spot(net, n)); }

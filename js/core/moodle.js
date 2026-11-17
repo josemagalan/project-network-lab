@@ -327,7 +327,10 @@
       if (c.type === 'royMissing') return direct[c.a].includes(c.b) && !pathIn(arcs, c.a, c.b);
       if (c.type === 'royFalse') return has && !reach[c.a].has(c.b) && !reach[c.b].has(c.a);
       if (c.type === 'royInverted') return has && direct[c.b].includes(c.a);
-      return has && reach[c.b].has(c.a) && !direct[c.b].includes(c.a);
+      // «El arco a → b cierra un ciclo»: el arco está en la red y en un ciclo de esa red (b lleva otra vez a a). Con la
+      // condición de la tabla (b ya va antes que a), un arco correcto del mismo ciclo salía como distractor y también era
+      // cierto (revisión de T018, N-F3).
+      return has && pathIn(arcs, c.b, c.a);
     }
     if (c.type.startsWith('pert')) {
       const P = shown.pert;

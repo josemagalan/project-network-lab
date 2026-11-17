@@ -87,9 +87,10 @@ test('T002 · AC3 y AC22: Ejercicio 6 con un arco quitado, uno falso y uno al re
   ]);
   // Con K → H, el alumno ya implica E → H por E → I → J → K → H: su arco E → H queda redundante (aviso).
   assert.deepEqual(r.warnings, [{ code: 'redundant', ids: ['E', 'H'], path: ['E', 'I', 'J', 'K', 'H'] }]);
-  // 14 inmediatas + 4 iniciales + 1 final = 19; aciertos 12 + 4 + 1 = 17; arcos falsos 2 (C → F y K → H).
-  assert.deepEqual(r.counts, { hits: 17, total: 19, falseArcs: 2, cycle: false });
-  assert.ok(Math.abs(RC.score(r) - 100 * 15 / 19) < 1e-9);
+  // 14 inmediatas + 4 iniciales + 1 final = 19; aciertos 12 + 4 + 1 = 17; arcos falsos 1 (C → F). K → H, al revés, ya
+  // pierde el acierto de H → K y no resta otra vez (decisión del autor en la revisión de T018, N-F11; antes, 2 y 15/19).
+  assert.deepEqual(r.counts, { hits: 17, total: 19, falseArcs: 1, cycle: false });
+  assert.ok(Math.abs(RC.score(r) - 100 * 16 / 19) < 1e-9);
 });
 
 test('T002 · AC3 y AC22: un arco al revés que cierra un ciclo lo nombra con sus nodos y la nota no pasa del 50 %', () => {
@@ -341,4 +342,52 @@ test('T010 · pertHits: las precedencias inmediatas representadas que cuenta sco
   const last = id.get(Math.max(...min6.net.events.map((e) => e.n)));
   t = RT.apply(s, { type: 'addDummy', from: last, to: id.get(1) });
   assert.deepEqual(RC.pertHits(t.net, p6), { hits: 14, total: 14 });
+});
+
+// ---------- revisión de nivel 2 (T018) ----------
+
+test('T018 · N-F11: un arco al revés resta una sola vez, como quitar el arco o añadir uno falso', () => {
+  const good = RC.fromTable(p6);
+  const rev = RC.diagnose(p6, plus(without(good, 'H', 'K'), 'K', 'H'));
+  const cut = RC.diagnose(p6, without(good, 'H', 'K'));
+  const extra = RC.diagnose(p6, plus(good, 'C', 'F'));
+  assert.deepEqual(rev.issues.map((i) => i.code), ['inverted']);
+  assert.equal(rev.counts.falseArcs, 0);
+  for (const r of [rev, cut, extra]) assert.ok(Math.abs(RC.score(r) - 100 * 18 / 19) < 1e-9, JSON.stringify(r.counts));
+});
+
+test('T018 · N-F4: una unión de más con Fin resta como una de más con Inicio', () => {
+  const good = RC.fromTable(p6);
+  const extraEnd = good.nodes.map((n) => n.id).find((a) => a !== S && a !== F && p6.succs[a].length);
+  const r = RC.diagnose(p6, plus(good, extraEnd, F));
+  assert.deepEqual(r.issues, [{ code: 'endLink', ids: [extraEnd] }]);
+  assert.deepEqual([r.counts.hits, r.counts.total, r.counts.falseArcs], [19, 19, 1]);
+  assert.ok(Math.abs(RC.score(r) - 100 * 18 / 19) < 1e-9);
+});
+
+test('T018 · N-F8: un arco de un nodo a sí mismo es imposible y resta; uno repetido cuenta una vez', () => {
+  const good = RC.fromTable(p6);
+  let r = RC.diagnose(p6, plus(good, 'A', 'A'));
+  assert.deepEqual(r.issues, [{ code: 'invalidArc', ids: ['A', 'A'] }]);
+  assert.equal(r.counts.falseArcs, 1);
+  assert.equal(r.counts.cycle, false);
+  r = RC.diagnose(p6, plus(plus(good, 'C', 'F'), 'C', 'F'));
+  assert.deepEqual(r.issues, [{ code: 'falsePrecedence', ids: ['C', 'F'] }]);
+  assert.equal(r.counts.falseArcs, 1, 'el repetido no resta dos veces');
+  r = RC.diagnose(p6, plus(good, 'A', 'ZZ'));
+  assert.deepEqual(r.issues, [{ code: 'invalidArc', ids: ['A', 'ZZ'] }]);
+});
+
+test('T018 · I-F1: rawScore, pertExtraPct y pertWrongPct son las partes de score y scorePert', () => {
+  const only = { nodes: RC.fromTable(p6).nodes, arcs: [{ from: S, to: F }] };
+  const r = RC.diagnose(p6, only);
+  assert.equal(r.counts.hits, 0);
+  assert.ok(r.counts.falseArcs >= 1);
+  assert.equal(RC.rawScore(r), 0, 'sin bajar de 0');
+  const cyc = RC.diagnose(p6, plus(RC.fromTable(p6), 'H', 'A'));
+  assert.ok(RC.rawScore(cyc) > 50 && RC.score(cyc) === 50);
+  assert.deepEqual([0, 1, 4, 5, 6].map(RC.pertExtraPct), [100, 95, 80, 75, 70]);
+  assert.equal(RC.pertWrongPct({ hits: 9, total: 10 }), 60);
+  assert.equal(RC.pertWrongPct({ hits: 3, total: 10 }), 30);
+  assert.equal(RC.pertWrongPct({ hits: 0, total: 0 }), 60);
 });

@@ -66,6 +66,7 @@
       countOne: 'Aciertos: {hits} de {total} (precedencias inmediatas y uniones con Inicio y Fin) menos 1 arco falso: {raw} %.',
       countNone: 'Aciertos: {hits} de {total} (precedencias inmediatas y uniones con Inicio y Fin), sin arcos falsos: {raw} %.',
       cycle: 'Tu red tiene un ciclo, así que no se puede ordenar: la nota se queda en el 50 %.',
+      cycleBelow: 'Tu red tiene un ciclo, así que no se puede ordenar: la nota no puede pasar del 50 %.',
     },
     // T010: construir la PERT en «Ejercicios» (el reto de ficticias con nota).
     pert: {
@@ -137,6 +138,7 @@
       countOne: 'Right: {hits} of {total} (immediate precedences and joins with Start and End) minus 1 false arc: {raw} %.',
       countNone: 'Right: {hits} of {total} (immediate precedences and joins with Start and End), with no false arcs: {raw} %.',
       cycle: 'Your network has a cycle, so it cannot be ordered: the mark stays at 50 %.',
+      cycleBelow: 'Your network has a cycle, so it cannot be ordered: the mark cannot go above 50 %.',
     },
     pert: {
       seeMin: 'See the minimum network', seeRules: 'See the network of the rules',

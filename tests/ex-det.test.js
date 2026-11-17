@@ -127,3 +127,25 @@ test('T011 · la tabla del detective es la de core/detective.forSeed (H2), con l
   assert.deepEqual(r.seeded.errors, d.seeded.errors);
   assert.equal(XD.seeded(GEN.LEVELS.easy, 5, { level: 'easy', graph: 'aoa', kind: 'net' }), r, 'en caché');
 });
+
+// ---------- revisión de nivel 2 (T018) ----------
+
+// I-F3: las explicaciones de los errores de la red que no tenían prueba de contenido, literales (un mutante que cambia el
+// sentido o repite la actividad ya no pasa).
+test('T018 · I-F3: explicaciones de royInverted, royCycle, pertFalseDummy y pertParallel, literales en ES y EN', () => {
+  const sh = { roy: { nodes: [], arcs: [] }, values: null };
+  const base = D.seed(ej6, { sd: 1, level: 'easy', graph: 'aoa', kind: 'calc' }).shown.pert;
+  const pe = { pert: Object.assign({}, base, { dummies: base.dummies.concat([{ name: 'F9', from: 4, to: 5 }]) }), values: null };
+  const inv = { type: 'royInverted', element: 'F>C', accept: ['F>C'], data: { from: 'F', to: 'C' } };
+  const cyc = { type: 'royCycle', element: 'H>A', accept: ['H>A'], data: { from: 'H', to: 'A' } };
+  const fd = { type: 'pertFalseDummy', element: 'd:4-5', accept: ['d:4-5'], data: { from: 4, to: 5 } };
+  const par = { type: 'pertParallel', element: 'B=C', accept: ['B', 'C'], data: { dummy: 'F1', act: 'B', twin: 'C', from: 1, to: 3, gone: 2 } };
+  assert.equal(XD.explainText(inv, ctxOf(ej6, 'aon', sh, 'es')), 'El arco F → C va al revés: la tabla pone C antes que F.');
+  assert.equal(XD.explainText(inv, ctxOf(ej6, 'aon', sh, 'en')), 'The arc F → C is reversed: the table puts C before F.');
+  assert.equal(XD.explainText(cyc, ctxOf(ej6, 'aon', sh, 'es')), 'El arco H → A cierra un ciclo: en la tabla A ya va antes que H, así que H acabaría esperándose a sí misma.');
+  assert.equal(XD.explainText(cyc, ctxOf(ej6, 'aon', sh, 'en')), 'The arc H → A closes a cycle: in the table A already comes before H, so H would end up waiting for itself.');
+  assert.equal(XD.explainText(fd, ctxOf(ej6, 'aoa', pe, 'es')), 'Sobra la ficticia F9, del suceso 4 al 5: hace esperar lo que sale del suceso 5 a lo que acaba en el 4, y la tabla no lo pide.');
+  assert.equal(XD.explainText(fd, ctxOf(ej6, 'aoa', pe, 'en')), 'Dummy F9, from event 4 to 5, is not needed: it makes what leaves event 5 wait for what ends at event 4, which the table does not ask for.');
+  assert.equal(XD.explainText(par, ctxOf(ej6, 'aoa', pe, 'es')), 'B y C van las dos del suceso 1 al 3: falta un suceso para B y la ficticia F1, para que cada actividad tenga sus propios sucesos.');
+  assert.equal(XD.explainText(par, ctxOf(ej6, 'aoa', pe, 'en')), 'B and C both go from event 1 to 3: B needs an event of its own and the dummy F1, so that each activity has its own events.');
+});

@@ -69,17 +69,44 @@
       .some(([l, f, t]) => l === label && f === from && t === to);
     const shown = new Set(m.pert.events.map((e) => e.n));
     let s = head(w, h, m.title, m.desc);
-    const edge = (from, to, label, dash) => {
-      if (!shown.has(from) || !shown.has(to) || !lay.pos[from] || !lay.pos[to]) return '';
-      const bends = same(label, from, to) ? (lay.bends[label] || []).map(xy) : [];
-      const pts = clip([xy(lay.pos[from]), ...bends, xy(lay.pos[to])], () => R);
-      const k = Math.floor((pts.length - 1) / 2);
-      const mid = [(pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2];
-      const vert = Math.abs(pts[k + 1][0] - pts[k][0]) < 4;
-      return line(pts, dash) + `<text x="${f1(vert ? mid[0] + 7 : mid[0])}" y="${f1(vert ? mid[1] + 4 : mid[1] - 5)}" text-anchor="${vert ? 'start' : 'middle'}"${dash ? ' font-style="italic"' : ''}>${esc(label)}</text>`;
-    };
-    for (const a of m.pert.arcs) s += edge(a.from, a.to, a.act, false);
-    for (const d of m.pert.dummies) s += edge(d.from, d.to, d.name, true);
+    // Las flechas primero y las etiquetas después, para apartar las que se tocan. Dos arcos rectos con los mismos sucesos
+    // (el error pertParallel) se curvan a lados distintos, como en det-view; una etiqueta que pisaría a otra baja hasta
+    // quedar libre (revisión de T018, I-F5: salían una encima de otra en una de cada cuatro imágenes).
+    const list = [...m.pert.arcs.map((a) => [a.from, a.to, a.act, false]), ...m.pert.dummies.map((d) => [d.from, d.to, d.name, true])]
+      .filter(([from, to]) => shown.has(from) && shown.has(to) && lay.pos[from] && lay.pos[to])
+      .map(([from, to, label, dash]) => ({ from, to, label, dash, bends: same(label, from, to) ? (lay.bends[label] || []).map(xy) : [] }));
+    const groups = new Map();
+    for (const e of list) if (!e.bends.length) { const k = `${e.from}-${e.to}`; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); }
+    const labels = [];
+    for (const e of list) {
+      const p0 = xy(lay.pos[e.from]); const p1 = xy(lay.pos[e.to]);
+      const g = e.bends.length ? null : groups.get(`${e.from}-${e.to}`);
+      let pts; let lab; let vert;
+      if (g && g.length > 1) {
+        const off = (g.indexOf(e) - (g.length - 1) / 2) * 24;
+        const dx = p1[0] - p0[0]; const dy = p1[1] - p0[1]; const d = Math.hypot(dx, dy) || 1;
+        const apex = [(p0[0] + p1[0]) / 2 - (dy / d) * off, (p0[1] + p1[1]) / 2 + (dx / d) * off];
+        pts = clip([p0, apex, p1], () => R);
+        vert = false;
+        lab = [apex[0], apex[1] + (off < 0 ? -5 : 13)];
+      } else {
+        pts = clip([p0, ...e.bends, p1], () => R);
+        const k = Math.floor((pts.length - 1) / 2);
+        const mid = [(pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2];
+        vert = Math.abs(pts[k + 1][0] - pts[k][0]) < 4;
+        lab = vert ? [mid[0] + 7, mid[1] + 4] : [mid[0], mid[1] - 5];
+      }
+      s += line(pts, e.dash);
+      labels.push({ e, x: lab[0], y: lab[1], anchor: vert ? 'start' : 'middle' });
+    }
+    const placed = [];
+    const box = (q) => { const wd = 8 * String(q.e.label).length + 2; const x0 = q.anchor === 'start' ? q.x : q.x - wd / 2; return [x0, q.y - 11, x0 + wd, q.y + 2]; };
+    const hits = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    for (const q of labels) {
+      for (let k = 0; k < 6 && placed.some((b) => hits(box(q), b)); k++) q.y += 13;
+      placed.push(box(q));
+      s += `<text x="${f1(q.x)}" y="${f1(q.y)}" text-anchor="${q.anchor}"${q.e.dash ? ' font-style="italic"' : ''}>${esc(q.e.label)}</text>`;
+    }
     for (const e of m.pert.events) {
       if (!lay.pos[e.n]) continue;
       const [x, y] = xy(lay.pos[e.n]);

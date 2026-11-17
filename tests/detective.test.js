@@ -290,3 +290,41 @@ test('T004 · el núcleo del detective no usa Math.random', () => {
   const src = fs.readFileSync(path.join(__dirname, '../js/core/detective.js'), 'utf8');
   assert.ok(!/Math\.random/.test(src));
 });
+
+// ---------- revisión de nivel 2 (T018) ----------
+
+// N-F1: un error de cálculo nunca cae en el suceso que borra un error pertParallel (no se dibujaría ni se podría marcar).
+// Las semillas que lo daban antes: media 119; difícil 10, 47 y 74 (PERT, todos). N-F2: las ficticias de más se llaman distinto.
+test('T018 · N-F1 y N-F2: los valores sembrados están en la red que se enseña y cada ficticia tiene su nombre', () => {
+  for (const lv of ['medium', 'hard']) {
+    for (let s = 1, k = 0; k < 300; s++) {
+      const g = G.generate(s, G.LEVELS[lv]);
+      if (!g.ok) continue;
+      k++;
+      const p = P.parse(g.rows, g.mode).project;
+      for (const kind of ['all', 'net']) {
+        const res = D.seed(p, { sd: s, level: lv, graph: 'aoa', kind });
+        if (!res) continue;
+        const names = res.shown.pert.dummies.map((x) => x.name);
+        assert.equal(new Set(names).size, names.length, `${lv} ${s} ${kind}: ficticias con el mismo nombre (${names})`);
+        const shown = new Set(res.shown.pert.events.map((e) => e.n));
+        for (const e of res.errors) {
+          const ev = /^e(\d+)\./.exec(e.element);
+          if (ev) assert.ok(shown.has(Number(ev[1])), `${lv} ${s} ${kind}: ${e.type} en ${e.element}, suceso que no se enseña`);
+        }
+      }
+    }
+  }
+  // Los casos concretos de la revisión.
+  for (const [lv, sd] of [['medium', 119], ['hard', 10], ['hard', 47], ['hard', 74]]) {
+    const g = G.generate(sd, G.LEVELS[lv]);
+    const res = D.seed(P.parse(g.rows, g.mode).project, { sd, level: lv, graph: 'aoa', kind: 'all' });
+    const shown = new Set(res.shown.pert.events.map((e) => e.n));
+    for (const e of res.errors) { const ev = /^e(\d+)\./.exec(e.element); if (ev) assert.ok(shown.has(Number(ev[1])), `${lv} ${sd}: ${e.element}`); }
+  }
+  const g = G.generate(64, G.LEVELS.medium);
+  const res = D.seed(P.parse(g.rows, g.mode).project, { sd: 64, level: 'medium', graph: 'aoa', kind: 'net' });
+  assert.equal(res.errors.filter((e) => e.type === 'pertFalseDummy').length, 2, 'la semilla 64 siembra dos ficticias de más');
+  const names = res.shown.pert.dummies.map((x) => x.name);
+  assert.equal(new Set(names).size, names.length, names.join(','));
+});

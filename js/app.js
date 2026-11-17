@@ -307,8 +307,12 @@
     if (needsDt(next) && !READY.dt()) { need('dt').then(() => dispatch(action, opts), noop); return; }
     if (missingU7(next)) { needU7(next).then(() => dispatch(action, opts), noop); return; }
     state = next;
+    // F3d (revisión de T018, I-F9, decisión del autor): en el reto ROY, cambiar la tabla sin cambiar su estructura (una
+    // duración o un nombre) conserva la red del alumno; con otra estructura se borra, como antes.
+    const keepRn = action.type === 'table' && before.rn && model && model.project ? structKey(model.project) : null;
     const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'xk', 'dg', 'dk', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
+    if (keepRn && model && model.project && structKey(model.project) === keepRn) state = Object.assign({}, state, { rn: before.rn });
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
     if (before.step !== state.step || dataChanged || traceChanged) resetPred();

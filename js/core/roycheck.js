@@ -125,9 +125,10 @@
         if (path) warnings.push({ code: 'redundant', ids: [x, y], path });
         continue;
       }
-      falseArcs++;
+      // Un arco al revés es un solo error: pierde el acierto de su precedencia y no cuenta además como arco falso
+      // (decisión del autor en la revisión de T018, N-F11; antes restaba dos veces).
       if (direct[y].includes(x)) { issues.push({ code: 'inverted', ids: [y, x] }); back.add(`${y}>${x}`); }
-      else issues.push({ code: 'falsePrecedence', ids: [x, y] });
+      else { falseArcs++; issues.push({ code: 'falsePrecedence', ids: [x, y] }); }
     }
     let hits = 0; let total = 0;
     for (const a of ids) for (const b of direct[a]) {
@@ -156,11 +157,13 @@
     return { ok: issues.length === 0, issues, warnings, counts: { hits, total, falseArcs, cycle } };
   }
 
-  function score(r) {
+  // La nota ROY sin el tope del ciclo (la que explica la frase de la nota) y con él. La interfaz las lee de aquí, sin
+  // repetir la fórmula (principio 4; revisión de T018, I-F1).
+  function rawScore(r) {
     const c = r.counts;
-    const raw = c.total ? 100 * Math.max(0, c.hits - c.falseArcs) / c.total : (c.falseArcs ? 0 : 100);
-    return c.cycle ? Math.min(raw, 50) : raw;
+    return c.total ? 100 * Math.max(0, c.hits - c.falseArcs) / c.total : (c.falseArcs ? 0 : 100);
   }
+  function score(r) { return r.counts.cycle ? Math.min(rawScore(r), 50) : rawScore(r); }
 
   // Precedencias inmediatas de la tabla representadas en la red PERT del alumno (vale con ciclos y con actividades sin
   // arco, que cuentan como no representadas; H4). T010: la nota de una red incorrecta las cita.
@@ -183,13 +186,16 @@
     return { hits, total };
   }
 
+  // Las dos partes de la nota PERT: con k ficticias de más, 100 − 5k (sin el suelo de 80); incorrecta, las precedencias
+  // representadas, hasta 60.
+  const pertExtraPct = (extra) => 100 - 5 * Math.max(0, extra || 0);
+  const pertWrongPct = (h) => Math.min(60, h.total ? 100 * h.hits / h.total : 100);
   function scorePert(net, p, check) {
-    if (check && check.correct) return check.extra === null || check.extra === undefined ? 100 : Math.max(80, 100 - 5 * Math.max(0, check.extra));
-    const { hits, total } = pertHits(net, p);
-    return Math.min(60, total ? 100 * hits / total : 100);
+    if (check && check.correct) return check.extra === null || check.extra === undefined ? 100 : Math.max(80, pertExtraPct(check.extra));
+    return pertWrongPct(pertHits(net, p));
   }
 
-  const api = { START, END, fromTable, diagnose, score, scorePert, pertHits };
+  const api = { START, END, fromTable, diagnose, score, rawScore, scorePert, pertHits, pertExtraPct, pertWrongPct };
   root.PNL = root.PNL || {};
   root.PNL.roycheck = api;
   if (isNode) module.exports = api;

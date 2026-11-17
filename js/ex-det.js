@@ -22,6 +22,7 @@
   const I = req('./i18n.js', 'i18n');
   if (isNode) require('./i18n-det.js');
   const D = req('./core/detective.js', 'detective');
+  const U = req('./core/urlstate.js', 'urlstate');
   const C = req('./core/cpm.js', 'cpm');
   const NR = req('./narrate.js', 'narrate');
 
@@ -178,8 +179,9 @@
     let focusAfter = null;     // { id } o { el }: lo que recibe el foco tras pintar
     let last = null;           // { container, m }
     let view = null;           // lo último pintado (pruebas)
+    let full = false;          // la última marca se rechazó por pasar de U.MAX_DM (se dice bajo «Tus marcas»)
 
-    function reset() { checked = null; showErrors = false; confirmOpen = false; open = null; }
+    function reset() { checked = null; showErrors = false; confirmOpen = false; open = null; full = false; }
     const redraw = () => { if (last) draw(last.container, last.m); };
     const marksOf = () => hooks.state().dm || [];
     const keyOf = (ms) => JSON.stringify(ms);
@@ -190,6 +192,7 @@
     }
 
     function setMarks(next, said) {
+      full = false;
       hooks.dispatch({ type: 'dm', value: next }, { fromEx: true });
       if (said) hooks.announce(said);
       redraw();
@@ -201,7 +204,9 @@
       const q = params(m);
       const r = seeded(q.prm, q.sd, q.opts);
       clear(container);
-      if (!r) { view = null; return; }
+      // Sin tabla que admita el grupo pedido (p. ej., «Personalizar» muy estrecho): se dice, en vez de dejar la vista en
+      // blanco (revisión de T018, I-F10).
+      if (!r) { view = null; container.appendChild(h('p', { class: 'banner', role: 'status', id: 'dtNoTable' }, [t('noTable')])); return; }
       const ctx = { graph: r.seeded.graph, project: r.project, shown: r.seeded.shown, lang: lang(), nota: s.nota, numFmt: hooks.numFmt };
       const exam = s.xm === 'exam';
       const delivered = exam && !!s.xd;
@@ -231,7 +236,13 @@
           if (x.status === 'missed') showMiss(e, 'missed');
           else status[whereOf(x.mark.element)] = Object.assign({}, status[whereOf(x.mark.element)], { cls: x.status, badge: x.status === 'found' ? '✓' : '½' });
         });
-        for (const fa of g.falseAlarms) status[whereOf(fa.element)] = Object.assign({}, status[whereOf(fa.element)], { cls: 'false', badge: '✗' });
+        // Un nodo y su marca de crítica son el mismo dibujo: una falsa alarma en uno no tapa el error encontrado (o a medias)
+        // en el otro; la lista de resultados dice las dos (revisión de T018, I-F7).
+        for (const fa of g.falseAlarms) {
+          const at = whereOf(fa.element);
+          if (status[at] && (status[at].cls === 'found' || status[at].cls === 'half')) continue;
+          status[at] = Object.assign({}, status[at], { cls: 'false', badge: '✗' });
+        }
       } else if (showErrors && !exam) {
         for (const e of r.seeded.errors) showMiss(e, 'reveal');
       }
@@ -260,6 +271,7 @@
       const marksCard = h('section', { class: 'card dt-marks', 'aria-labelledby': 'dtMarksHead' }, [
         h('h2', { id: 'dtMarksHead', tabindex: '-1' }, [`${t('marks')} (${marks.length})`]),
         marks.length ? h('ol', { id: 'dtMarks', class: 'dt-list' }, markItems) : h('p', { class: 'muted small', id: 'dtMarks' }, [t('none')]),
+        full && !delivered ? h('p', { class: 'small', id: 'dtFull', role: 'status' }, [t('tooMany', { n: U.MAX_DM })]) : null,
         delivered ? null : h('p', { class: 'muted small' }, [t('help')])]);
 
       // ---- La red como tabla (alternativa en texto de la red que se enseña) ----
@@ -350,6 +362,8 @@
       const choose = (o) => {
         open = null;
         focusAfter = { el };
+        // La URL guarda como mucho U.MAX_DM marcas: la siguiente se rechaza y se dice (antes se perdía sin aviso; T018, N-F10).
+        if (!marksOf().some((mk) => mk.element === o.element) && marksOf().length >= U.MAX_DM) { full = true; hooks.announce(t('tooMany', { n: U.MAX_DM })); redraw(); return; }
         setMarks(setMark(marksOf(), o.element, o.type), t('did.mark', { x: elName(o.element, ctx), type: typeName(o.type, lang()) }));
       };
       const close = () => { open = null; focusAfter = { el }; redraw(); };

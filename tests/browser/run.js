@@ -8264,6 +8264,116 @@ check('F3d T015 AC19 · principio 27: las vistas nuevas con lo hecho, entregadas
   assert.equal(s.lv, 'hard');
 });
 
+// ---------- F3d, T018: lo que encontró la revisión de nivel 2 (ronda 1) ----------
+
+check('F3d T018 I-F2 · «Tu red como tabla»: tras un valor que no vale, volver al de antes borra el aviso, y repintar no lo resucita', async () => {
+  const s = { sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es' };
+  const p = exModel(Object.assign({ xk: 'roy' }, s)).project;
+  const b = p.activities.find((a) => p.preds[a.id].length).id;
+  const pred = p.preds[b][0];
+  const good = xbGood(s);
+  const page = await xbLab(Object.assign({ rn: { nodes: good.nodes, arcs: good.arcs } }, s));
+  const cell = page.locator(`#xbPred-${b}`);
+  const before = await cell.inputValue();
+  assert.ok(before.includes(pred));
+  await cell.fill('ZZ');
+  await cell.press('Tab');
+  await page.waitForFunction(() => document.getElementById('xbTableMsg').textContent.length > 0);
+  assert.equal(await cell.getAttribute('aria-invalid'), 'true');
+  await cell.fill(before);
+  await cell.press('Tab');
+  await page.waitForFunction(() => document.getElementById('xbTableMsg').textContent === '');
+  // Cualquier repintado (una herramienta): ni «ZZ» ni el aviso vuelven.
+  await page.locator('#xb-t-join').click();
+  await page.waitForFunction(() => document.getElementById('xb-t-join').getAttribute('aria-pressed') === 'true');
+  assert.equal(await page.locator(`#xbPred-${b}`).inputValue(), before);
+  assert.equal(await page.locator(`#xbPred-${b}`).getAttribute('aria-invalid'), null);
+  assert.equal(await page.locator('#xbTableMsg').textContent(), '');
+  await close(page);
+});
+
+check('F3d T018 I-F8 · mover con las flechas un nodo que ya está en el borde no lo anuncia como movido', async () => {
+  const s = { sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es' };
+  const good = xbGood(s);
+  const a = good.nodes.find((n) => n.id !== '_S' && n.id !== '_E').id;
+  const nodes = good.nodes.map((n) => (n.id === a ? { id: a, x: 20, y: 20 } : n));
+  const page = await xbLab(Object.assign({ rn: { nodes, arcs: good.arcs } }, s));
+  await xbKey(page, xbNode(a), 'ArrowLeft');
+  await page.waitForTimeout(150);
+  const moved = I0.t('es', 'xb.did.move', { x: a });
+  assert.notEqual(await page.locator('#live').textContent(), moved);
+  assert.deepEqual((await xbNet(page)).nodes.find((n) => n.id === a), { id: a, x: 20, y: 20 });
+  await xbKey(page, xbNode(a), 'ArrowRight');
+  await page.waitForFunction((x) => document.getElementById('live').textContent === x, moved);
+  await close(page);
+});
+
+check('F3d T018 I-F9 · reto ROY del taller: cambiar una duración conserva la red del alumno; cambiar las precedencias la borra', async () => {
+  const page = await rrLab({ v: 'work' });
+  await xbKey(page, '#xb-c-A', 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await page.waitForFunction(() => PNL.app.state().rn && PNL.app.state().rn.nodes.some((n) => n.id === 'A'));
+  const rn = (await state(page)).rn;
+  const row = page.locator('#workshop tbody tr').first();
+  assert.equal(await row.locator('[data-f="id"]').inputValue(), 'A');
+  await row.locator('[data-f="duration"]').fill('9');
+  await page.waitForFunction(() => PNL.app.state().t && PNL.app.state().t[0].duration === '9');
+  assert.deepEqual((await state(page)).rn, rn, 'la misma red');
+  assert.deepEqual((await rrSt(page)).net.nodes.map((n) => n.id).sort(), ['A', '_E', '_S']);
+  // Otra estructura: la red se borra, como antes.
+  const rows = page.locator('#workshop tbody tr');
+  let k = 0;
+  while (!(await rows.nth(k).locator('[data-f="links"]').inputValue())) k++;
+  await rows.nth(k).locator('[data-f="links"]').fill('');
+  await page.waitForFunction(() => PNL.app.state().rn === null);
+  await close(page);
+});
+
+check('F3d T018 I-F7 · detective: un nodo con su error encontrado y una falsa alarma en su marca de crítica sigue con ✓ en el dibujo', async () => {
+  let s = null; let e = null;
+  for (let sd = 1; sd < 400 && !e; sd++) {
+    const t = { sd, lv: 'medium', lang: 'es', dg: 'aon', dk: 'all' };
+    const r = dtSeed(t);
+    const x = r.seeded.errors.find((y) => y.type === 'royMissing' && !r.seeded.errors.some((z) => z.element === `${y.accept[0]}.crit`));
+    if (x) { s = t; e = x; }
+  }
+  assert.ok(e, 'una tabla con royMissing');
+  const a = e.accept[0];
+  const page = await dtLab(Object.assign({ dm: [{ element: a, type: 'royMissing' }, { element: `${a}.crit`, type: 'calcCrit' }] }, s));
+  await page.locator('#dtCheck').click();
+  await page.locator('#dtResult').waitFor();
+  assert.equal(await page.locator(`${dtEl(a)}.found`).count(), 1, 'el nodo, encontrado');
+  assert.equal(await page.locator(`${dtEl(a)}.false`).count(), 0);
+  assert.ok((await page.locator('#dtResult li .dt-st').allInnerTexts()).includes('✗ Falsa alarma'), 'la falsa alarma, en la lista');
+  await close(page);
+});
+
+check('F3d T018 I-F10 y N-F10 · el detective sin tabla lo dice; la marca 41 se rechaza y se dice, sin perder las 40', async () => {
+  const gp = { n: [4, 4], pred: 1, dummies: null, critical: [1, 1], dmax: 5 };
+  let page = await open(dtUrl({ sd: 1, lv: 'custom', gp, dg: 'aoa', dk: 'net', lang: 'es' }));
+  await page.locator('#dtNoTable').waitFor({ timeout: 20000 });
+  assert.equal(await page.locator('#dtNoTable').innerText(), I0.t('es', 'det.noTable'));
+  await axe(page, 'Detective sin tabla (ES)');
+  await close(page);
+  const s = { sd: EX_CASES.hard.sd, lv: 'hard', lang: 'en', dg: 'aon', dk: 'all' };
+  const r = dtSeed(s);
+  const els = [];
+  for (const a of r.project.activities.map((x) => x.id)) for (const f of ['ES', 'LS', 'TF']) els.push(`${a}.${f}`);
+  assert.ok(els.length > 40);
+  const dm = els.slice(0, U0.MAX_DM).map((element) => ({ element, type: element.endsWith('.ES') ? 'calcES' : element.endsWith('.TF') ? 'calcFloat' : 'calcLF' }));
+  page = await dtLab(Object.assign({ dm }, s));
+  assert.equal((await state(page)).dm.length, 40);
+  const next = els[U0.MAX_DM];
+  await page.focus(dtEl(next));
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#dtMenu');
+  await page.locator('#dtMenu [data-type]').first().click();
+  await page.locator('#dtFull').waitFor();
+  assert.equal(await page.locator('#dtFull').innerText(), I0.t('en', 'det.tooMany', { n: 40 }));
+  assert.equal((await state(page)).dm.length, 40, 'las 40 siguen');
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
