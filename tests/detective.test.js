@@ -328,3 +328,12 @@ test('T018 · N-F1 y N-F2: los valores sembrados están en la red que se enseña
   const names = res.shown.pert.dummies.map((x) => x.name);
   assert.equal(new Set(names).size, names.length, names.join(','));
 });
+
+// R2-F2 (ronda 2): N-F1 solo separa pertParallel del cálculo en el suceso que borra. Las demás semillas siguen como en
+// 711a2b0: dos casillas del mismo suceso pueden ir juntas (media 98 y 27) y la PERT de cálculo difícil 4 no cambia.
+test('T018 r2 · R2-F2: el detective PERT de cálculo siembra lo mismo que antes de N-F1 (dos casillas de un suceso pueden ir juntas)', () => {
+  const got = (lv, sd, kind) => D.forSeed(G.LEVELS[lv], sd, { level: lv, graph: 'aoa', kind }).seeded.errors.map((e) => `${e.type}:${e.element}`);
+  assert.deepEqual(got('hard', 4, 'calc'), ['calcTE:e7.TE', 'calcCrit:L.crit', 'calcSlack:e9.slack']);
+  assert.deepEqual(got('medium', 98, 'calc'), ['calcTE:e3.TE', 'calcTL:e3.TL']);
+  assert.deepEqual(got('medium', 27, 'calc'), ['calcSlack:e4.slack', 'calcTL:e4.TL']);
+});

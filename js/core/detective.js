@@ -78,13 +78,7 @@
     const { p, ids, red: { reach, direct }, acts, events, net, edges, d, evs, ereach } = ctx;
     const out = [];
     const imm = []; for (const b of ids) for (const a of p.preds[b]) if (direct[a].includes(b)) imm.push([a, b]);
-    // Los valores de un suceso (eN.TE, eN.TL, eN.slack) tocan también «goneN»: un error pertParallel que borra ese suceso
-    // de la red que se enseña no puede ir con un error de cálculo en él (no se dibujaría; revisión de T018, N-F1).
-    const calc = (element, wrong, right) => {
-      if (rnd(wrong) === rnd(right)) return;
-      const ev = /^e(\d+)\./.exec(element);
-      out.push(Object.assign({ element, accept: [element], wrong: rnd(wrong), right }, ev ? { touches: [element, `gone${ev[1]}`] } : {}));
-    };
+    const calc = (element, wrong, right) => { if (rnd(wrong) !== rnd(right)) out.push({ element, accept: [element], wrong: rnd(wrong), right }); };
     switch (type) {
       case 'royMissing': for (const [a, b] of imm) out.push({ element: arcKey(a, b), accept: [a, b], data: { from: a, to: b }, touches: [arcKey(a, b)] }); break;
       case 'royInverted': for (const [a, b] of imm) out.push({ element: arcKey(b, a), accept: [arcKey(b, a)], data: { from: b, to: a }, touches: [arcKey(a, b), arcKey(b, a)] }); break;
@@ -115,7 +109,9 @@
           if (!twin) continue;
           const pair = [mover.act, twin.act].sort(byId);
           out.push({ element: pair.join('='), accept: pair, data: { dummy: x.name, act: mover.act, twin: twin.act, from: mover.from, to: x.to, gone: x.from },
-            touches: [x.name, `ev${x.from}`, `ev${x.to}`, `ev${mover.from}`, `gone${x.from}`] });
+            // Toca también las casillas del suceso que borra: un error de cálculo en él no se dibujaría (revisión de T018,
+            // N-F1; en la ronda 2, R2-F2, sin que las casillas de un suceso se excluyan entre sí).
+            touches: [x.name, `ev${x.from}`, `ev${x.to}`, `ev${mover.from}`, `e${x.from}.TE`, `e${x.from}.TL`, `e${x.from}.slack`] });
         }
         break;
       case 'calcES':

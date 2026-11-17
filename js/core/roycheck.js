@@ -126,7 +126,8 @@
         continue;
       }
       // Un arco al revés es un solo error: pierde el acierto de su precedencia y no cuenta además como arco falso
-      // (decisión del autor en la revisión de T018, N-F11; antes restaba dos veces).
+      // (decisión del autor en la revisión de T018, N-F11; antes restaba dos veces). Si la precedencia sigue representada
+      // (el arco correcto también está), no pierde nada y cuenta como arco falso (ronda 2, R2-F3), más abajo.
       if (direct[y].includes(x)) { issues.push({ code: 'inverted', ids: [y, x] }); back.add(`${y}>${x}`); }
       else { falseArcs++; issues.push({ code: 'falsePrecedence', ids: [x, y] }); }
     }
@@ -136,6 +137,7 @@
       if (linked(a, b)) hits++;
       else if (nodes.has(a) && nodes.has(b) && !back.has(`${a}>${b}`)) issues.push({ code: 'missingPrecedence', ids: [a, b] });
     }
+    for (const k of back) { const [a, b] = k.split('>'); if (linked(a, b)) falseArcs++; }
 
     // Inicio y Fin.
     const ends = (code, set, isEnd) => {

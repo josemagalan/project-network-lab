@@ -391,3 +391,26 @@ test('T018 · I-F1: rawScore, pertExtraPct y pertWrongPct son las partes de scor
   assert.equal(RC.pertWrongPct({ hits: 3, total: 10 }), 30);
   assert.equal(RC.pertWrongPct({ hits: 0, total: 0 }), 60);
 });
+
+// R2-F3 (ronda 2, decisión del autor): un arco al revés junto al correcto (el par en los dos sentidos) cuenta como arco
+// falso; el que va solo sigue restando una vez, al perder el acierto (N-F11).
+test('T018 r2 · R2-F3: con el arco correcto también dibujado, el arco al revés resta como un arco falso', () => {
+  const good = RC.fromTable(p6);
+  const part = { nodes: good.nodes, arcs: [[S, 'A'], [S, 'B'], [S, 'C'], [S, 'D'], ['A', 'E'], ['B', 'F'], ['E', 'H'], ['K', F]].map(([from, to]) => ({ from, to })) };
+  const base = RC.diagnose(p6, part);
+  assert.deepEqual([base.counts.hits, base.counts.total, base.counts.falseArcs, base.counts.cycle], [8, 19, 0, false]);
+  const pair = RC.diagnose(p6, plus(part, 'F', 'B'));
+  assert.ok(pair.issues.some((i) => i.code === 'inverted' && i.ids.join() === 'B,F'));
+  assert.deepEqual([pair.counts.hits, pair.counts.falseArcs, pair.counts.cycle], [8, 1, true]);
+  assert.ok(Math.abs(RC.score(pair) - 100 * 7 / 19) < 1e-9, String(RC.score(pair)));
+  // Como un arco falso que también cierra un ciclo.
+  const fake = RC.diagnose(p6, plus(part, 'H', 'A'));
+  assert.equal(RC.score(fake), RC.score(pair));
+  // Solo, sin el correcto: pierde el acierto y no resta más (N-F11).
+  const alone = RC.diagnose(p6, plus(without(part, 'B', 'F'), 'F', 'B'));
+  assert.deepEqual([alone.counts.hits, alone.counts.falseArcs], [7, 0]);
+  // La red completa con el par K → H: el tope del ciclo.
+  const full = RC.diagnose(p6, plus(good, 'K', 'H'));
+  assert.deepEqual([full.counts.hits, full.counts.falseArcs, full.counts.cycle], [19, 1, true]);
+  assert.equal(RC.score(full), 50);
+});

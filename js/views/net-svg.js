@@ -99,11 +99,21 @@
       s += line(pts, e.dash);
       labels.push({ e, x: lab[0], y: lab[1], anchor: vert ? 'start' : 'middle' });
     }
-    const placed = [];
+    // Los sucesos ocupan su sitio desde el principio (se pintan encima) y la etiqueta no sale de la imagen: se prueba
+    // bajarla y subirla 13 px cada vez y, si no basta, al otro lado de la flecha (a la izquierda de una vertical; a un lado
+    // y otro de una horizontal) hasta quedar libre (ronda 2, R2-F7); si no hay sitio, se queda donde estaba.
+    const placed = m.pert.events.filter((e) => lay.pos[e.n]).map((e) => { const [x, y] = xy(lay.pos[e.n]); return [x - R, y - R, x + R, y + R]; });
     const box = (q) => { const wd = 8 * String(q.e.label).length + 2; const x0 = q.anchor === 'start' ? q.x : q.x - wd / 2; return [x0, q.y - 11, x0 + wd, q.y + 2]; };
     const hits = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+    const free = (b) => b[0] >= 0 && b[1] >= 0 && b[2] <= w && b[3] <= h && !placed.some((c) => hits(b, c));
+    const DYS = [0, 13, -13, 26, -26, 39, -39, 52, -52];
     for (const q of labels) {
-      for (let k = 0; k < 6 && placed.some((b) => hits(box(q), b)); k++) q.y += 13;
+      const wd = 8 * String(q.e.label).length + 2;
+      const sides = q.anchor === 'start' ? [-(wd + 14)] : [wd + 4, -(wd + 4)];
+      const tries = [...DYS.slice(0, 3).map((dy) => [0, dy]), ...sides.flatMap((dx) => DYS.slice(0, 3).map((dy) => [dx, dy])),
+        ...DYS.slice(3).map((dy) => [0, dy]), ...sides.flatMap((dx) => DYS.slice(3).map((dy) => [dx, dy]))];
+      const at = tries.find(([dx, dy]) => free(box(Object.assign({}, q, { x: q.x + dx, y: q.y + dy })))) || [0, 0];
+      q.x += at[0]; q.y += at[1];
       placed.push(box(q));
       s += `<text x="${f1(q.x)}" y="${f1(q.y)}" text-anchor="${q.anchor}"${q.e.dash ? ' font-style="italic"' : ''}>${esc(q.e.label)}</text>`;
     }

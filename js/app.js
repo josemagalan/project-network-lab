@@ -46,6 +46,7 @@
   let reto = null;          // { key, st }: la red del alumno (st de js/reto) de la estructura actual
   let retoSol = null;       // método cuya red se enseña con «Ver una solución» (null: ninguna)
   let retoMethod = 'rules'; // el último elegido
+  let rnKey = null;         // estructura de la última tabla válida con la red ROY del reto (dispatch, R2-F1)
   let m0 = null;            // controlador de M0 (F2c)
   let exc = null;           // controlador de «Ejercicios» (F3a)
   let mqc = null;           // controlador del exportador de Moodle (F3b)
@@ -308,11 +309,13 @@
     if (missingU7(next)) { needU7(next).then(() => dispatch(action, opts), noop); return; }
     state = next;
     // F3d (revisión de T018, I-F9, decisión del autor): en el reto ROY, cambiar la tabla sin cambiar su estructura (una
-    // duración o un nombre) conserva la red del alumno; con otra estructura se borra, como antes.
-    const keepRn = action.type === 'table' && before.rn && model && model.project ? structKey(model.project) : null;
+    // duración o un nombre) conserva la red del alumno; con otra estructura se borra, como antes. Mientras la tabla no es
+    // válida (una celda a medio escribir), la red se guarda con la estructura de la última tabla válida (ronda 2, R2-F1).
+    const keepRn = action.type === 'table' && before.rn ? (model && model.project ? structKey(model.project) : rnKey) : null;
     const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'xk', 'dg', 'dk', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
-    if (keepRn && model && model.project && structKey(model.project) === keepRn) state = Object.assign({}, state, { rn: before.rn });
+    if (keepRn && !(model && model.project)) { rnKey = keepRn; state = Object.assign({}, state, { rn: before.rn }); }
+    else if (keepRn && structKey(model.project) === keepRn) state = Object.assign({}, state, { rn: before.rn });
     const traceChanged = before.graph !== state.graph || before.m !== state.m || before.mm !== state.mm;
     if (dataChanged || traceChanged) state = S.reduce(state, { type: 'go', n: state.step }, total());
     if (before.step !== state.step || dataChanged || traceChanged) resetPred();

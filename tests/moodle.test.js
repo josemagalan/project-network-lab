@@ -963,3 +963,28 @@ test('T018 · N-F3: ningún distractor royCycle es un arco que está en un ciclo
   }
   assert.ok(cyc > 50, `${cyc} preguntas con royCycle`);
 });
+
+// R2-F4 (ronda 2): los dos sentidos de claimHolds de royCycle, sobre todas las preguntas ROY de detective: cada afirmación
+// «el arco a → b cierra un ciclo» es cierta si y solo si es la respuesta, y hay distractores de este tipo (falsos).
+test('T018 r2 · R2-F4: «el arco a → b cierra un ciclo» es cierta solo en la respuesta, y sale también como distractor falso', () => {
+  const onCycle = (arcs, a, b) => {
+    if (!arcs.some((e) => e.from === a && e.to === b)) return false;
+    const out = new Map(); for (const e of arcs) { if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e.to); }
+    const seen = new Set([b]); const st = [b];
+    while (st.length) { const x = st.pop(); if (x === a) return true; for (const y of out.get(x) || []) if (!seen.has(y)) { seen.add(y); st.push(y); } }
+    return false;
+  };
+  let wrong = 0; let right = 0;
+  for (const lv of M.LEVELS) for (let sd = 1; sd <= 300; sd++) {
+    const q = M.question('detective', M.exercise(lv, sd), ctx(), tr);
+    if (!q || q.graph !== 'aon') continue;
+    const arcs = q.shown.roy.arcs.filter((e) => e.from !== '_S' && e.to !== '_E');
+    for (const o of q.options) {
+      if (o.claim.type !== 'royCycle') continue;
+      const truth = onCycle(arcs, o.claim.a, o.claim.b);
+      assert.equal(truth, o.fraction === '100', `${lv}/${sd}: ${o.text}`);
+      if (truth) right++; else wrong++;
+    }
+  }
+  assert.ok(right > 20 && wrong > 50, `${right} respuestas y ${wrong} distractores de ciclo`);
+});

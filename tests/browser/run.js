@@ -8329,6 +8329,40 @@ check('F3d T018 I-F9 · reto ROY del taller: cambiar una duración conserva la r
   await close(page);
 });
 
+check('F3d T018 r2 R2-F1 · reto ROY del taller: borrar una duración con Retroceso y teclear otra conserva la red; con otra estructura se borra', async () => {
+  const page = await rrLab({ v: 'work' });
+  await xbKey(page, '#xb-c-A', 'Enter');
+  await xbKey(page, xbNode('_S'), 'n');
+  await page.waitForFunction(() => PNL.app.state().rn && PNL.app.state().rn.nodes.some((n) => n.id === 'A'));
+  const rn = (await state(page)).rn;
+  const row = page.locator('#workshop tbody tr').first();
+  const dur = row.locator('[data-f="duration"]');
+  const old = await dur.inputValue();
+  // Con el teclado, la celda pasa por vacía (tabla no válida) antes de la cifra nueva.
+  await dur.focus();
+  await page.keyboard.press('End');
+  for (let i = 0; i < old.length; i++) await page.keyboard.press('Backspace');
+  await page.waitForFunction(() => PNL.app.state().t && PNL.app.state().t[0].duration === '');
+  assert.deepEqual((await state(page)).rn, rn, 'con la celda vacía, la red sigue');
+  await page.keyboard.type('9');
+  await page.waitForFunction(() => PNL.app.state().t && PNL.app.state().t[0].duration === '9');
+  assert.deepEqual((await state(page)).rn, rn, 'la misma red tras teclear la duración');
+  await page.locator(xbNode('A')).waitFor();
+  assert.deepEqual((await rrSt(page)).net.nodes.map((n) => n.id).sort(), ['A', '_E', '_S']);
+  // Otra estructura, también con el teclado: borrar las precedencias de una fila la borra.
+  const rows = page.locator('#workshop tbody tr');
+  let k = 0;
+  while (!(await rows.nth(k).locator('[data-f="links"]').inputValue())) k++;
+  const links = rows.nth(k).locator('[data-f="links"]');
+  const n = (await links.inputValue()).length;
+  await links.focus();
+  await page.keyboard.press('End');
+  for (let i = 0; i < n; i++) await page.keyboard.press('Backspace');
+  await page.waitForFunction((j) => PNL.app.state().t && PNL.app.state().t[j].links === '', k);
+  await page.waitForFunction(() => !PNL.app.state().rn);
+  await close(page);
+});
+
 check('F3d T018 I-F7 · detective: un nodo con su error encontrado y una falsa alarma en su marca de crítica sigue con ✓ en el dibujo', async () => {
   let s = null; let e = null;
   for (let sd = 1; sd < 400 && !e; sd++) {

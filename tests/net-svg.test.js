@@ -103,3 +103,59 @@ test('T018 · I-F5: en la imagen PERT del detective, ninguna etiqueta pisa a otr
   }
   assert.ok(images > 600 && parallel > 10, `${images} imágenes, ${parallel} con actividades paralelas`);
 });
+
+// ---------- ronda 2 de la revisión (T018) ----------
+
+const AL = require('../js/views/aoa-layout.js');
+const points = (svg) => [...svg.matchAll(/<polyline points="([^"]+)"/g)].map((m) => m[1].split(' ').length);
+const viewBox = (svg) => svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/).slice(1).map(Number);
+const eventBoxes = (svg) => [...svg.matchAll(/<circle cx="([\d.-]+)" cy="([\d.-]+)" r="([\d.]+)"/g)].map((m) => { const x = +m[1]; const y = +m[2]; const r = +m[3]; return [x - r, y - r, x + r, y + r]; });
+
+// R2-F6: solo se curvan los arcos rectos que comparten sucesos; los demás siguen rectos (dos puntos) o con sus codos.
+test('T018 r2 · R2-F6: en la red de las reglas (sin paralelas), cada flecha sigue recta o con los codos de su colocación', () => {
+  let nets = 0;
+  for (const lv of ['easy', 'medium', 'hard']) {
+    for (let sd = 1, k = 0; k < 40; sd++) {
+      const g = G.generate(sd, G.LEVELS[lv]);
+      if (!g.ok) continue;
+      k++;
+      const base = A.build(P.parse(g.rows, g.mode).project, { method: 'rules' });
+      const lay = AL.layout(base);
+      const want = [...base.arcs.map((a) => a.act), ...base.dummies.map((d) => d.name)].map((l) => 2 + (lay.bends[l] || []).length);
+      assert.deepEqual(points(NS.render({ graph: 'aoa', base, pert: base, title: 't', desc: 'd' })), want, `${lv} ${sd}`);
+      nets++;
+    }
+  }
+  assert.equal(nets, 120);
+});
+
+// R2-F7: una etiqueta apartada no cae bajo un suceso (que se pinta encima) ni sale de la imagen.
+test('T018 r2 · R2-F7: en la imagen PERT del detective, ninguna etiqueta pisa un suceso ni sale de la imagen', () => {
+  let images = 0;
+  for (const lv of ['easy', 'medium', 'hard']) {
+    for (let sd = 1, k = 0; k < 120; sd++) {
+      const g = G.generate(sd, G.LEVELS[lv]);
+      if (!g.ok) continue;
+      k++;
+      const p = P.parse(g.rows, g.mode).project;
+      const base = A.build(p, { method: 'rules' });
+      for (const kind of ['net', 'calc', 'all']) {
+        const res = D.seed(p, { sd, level: lv, graph: 'aoa', kind });
+        if (!res) continue;
+        const svg = NS.render({ graph: 'aoa', base, pert: res.shown.pert, title: 't', desc: 'd' });
+        images++;
+        const [w, h] = viewBox(svg);
+        const evs = eventBoxes(svg);
+        const boxes = labelBoxes(svg);
+        for (const b of boxes) {
+          assert.ok(b.b[0] >= 0 && b.b[1] >= 0 && b.b[2] <= w && b.b[3] <= h, `${lv} ${sd} ${kind}: ${b.label} fuera de la imagen`);
+          assert.ok(!evs.some((e) => overlap(b.b, e)), `${lv} ${sd} ${kind}: ${b.label} bajo un suceso`);
+        }
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+          assert.ok(!overlap(boxes[i].b, boxes[j].b), `${lv} ${sd} ${kind}: ${boxes[i].label} y ${boxes[j].label} se pisan`);
+        }
+      }
+    }
+  }
+  assert.ok(images > 900, `${images} imágenes`);
+});
