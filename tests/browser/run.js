@@ -5975,13 +5975,18 @@ check('F4b T011 · réplica a réplica: predecir el camino crítico, con el empa
   await p.locator('#m7Pred-p').check();
   await uncAfter(p, () => PNL.app.state().uh === 'p');
   assert.equal((await state(p)).step, 0, 'cambiar lo que se predice vuelve a la primera réplica');
+  const runLabel = (n) => p.waitForFunction((k) => new RegExp(` ${k}:`).test((document.querySelector('#m7RepNet svg') || { getAttribute: () => '' }).getAttribute('aria-label') || '') && document.getElementById('m7Path-0'), n);
+  await runLabel(1);   // pintada ya la réplica 1 (el enlace abría la 7)
   await p.evaluate(() => PNL.app.go(6));
-  await p.locator('#m7Path-0').waitFor();
+  // Se espera a que la vista pinte la réplica 7: #m7Path-0 ya estaba en la de la réplica 1, y leerla mientras go(6) la
+  // vuelve a pintar daba etiquetas ya fuera del documento (sin estilo, con un espacio delante; CI 107, 108, 122 y 125).
+  await runLabel(7);
   const r = await repStep(p);
   assert.deepEqual(r.options, ['B–D', 'C', 'A–D']);
   assert.deepEqual(r.crit, ['B–D', 'C']);
-  // Con el estado de cada etiqueta en el mensaje: en la CI 107 y 108 salieron con un espacio delante (sin m7.css o sin pintar).
-  const labs = await p.locator('.m7-paths label').evaluateAll((ls) => ls.map((l) => ({ t: l.innerText, d: getComputedStyle(l).display, v: l.checkVisibility(), hid: l.closest('[hidden]') ? l.closest('[hidden]').id || l.closest('[hidden]').tagName : null,
+  // Las etiquetas se leen en una sola evaluación (locator.evaluateAll busca y evalúa en dos viajes, y un repintado en medio
+  // las deja fuera del documento); el mensaje sigue dando el estado de cada una.
+  const labs = await p.evaluate(() => [...document.querySelectorAll('.m7-paths label')].map((l) => ({ t: l.innerText, d: getComputedStyle(l).display, v: l.checkVisibility(), hid: l.closest('[hidden]') ? l.closest('[hidden]').id || l.closest('[hidden]').tagName : null,
     up: l.parentElement.parentElement ? l.parentElement.parentElement.id || l.parentElement.parentElement.className : null })));
   const css = await p.evaluate(() => [...document.styleSheets].map((s) => (s.href || 'inline').split('/').pop() + (s.disabled ? ':off' : '')).join(','));
   assert.deepEqual(labs.map((x) => x.t), ['B–D', 'C', 'A–D'], `${JSON.stringify(labs)} · hojas: ${css}`);
