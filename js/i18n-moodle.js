@@ -116,6 +116,14 @@
       },
       labNote: 'Las etapas 7 a 10 piden trabajar en el laboratorio: la misma tabla se puede abrir en M2 y ver allí la red. Sirven para practicar o para un examen en el aula; en uno a distancia, son menos seguras.',
     },
+    // F3e (T013, plan P2; tableros 100 y 105): la cabecera de moodle.html (el título es page.title).
+    app: {
+      docTitle: 'Bancos de preguntas para Moodle · Laboratorio de redes de proyectos',
+      sub: 'Laboratorio de redes de proyectos · PERT · CPM · ROY',
+      back: 'Volver al laboratorio', backShort: 'Al laboratorio',
+      langEs: 'Español', langEn: 'English',
+      notaEn: 'Inglesa (ES, EF, TF…)', notaEs: 'Española (tᵢ, fᵢ, HT…)',
+    },
   };
 
   const en = {
@@ -222,10 +230,19 @@
       },
       labNote: 'Stages 7 to 10 ask students to work in the lab: the same table can be opened in M2 to see the network there. They are good for practice or for an exam in the classroom; in a remote exam they are less secure.',
     },
+    app: {
+      docTitle: 'Question banks for Moodle · Project Network Lab',
+      sub: 'Project Network Lab · PERT · CPM · ROY',
+      back: 'Back to the lab', backShort: 'To the lab',
+      langEs: 'Español', langEn: 'English',
+      notaEn: 'English (ES, EF, TF…)', notaEs: 'Spanish (tᵢ, fᵢ, HT…)',
+    },
   };
 
   I.dict.es.mq = es;
   I.dict.en.mq = en;
+  // F3e (T013): los nombres de los idiomas se escriben igual en las dos páginas (cada uno en su lengua).
+  for (const k of ['mq.app.langEs', 'mq.app.langEn']) if (!I.SAME_IN_BOTH.includes(k)) I.SAME_IN_BOTH.push(k);
 
   /** La función de textos que recibe core/moodle: tr(key, params) = i18n.t(lang, 'mq.' + key, params). */
   const tr = (lang) => (k, p) => I.t(lang, `mq.${k}`, p);

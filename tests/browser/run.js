@@ -79,7 +79,9 @@ const lab = (hash, opts) => open(`cpm.html#${hash}`, opts);
 const state = (page) => page.evaluate(() => PNL.app.state());
 const step = (page) => page.evaluate(() => PNL.app.step());
 // F4a (T013): Idioma, Notación y Caja van en el desplegable «Ajustes»: se abre, se elige y se cierra, como haría el usuario.
+// F3e (T013): en moodle.html no hay «Ajustes»: Idioma y Notación están en la cabecera, a la vista.
 async function setCtl(page, sel, value) {
+  if (!(await page.locator('#settings').count())) { await page.selectOption(sel, value); return; }
   const s = page.locator('#settings');
   if (!(await s.evaluate((d) => d.open))) await s.locator('summary').click();
   await page.selectOption(sel, value);
@@ -3811,7 +3813,11 @@ check('F3a T020 · un valor largo se corta en el campo y no borra lo escrito; di
 // ---------- F3b: exportador de Moodle (spec f3b-moodle; tableros 51–56) ----------
 
 const mq = (page) => page.evaluate(() => PNL.moodlePage.state());
-const mqOpen = async (lang, opts) => { const p = await lab(`v=moodle&lang=${lang}`, opts); await p.waitForFunction(() => PNL.moodlePage && PNL.moodlePage.state); return p; };
+// F3e (T013, P2): las pruebas del exportador de la F3b a la F3d van contra su página propia, moodle.html, con el mismo
+// estado en el «#»; cpm.html#v=moodle sigue igual hasta la publicación (T017) y conserva sus pruebas propias (mqCpm).
+const mqWait = (p) => p.waitForFunction(() => window.PNL && PNL.moodlePage && PNL.moodlePage.state && PNL.moodlePage.state().preview);
+const mqOpen = async (lang, opts) => { const p = await open(`moodle.html#v=moodle&lang=${lang}`, opts); await mqWait(p); return p; };
+const mqCpm = async (lang, opts) => { const p = await lab(`v=moodle&lang=${lang}`, opts); await mqWait(p); return p; };
 // Deja marcadas solo estas etapas y niveles (por su texto) y fija los ejemplares.
 async function mqSelect(page, stages, levels, count) {
   const labels = await page.$$eval('#mqView .mq-check', (ls) => ls.map((l) => l.textContent));
@@ -3827,7 +3833,9 @@ check('F3b AC8 · v=moodle: título, resumen y vista previa igual al modelo del 
   // F3d (T014): con las etapas 7 a 10 publicadas, once categorías sin la 0.
   for (const [lang, sum, h1] of [['es', 'Se generarán 110 preguntas en 11 categorías.', 'Bancos de preguntas para Moodle'], ['en', '110 questions will be generated in 11 categories.', 'Question banks for Moodle']]) {
     const page = await mqOpen(lang);
-    assert.equal(await page.locator('#mqView h1').textContent(), h1);
+    // F3e (T013): en moodle.html el título va en la cabecera de la página (el único <h1>).
+    assert.equal(await page.locator('h1').count(), 1);
+    assert.equal(await page.locator('header h1').textContent(), h1);
     // F3c (T013): la etapa 0 va marcada al abrir; sin ella, las siete etapas de la F3b como antes.
     await page.locator('#mqView .mq-stages .mq-check input').first().click();
     assert.equal(await page.locator('.mq-summary').textContent(), sum);
@@ -3835,8 +3843,9 @@ check('F3b AC8 · v=moodle: título, resumen y vista previa igual al modelo del 
     assert.equal(st.preview.stage, 'early'); assert.equal(st.preview.level, 'medium'); assert.equal(st.preview.seed, 1);
     assert.equal(await page.locator('.mq-qname').textContent(), st.preview.name);
     assert.equal(await page.locator('.mq-preview input.mq-hole').count(), Object.keys(st.preview.answers).length);
-    assert.equal(await page.locator('#stage').isVisible(), false);
-    assert.equal(await page.locator('#selBox').evaluate((s) => s.closest('label').hidden), true);   // F4a (T013): el selector va en «Ajustes»
+    // F3e (T013): moodle.html no trae el laboratorio (ni su escenario ni la caja del nodo).
+    assert.equal(await page.locator('#stage').count(), 0);
+    assert.equal(await page.locator('#selBox').count(), 0);
     await close(page);
   }
 });
@@ -4070,7 +4079,17 @@ check('F3b T016 AC9 · mientras genera, la página atiende en menos de medio seg
 });
 
 check('F3b T016 · cambiar de idioma o salir de la vista mientras se genera la cancela, sin descargar', async () => {
-  const page = await mqOpen('es');
+  const p = await mqOpen('es');
+  let dl0 = false; p.on('download', () => { dl0 = true; });
+  await mqBig(p, ['Fácil', 'Media', 'Difícil']);
+  await setCtl(p, '#selLang', 'en');
+  await p.waitForFunction(() => document.querySelector('.mq-status').textContent === 'Generation cancelled: nothing was downloaded.');
+  assert.equal((await mq(p)).running, false);
+  await p.waitForTimeout(1500);
+  assert.equal(dl0, false);
+  await close(p);
+  // F3e (T013): salir de la vista solo se puede en cpm.html#v=moodle, que sigue igual hasta T017.
+  const page = await mqCpm('es');
   let downloaded = false; page.on('download', () => { downloaded = true; });
   await mqBig(page, ['Fácil', 'Media', 'Difícil']);
   await setCtl(page, '#selLang', 'en');
@@ -9261,13 +9280,215 @@ check('F3e T012 · principio 27: cada tipo de «Ejercicios» con «Aprende más�
   }
 });
 
+// ---------- F3e, T013: el exportador en su página, moodle.html (plan P2; oculto hasta T017; tableros 100 y 105) ----------
+
+const mqHead = (page) => page.evaluate(() => {
+  const back = document.getElementById('backLink');
+  return {
+    h1: document.querySelector('header h1').textContent, sub: document.querySelector('.mq-head-sub').textContent,
+    lang: document.documentElement.lang, title: document.title, hash: location.hash,
+    back: back.getAttribute('href'), backText: back.innerText.trim(),
+    labels: [...document.querySelectorAll('header label')].map((l) => l.firstElementChild.textContent),
+    langs: [...document.querySelectorAll('#selLang option')].map((o) => o.textContent), langVal: document.getElementById('selLang').value,
+    notas: [...document.querySelectorAll('#selNota option')].map((o) => o.textContent), notaVal: document.getElementById('selNota').value,
+  };
+});
+const MQ_HEAD = {
+  es: { h1: 'Bancos de preguntas para Moodle', sub: 'Laboratorio de redes de proyectos · PERT · CPM · ROY', back: 'Volver al laboratorio', short: 'Al laboratorio',
+    title: 'Bancos de preguntas para Moodle · Laboratorio de redes de proyectos', labels: ['Idioma', 'Notación'], notas: ['Inglesa (ES, EF, TF…)', 'Española (tᵢ, fᵢ, HT…)'] },
+  en: { h1: 'Question banks for Moodle', sub: 'Project Network Lab · PERT · CPM · ROY', back: 'Back to the lab', short: 'To the lab',
+    title: 'Question banks for Moodle · Project Network Lab', labels: ['Language', 'Notation'], notas: ['English (ES, EF, TF…)', 'Spanish (tᵢ, fᵢ, HT…)'] },
+};
+const mqRes = (page) => page.evaluate(() => performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname));
+
+check('F3e T013 · moodle.html: cabecera propia con el título, idioma, notación y «Volver al laboratorio» (ES y EN); el enlace abre el laboratorio con los mismos', async () => {
+  for (const lang of ['es', 'en']) {
+    const x = MQ_HEAD[lang];
+    const page = await mqOpen(lang);
+    const hd = await mqHead(page);
+    assert.equal(hd.h1, x.h1); assert.equal(hd.sub, x.sub); assert.equal(hd.title, x.title); assert.equal(hd.lang, lang);
+    assert.deepEqual(hd.labels, x.labels);
+    assert.deepEqual(hd.langs, ['Español', 'English']); assert.equal(hd.langVal, lang);
+    assert.deepEqual(hd.notas, x.notas); assert.equal(hd.notaVal, 'en');
+    assert.equal(hd.backText, x.back);
+    assert.equal(hd.hash, `#v=moodle&lang=${lang}&nota=en`);
+    assert.equal(hd.back, `cpm.html#lang=${lang}&nota=en`);
+    // La página es el exportador de siempre (la misma vista de moodle-page), sin su propio <h1>.
+    assert.equal(await page.locator('#mqView h1').count(), 0);
+    assert.ok(await page.locator('#mqView .mq-summary').isVisible());
+    assert.ok(await page.locator('#mqView .mq-preview .mq-qname').isVisible());
+    await page.locator('#backLink').click();
+    await page.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
+    const s = await state(page);
+    assert.equal(s.v, 'route'); assert.equal(s.lang, lang); assert.equal(s.nota, 'en');
+    await close(page);
+  }
+});
+
+check('F3e T013 · cambiar el idioma o la notación en la cabecera rehace la página, el «#», el enlace de vuelta y la vista previa, y conserva la selección', async () => {
+  const page = await mqOpen('es');
+  await mqSelect(page, ['3 ·'], ['Difícil'], 7);
+  await setCtl(page, '#selLang', 'en');
+  await page.waitForFunction(() => document.querySelector('header h1').textContent === 'Question banks for Moodle');
+  let hd = await mqHead(page);
+  assert.equal(hd.lang, 'en'); assert.equal(hd.title, MQ_HEAD.en.title); assert.equal(hd.backText, MQ_HEAD.en.back);
+  assert.deepEqual(hd.notas, MQ_HEAD.en.notas);
+  assert.equal(hd.hash, '#v=moodle&lang=en&nota=en'); assert.equal(hd.back, 'cpm.html#lang=en&nota=en');
+  assert.equal(await page.locator('.mq-summary').textContent(), '7 questions will be generated in one category.');
+  await setCtl(page, '#selNota', 'es');
+  await page.waitForFunction(() => [...document.querySelectorAll('.mq-preview th')].some((th) => th.textContent === 'HT'));
+  hd = await mqHead(page);
+  assert.equal(hd.hash, '#v=moodle&lang=en&nota=es'); assert.equal(hd.back, 'cpm.html#lang=en&nota=es');
+  const st = await mq(page);
+  assert.deepEqual(st.sel.stages, ['floats']); assert.deepEqual(st.sel.levels, ['hard']); assert.equal(st.sel.count, 7);
+  // Al recargar, el idioma y la notación del enlace.
+  await page.reload();
+  await mqWait(page);
+  hd = await mqHead(page);
+  assert.equal(hd.lang, 'en'); assert.equal(hd.notaVal, 'es'); assert.equal(hd.hash, '#v=moodle&lang=en&nota=es');
+  // Cambiar el «#» a mano (otro idioma) rehace la página sin recargarla.
+  await page.evaluate(() => { window.mqMark = 1; location.hash = '#v=moodle&lang=es&nota=es'; });
+  await page.waitForFunction(() => document.documentElement.lang === 'es' && document.querySelector('header h1').textContent === 'Bancos de preguntas para Moodle');
+  assert.equal(await page.evaluate(() => window.mqMark), 1);
+  await close(page);
+});
+
+check('F3e T013 AC13 · el mismo enlace abre lo mismo en moodle.html que en cpm.html#v=moodle: «#», idioma, notación, selección y vista previa', async () => {
+  for (const [hash, opts] of [['v=moodle&lang=en&nota=es', {}], ['v=moodle', { locale: 'en-GB' }], ['v=moodle', {}], ['v=moodle&lang=es&box=4&sd=5', {}]]) {
+    const a = await open(`moodle.html#${hash}`, opts); await mqWait(a);
+    const b = await lab(hash, opts); await mqWait(b);
+    const [ha, hb] = await Promise.all([a, b].map((p) => p.evaluate(() => [location.hash, document.documentElement.lang, document.getElementById('selNota').value])));
+    assert.deepEqual(ha, hb, hash);
+    const [qa, qb] = await Promise.all([a, b].map((p) => mq(p)));
+    assert.deepEqual(qa.sel, qb.sel, hash);
+    assert.equal(qa.preview.name, qb.preview.name, hash);
+    assert.deepEqual(qa.preview.answers, qb.preview.answers, hash);
+    assert.equal(await a.locator('.mq-summary').textContent(), await b.locator('.mq-summary').textContent());
+    await close(a); await close(b);
+  }
+  // Sin idioma en el «#», el de ?lang= (como cpm.html desde la portada).
+  const q = await open('moodle.html?lang=en#v=moodle'); await mqWait(q);
+  assert.equal(await q.evaluate(() => location.hash), '#v=moodle&lang=en&nota=en');
+  assert.equal(await q.locator('#urlWarning').isHidden(), true);
+  await close(q);
+  // Un enlace dañado se abre con lo que se puede recuperar y lo dice, como en cpm.html.
+  const w = await open('moodle.html#v=moodle&lang=en&nota=zz'); await mqWait(w);
+  assert.equal(await w.locator('#urlWarning').isVisible(), true);
+  assert.equal(await w.locator('#urlWarning').textContent(), 'The link was incomplete or damaged: what could be recovered has been opened.');
+  assert.equal(await w.evaluate(() => location.hash), '#v=moodle&lang=en&nota=en');
+  await close(w);
+});
+
+check('F3e T013 AC21 · moodle.html carga la base sin el laboratorio (ni D3 ni app.js) y las familias de las etapas marcadas: enunciado (sg) y construcción (lab)', async () => {
+  const page = await mqOpen('es');
+  await page.waitForLoadState('networkidle');
+  const res = await mqRes(page);
+  for (const re of [/d3/, /\/js\/app\.js$/, /narrate|predict|editor|roy-view|pert-view|matrix-view|results|gantt|\/learn/]) assert.equal(res.some((r) => re.test(r)), false, `${re}`);
+  for (const f of ['js/core/contexts.js', 'js/core/stmtgen.js', 'js/core/aoacheck.js', 'js/core/roycheck.js', 'js/core/detective.js', 'js/views/net-svg.js']) {
+    assert.equal(res.filter((r) => r.endsWith(`/${f}`)).length, 1, f);
+  }
+  assert.ok(res.some((r) => r.endsWith('/js/moodle-app.js')) && res.some((r) => r.endsWith('/css/moodle.css')));
+  await close(page);
+});
+
+check('F3e T013 · la base se pinta antes que las familias: sin el generador de enunciados, el formulario funciona y la vista previa espera a la etapa 0; «Descargar» espera a la familia', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'es-ES', reducedMotion: 'reduce' });
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => errors.push(`moodle.html: ${e.message}`));
+  let releaseSg; const sgGate = new Promise((r) => { releaseSg = r; });
+  let releaseLab; const labGate = new Promise((r) => { releaseLab = r; });
+  await p.route('**/js/core/stmtgen.js', async (r) => { await sgGate; await r.continue(); });
+  await p.route('**/js/core/detective.js', async (r) => { await labGate; await r.continue(); });
+  // Las familias retenidas retrasan el evento load: basta con que la página haya empezado a cargar.
+  await p.goto(`${BASE}/moodle.html#v=moodle&lang=es`, { waitUntil: 'domcontentloaded' });
+  await p.waitForFunction(() => window.PNL && PNL.moodlePage && PNL.moodlePage.state && document.querySelector('#mqView .mq-summary'));
+  assert.equal(await p.locator('.mq-summary').textContent(), 'Se generarán 120 preguntas en 12 categorías.');
+  assert.equal((await mq(p)).preview, null);
+  assert.equal(await p.locator('.mq-preview').evaluate((el) => el.childElementCount), 0);
+  // Sin la etapa 0, la vista previa pasa a la 1 sin esperar a nada.
+  await p.locator('#mqView .mq-stages .mq-check input').first().click();
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'early');
+  // Otra vez con ella: espera al generador; cuando llega, es la de la etapa 0.
+  await p.locator('#mqView .mq-stages .mq-check input').first().click();
+  assert.equal((await mq(p)).preview, null);
+  releaseSg();
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'stmt');
+  // «Descargar» con la etapa 10 espera al detective: nada se descarga hasta que llega.
+  await mqSelect(p, ['1 ·', '10 ·'], ['Fácil'], 1);
+  let downloaded = null; p.on('download', (d) => { downloaded = d; });
+  await p.locator('#mqDownload').click();
+  await p.waitForTimeout(800);
+  assert.equal(downloaded, null);
+  assert.equal(await p.evaluate(() => !!PNL.detective), false);
+  releaseLab();
+  await p.waitForFunction(() => /Descargado banco-redes-/.test(document.querySelector('.mq-status').textContent));
+  const xml = fs.readFileSync(await downloaded.path(), 'utf8');
+  assert.ok(xml.includes('/1 · Tiempos tempranos/Fácil'), xml.match(/<text>\$course\$[^<]*/g).join(' | '));
+  assert.ok(xml.includes('/10 · Detective/Fácil'), xml.match(/<text>\$course\$[^<]*/g).join(' | '));
+  await ctx.close();
+});
+
+check('F3e T013 · si una familia no llega, se avisa; las etapas de la base siguen funcionando y al volver a marcar la etapa se pide otra vez', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'es-ES', reducedMotion: 'reduce' });
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => errors.push(`moodle.html: ${e.message}`));
+  let fail = true;
+  await p.route('**/js/core/detective.js', (r) => (fail ? r.abort() : r.continue()));
+  await p.goto(`${BASE}/moodle.html#v=moodle&lang=es`);
+  await p.locator('#loadFailed:not([hidden])').waitFor();
+  assert.equal(await p.locator('#loadFailed').textContent(), 'No se pudo cargar esta parte del laboratorio. Comprueba la conexión y vuelve a intentarlo.');
+  await mqWait(p);
+  // Solo la etapa 1: se descarga sin el detective.
+  await mqSelect(p, ['1 ·'], ['Fácil'], 1);
+  const [dl] = await Promise.all([p.waitForEvent('download'), p.locator('#mqDownload').click()]);
+  assert.equal((fs.readFileSync(await dl.path(), 'utf8').match(/<question type="cloze">/g) || []).length, 1);
+  // Al marcar la 10 con la red ya bien, se vuelve a pedir y el aviso se va.
+  fail = false;
+  await p.locator('#mqView .mq-check', { hasText: '10 ·' }).locator('input').check();
+  await p.waitForFunction(() => !!PNL.detective && document.getElementById('loadFailed').hidden);
+  await p.waitForFunction(() => PNL.moodlePage.state().sel.stages.includes('detective'));
+  const [dl2] = await Promise.all([p.waitForEvent('download'), p.locator('#mqDownload').click()]);
+  assert.ok(fs.readFileSync(await dl2.path(), 'utf8').includes('/10 · Detective/Fácil'));
+  await ctx.close();
+});
+
+check('F3e T013 · moodle.html a 360 px: cabecera apilada con «Al laboratorio», sin desplazamiento horizontal; axe en claro y oscuro', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await mqOpen(lang, { width: 360, height: 800, scheme });
+    assert.equal((await mqHead(page)).backText, MQ_HEAD[lang].short);
+    assert.equal(await page.locator('#backLink').evaluate((a) => a.getBoundingClientRect().right <= window.innerWidth), true);
+    assert.ok(await noHScroll(page));
+    await axe(page, `F3e T013 · moodle.html a 360 px (${lang}, ${scheme})`);
+    await close(page);
+    const wide = await mqOpen(lang, { scheme });
+    assert.equal((await mqHead(wide)).backText, MQ_HEAD[lang].back);
+    await axe(wide, `F3e T013 · moodle.html a 1280 px (${lang}, ${scheme})`);
+    await close(wide);
+  }
+});
+
+check('F3e T013 AC23 · cpm.html#v=moodle sigue igual hasta T017: la vista del laboratorio, con su título, sin moodle-app ni su hoja', async () => {
+  for (const [lang, h1] of [['es', 'Bancos de preguntas para Moodle'], ['en', 'Question banks for Moodle']]) {
+    const page = await mqCpm(lang);
+    assert.equal(await page.locator('#mqView h1').textContent(), h1);
+    assert.equal(await page.locator('#brandLink').isVisible(), true);
+    assert.equal(await page.locator('#stage').isVisible(), false);
+    assert.equal(await page.locator('#selBox').evaluate((s) => s.closest('label').hidden), true);
+    assert.equal((await state(page)).v, 'moodle');
+    const res = await mqRes(page);
+    assert.equal(res.some((r) => /moodle-app\.js|moodle\.css/.test(r)), false);
+    assert.ok(res.some((r) => /core\/stmtgen\.js/.test(r)) && res.some((r) => /views\/net-svg\.js/.test(r)));
+    await close(page);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aon', dk: 'all' }), exUrl({ sd: 50, lv: 'hard', xk: 'tcl', xo: 1 }), exUrl({ sd: 12, lv: 'hard', xk: 'mc' }), exUrl({ sd: 26, lv: 'hard', xk: 'mc', mv: 'disc' }), exUrl({ sd: 1, lv: 'hard', xk: 'mc', mv: 'rep' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aon', dk: 'all' }), exUrl({ sd: 50, lv: 'hard', xk: 'tcl', xo: 1 }), exUrl({ sd: 12, lv: 'hard', xk: 'mc' }), exUrl({ sd: 26, lv: 'hard', xk: 'mc', mv: 'disc' }), exUrl({ sd: 1, lv: 'hard', xk: 'mc', mv: 'rep' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'moodle.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -9313,6 +9534,11 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /views\/net-svg\.js/.test(e.name))), url.includes('v=moodle'), `${url}: net-svg`);
     // F3d (plan P1, T008 y T009): construir la ROY (grupo xb), solo con xk=roy o con el reto ROY del taller.
     assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : url.includes('xk=pert') ? 4 : url.includes('xk=det') || url.includes('v=moodle') ? 1 : 0, `${url}: grupo xb (con el detective y el exportador, solo roycheck; F3e T012: la PERT, sin el lienzo ni la tabla de la ROY, xr)`);
+    // F3e (T013, P2, H10): la página del exportador, moodle.html, no carga el laboratorio (ni D3 ni app.js); su código
+    // (moodle-app y su hoja), solo ella. Con las etapas marcadas al abrir, mide la página con todas sus familias.
+    const mqPage = url.startsWith('moodle.html');
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /vendor\/d3|\/js\/app\.js/.test(e.name))), !mqPage && url !== 'index.html', `${url}: D3 y app.js`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /moodle-app\.js|css\/moodle\.css/.test(e.name))), mqPage, `${url}: moodle-app`);
     // F3e (T012): «Aprende más» de «Ejercicios» (learn-ex y sus secciones) solo al abrir el diálogo.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /learn-ex/.test(e.name))), false, `${url}: learn-ex`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.

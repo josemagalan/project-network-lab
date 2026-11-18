@@ -19,6 +19,11 @@
  * al final de la lista, aparte, cada una con su descripción y con el aviso de que piden trabajar en el laboratorio; se
  * ofrecen con f3dPublic (publicadas en T014). La imagen de la red de «Detective» la da views/net-svg (ctx.svg, plan P4), en el banco y
  * en la vista previa.
+ * F3e (plan P2, T013): en su página propia, moodle.html (js/moodle-app), las familias de etapas (el enunciado y la
+ * construcción) llegan al marcarlas: hooks.ready(etapas) dice si ya están y hooks.need(etapas) las pide (null si ya
+ * están). La vista previa espera a la familia de su etapa y «Descargar», a las de todas las marcadas; al llegar, se
+ * rehacen el resumen y la vista previa. Con hooks.heading falso, el título va en la cabecera de la página y no aquí.
+ * En cpm.html (grupo mq, con todo) no hay hooks.need ni hooks.ready y nada cambia.
  */
 (function (root) {
   'use strict';
@@ -74,6 +79,14 @@
     let last = null;         // { seed, file, questions, missing } del último banco descargado
     let drawn = null;        // idioma y notación de lo dibujado (para cancelar si cambian)
     let focusAfter = null;
+    // F3e (T013): las familias de etapas de moodle.html; sin hooks (cpm.html), todo está cargado.
+    const ready = (stages) => !hooks.ready || hooks.ready(stages);
+    /** Pide las familias de las etapas marcadas y, si faltaba alguna, rehace el resumen y la vista previa al llegar. */
+    function fetchFamilies() {
+      const p = hooks.need ? hooks.need(chosen()) : null;
+      if (p) p.then(() => refresh(), () => {});
+    }
+    let waitingStart = false;
 
     function newSeed() {
       const c = root.crypto;
@@ -82,6 +95,13 @@
     }
 
     function start() {
+      // F3e (T013): «Descargar» espera a las familias de las etapas marcadas (un fallo lo avisa la página).
+      if (!ready(chosen())) {
+        if (waitingStart) return;
+        waitingStart = true;
+        Promise.resolve(hooks.need(chosen())).then(() => { waitingStart = false; if (!run) start(); }, () => { waitingStart = false; });
+        return;
+      }
       const L = lang(); const N = nota();
       const seed = newSeed();
       const runner = M.runner({ lang: L, nota: N, sf: sel.sf, labels: IM.labels(N), stages: chosen(), levels: [...sel.levels], count: sel.count, seed, svg }, IM.tr(L));
@@ -162,6 +182,7 @@
       if (summaryEl) summaryEl.textContent = summaryText(lang(), s);
       if (downloadEl) downloadEl.disabled = !s.categories;
       if (previewEl) drawPreview(previewEl);
+      fetchFamilies();
     }
 
     const check = (label, on, onChange, o) => h('label', { class: 'mq-check' }, [
@@ -192,7 +213,7 @@
     function previewQuestion() {
       const st = chosen()[0];
       const lv = M.LEVELS.find((l) => sel.levels.has(l));
-      if (!st || !lv) return null;
+      if (!st || !lv || !ready([st])) return null;
       const ctx = { lang: lang(), nota: nota(), sf: sel.sf, labels: IM.labels(nota()), svg };
       // Semilla fija 1 (plan §4); en la 4b (o en la 0, si la tabla no admite enunciado) se prueba la siguiente.
       for (let sd = 1; sd < 50; sd++) { const q = M.question(st, M.exercise(lv, sd), ctx, IM.tr(lang())); if (q) return q; }
@@ -234,10 +255,11 @@
       const preview = h('section', { class: 'mq-preview card', 'aria-label': t('previewTitle') });
       previewEl = preview;
       drawPreview(preview);
+      fetchFamilies();
       clear(container);
       container.appendChild(h('div', { class: 'mq-layout' }, [
         h('div', { class: 'mq-form' }, [
-          h('h1', {}, [t('title')]),
+          hooks.heading === false ? null : h('h1', {}, [t('title')]),
           h('p', { class: 'mq-lead' }, [t('lead')]),
           h('div', { class: 'mq-box' }, [actions()]),
           stages,

@@ -9,7 +9,8 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
-const PAGES = ['index.html', 'cpm.html'];
+// F3e (T013, P2): la página propia del exportador.
+const PAGES = ['index.html', 'cpm.html', 'moodle.html'];
 
 // --- Contraste WCAG 2.x -------------------------------------------------------------------------
 
