@@ -8807,13 +8807,388 @@ check('F3e T010 · principio 27: TCL difícil con la otra ruta, corregido, con l
   await close(page);
 });
 
+// ---------- F3e, T011: «Montecarlo» en «Ejercicios» (oculto hasta T017; tableros 96–98 y 104) ----------
+
+// Al pedirlos (las pruebas en rojo de T011 corrían sin los módulos).
+const XM0 = new Proxy({}, { get: (o, k) => { require(path.join(ROOT, 'js', 'i18n-mc.js')); return require(path.join(ROOT, 'js', 'ex-mc.js'))[k]; } });
+const mxUrl = (s) => exUrl(Object.assign({ xk: 'mc' }, s));
+async function mxLab(s, opts) {
+  const page = await open(mxUrl(s), opts);
+  await page.waitForFunction(() => PNL.exMc && PNL.exMc.state && PNL.exMc.state() && PNL.exMc.state().ex, null, { timeout: 30000 });
+  return page;
+}
+const mxSt = (page) => page.evaluate(() => PNL.exMc.state());
+// Los textos de Montecarlo (i18n-mc), también en Node.
+const mxT = (lang, k, p) => { require(path.join(ROOT, 'js', 'i18n-mc.js')); return I0.t(lang, k, p); };
+// El mismo ejercicio en el navegador y en Node (AC11). La crucialidad (Pearson, sobre la simulación) puede diferir en la
+// última cifra entre el V8 de Node y el de Chromium (Math.log de los sorteos); el margen de cada pregunta y las duraciones
+// sorteadas sin redondear de las réplicas (raw) se comparan a 10⁻⁹.
+const mxSame = (a, b, msg) => {
+  const r9 = (x) => Math.round(x * 1e9) / 1e9;
+  const norm = (ex) => JSON.parse(JSON.stringify(ex, (k, v) => (k === 'margin' ? r9(v) : k === 'raw' ? v.map((row) => row.map(r9)) : v)));
+  assert.deepEqual(norm(a), norm(b), msg);
+};
+// Lo mismo que genera el navegador, en Node (AC11).
+const mxEx = (s) => PG0[s.mv || 'read'](s.sd, s.lv === 'custom' ? s.gp : s.lv || 'medium');
+const mxState = (s) => exState0(Object.assign({ xk: 'mc' }, s));
+// Los archivos de cada grupo: mx (común), mxr («Leer») y mxh (a mano); y los de TCL (pb), que Montecarlo no carga.
+const MXF = { mx: /css\/mc\.css|core\/threept\.js|core\/tcl\.js|core\/probgen\.js|core\/probgrade\.js|core\/sim\.js|core\/mc\.js|i18n-mc\.js|\/ex-mc\.js/,
+  mxr: /views\/chart-svg\.js|ex-mc-read\.js/, mxh: /ex-mc-hand\.js/, pb: /ex-prob\.js|i18n-prob\.js|normal-table\.js|prob\.css/ };
+const mxCount = (page, re) => page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, re.source);
+const fracOf = (p) => { for (let d = 1; d <= 1000; d++) { const n = Math.round(p * d); if (Math.abs(n / d - p) < 1e-9) return d === 1 ? String(n) : `${n}/${d}`; } return String(p); };
+// Los alumnos de los tableros 96, 97 y 98 (como en tests/ex-mc.test.js).
+const mxRead96 = () => ({ pct: '40.4', pT: '0.85', crit: '1', 'q.mostCruc': '2', 'q.critLowCruc': '1', 'q.promise': '2' });
+function mxDisc97(ex) {
+  const sol = PG0.solve('disc', ex); const a = {};
+  sol.combos.forEach((c, i) => { a[`c${i + 1}.T`] = String(c.T); a[`c${i + 1}.p`] = fracOf(c.p); });
+  a['c6.T'] = '25';
+  a.mean = sol.combos.reduce((s, c, i) => s + (i === 5 ? 25 : c.T) * c.p, 0).toFixed(3);
+  a.pT = sol.pT.toFixed(3);
+  for (const id of ex.disc) a[`${id}.crit`] = sol.crit[id].toFixed(3);
+  return a;
+}
+function mxRep98(ex) {
+  const sol = PG0.solve('rep', ex); const b = {};
+  sol.reps.forEach((r, i) => { b[`r${i + 1}.T`] = String(r.T); b[`r${i + 1}.crit`] = r.crit.slice(); });
+  b['r4.T'] = '24'; b['r3.crit'] = ['A', 'C', 'D'];
+  const crit = Object.fromEntries(ex.rows.map((r) => [r.id, 0]));
+  sol.reps.forEach((r, i) => (i === 2 ? ['A', 'C', 'D'] : r.crit).forEach((id) => { crit[id]++; }));
+  b.pT = '0';
+  for (const r of ex.rows) b[`${r.id}.crit`] = `${crit[r.id]}/${ex.n}`;
+  return b;
+}
+// Escribe con el teclado (las casillas), elige las opciones y pulsa las críticas de cada réplica, como un alumno.
+async function mxType(page, ans, lang) {
+  for (const [k, v] of Object.entries(ans)) {
+    if (k.startsWith('q.')) await page.locator(`#mxQ-${k.slice(2)}-${v}`).check();
+    else if (/^r\d+\.crit$/.test(k)) for (const id of v) await page.locator(`#mxT-${k.slice(1, -5)}-${id}`).click();
+    else await exCell(page, k).fill(lang === 'es' ? String(v).replace('.', ',') : String(v));
+  }
+}
+// La marca de cada casilla a la vista (null sin marca): casillas, opciones elegidas y críticas de cada réplica.
+const mxMarks = (page) => page.evaluate(() => {
+  const st = (el) => (el ? ((/(?:^| )st-(\w+)/.exec(el.className) || [])[1] || null) : null);
+  const out = {};
+  for (const i of document.querySelectorAll('#exView input[type="text"][data-key]')) out[i.dataset.key] = st(i.closest('.ex-cell'));
+  for (const f of document.querySelectorAll('#exView fieldset.mx-q')) out[f.dataset.key] = st(f.querySelector('label[class*="st-"]'));
+  for (const tr of document.querySelectorAll('#exView table.mx-rtab tbody tr')) out[`r${tr.querySelector('th').textContent}.crit`] = st(tr.querySelector('td.mx-cst .ex-chip'));
+  return out;
+});
+// Una pregunta sin contestar no tiene opción elegida que marcar.
+const mxWant = (g) => Object.fromEntries(Object.entries(g.cells).map(([k, c]) => [k, k.startsWith('q.') && c.status === 'blank' ? null : c.status]));
+const mxNoMarks = (g) => Object.fromEntries(Object.keys(g.cells).map((k) => [k, null]));
+const decodeSvg = (src) => Buffer.from(src.replace(/^data:image\/svg\+xml;base64,/, ''), 'base64').toString('utf8');
+// Pasa por una casilla, una opción o una réplica para ver su explicación.
+async function mxFocus(page, ex, k) {
+  if (k.startsWith('q.')) await page.locator(`#mxQ-${k.slice(2)}-0`).focus();
+  else if (/^r\d+\.crit$/.test(k)) await page.locator(`#mxT-${k.slice(1, -5)}-${ex.rows[0].id}`).focus();
+  else await exCell(page, k).focus();
+}
+
+check('F3e T011 AC6, AC10, AC11 y AC19 · «Leer una simulación» en Practicar (ES, media; tablero 96): el ejercicio de Node; los gráficos de chart-svg como imagen con su tabla; «Comprobar» con las marcas de probgrade, 66,7 % y las explicaciones; editar borra las marcas; grupos mx y mxr', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'es' };
+  const r = mxEx(s); const { ex } = r;
+  const page = await mxLab(s);
+  const st = await mxSt(page);
+  mxSame(st.ex, ex, 'AC11: la misma semilla da el mismo ejercicio en el navegador y en Node');
+  assert.equal(st.used, 2027);
+  assert.equal(await page.locator('#exKind-mc').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#exMv-read').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('.ex-sum').innerText(), XM0.levelText(GEN0.LEVELS.medium, 'medium', 'read', 'es'));
+  assert.equal(await page.locator('#mxMoved').innerText(), XM0.movedText(r, 'es'), 'H9: la semilla usada');
+  assert.deepEqual([await mxCount(page, MXF.mx), await mxCount(page, MXF.mxr), await mxCount(page, MXF.mxh), await mxCount(page, MXF.pb)], [9, 2, 0, 0], 'grupos mx y mxr, sin mxh ni pb');
+  assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-det\.js|ex-build\.js|\/unc\.js|\/m7\.js/.test(e.name))), false);
+  // Los gráficos: las imágenes de chart-svg (sin innerHTML), con su texto alternativo y su tabla.
+  const ch = XM0.charts(ex, 'es');
+  for (const [id, c] of [['#mxDist', ch.dist], ['#mxIdx', ch.idx]]) {
+    const img = page.locator(`${id} img`);
+    assert.equal(decodeSvg(await img.getAttribute('src')), c.svg, id);
+    assert.equal(await img.getAttribute('alt'), `${c.title}. ${c.desc}`);
+  }
+  await page.locator('#mxAlt summary').click();
+  assert.deepEqual(await page.locator('#mxAlt table').first().locator('tbody tr').allInnerTexts(),
+    ch.table.map((x) => `${String(x.to.toFixed(2)).replace('.', ',')}\t${String(x.cum.toFixed(2)).replace('.', ',')}`));
+  assert.equal(await page.locator('#mxAlt table').nth(1).locator('tbody tr').count(), ex.tcl.rows.length);
+  await page.locator('#mxData summary').click();
+  assert.equal(await page.locator('#mxData tbody tr').count(), ex.tcl.rows.length);
+  // Las casillas y las preguntas.
+  assert.deepEqual(await page.locator('#exView input[type="text"][data-key]').evaluateAll((xs) => xs.map((x) => x.dataset.key)), ['pct', 'pT', 'crit']);
+  assert.deepEqual(await page.locator('#exView fieldset.mx-q').evaluateAll((xs) => xs.map((x) => x.dataset.key)), ex.questions.map((q) => `q.${q.key}`));
+  assert.deepEqual(await page.locator('#exView fieldset.mx-q legend').allInnerTexts(), ex.questions.map((q) => XM0.question(ex, q, 'es').text));
+  const ans = mxRead96();
+  await mxType(page, ans, 'es');
+  await page.waitForFunction((n) => PNL.app.state().pa && Object.keys(PNL.app.state().pa).length === n, Object.keys(ans).length);
+  const pa = (await state(page)).pa;
+  assert.match(await page.evaluate(() => location.hash), /[#&]pa=/);
+  const g = PR0.read(ex, pa);
+  assert.deepEqual([g.score.got, g.score.total], [4, 6]);
+  assert.deepEqual(await mxMarks(page), mxNoMarks(g), 'sin marcas hasta comprobar');
+  await page.locator('#mxCheck').click();
+  assert.deepEqual(await mxMarks(page), mxWant(g), 'las marcas de probgrade');
+  assert.equal(await page.locator('#mxScore').innerText(), 'Nota: 66,7 % (4 de 6)');
+  assert.equal(await page.locator('#mxCount').innerText(), '2 incorrectas');
+  assert.equal(await page.locator('#mxQ-critLowCruc-1-m .sr-only').textContent(), I0.t('es', 'ex.st.wrong'), 'la marca de la opción, también en texto');
+  for (const k of Object.keys(g.cells).filter((x) => g.cells[x].status !== 'ok')) {
+    await mxFocus(page, ex, k);
+    assert.equal(await page.locator('#mxExplain p').innerText(), XM0.explain(ex, pa, g, k, 'es'), k);
+  }
+  await exCell(page, 'pT').focus();
+  assert.equal(await page.locator('#mxExplain p').innerText(), 'Has escrito 0,85. La función de distribución corta la línea discontinua del plazo hacia 0,94; se acepta ±0,05.');
+  await axe(page, 'Montecarlo, Leer, comprobado (ES)');
+  await shot(page, 'f3e-mc-read-es');
+  // Editar una casilla borra las marcas (y se dice); el foco sigue en ella. Elegir otra opción, también.
+  await exCell(page, 'pT').fill('0,94');
+  assert.deepEqual(await mxMarks(page), mxNoMarks(g));
+  assert.equal(await page.locator('#mxStale').innerText(), I0.t('es', 'ex.stale'));
+  assert.equal(await activeId(page), exId('pT'));
+  await page.locator('#mxCheck').click();
+  assert.equal(await page.locator('#mxScore').innerText(), 'Nota: 83,3 % (5 de 6)');
+  await page.locator('#mxQ-critLowCruc-0').check();
+  assert.equal(await activeId(page), 'mxQ-critLowCruc-0');
+  assert.equal(await page.locator('#mxScore').count(), 0);
+  assert.equal(await page.locator('#mxSol').getAttribute('href'), XM0.m7Hash(ex, mxState(s)));
+  await close(page);
+});
+
+check('F3e T011 AC6 y H2 · «Ver la solución en M7»: la misma tabla con la semilla del ejercicio y 10 000 réplicas da los mismos valores; «Atrás» vuelve al ejercicio', async () => {
+  const s = { sd: 41, lv: 'hard', lang: 'en' };
+  const { ex } = mxEx(s);
+  const sol = PG0.solve('read', ex);
+  const page = await mxLab(Object.assign({ pa: { pT: '0.5' } }, s));
+  await page.locator('#mxSol').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'unc' && PNL.app.state().um === 'm7');
+  const st = await m7Done(page);
+  const u = await state(page);
+  assert.deepEqual([u.ue, u.us, u.ur, u.ud, u.uv], ['own', ex.sim.us, 4, ex.ask.deadline, Math.round(ex.ask.pct * 100)]);
+  assert.deepEqual(u.ut.rows.map((x) => [x.id, x.a, x.m, x.b]), ex.tcl.rows.map((x) => [x.id, String(x.a), String(x.m), String(x.b)]));
+  assert.equal(st.results.pT, sol.pT, 'P(T ≤ plazo), la misma');
+  assert.equal(st.results.q.find((q) => q.p === ex.ask.pct).sim, sol.pct.value, 'el percentil pedido, el mismo');
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().v === 'ex' && PNL.exMc.state() && PNL.exMc.state().ex);
+  assert.deepEqual((await state(page)).pa, { pT: '0.5' });
+  await close(page);
+});
+
+check('F3e T011 AC7 y AC10 · «Discretas a mano» en Practicar (EN, media; tablero 97): las combinaciones; una T mal sumada y E[T] con error consecuente, 95,2 %; fracciones; Intro baja de fila; grupos mx y mxh; la solución en M7 con la cuenta exacta', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'en', mv: 'disc' };
+  const { ex } = mxEx(s);
+  const sol = PG0.solve('disc', ex);
+  const page = await mxLab(s);
+  mxSame((await mxSt(page)).ex, ex);
+  assert.equal(await page.locator('#exMv-disc').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('.ex-sum').innerText(), '2 or 3 discrete activities · 8 or 9 combinations');
+  assert.deepEqual([await mxCount(page, MXF.mx), await mxCount(page, MXF.mxr), await mxCount(page, MXF.mxh)], [9, 0, 1], 'grupos mx y mxh, sin mxr');
+  assert.equal(await page.locator('#mxStmt').innerText(), mxT('en', 'mx.discStmt').replace('{T}', '27 weeks'));
+  assert.equal(await page.locator('#mxData tbody tr.mx-disc').count(), ex.disc.length);
+  assert.equal(await page.locator('#mxData tbody tr').nth(6).innerText(), 'G\t3 (1/3) · 8 (2/3)\tB');
+  assert.equal(await page.locator('table.mx-combos tbody tr').count(), sol.combos.length);
+  assert.equal(await page.locator('table.mx-combos tbody tr').nth(5).locator('td.d').allInnerTexts().then((x) => x.join(' ')), ['G', 'I', 'J'].map((id) => sol.combos[5].vals[id]).join(' '));
+  // Intro baja a la misma columna de la fila siguiente.
+  await exCell(page, 'c1.p').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), exId('c2.p'));
+  const ans = mxDisc97(ex);
+  await mxType(page, ans, 'en');
+  await page.waitForFunction((n) => PNL.app.state().pa && Object.keys(PNL.app.state().pa).length === n, Object.keys(ans).length);
+  const pa = (await state(page)).pa;
+  const g = PR0.disc(ex, pa);
+  await page.locator('#mxCheck').click();
+  assert.deepEqual(await mxMarks(page), mxWant(g));
+  assert.equal(await page.locator('#mxScore').innerText(), 'Score: 95.2% (20 of 21)');
+  assert.equal(await page.locator('#mxCount').innerText(), '1 wrong · 1 with a carried error');
+  for (const k of ['c6.T', 'mean']) {
+    await exCell(page, k).focus();
+    assert.equal(await page.locator('#mxExplain p').innerText(), XM0.explain(ex, pa, g, k, 'en'), k);
+  }
+  assert.match(await page.locator('#mxExplain p').innerText(), /^You wrote 25\.037, which follows from your data: E\[T\] = Σ T · p of your combinations = 25\.037\./);
+  await axe(page, 'Montecarlo, discretas, comprobado (EN)');
+  await shot(page, 'f3e-mc-disc-en');
+  await page.locator('#mxSol').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'unc' && PNL.app.state().um === 'm7');
+  const u = await state(page);
+  assert.deepEqual(Object.keys(u.uf).sort(), ex.disc.slice().sort());
+  const m = M7N.model(u, 'en');
+  assert.ok(m.ok && Math.abs(m.exact.mean - sol.mean) < 1e-12 && Math.abs(m.exact.pLE(ex.deadline) - sol.pT) < 1e-12, 'M7: la misma cuenta exacta');
+  await close(page);
+});
+
+check('F3e T011 AC8 y AC10 · «Réplicas a mano» en Practicar (ES, media, oscuro; tablero 98): las críticas pulsando la duración (aria-pressed); una réplica mal sumada y otra con una crítica de menos, 92,6 %, con error consecuente', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'es', mv: 'rep' };
+  const { ex } = mxEx(s);
+  const page = await mxLab(s, { scheme: 'dark' });
+  mxSame((await mxSt(page)).ex, ex);
+  assert.equal(await page.locator('.ex-sum').innerText(), '8 réplicas');
+  assert.equal(await page.locator('#mxDl').innerText(), 'Plazo: 23 semanas');
+  assert.deepEqual([await mxCount(page, MXF.mx), await mxCount(page, MXF.mxr), await mxCount(page, MXF.mxh)], [9, 0, 1]);
+  assert.equal(await page.locator('table.mx-rtab tbody tr').count(), ex.n);
+  // Pulsar una duración la marca crítica (y otra vez, la desmarca); el foco se queda en el botón.
+  const b = page.locator('#mxT-1-B');
+  assert.equal(await b.innerText(), String(ex.reps[0][1]));
+  assert.equal(await b.getAttribute('aria-label'), `B crítica en la réplica 1 (dura ${ex.reps[0][1]})`);
+  await b.click();
+  assert.equal(await page.locator('#mxT-1-B').getAttribute('aria-pressed'), 'true');
+  assert.equal(await activeId(page), 'mxT-1-B');
+  await page.keyboard.press('Space');
+  assert.equal(await page.locator('#mxT-1-B').getAttribute('aria-pressed'), 'false');
+  assert.equal((await state(page)).pa, null);
+  const ans = mxRep98(ex);
+  await mxType(page, ans, 'es');
+  await page.waitForFunction((n) => PNL.app.state().pa && Object.keys(PNL.app.state().pa).length === n, Object.keys(ans).length);
+  const pa = (await state(page)).pa;
+  assert.deepEqual(pa['r3.crit'], ['A', 'C', 'D'], 'en el orden de la tabla');
+  const g = PR0.rep(ex, pa);
+  await page.locator('#mxCheck').click();
+  assert.deepEqual(await mxMarks(page), mxWant(g));
+  assert.equal(await page.locator('#mxScore').innerText(), 'Nota: 92,6 % (25 de 27)');
+  assert.equal(await page.locator('#mxCount').innerText(), '2 incorrectas · 2 con error consecuente');
+  assert.equal(await page.locator('#mxCs-3').innerText(), I0.t('es', 'ex.st.wrong'), 'el estado de las críticas, con texto');
+  for (const k of ['r4.T', 'r3.crit', 'pT', 'E.crit']) {
+    await mxFocus(page, ex, k);
+    assert.equal(await page.locator('#mxExplain p').innerText(), XM0.explain(ex, pa, g, k, 'es'), k);
+  }
+  await mxFocus(page, ex, 'r3.crit');
+  assert.equal(await page.locator('#mxExplain p').innerText(), 'Las críticas de la réplica 3 son A, C, D y E (holgura 0, empates incluidos). Falta E.');
+  await axe(page, 'Montecarlo, réplicas, comprobado (ES, oscuro)');
+  await shot(page, 'f3e-mc-rep-es-dark');
+  // La solución, «Réplica a réplica» en M7 con la semilla de las réplicas.
+  const u = U0.decode(await page.locator('#mxSol').getAttribute('href')).state;
+  assert.deepEqual([u.um, u.uy, u.us, u.ud], ['m7', 'rep', ex.us, ex.deadline]);
+  await close(page);
+});
+
+check('F3e T011 AC9, AC13 y AC19 · Examen de «Leer» a 360 px (EN, oscuro; tablero 104): tipo y variante en desplegables; gráficos a su tamaño con desplazamiento en su caja; sin marcas; «Entregar» con confirmación; bloqueado; al recargar, igual', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'en', xm: 'exam' };
+  const { ex } = mxEx(s);
+  const page = await mxLab(s, { width: 360, height: 740, scheme: 'dark' });
+  for (const id of ['#mxCheck', '#mxScore', '#mxSol']) assert.equal(await page.locator(id).count(), 0, `Examen sin ${id}`);
+  assert.equal(await page.locator('#mxNote').innerText(), I0.t('en', 'ex.examNote'));
+  assert.equal(await page.locator('#exKindSel').isVisible(), true);
+  assert.equal(await page.locator('#exMvSel').isVisible(), true, 'la variante, en un desplegable');
+  assert.equal(await page.locator('#exMvSel').inputValue(), 'read');
+  const narrow = async (label) => { const w = await page.evaluate(() => document.documentElement.scrollWidth); assert.ok(w <= 360, `${label}: ${w} px`); };
+  await narrow('al abrir');
+  for (const id of ['#mxDist', '#mxIdx']) {
+    const box = await page.locator(id).evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth, tab: e.tabIndex, role: e.getAttribute('role'), w: e.querySelector('img').getBoundingClientRect().width }));
+    assert.ok(box.sw > box.cw && box.tab === 0 && box.role === 'region' && box.w === 640, `${id}: ${JSON.stringify(box)}`);
+  }
+  await page.locator('#mxAlt summary').click();
+  await narrow('con la tabla');
+  const ans = mxRead96();
+  await mxType(page, ans, 'en');
+  await page.waitForFunction((n) => PNL.app.state().pa && Object.keys(PNL.app.state().pa).length === n, Object.keys(ans).length);
+  const g = PR0.read(ex, ans);
+  assert.deepEqual(await mxMarks(page), mxNoMarks(g));
+  await page.locator('#mxDeliver').click();
+  assert.equal(await page.locator('#mxConfirmText').innerText(), I0.t('en', 'ex.confirm', { n: 0 }));
+  await page.locator('#mxConfirmNo').click();
+  assert.equal(await activeId(page), 'mxDeliver');
+  await page.locator('#mxDeliver').click();
+  await page.locator('#mxConfirmYes').click();
+  await page.waitForFunction(() => PNL.app.state().xd === 1);
+  assert.equal(await page.locator('#mxScore').innerText(), XM0.scoreText(g, 'en'));
+  assert.deepEqual(await mxMarks(page), mxWant(g));
+  assert.equal(await exCell(page, 'pT').getAttribute('readonly'), 'readonly', 'bloqueado');
+  assert.equal(await page.locator('#mxQ-promise-0').isDisabled(), true);
+  await narrow('entregado');
+  await axe(page, 'Montecarlo, Leer, entregado a 360 px (EN, oscuro)');
+  await shot(page, 'f3e-mc-read-360-en', true);
+  await page.reload();
+  await page.waitForFunction(() => PNL.exMc && PNL.exMc.state && PNL.exMc.state() && PNL.exMc.state().grading, null, { timeout: 30000 });
+  assert.equal(await page.locator('#mxScore').innerText(), XM0.scoreText(g, 'en'));
+  assert.equal(await page.locator('#mxSol').getAttribute('href'), XM0.m7Hash(ex, mxState(s)));
+  await close(page);
+});
+
+check('F3e T011 · la variante (mv): con algo escrito, cambiarla pide confirmación y carga su grupo; el enlace guarda la variante; «Atrás» vuelve; Examen de las discretas sin marcas hasta entregar', async () => {
+  const s = { sd: 77, lv: 'easy', lang: 'es' };
+  const page = await mxLab(Object.assign({ pa: { pct: '3' } }, s));
+  assert.equal(await mxCount(page, MXF.mxh), 0);
+  await page.locator('#exMv-disc').click();
+  assert.equal(await page.locator('#exLoseText').innerText(), I0.t('es', 'ex.loseWork'));
+  await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().mv === 'disc' && PNL.exMc.state() && PNL.exMc.state().kind === 'disc', null, { timeout: 30000 });
+  assert.equal((await state(page)).pa, null, 'otro ejercicio, sin lo escrito');
+  assert.match(await page.evaluate(() => location.hash), /[#&]mv=disc/);
+  assert.equal(await mxCount(page, MXF.mxh), 1);
+  assert.equal(await activeId(page), 'exMv-disc');
+  mxSame((await mxSt(page)).ex, mxEx(Object.assign({ mv: 'disc' }, s)).ex);
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().mv === 'read' && PNL.exMc.state() && PNL.exMc.state().kind === 'read', null, { timeout: 30000 });
+  assert.deepEqual((await state(page)).pa, { pct: '3' });
+  // Sin nada escrito, cambia sin preguntar (también a las réplicas).
+  await close(page);
+  const p2 = await mxLab(Object.assign({ mv: 'rep', xm: 'exam' }, s));
+  await p2.locator('#exMv-disc').click();
+  await p2.waitForFunction(() => PNL.app.state().mv === 'disc' && PNL.exMc.state() && PNL.exMc.state().kind === 'disc');
+  assert.equal(await p2.locator('#exLoseText').count(), 0);
+  const { ex } = mxEx(Object.assign({ mv: 'disc' }, s));
+  await exCell(p2, 'c1.T').fill('1');
+  await p2.waitForFunction(() => PNL.app.state().pa);
+  assert.equal(await p2.locator('#mxCheck').count(), 0);
+  await p2.locator('#mxDeliver').click();
+  assert.equal(await p2.locator('#mxConfirmText').innerText(), I0.t('es', 'ex.confirm', { n: PR0.fields('disc', ex).length - 1 }));
+  await p2.locator('#mxConfirmYes').click();
+  await p2.waitForFunction(() => PNL.app.state().xd === 1);
+  assert.deepEqual(await mxMarks(p2), mxWant(PR0.disc(ex, { 'c1.T': '1' })));
+  await close(p2);
+});
+
+check('F3e T011 · oculto (hasta T017): sin xk=mc la barra no ofrece Montecarlo; con xk=mc, sí; un enlace con mv=rep carga mx y mxh', async () => {
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'es' });
+  assert.equal(await page.locator('#exKind-mc').count(), 0);
+  assert.equal(await page.locator('#exMvSel').count(), 0);
+  assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-mc|i18n-mc|mc\.css/.test(e.name))), false);
+  await close(page);
+  const p2 = await mxLab({ sd: 14844, lv: 'medium', lang: 'en', mv: 'rep' });
+  assert.deepEqual(await p2.locator('.ex-kind-seg').first().locator('button').allInnerTexts(), ['calc', 'roy', 'pert', 'det', 'mc'].map((k) => I0.t('en', `ex.kind.${k}`)));
+  assert.deepEqual(await p2.locator('.ex-kind-seg').nth(1).locator('button').allInnerTexts(), ['read', 'disc', 'rep'].map((v) => mxT('en', `mx.v.${v}`)));
+  assert.deepEqual([await mxCount(p2, MXF.mx), await mxCount(p2, MXF.mxr), await mxCount(p2, MXF.mxh), await mxCount(p2, MXF.pb)], [9, 0, 1, 0]);
+  await close(p2);
+});
+
+check('F3e T011 · a 1280×720 los difíciles caben sin desplazar la página (las tablas largas y las preguntas, en su caja); a 360 px, sin desplazamiento horizontal', async () => {
+  const fits = async (page, label) => {
+    const b = await page.evaluate(() => ({ bottom: document.getElementById('exView').getBoundingClientRect().bottom, y: window.scrollY, w: document.documentElement.scrollWidth }));
+    assert.ok(b.y === 0 && b.bottom <= 720 && b.w <= 1280, `${label}: ${JSON.stringify(b)}`);
+  };
+  for (const [s, k] of [[{ sd: 12, lv: 'hard', lang: 'en' }, 'pct'], [{ sd: 26, lv: 'hard', lang: 'es', mv: 'disc' }, 'c1.T'], [{ sd: 1, lv: 'hard', lang: 'es', mv: 'rep' }, 'r1.T']]) {
+    const page = await mxLab(Object.assign({ pa: { [k]: '1' } }, s));
+    const label = `${s.mv || 'read'} ${s.lv}`;
+    await fits(page, label);
+    await page.locator('#mxCheck').click();
+    await exCell(page, k).focus();
+    await fits(page, `${label}, corregido`);
+    await close(page);
+    const narrow = await mxLab(Object.assign({ pa: { [k]: '1' } }, s), { width: 360, height: 740 });
+    await narrow.locator('#mxCheck').click();
+    const w = await narrow.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(w <= 360, `${label} a 360 px: ${w}`);
+    await axe(narrow, `Montecarlo ${label} a 360 px`);
+    await close(narrow);
+  }
+});
+
+check('F3e T011 · principio 27: cada variante difícil, corregida y con todo abierto, por debajo de 1 MB', async () => {
+  for (const [s, open2] of [[{ sd: 12, lv: 'hard', lang: 'es' }, ['#mxAlt summary', '#mxData summary']], [{ sd: 26, lv: 'hard', lang: 'es', mv: 'disc' }, []], [{ sd: 1, lv: 'hard', lang: 'es', mv: 'rep' }, []]]) {
+    const page = await mxLab(Object.assign({ pa: { pT: '0.5' } }, s));
+    await page.locator('#mxCheck').click();
+    for (const sel of open2) await page.locator(sel).click();
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+    console.log(`    Montecarlo ${s.mv || 'read'} difícil: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${s.mv || 'read'}: ${bytes} bytes`);
+    await close(page);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aon', dk: 'all' }), exUrl({ sd: 50, lv: 'hard', xk: 'tcl', xo: 1 }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aon', dk: 'all' }), exUrl({ sd: 50, lv: 'hard', xk: 'tcl', xo: 1 }), exUrl({ sd: 12, lv: 'hard', xk: 'mc' }), exUrl({ sd: 26, lv: 'hard', xk: 'mc', mv: 'disc' }), exUrl({ sd: 1, lv: 'hard', xk: 'mc', mv: 'rep' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -8834,9 +9209,16 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn(-unc|-m7)?\.js/.test(e.name))), false, `${url}: learn.js`);
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
     // F3e (T010, H10): threept y tcl también con TCL en «Ejercicios» (grupo pb); la simulación y la vista, no.
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /core\/sim\.js|\/unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/tcl\.js/.test(e.name))), url.includes('v=unc') || url.includes('xk=tcl'), `${url}: threept y tcl`);
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-prob\.js|i18n-prob\.js|normal-table\.js|prob\.css|probgen\.js|probgrade\.js/.test(e.name))), url.includes('xk=tcl'), `${url}: grupo pb`);
+    // F3e (T011, H10): con Montecarlo (grupo mx), también la simulación (sim y mc), pero no la vista de M5–M7.
+    const mc = url.includes('xk=mc');
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /core\/sim\.js/.test(e.name))), url.includes('v=unc') || mc, `${url}: core/sim`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/tcl\.js/.test(e.name))), url.includes('v=unc') || url.includes('xk=tcl') || mc, `${url}: threept y tcl`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-prob\.js|i18n-prob\.js|normal-table\.js|prob\.css/.test(e.name))), url.includes('xk=tcl'), `${url}: grupo pb`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /probgen\.js|probgrade\.js/.test(e.name))), url.includes('xk=tcl') || mc, `${url}: probgen y probgrade`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-mc\.js|i18n-mc\.js|mc\.css/.test(e.name))), mc, `${url}: grupo mx`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /chart-svg\.js|ex-mc-read\.js/.test(e.name))), mc && !url.includes('mv='), `${url}: grupo mxr`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-mc-hand\.js/.test(e.name))), mc && url.includes('mv='), `${url}: grupo mxh`);
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo (grupo cr), solo con view=cmp, view=reto o m=prog.
     // F3d (T009 y T010): el reto ROY (view=reto sin graph=aoa) no carga el grupo cr; construir la PERT, sí.
     const cr = (/graph=aoa/.test(url) && /view=(cmp|reto)|m=prog/.test(url)) || url.includes('xk=pert');
@@ -8854,7 +9236,8 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || url.includes('xk=pert') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : url.includes('xk=det') || url.includes('v=moodle') ? 1 : 0, `${url}: grupo xb (con el detective y el exportador, solo roycheck)`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|core\/mc\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /core\/mc\.js/.test(e.name))), url.includes('um=m7') || mc, `${url}: core/mc`);
     // F4b (T012, reserva 2 de T001): la vista de M5 y M6 (grupo u56), en la pestaña salvo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /unc-m56\.js/.test(e.name))), url.includes('v=unc') && !url.includes('um=m7'), `${url}: grupo u56`);
     assert.ok(bytes > 0 && bytes <= BUDGET, `${url}: ${bytes} bytes`);

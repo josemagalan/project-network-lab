@@ -157,9 +157,9 @@
   // ---------- Tipo de ejercicio (F3d, T008; tableros 81 y 92) ----------
   // Cálculo (la F3a, sin cambios), construir la ROY o la PERT y detective. Solo se ofrecen los que ya están hechos; la
   // barra con el tipo se ve con buildPublic (publicado en T014) o, sin él, con un tipo que no es el cálculo (por URL).
-  // F3e (T010): «Probabilidad (TCL)», oculta hasta T017 (solo se ofrece con xk=tcl en el enlace).
-  const KINDS = ['calc', 'roy', 'pert', 'det', 'tcl'];
-  const kindReady = { calc: true, roy: true, pert: true, det: true, tcl: false };
+  // F3e (T010 y T011): «Probabilidad (TCL)» y «Montecarlo», ocultos hasta T017 (solo se ofrecen con xk=tcl o xk=mc).
+  const KINDS = ['calc', 'roy', 'pert', 'det', 'tcl', 'mc'];
+  const kindReady = { calc: true, roy: true, pert: true, det: true, tcl: false, mc: false };
   const kindOf = (state) => (KINDS.includes(state.xk) ? state.xk : 'calc');
   // Lo que se pierde al cambiar de ejercicio: las respuestas del cálculo, la red del alumno o las marcas del detective.
   function hasWork(state) {
@@ -167,7 +167,7 @@
     if (k === 'calc') return hasAnswers(state);
     if (k === 'roy') return !!state.rn && (state.rn.arcs.length > 0 || state.rn.nodes.some((n) => n.id !== '_S' && n.id !== '_E'));
     if (k === 'pert') return !!state.sn;
-    if (k === 'tcl') return !!(state.pa && Object.keys(state.pa).length);
+    if (k === 'tcl' || k === 'mc') return !!(state.pa && Object.keys(state.pa).length);
     return !!(state.dm && state.dm.length);
   }
 
@@ -349,15 +349,19 @@
     let builder = null;
     // F3d (T011): el detective, PNL.exDet (grupo dt).
     let detective = null;
-    // F3e (T010): «Probabilidad (TCL)», PNL.exProb (grupo pb).
+    // F3e (T010): «Probabilidad (TCL)», PNL.exProb (grupo pb); T011: «Montecarlo», PNL.exMc (grupo mx; mxh con mv=disc o rep).
     let prob = null;
+    let carlo = null;
 
     const state = () => hooks.state();
     const nota = () => state().nota;
     const vis = () => visibility(state());
     const grading = () => (m && m.grading ? m.grading : checked ? checked.grading : null);
     const marksOn = () => { const v = vis(); return v.marks === 'always' || (v.marks === 'checked' && !!checked && !stale); };
-    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv, kindOf(s), s.dg, s.dk, s.xo]);
+    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv, kindOf(s), s.dg, s.dk, s.xo, s.mv]);
+    // Los grupos de Montecarlo de una variante (F3e, T011): mx y, además, mxr («Leer») o mxh (las dos a mano).
+    const mcGroups = (mv) => ['mx', mv === 'disc' || mv === 'rep' ? 'mxh' : 'mxr'];
+    const mcReady = (mv) => !!root.PNL.exMc && !!root.PNL[mcGroups(mv)[1] === 'mxh' ? 'exMcHand' : 'exMcRead'];
 
     // Un ejercicio nuevo (semilla, nivel, parámetros, lo que se pide o el modo): si hay respuestas, antes se confirma.
     function newExercise(action) {
@@ -371,7 +375,8 @@
       if (k === kindOf(state()) || !kindReady[k]) return;
       const go = () => newExercise({ xk: k });
       const group = { roy: 'xb', det: 'dt', tcl: 'pb' }[k];
-      if (group && hooks.need) hooks.need(group).then(go, () => {}); else go();
+      if (k === 'mc' && hooks.need) Promise.all(mcGroups(state().mv).map((g) => hooks.need(g))).then(go, () => {});
+      else if (group && hooks.need) hooks.need(group).then(go, () => {}); else go();
     }
     const another = () => newExercise({ sd: hooks.newSeed() });
 
@@ -424,6 +429,19 @@
     const button = (label, onclick, o = {}) => h('button', Object.assign({ type: 'button', class: `ghost${o.primary ? ' primary' : ''}`, onclick }, o.attrs || {}), [label]);
     const seg = (items, label) => h('div', { class: 'seg', role: 'group', 'aria-label': label }, items.map(([text, on, fn, id]) => h('button', { type: 'button', 'aria-pressed': String(!!on), onclick: fn, id }, [text])));
 
+    // F3e (T011, tableros 96–98 y 104): en Montecarlo, «Variante»; a 360 px, un desplegable (como el tipo). Cambiarla con algo
+    // hecho pide confirmación (otro ejercicio) y carga antes el grupo de la variante.
+    function variantRow(s) {
+      const mv = root.PNL.exMc.variant(s);
+      const pick = (v) => { if (v !== mv) Promise.all(mcGroups(v).map((g) => (hooks.need ? hooks.need(g) : null))).then(() => newExercise({ mv: v }), () => {}); };
+      const items = root.PNL.exMc.VARIANTS.map((v) => [tt(`mx.v.${v}`), v === mv, () => pick(v), `exMv-${v}`]);
+      const vs = seg(items, tt('mx.variant'));
+      vs.classList.add('ex-kind-seg');
+      const sel = h('select', { id: 'exMvSel', class: 'ex-kind-sel', 'aria-label': tt('mx.variant'), onchange: (e) => { const v = e.target.value; e.target.value = mv; pick(v); } },
+        root.PNL.exMc.VARIANTS.map((v) => h('option', { value: v, selected: v === mv }, [tt(`mx.v.${v}`)])));
+      return h('div', { class: 'ex-row' }, [h('span', { class: 'ex-cap' }, [tt('mx.variant')]), vs, sel]);
+    }
+
     function bar() {
       const s = state();
       const prm = m.params;
@@ -467,11 +485,11 @@
             h('span', { class: 'ex-cap' }, [tt('det.errors')]),
             seg(['net', 'calc', 'all'].map((k) => [tt(`det.kind.${k}`), (s.dk || 'all') === k, () => { if ((s.dk || 'all') !== k) newExercise({ dk: k }); }, `dtKind-${k}`]), tt('det.errors'))])
           : h('div', { class: 'ex-row' }, [h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
-            h('span', { class: 'muted small ex-sum' }, [kind === 'tcl' ? root.PNL.exProb.levelText(prm, s.lv, lang()) : levelSummary(prm, lang())]), kind === 'calc' ? textCtl : null]);
+            h('span', { class: 'muted small ex-sum' }, [kind === 'tcl' ? root.PNL.exProb.levelText(prm, s.lv, lang()) : kind === 'mc' ? root.PNL.exMc.levelText(prm, s.lv, s.mv, lang()) : levelSummary(prm, lang())]), kind === 'calc' ? textCtl : null]);
         // F3e (T010, tablero 93): en TCL, «Qué se pide: La otra ruta» (xo), sin marcar por defecto.
         const r3 = kind === 'calc' ? h('div', { class: 'ex-row' }, [asksBox()]) : kind === 'tcl' ? h('div', { class: 'ex-row' }, [h('fieldset', { class: 'ex-ask' }, [
           h('legend', { class: 'ex-cap' }, [tt('ex.ask')]), h('label', {}, [h('input', { type: 'checkbox', id: 'exRoute', checked: !!s.xo,
-            onchange: (e) => newExercise({ xo: e.target.checked ? 1 : 0 }) }), ' ', tt('pb.route')])])]) : null;
+            onchange: (e) => newExercise({ xo: e.target.checked ? 1 : 0 }) }), ' ', tt('pb.route')])])]) : kind === 'mc' ? variantRow(s) : null;
         return h('section', { class: 'card ex-bar' }, [r1, r2, r3, kind === 'calc' ? textOff : null, customOpen ? customPanel() : null]);
       }
       const row1 = h('div', { class: 'ex-row' }, [
@@ -705,12 +723,14 @@
       if (!m) return;
       // F3e (T010): la barra de TCL usa los textos del grupo pb; se espera a que llegue.
       if (m.kind === 'tcl' && !root.PNL.exProb) { if (hooks.need) hooks.need('pb').then(draw, () => {}); return; }
+      // F3e (T011): la barra de Montecarlo usa los textos del grupo mx, y el cuerpo, el de su variante.
+      if (m.kind === 'mc' && !mcReady(state().mv)) { if (hooks.need) Promise.all(mcGroups(state().mv).map((g) => hooks.need(g))).then(draw, () => {}); return; }
       container.appendChild(bar());
       if (pending) {
         const toKind = pending.xk && pending.xk !== kindOf(state());
         const text = toKind ? tt('ex.loseKind') : kindOf(state()) === 'calc' ? tt('ex.lose') : tt('ex.loseWork');
         container.appendChild(h('div', { class: 'banner ex-lose', role: 'alertdialog', 'aria-labelledby': 'exLoseText' }, [h('span', { id: 'exLoseText' }, [text]),
-          button(toKind ? tt('ex.loseKindYes') : tt('ex.loseYes'), () => { const a = pending; pending = null; hooks.dispatch(a, { push: true }); if (a.xo !== undefined) focus('exRoute'); }, { primary: true, attrs: { id: 'exLoseYes' } }),
+          button(toKind ? tt('ex.loseKindYes') : tt('ex.loseYes'), () => { const a = pending; pending = null; hooks.dispatch(a, { push: true }); if (a.xo !== undefined) focus('exRoute'); if (a.mv) focus(`exMv-${a.mv}`); }, { primary: true, attrs: { id: 'exLoseYes' } }),
           button(tt('ex.loseNo'), () => { pending = null; draw(); focus('exAnother'); }, { attrs: { id: 'exLoseNo' } })]));
       }
       if (m.oldVersion) container.appendChild(h('p', { class: 'banner', role: 'status' }, [tt('ex.oldVersion')]));
@@ -741,6 +761,16 @@
         const body = h('div', { class: 'pb-body' });
         container.appendChild(body);
         prob.draw(body, m);
+        return;
+      }
+      if (m.kind === 'mc') {
+        if (!carlo) {
+          carlo = root.PNL.exMc.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, another });
+          root.PNL.exMc.state = () => carlo.debug();
+        }
+        const body = h('div', { class: 'mx-body' });
+        container.appendChild(body);
+        carlo.draw(body);
         return;
       }
       if (m.kind !== 'calc') {
@@ -774,6 +804,7 @@
         if (builder) builder.reset();
         if (detective) detective.reset();
         if (prob) prob.reset();
+        if (carlo) carlo.reset();
         if (state().lv !== 'custom') draft = null;
       }
       // Con el enunciado, la red y la tabla empiezan plegadas: las dos dejan ver las precedencias (decisión del autor, T008).

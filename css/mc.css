@@ -1,0 +1,83 @@
+/* F3e · «Montecarlo» en «Ejercicios» (T011; tableros 96–98 y 104). Hoja del grupo mx: solo la carga xk=mc (plan P1).
+   Las casillas, las marcas, la leyenda y la explicación son las de la F3a (.ex-cell, .ex-chip, .ex-explain); las marcas
+   no dependen solo del color: llevan icono, borde y su estado en texto. */
+.mx-body h2 { margin: 0; font-size: 16px; }
+.mx-grid > .card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mx-read { grid-template-columns: minmax(320px, 552px) minmax(0, 1fr); }
+.mx-disc-grid { grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); }
+.mx-rep-grid { grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); }
+.mx-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+.mx-grid p { margin: 0; }
+.mx-stmt { font-size: 13.5px; line-height: 1.4; }
+/* Los gráficos de chart-svg (imágenes): a su tamaño o más pequeños; en el móvil, a su tamaño con desplazamiento lateral. */
+.mx-chart { max-width: 100%; }
+.mx-chart img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 6px; }
+.mx-folds { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: flex-start; }
+.mx-details summary { font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; padding: 4px 0; }
+.mx-details[open] { flex-basis: 100%; }
+.mx-alts { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: flex-start; margin-top: 4px; }
+.mx-altbox { max-height: 220px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+table.data.mx-alt { width: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+table.data.mx-alt th, table.data.mx-alt td { padding: 1px 8px; text-align: right; }
+table.data.mx-alt tbody th { text-align: left; }
+table.data.mx-alt caption { text-align: left; font-size: 12px; color: var(--muted); padding: 2px 4px; white-space: nowrap; }
+.mx-altbox table.data.mx-alt thead th { position: sticky; top: 0; background: var(--soft); }
+/* Respuestas */
+.mx-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mx-gtitle { font-size: 13px; font-weight: 700; }
+.mx-f { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+.mx-f .ex-cell input[type="text"] { width: 76px; }
+.mx-rgrid { display: grid; grid-template-columns: minmax(0, 350px) minmax(0, 1fr); gap: 8px 16px; align-items: start; min-height: 0; }
+/* Los valores y la explicación ocupan la columna de la derecha entera; el tornado y las preguntas, la de la izquierda. */
+.mx-vcol { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mx-qs { grid-column: 1; }
+.mx-q { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mx-q legend { padding: 0; margin-bottom: 2px; font-size: 13px; font-weight: 600; line-height: 1.3; }
+.mx-opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.mx-opt { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; min-height: 26px; border-radius: 6px; border: 1px solid transparent; font-size: 13.5px; cursor: pointer; }
+.mx-opt input { margin: 0; }
+.mx-opt .ex-mark { position: static; }
+.mx-opt.st-ok { border: 1.5px solid var(--ok); color: var(--ok); }
+.mx-opt.st-wrong { border: 2px solid var(--critical); background: var(--critical-soft); color: var(--critical-text); }
+.mx-side { flex: 0 1 auto; }
+a.mx-link { display: inline-flex; align-items: center; min-height: 36px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+  color: var(--accent); font-weight: 600; font-size: 14px; text-decoration: none; box-sizing: border-box; }
+a.mx-link.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* Discretas: las filas discretas, sombreadas (y con sus probabilidades entre paréntesis: no solo el color). */
+table.data.mx-dtab tr.mx-disc { background: var(--warn-soft); }
+table.data.mx-dtab th, table.data.mx-dtab td { padding: 2px 6px; }
+.mx-cols { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: flex-start; min-width: 0; }
+.mx-c1 { flex: none; display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 100%; }
+.mx-c2 { flex: 1 1 170px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mx-cols > .mx-side { flex: 1 1 230px; }
+table.data.mx-combos .ex-cell input[type="text"] { width: 62px; }
+table.data.mx-combos td.d { padding: 0 8px; }
+/* Réplicas: cada duración es un botón que se pulsa para marcarla crítica (aria-pressed; rellena, en negrita y subrayada). */
+table.data.mx-rtab th, table.data.mx-rtab td { padding: 1px 2px; text-align: center; }
+table.data.mx-rtab .ex-cell input[type="text"] { width: 54px; }
+button.mx-tog { min-width: 34px; min-height: 28px; padding: 0 4px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  font: inherit; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
+button.mx-tog[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: underline; }
+button.mx-tog:disabled { cursor: default; opacity: 1; }
+td.mx-cst { text-align: left; white-space: nowrap; padding-left: 6px; }
+.mx-ests { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.mx-ests .mx-f .ex-cell input[type="text"] { width: 64px; }
+/* A 1280×720 todo cabe sin desplazar la página: las tablas largas se desplazan en su caja. */
+@media (min-width: 961px) and (min-height: 600px) {
+  .mx-read .mx-chart img { max-height: calc(100vh - 360px); }
+  .mx-read .mx-rgrid > .mx-chart img { max-height: calc(100vh - 540px); }
+  .mx-box { max-height: calc(100vh - 360px); overflow-y: auto; }
+  .mx-reps .mx-box { max-height: calc(100vh - 440px); }
+  .mx-qs { max-height: calc(100vh - 540px); overflow-y: auto; }
+}
+@media (max-width: 960px) {
+  .mx-grid { grid-template-columns: minmax(0, 1fr); }
+  .mx-rgrid { grid-template-columns: minmax(0, 1fr); }
+  .mx-vcol, .mx-qs { grid-column: auto; grid-row: auto; }
+}
+@media (max-width: 720px) {
+  .mx-chart { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .mx-chart img { max-width: none; width: auto; }
+  .mx-cols { flex-direction: column; }
+  .mx-cols > .mx-side { flex: none; width: 100%; }
+}
