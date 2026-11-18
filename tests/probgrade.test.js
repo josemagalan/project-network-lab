@@ -267,6 +267,17 @@ test('AC25 · el 95 %: z = 1,64, 1,645 y 1,65 ok, cada una con su plazo (y con e
   assert.equal(PGR.tcl(ex, Object.assign(tclSheet(ex), { zp: '1,6' })).cells.zp.status, 'wrong');
 });
 
+test('AC25 (T006) · con σ grande, el plazo con 1,65 es ok por sí mismo (no por estar a ±0,05 del de 1,64); fuera del 95 %, no', () => {
+  // μ = 35 y σ = 15: con 1,65, 59,75; con 1,64, 59,60; con la exacta, 59,67. Mutante del plan §5 («1,645 no aceptado»).
+  const one = (prob) => ({ kind: 'tcl', level: 'example', sd: null, sdUsed: null, deadline: 50, prob, route: null,
+    rows: [{ id: 'A', a: 0, m: 30, b: 90, preds: [] }] });
+  const g = PGR.tcl(one(0.95), Object.assign(tclSheet(one(0.95)), { zp: '1,65', Tp: '59,75' }));
+  assert.equal(g.cells.zp.status, 'ok'); assert.equal(g.cells.Tp.status, 'ok');
+  const g90 = PGR.tcl(one(0.9), Object.assign(tclSheet(one(0.9)), { zp: '1,65', Tp: '59,75' }));
+  assert.equal(g90.cells.zp.status, 'wrong'); assert.equal(g90.cells.Tp.status, 'carried');
+  assert.deepEqual(g90.cells.Tp.from, ['zp']);
+});
+
 test('P en el borde: la de la tabla ±0,0005 y la exacta ±0,005; fuera de las dos, wrong', () => {
   const ex = kl();
   const s = O.tcl.solution(ex);
