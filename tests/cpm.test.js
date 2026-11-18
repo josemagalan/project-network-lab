@@ -212,3 +212,19 @@ test('decimales y actividades de duración 0 sin errores de redondeo', () => {
 test('determinismo: el mismo proyecto da exactamente la misma solución', () => {
   assert.deepEqual(solveEx('hillier'), solveEx('hillier'));
 });
+
+// ---------- Empates con medias en sextos (F3e, hallazgo de T005) ----------
+
+// Medias de la beta-PERT de la tabla de probgen, fácil, semilla 280: A–B y D–F miden 55/6 (9,1667) los dos, pero los
+// tiempos redondeados a 10⁻⁹ dejaban una holgura de 10⁻⁹ en A y B y A–B no salía crítico.
+const SIXTHS = [row('A', 41 / 6), row('B', 14 / 6, 'A'), row('C', 7 / 6), row('D', 3), row('E', 13 / 6, 'A'), row('F', 37 / 6, 'D')];
+
+test('F3e: un empate de medias en sextos no se pierde por el redondeo: los dos caminos son críticos', () => {
+  const s = C.solve(load(SIXTHS));
+  for (const id of ['A', 'B', 'D', 'F']) assert.equal(s.floats[id].TF, 0, id);
+  assert.deepEqual(s.critical.slice().sort(), ['A', 'B', 'D', 'F']);
+  assert.deepEqual(s.criticalPaths.map((p) => p.acts.join('')).sort(), ['AB', 'DF']);
+  assert.equal(s.criticalCount, 2);
+  const stepA = s.trace.find((x) => x.kind === 'backward' && x.act === 'A');
+  assert.deepEqual(stepA.formula.chosen, ['B']);
+});

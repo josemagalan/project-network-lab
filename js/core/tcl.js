@@ -26,6 +26,7 @@
   const C = isNode ? require('./cpm.js') : root.PNL.cpm;
 
   const EPS = 1e-9;
+  const TIME_TOL = 1e-6;              // igualdad de los tiempos de core/cpm (redondeados a 10⁻⁹; F3e, hallazgo de T005)
   const LIST_LIMIT = 50;   // el pathLimit por defecto de core/cpm
   const round2 = (z) => Math.sign(z) * (Math.round(Number((Math.abs(z) * 100).toFixed(8))) / 100) || 0;
 
@@ -76,9 +77,9 @@
     const ids = model.acts.map((a) => a.id);
     const succs = {}; for (const id of ids) succs[id] = [];
     for (const a of model.acts) for (const p of a.preds) succs[p].push(a.id);
-    const tight = (a, b) => crit.has(a) && crit.has(b) && Math.abs(sol.times[a].EF - sol.times[b].ES) < EPS;
-    const isEnd = (id) => crit.has(id) && !succs[id].length && Math.abs(sol.times[id].EF - sol.duration) < EPS;
-    const isStart = (id) => crit.has(id) && !model.acts.find((a) => a.id === id).preds.length && Math.abs(sol.times[id].ES) < EPS;
+    const tight = (a, b) => crit.has(a) && crit.has(b) && Math.abs(sol.times[a].EF - sol.times[b].ES) < TIME_TOL;
+    const isEnd = (id) => crit.has(id) && !succs[id].length && Math.abs(sol.times[id].EF - sol.duration) < TIME_TOL;
+    const isStart = (id) => crit.has(id) && !model.acts.find((a) => a.id === id).preds.length && Math.abs(sol.times[id].ES) < TIME_TOL;
     const memo = {};
     const best = (id) => {             // { var, path } del mejor camino crítico de id al final
       if (memo[id]) return memo[id];

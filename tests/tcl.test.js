@@ -258,3 +258,38 @@ test('F4a r2 (F4, F2): con más de 50 críticos e igual σ², el primero en orde
     assert.equal(e.ties.length, order === 'xy' ? 49 : 50, order);
   }
 });
+
+// ---------- Empates con medias en sextos (F3e, hallazgo de T005) ----------
+
+test('F3e: con medias en sextos, el empate de medias se ve y decide la mayor σ² (probgen, fácil 280 y difícil 50)', () => {
+  const pert = (rows) => ({ acts: rows.map(([id, a, m, b, preds]) => ({ id, preds: preds ? preds.split('') : [], dist: { kind: 'pert', a, m, b } })) });
+  // fácil, semilla 280: A–B (σ² 1,47) y D–F (σ² 0,03) miden 55/6
+  const easy = L.exam(pert([['A', 5, 6, 12, ''], ['B', 2, 2, 4, 'A'], ['C', 1, 1, 2, ''], ['D', 3, 3, 3, ''], ['E', 1, 2, 4, 'A'], ['F', 6, 6, 7, 'D']]),
+    { deadline: 10 });
+  assert.deepEqual(easy.path, ['A', 'B']);
+  assert.equal(easy.tiesCount, 1);
+  assert.deepEqual(easy.ties.map((t) => t.acts), [['D', 'F']]);
+  // difícil, semilla 50: F–G–J–K–L (σ² 12,64) y A–C–I–J–K–L (σ² 9,08) miden 44,17
+  const hard = L.exam(pert([['A', 1, 3, 5, ''], ['B', 3, 4, 5, ''], ['C', 9, 13, 21, 'A'], ['D', 10, 10, 10, 'B'], ['E', 13, 13, 13, 'B'],
+    ['F', 8, 8, 8, ''], ['G', 6, 12, 23, 'AF'], ['H', 14, 15, 21, 'G'], ['I', 4, 4, 5, 'C'], ['J', 9, 10, 18, 'GI'], ['K', 3, 5, 10, 'J'],
+    ['L', 5, 6, 11, 'HK'], ['M', 3, 3, 3, 'HJ']]), { prob: 0.9 });
+  assert.deepEqual(hard.path, ['F', 'G', 'J', 'K', 'L']);
+  assert.equal(hard.tiesCount, 1);
+  close(hard.var, 12.638888888888889, 1e-9);
+});
+
+test('F3e: con más de 50 caminos críticos y medias en sextos, la programación dinámica también ve el empate', () => {
+  // El empate A–B / D–F de la semilla 280 (fácil) seguido de seis etapas de dos actividades fijas en paralelo: 128
+  // caminos críticos. Comparando los tiempos a 10⁻⁹, el arco B → X1 no salía ajustado y ganaba D–F (σ² 0,03).
+  const acts = [['A', 5, 6, 12, []], ['B', 2, 2, 4, ['A']], ['D', 3, 3, 3, []], ['F', 6, 6, 7, ['D']]]
+    .map(([id, a, m, b, preds]) => ({ id, preds, dist: { kind: 'pert', a, m, b } }));
+  let prev = ['B', 'F'];
+  for (let i = 1; i <= 6; i++) {
+    acts.push({ id: `X${i}`, preds: prev, dist: { kind: 'fixed', d: 2 } }, { id: `Y${i}`, preds: prev, dist: { kind: 'fixed', d: 2 } });
+    prev = [`X${i}`, `Y${i}`];
+  }
+  const e = L.exam({ acts }, { prob: 0.9 });
+  assert.equal(e.tiesCount, 127);
+  assert.deepEqual(e.path, ['A', 'B', 'X1', 'X2', 'X3', 'X4', 'X5', 'X6']);
+  close(e.var, 53 / 36, 1e-9);
+});
