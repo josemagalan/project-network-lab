@@ -1,0 +1,64 @@
+/* F3e · «Probabilidad (TCL)» en «Ejercicios» (T010; tableros 93–95 y 103). Hoja del grupo pb: solo la carga xk=tcl (plan
+   P1). Las casillas y sus marcas son las de la F3a (.ex-cell, .ex-chip, .ex-explain); las marcas no dependen solo del
+   color: llevan icono, borde y su estado en texto. */
+.pb-body h2 { margin: 0; font-size: 16px; }
+.pb-stmt { margin: 0; font-size: 13.5px; line-height: 1.4; }
+.pb-tie { font-size: 12px; line-height: 1.35; }
+.pb-grid { grid-template-columns: minmax(300px, 440px) minmax(0, 1fr); }
+.pb-body table.data.ex-given th, .pb-body table.data.ex-given td { padding: 1px 4px; }
+/* La red ROY sin cifras: cajas compactas con el nombre, sin los tiempos de encima (tablero 93). */
+.pb-body .ex-net text.val { display: none; }
+.pb-grid.pb-with-normal { grid-template-columns: minmax(200px, 250px) minmax(0, 1fr) minmax(360px, 480px); }
+.pb-with-normal .pb-ans .ex-cell input[type="text"] { width: 56px; }
+.pb-with-normal .pb-c2 { flex-basis: 150px; }
+.pb-cols { display: flex; gap: 10px 14px; align-items: flex-start; min-width: 0; }
+.pb-with-normal .pb-cols { flex-wrap: wrap; }
+.pb-c1 { flex: none; display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 100%; }
+.pb-c2 { flex: 1 1 180px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pb-c3 { flex: 0 1 236px; min-width: 150px; }
+.pb-c1 p, .pb-c2 p { margin: 0; }
+.pb-c1 p { max-width: 250px; }
+.pb-ans .ex-cell input[type="text"] { width: 62px; }
+.pb-ans td.pb-pc { text-align: center; }
+.pb-pathst { display: flex; align-items: center; gap: 6px; }
+.pb-pathst .ex-mark { position: static; }
+.pb-pathst.st-ok .ex-mark { color: var(--ok); }
+.pb-pathst.st-carried .ex-mark { color: var(--accent); }
+.pb-pathst.st-wrong .ex-mark, .pb-pathst.st-invalid .ex-mark { color: var(--critical); }
+.pb-pathst.st-blank .ex-mark { color: var(--muted); }
+.pb-group { display: flex; flex-direction: column; gap: 4px; }
+.pb-gtitle { font-size: 13px; font-weight: 700; }
+.pb-gcells { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.pb-f { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; }
+.pb-f .ex-cell input[type="text"] { width: 74px; }
+a.pb-link { display: inline-flex; align-items: center; min-height: 36px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+  color: var(--accent); font-weight: 600; font-size: 14px; text-decoration: none; box-sizing: border-box; }
+a.pb-link.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+/* La tabla de la normal: panel al lado, no modal (H1; decisión 3 de los bocetos). */
+.pb-normal { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; border-color: var(--accent); }
+.pb-normal p { margin: 0; }
+.pb-x { min-width: 32px; min-height: 30px; padding: 0 8px; }
+.pb-nsearch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.pb-nsearch input { width: 72px; height: 30px; padding: 0 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.pb-nbox { overflow: auto; border: 1px solid var(--line); border-radius: 8px; max-width: 100%; }
+table.data.pb-ntable { font-size: 11.5px; font-variant-numeric: tabular-nums; width: 100%; }
+table.data.pb-ntable th, table.data.pb-ntable td { padding: 0 3px; text-align: right; white-space: nowrap; }
+table.data.pb-ntable caption { text-align: left; font-size: 12px; color: var(--muted); padding: 2px 6px; }
+table.data.pb-ntable thead th { position: sticky; top: 0; background: var(--soft); }
+table.data.pb-ntable tbody th { background: var(--soft); }
+table.data.pb-ntable td.line { background: var(--accent-soft); }
+table.data.pb-ntable tr.hit th, table.data.pb-ntable th.hit { background: var(--accent-mid); }
+table.data.pb-ntable td.hit { outline: 2px solid var(--accent); outline-offset: -2px; font-weight: 700; background: var(--accent-mid); }
+/* A 1280×720 todo cabe sin desplazar la página: la tabla larga y la de la normal se desplazan en su caja (AC20). */
+@media (min-width: 961px) and (min-height: 600px) {
+  .pb-table-box { max-height: calc(100vh - 410px); overflow-y: auto; }
+  .pb-body .ex-net svg.net { max-height: calc(100vh - 612px); }
+  /* El panel sigue a la vista al desplazar la página. */
+  .pb-normal { position: sticky; top: 8px; max-height: calc(100vh - 222px); }
+  .pb-nbox { min-height: 0; flex: 1 1 auto; }
+}
+@media (max-width: 960px) {
+  .pb-grid, .pb-grid.pb-with-normal { grid-template-columns: minmax(0, 1fr); }
+  .pb-cols { flex-direction: column; }
+  .pb-c3 { flex: none; width: 100%; }
+}

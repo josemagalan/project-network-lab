@@ -497,3 +497,19 @@ test('F3e T008: pa se cambia mientras no se ha entregado y solo con campos del t
   // Fuera de los tipos nuevos, pa no se guarda.
   assert.equal(S.reduce(Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'calc' }), { type: 'pa', value: { mu: '3' } }, 1).pa, null);
 });
+
+// ---------- F3e T010: «la otra ruta» (xo) ----------
+
+test('F3e T010: un ejercicio nuevo pone o quita la otra ruta (y borra pa); con otro tipo, se quita', () => {
+  let s = Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'tcl', pa: { mu: '3' } });
+  s = S.reduce(s, { type: 'ex', xo: 1 }, 1);
+  assert.deepEqual([s.xo, s.pa, s.xk], [1, null, 'tcl']);
+  s = S.reduce(s, { type: 'ex', sd: 9 }, 1);
+  assert.equal(s.xo, 1, 'otra semilla conserva lo que se pide');
+  s = S.reduce(s, { type: 'ex', xo: 0 }, 1);
+  assert.equal(s.xo, 0);
+  s = S.reduce(Object.assign({}, s, { xo: 1 }), { type: 'ex', xk: 'calc' }, 1);
+  assert.equal(s.xo, 0, 'fuera de TCL no hay otra ruta');
+  s = S.reduce(s, { type: 'ex', xk: 'tcl', xo: 'yes' }, 1);
+  assert.equal(s.xo, 0, 'solo 0 o 1');
+});

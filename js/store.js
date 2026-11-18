@@ -125,6 +125,8 @@
         s.rn = null; s.sn = null; s.dm = null; s.pa = null;
         if (['calc', 'roy', 'pert', 'det', 'tcl', 'mc'].includes(action.xk)) s.xk = action.xk;
         if (['read', 'disc', 'rep'].includes(action.mv)) s.mv = action.mv;
+        if (action.xo === 0 || action.xo === 1) s.xo = action.xo;
+        if (s.xk !== 'tcl') s.xo = 0;
         if (['aon', 'aoa'].includes(action.dg)) s.dg = action.dg;
         if (['net', 'calc', 'all'].includes(action.dk)) s.dk = action.dk;
         if (Number.isInteger(action.sd) && action.sd >= 1 && action.sd <= U.EX.seed) s.sd = action.sd;

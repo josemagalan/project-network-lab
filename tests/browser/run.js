@@ -8413,13 +8413,386 @@ check('F3d T018 I-F10 y N-F10 · el detective sin tabla lo dice; la marca 41 se 
   await close(page);
 });
 
+// ---------- F3e, T010: «Probabilidad (TCL)» en «Ejercicios» (oculto hasta T017; tableros 93–95 y 103) ----------
+
+const PG0 = require(path.join(ROOT, 'js', 'core', 'probgen.js'));
+const PR0 = require(path.join(ROOT, 'js', 'core', 'probgrade.js'));
+const T30 = require(path.join(ROOT, 'js', 'core', 'threept.js'));
+// Al pedirlos (las pruebas en rojo de T010 corrían sin los módulos).
+const XP0 = new Proxy({}, { get: (o, k) => { require(path.join(ROOT, 'js', 'i18n-prob.js')); return require(path.join(ROOT, 'js', 'ex-prob.js'))[k]; } });
+const NT0 = new Proxy({}, { get: (o, k) => require(path.join(ROOT, 'js', 'views', 'normal-table.js'))[k] });
+const pbUrl = (s) => exUrl(Object.assign({ xk: 'tcl' }, s));
+async function pbLab(s, opts) {
+  const page = await open(pbUrl(s), opts);
+  await page.waitForFunction(() => PNL.exProb && PNL.exProb.state && PNL.exProb.state() && PNL.exProb.state().ex);
+  return page;
+}
+const pbSt = (page) => page.evaluate(() => PNL.exProb.state());
+// Lo mismo que genera el navegador, en Node (AC11).
+const pbEx = (s) => PG0.tcl(s.sd, s.lv === 'custom' ? s.gp : s.lv || 'medium', { route: !!s.xo });
+const pbFiles = /ex-prob\.js|i18n-prob\.js|normal-table\.js|prob\.css|core\/probgen\.js|core\/probgrade\.js|core\/threept\.js|core\/tcl\.js/;
+const pbGroups = (page) => page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, pbFiles.source);
+const r2s = (x) => String(Math.round(x * 100) / 100);
+const r4s = (x) => String(Math.round(x * 1e4) / 1e4);
+// El alumno coherente de los tableros: dos decimales (cuatro la probabilidad), y sigue con lo que ha escrito.
+function pbStudent(ex, edit = {}) {
+  const sol = PG0.solve('tcl', ex);
+  const a = {};
+  for (const r of ex.rows) { a[`${r.id}.te`] = r2s(sol.acts[r.id].te); a[`${r.id}.var`] = r2s(sol.acts[r.id].var); }
+  a.path = sol.path.slice();
+  Object.assign(a, edit.pre || {});
+  const n = (k) => Number(String(a[k]).replace(',', '.'));
+  const mu = a.path.reduce((s, i) => s + n(`${i}.te`), 0); const v = a.path.reduce((s, i) => s + n(`${i}.var`), 0);
+  const z = T30.tableP((ex.deadline - mu) / Math.sqrt(v));
+  const zp = edit.zp != null ? edit.zp : sol.zp;
+  Object.assign(a, { mu: r2s(mu), var: r2s(v), z: r2s(z.z2), p: r4s(z.p4), zp: String(zp), Tp: r2s(mu + zp * Math.sqrt(v)) });
+  if (ex.route) {
+    const rm = ex.route.reduce((s, i) => s + n(`${i}.te`), 0); const rv = ex.route.reduce((s, i) => s + n(`${i}.var`), 0);
+    const rz = T30.tableP((ex.deadline - rm) / Math.sqrt(rv));
+    Object.assign(a, { 'r.mu': r2s(rm), 'r.var': r2s(rv), 'r.z': r2s(rz.z2), 'r.p': r4s(rz.p4), both: r4s(z.p4 * rz.p4) });
+  }
+  Object.assign(a, edit.post || {});
+  for (const k of Object.keys(a)) if (a[k] === '') delete a[k];
+  return a;
+}
+// Escribe las respuestas con el teclado (las casillas) y el ratón (las marcas del camino), como un alumno.
+async function pbType(page, ans, lang) {
+  for (const [k, v] of Object.entries(ans)) {
+    if (k === 'path') continue;
+    await exCell(page, k).fill(lang === 'es' ? String(v).replace('.', ',') : String(v));
+  }
+  for (const id of ans.path || []) await page.locator(`#pbPath-${id}`).click();
+}
+// La marca de cada casilla a la vista (null sin marca) y la del camino.
+const pbMarks = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#exView [data-key]')]
+  .filter((i) => i.dataset.key !== 'path').map((i) => [i.dataset.key, (/(?:^| )st-(\w+)/.exec(i.closest('.ex-cell').className) || [])[1] || null])
+  .concat([['path', (/(?:^| )st-(\w+)/.exec((document.getElementById('pbPathSt') || { className: '' }).className) || [])[1] || null]])));
+const pbWant = (g) => Object.fromEntries(Object.entries(g.cells).map(([k, c]) => [k, c.status]));
+const pbNoMarks = (g) => Object.fromEntries(Object.keys(g.cells).map((k) => [k, null]));
+const pbNum = (lang, v) => (lang === 'es' ? String(v).replace('.', ',') : String(v));
+
+check('F3e T010 AC2, AC5, AC10 y AC11 · TCL en Practicar (ES, media, con la otra ruta; tablero 93): el ejercicio de Node; escribir con el teclado; «Comprobar» con las marcas de probgrade, 93,8 % y las explicaciones; editar borra las marcas; grupo pb sin dt ni xb', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'es', xo: 1 };
+  const { ex } = pbEx(s);
+  const page = await pbLab(s);
+  const st = await pbSt(page);
+  assert.deepEqual(st.ex, ex, 'AC11: la misma semilla da el mismo ejercicio en el navegador y en Node');
+  assert.equal(await page.locator('#exKind-tcl').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#exRoute').isChecked(), true);
+  assert.equal(await page.locator('#pbStmt').innerText(), XP0.statement(ex, 'es').map((x) => (typeof x === 'string' ? x : x.b)).join(''));
+  assert.equal(await page.locator('#pbGiven tbody tr').count(), ex.rows.length);
+  assert.equal(await page.locator('.ex-sum').innerText(), XP0.levelText(GEN0.LEVELS.medium, 'medium', 'es'));
+  assert.equal(await page.locator('#pbMoved').count(), 0);
+  assert.equal(await pbGroups(page), 8, 'el grupo pb');
+  assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-det\.js|ex-build\.js|core\/sim\.js|core\/mc\.js|\/unc\.js/.test(e.name))), false, 'sin dt, xb ni la pestaña de tres tiempos');
+  // Las casillas: tₑ y σ² de cada actividad, el proyecto, el plazo, la probabilidad y la otra ruta.
+  const fields = PR0.fields('tcl', ex).filter((k) => k !== 'path');
+  assert.deepEqual(await page.locator('#exView [data-key]:not([data-key="path"])').evaluateAll((xs) => xs.map((x) => x.dataset.key)).then((ks) => ks.slice().sort()), fields.slice().sort());
+  assert.equal(await page.locator('#pbCheck').count(), 1);
+  assert.equal(await page.locator('#pbDeliver').count(), 0);
+  const ans = pbStudent(ex, { pre: { 'G.te': '8.5' }, post: { both: '' } });
+  await pbType(page, ans, 'es');
+  await page.waitForFunction((n) => PNL.app.state().pa && (PNL.app.state().pa.path || []).length === n, ans.path.length);
+  const pa = (await state(page)).pa;
+  const g = PR0.tcl(ex, pa);
+  assert.deepEqual([g.score.got, g.score.total], [30, 32]);
+  assert.match(await page.evaluate(() => location.hash), /[#&]pa=/);
+  assert.deepEqual(await pbMarks(page), pbNoMarks(g), 'sin marcas hasta comprobar');
+  await page.locator('#pbCheck').click();
+  assert.deepEqual(await pbMarks(page), pbWant(g), 'las marcas de probgrade');
+  assert.equal(await page.locator('#pbScore').innerText(), 'Nota: 93,8 % (30 de 32)');
+  assert.equal(await page.locator('#pbCount').innerText(), '1 incorrecta · 4 con error consecuente · 1 sin contestar');
+  assert.equal(await page.locator('#pbPathSt').evaluate((e) => e.firstChild.textContent), I0.t('es', 'pb.yourPath', { p: 'B–G–H–I–J' }));
+  assert.equal(await page.locator('#pbPathSt .sr-only').textContent(), I0.t('es', 'ex.st.ok'), 'la marca del camino, también en texto');
+  // Las explicaciones de cada casilla que no está bien (AC10), al pasar por ella.
+  for (const k of Object.keys(g.cells).filter((x) => g.cells[x].status !== 'ok' && x !== 'path')) {
+    await exCell(page, k).focus();
+    assert.equal(await page.locator('#pbExplain p').innerText(), XP0.explain(ex, pa, g, k, 'es'), k);
+    assert.match(await page.locator('#pbExplain strong').textContent(), new RegExp(XP0.label(k, ex, 'es').replace(/[()^$*+?.[\]\\|]/g, '\\$&')));
+  }
+  await exCell(page, 'G.te').focus();
+  assert.equal(await page.locator('#pbExplain p').innerText(), 'Has escrito 8,5. tₑ = (a + 4m + b) / 6 = (4 + 4 · 7 + 13) / 6 = 7,5.');
+  await axe(page, 'TCL en Practicar, comprobado (ES)');
+  await shot(page, 'f3e-tcl-practice-es');
+  // Editar una casilla borra las marcas (y se dice); al volver a comprobar, otra vez.
+  await exCell(page, 'G.te').fill('7,5');
+  assert.deepEqual(await pbMarks(page), pbNoMarks(g));
+  assert.equal(await page.locator('#pbStale').innerText(), I0.t('es', 'ex.stale'));
+  assert.equal(await activeId(page), exId('G.te'), 'el foco sigue en la casilla');
+  await page.locator('#pbCheck').click();
+  const g2 = PR0.tcl(ex, (await state(page)).pa);
+  assert.equal(g2.cells['G.te'].status, 'ok');
+  assert.equal(await page.locator('#pbScore').innerText(), XP0.scoreText(g2, 'es'));
+  // Quitar una marca del camino también.
+  await page.locator('#pbPath-G').click();
+  await page.waitForFunction(() => !PNL.app.state().pa.path.includes('G'));
+  assert.equal(await page.locator('#pbScore').count(), 0);
+  await close(page);
+});
+
+check('F3e T010 AC9 y AC13 · Examen (EN, difícil, oscuro; tablero 94): sin marcas; «Entregar» con confirmación; bloqueado; nota 97 %; al recargar, igual; «Ver la solución en M6» con la misma tabla', async () => {
+  const s = { sd: 3141, lv: 'hard', lang: 'en', xm: 'exam' };
+  const { ex } = pbEx(s);
+  const sol = PG0.solve('tcl', ex);
+  const v = sol.path.find((id) => sol.acts[id].var > 1);
+  const ans = pbStudent(ex, { pre: { [`${v}.var`]: r2s(Math.sqrt(sol.acts[v].var)) } });
+  const page = await pbLab(s, { scheme: 'dark' });
+  for (const id of ['#pbCheck', '#pbScore', '#pbSol']) assert.equal(await page.locator(id).count(), 0, `Examen sin ${id}`);
+  assert.equal(await page.locator('#pbNote').innerText(), I0.t('en', 'ex.examNote'));
+  assert.equal(await page.locator('#exRoute').isChecked(), false, 'sin la otra ruta por defecto');
+  await pbType(page, ans, 'en');
+  await page.waitForFunction((n) => PNL.app.state().pa && (PNL.app.state().pa.path || []).length === n, ans.path.length);
+  await page.locator('#pbCheck, #pbDeliver').first().click();
+  assert.deepEqual(await pbMarks(page), pbNoMarks(PR0.tcl(ex, ans)), 'sin marcas');
+  assert.equal(await page.locator('#pbConfirmText').innerText(), I0.t('en', 'ex.confirm', { n: 0 }));
+  await page.locator('#pbConfirmNo').click();
+  assert.equal(await activeId(page), 'pbDeliver');
+  await page.locator('#pbDeliver').click();
+  await page.locator('#pbConfirmYes').click();
+  await page.waitForFunction(() => PNL.app.state().xd === 1);
+  const g = PR0.tcl(ex, (await state(page)).pa);
+  assert.equal(g.score.pct, 97);
+  assert.equal(await page.locator('#pbScore').innerText(), XP0.scoreText(g, 'en'));
+  assert.deepEqual(await pbMarks(page), pbWant(g));
+  assert.equal(await exCell(page, `${v}.var`).getAttribute('readonly'), 'readonly', 'bloqueado');
+  assert.equal(await page.locator(`#pbPath-${sol.path[0]}`).isDisabled(), true);
+  await exCell(page, 'var').focus();
+  assert.equal(await page.locator('#pbExplain p').innerText(), XP0.explain(ex, ans, g, 'var', 'en'));
+  await axe(page, 'TCL entregado (EN, oscuro)');
+  await shot(page, 'f3e-tcl-exam-en');
+  await page.reload();
+  await page.waitForFunction(() => PNL.exProb && PNL.exProb.state && PNL.exProb.state() && PNL.exProb.state().grading);
+  assert.equal(await page.locator('#pbScore').innerText(), XP0.scoreText(g, 'en'));
+  // La solución: M6 con la misma tabla, el plazo y la probabilidad; «Atrás» vuelve a la entrega.
+  const href = await page.locator('#pbSol').getAttribute('href');
+  assert.equal(href, XP0.m6Hash(ex, exState0(Object.assign({ xk: 'tcl' }, s))));
+  await page.locator('#pbSol').click();
+  await page.waitForFunction(() => PNL.app.state().v === 'unc' && PNL.app.state().um === 'm6' && PNL.unc && PNL.uncM56);
+  const u = await state(page);
+  assert.deepEqual([u.ue, u.ud, u.up], ['own', ex.deadline, ex.prob]);
+  assert.deepEqual(u.ut.rows.map((r) => r.id), ex.rows.map((r) => r.id));
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app.state().v === 'ex' && PNL.exProb.state() && PNL.exProb.state().grading);
+  await close(page);
+});
+
+check('F3e T010 AC4 y AC25 · el 95 %: z = 1,645 y su plazo, correctos; con la notación española, la misma corrección (AC18)', async () => {
+  let sd = 1;
+  while (pbEx({ sd, lv: 'easy' }).ex.prob !== 0.95) sd++;
+  for (const nota of ['en', 'es']) {
+    const s = { sd, lv: 'easy', lang: 'es', nota };
+    const { ex } = pbEx(s);
+    const ans = pbStudent(ex, { zp: 1.645 });
+    const page = await pbLab(Object.assign({ pa: ans }, s));
+    await page.locator('#pbCheck').click();
+    const g = PR0.tcl(ex, ans);
+    assert.equal(g.cells.zp.status, 'ok');
+    assert.equal(g.cells.Tp.status, 'ok');
+    assert.deepEqual(await pbMarks(page), pbWant(g), nota);
+    assert.equal(await page.locator('#pbScore').innerText(), XP0.scoreText(g, 'es'));
+    await close(page);
+  }
+});
+
+check('F3e T010 · la otra ruta (xo): la casilla de «Qué se pide», sin marcar por defecto; con respuestas, cambiarla pide confirmación; el enunciado nombra la ruta y salen sus casillas; en difícil se busca a trozos con aviso', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'es' };
+  const page = await pbLab(s);
+  assert.equal(await page.locator('#exRoute').isChecked(), false);
+  assert.equal(await page.locator('#exc-r_mu').count(), 0);
+  assert.equal((await pbSt(page)).ex.route, null);
+  await exCell(page, 'A.te').fill('9,5');
+  await page.waitForFunction(() => PNL.app.state().pa);
+  await page.locator('#exRoute').click();
+  assert.equal(await page.locator('#exLoseText').innerText(), I0.t('es', 'ex.loseWork'));
+  assert.equal(await page.locator('#exRoute').isChecked(), false, 'hasta confirmar, sin la otra ruta');
+  await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().xo === 1 && PNL.exProb.state().ex && PNL.exProb.state().ex.route);
+  assert.equal((await state(page)).pa, null, 'lo hecho se borra');
+  assert.match(await page.evaluate(() => location.hash), /[#&]xo=1/);
+  const { ex } = pbEx(Object.assign({ xo: 1 }, s));
+  assert.deepEqual((await pbSt(page)).ex, ex);
+  assert.match(await page.locator('#pbStmt').innerText(), /La otra ruta: A–C–D–E\./);
+  for (const k of ['r.mu', 'r.var', 'r.z', 'r.p', 'both']) assert.equal(await exCell(page, k).count(), 1, k);
+  assert.equal(await activeId(page), 'exRoute', 'el foco vuelve a la casilla');
+  await page.locator('#exRoute').click();
+  await page.waitForFunction(() => PNL.app.state().xo === 0 && PNL.exProb.state().ex && !PNL.exProb.state().ex.route);
+  await close(page);
+  // Difícil con la otra ruta: la búsqueda va a trozos y, mientras tanto, lo dice.
+  let sd = 1;
+  while (pbEx({ sd, lv: 'hard', xo: 1 }).info.tries < 60) sd++;
+  const p2 = await open(pbUrl({ sd, lv: 'hard', lang: 'es', xo: 1 }));
+  await p2.waitForSelector('#pbSearching');
+  assert.equal(await p2.locator('#pbSearching').innerText(), I0.t('es', 'pb.searching'));
+  await p2.waitForFunction(() => PNL.exProb.state() && PNL.exProb.state().ex);
+  assert.equal(await p2.locator('#pbSearching').count(), 0);
+  const r = pbEx({ sd, lv: 'hard', xo: 1 });
+  assert.deepEqual((await pbSt(p2)).ex, r.ex);
+  assert.equal(await p2.locator('#pbMoved').innerText(), XP0.movedText(r, 'es'), 'H9: dice la semilla usada');
+  assert.equal((await state(p2)).sd, sd, 'el enlace guarda la pedida');
+  await close(p2);
+});
+
+check('F3e T010 H1 · la tabla de la normal (tablero 95): panel al lado, no modal, con la z escrita resaltada; «Buscar z»; se sigue escribiendo con ella abierta; Esc la cierra; axe en oscuro', async () => {
+  const s = { sd: 77, lv: 'easy', lang: 'es' };
+  const { ex } = pbEx(s);
+  const sol = PG0.solve('tcl', ex);
+  const page = await pbLab(Object.assign({ pa: { z: pbNum('es', sol.z) } }, s), { scheme: 'dark' });
+  assert.equal(await page.locator('#pbNormal').count(), 0);
+  await exCell(page, 'z').focus();
+  await page.locator('#pbTable').click();
+  assert.equal(await page.locator('#pbTable').getAttribute('aria-expanded'), 'true');
+  await page.waitForSelector('#pbNormal');
+  assert.equal(await page.locator('#pbNormal [role="dialog"], dialog#pbNormal').count(), 0, 'no es un diálogo modal');
+  assert.equal(await page.locator('#pbNormal tbody tr').count(), 35);
+  assert.equal(await page.locator('#pbNormal thead th').count(), 11);
+  const loc = NT0.locate(pbNum('es', sol.z));
+  assert.equal(await page.locator('#pbNormalZ').inputValue(), pbNum('es', sol.z), 'la z de la casilla');
+  assert.equal(await page.locator('#pbNormal td.hit').innerText(), pbNum('es', loc.p.toFixed(4)));
+  assert.equal(await page.locator('#pbNormalP').innerText(), I0.t('es', 'pb.normal.found', { z: pbNum('es', loc.z.toFixed(2)), p: pbNum('es', loc.p.toFixed(4)) }));
+  await page.locator('#pbNormalZ').fill('1,63');
+  assert.equal(await page.locator('#pbNormal td.hit').innerText(), '0,9484');
+  assert.equal(await page.locator('#pbNormal tr.hit th').innerText(), '1,6');
+  await page.locator('#pbNormalZ').fill('-0,61');
+  assert.match(await page.locator('#pbNormalP').innerText(), /0,2709/, 'con z negativa, 1 − Φ(0,61)');
+  await page.locator('#pbNormalZ').fill('4');
+  assert.equal(await page.locator('#pbNormalP').innerText(), I0.t('es', 'pb.normal.out'));
+  assert.equal(await page.locator('#pbNormal td.hit').count(), 0);
+  // Se sigue escribiendo con la tabla abierta.
+  await exCell(page, 'p').fill('0,5');
+  await page.waitForFunction(() => PNL.app.state().pa && PNL.app.state().pa.p === '0,5');
+  assert.equal(await page.locator('#pbNormal').count(), 1);
+  await axe(page, 'TCL con la tabla de la normal (ES, oscuro)');
+  await shot(page, 'f3e-tcl-normal-es');
+  await page.locator('#pbNormalZ').focus();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#pbNormal').count(), 0);
+  assert.equal(await activeId(page), 'pbTable', 'el foco vuelve al botón');
+  // En Examen también está.
+  const p2 = await pbLab(Object.assign({ xm: 'exam' }, s));
+  await p2.locator('#pbTable').click();
+  await p2.waitForSelector('#pbNormal');
+  await p2.locator('#pbNormalClose').click();
+  assert.equal(await p2.locator('#pbNormal').count(), 0);
+  await close(p2);
+  await close(page);
+});
+
+check('F3e T010 AC1 · las referencias en el núcleo del navegador: Klastorin (A–C–E–F, 23,83, 8,25, 0,66) y Hillier (44, 9, 0,84), todo correcto; y el ejercicio de Node con tres semillas por nivel (AC11)', async () => {
+  const page = await pbLab({ sd: 5, lv: 'easy', lang: 'es' });
+  // Los ejemplos citados (core/stochex) son de la pestaña de tres tiempos: aquí se cargan a mano, solo para la prueba.
+  await page.addScriptTag({ url: 'js/core/stochex.js' });
+  const r = await page.evaluate(() => {
+    const out = {};
+    for (const [id, T] of [['kl', 25], ['hl', 47]]) {
+      const ex = PNL.probgen.fromExample(id, { deadline: T });
+      const sol = PNL.probgen.solve('tcl', ex);
+      const ans = { path: sol.path.slice(), mu: String(Math.round(sol.mu * 100) / 100), var: String(Math.round(sol.var * 100) / 100), z: String(sol.z), p: String(sol.p), zp: String(sol.zp), Tp: String(Math.round(sol.Tp * 100) / 100) };
+      for (const a of ex.rows) { ans[`${a.id}.te`] = String(Math.round(sol.acts[a.id].te * 100) / 100); ans[`${a.id}.var`] = String(Math.round(sol.acts[a.id].var * 100) / 100); }
+      const g = PNL.probgrade.tcl(ex, ans);
+      out[id] = { path: sol.path.join('–'), mu: Math.round(sol.mu * 100) / 100, var: Math.round(sol.var * 100) / 100, p: Math.round(sol.p * 100) / 100,
+        bad: Object.entries(g.cells).filter(([, c]) => c.status !== 'ok').map(([k]) => k) };
+    }
+    return out;
+  });
+  assert.deepEqual(r.kl, { path: 'A–C–E–F', mu: 23.83, var: 8.25, p: 0.66, bad: [] });
+  assert.deepEqual([r.hl.mu, r.hl.var, r.hl.p, r.hl.bad], [44, 9, 0.84, []]);
+  for (const lv of ['easy', 'medium', 'hard']) {
+    for (const sd of [11, 222, 3333]) {
+      await setHash(page, exHash({ xk: 'tcl', sd, lv }));
+      await page.waitForFunction((x) => PNL.exProb.state() && PNL.exProb.state().ex && PNL.exProb.state().ex.sd === x, sd);
+      assert.deepEqual((await pbSt(page)).ex, pbEx({ sd, lv }).ex, `${lv} ${sd}`);
+    }
+  }
+  await close(page);
+});
+
+check('F3e T010 AC20 · a 1280×720 el difícil cabe sin desplazar la página (la tabla larga se desplaza en su caja); a 360 px (tablero 103) sin desplazamiento horizontal; teclado: Intro baja de fila', async () => {
+  const fits = async (page, label) => {
+    const b = await page.evaluate(() => ({ bottom: document.getElementById('exView').getBoundingClientRect().bottom, y: window.scrollY, w: document.documentElement.scrollWidth }));
+    assert.ok(b.y === 0 && b.bottom <= 720 && b.w <= 1280, `${label}: ${JSON.stringify(b)}`);
+  };
+  for (const s of [{ sd: 3141, lv: 'hard', lang: 'en' }, { sd: 2026, lv: 'medium', lang: 'es', xo: 1 }, { sd: 50, lv: 'hard', lang: 'es', xo: 1 }]) {
+    const { ex } = pbEx(s);
+    const page = await pbLab(Object.assign({ pa: pbStudent(ex, { pre: { [`${ex.rows[1].id}.te`]: '99' } }) }, s));
+    await fits(page, `${s.lv} ${s.lang} ${s.xo ? 'con la otra ruta' : ''}`);
+    await page.locator('#pbCheck').click();
+    await exCell(page, 'mu').focus();
+    await fits(page, `${s.lv} ${s.lang}, corregido`);
+    // Con la tabla de la normal abierta, la página puede crecer, pero el panel cabe entero a la vista y sigue ahí al desplazarla.
+    await page.locator('#pbTable').click();
+    const nb = await page.evaluate(() => { const r = document.getElementById('pbNormal').getBoundingClientRect(); return { top: r.top, bottom: r.bottom, w: document.documentElement.scrollWidth }; });
+    assert.ok(nb.top >= 0 && nb.bottom <= 720 && nb.w <= 1280, `${s.lv} ${s.lang}, con la tabla de la normal: ${JSON.stringify(nb)}`);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const nb2 = await page.evaluate(() => document.getElementById('pbNormal').getBoundingClientRect().top);
+    assert.ok(nb2 >= 0 && nb2 < 720, `el panel sigue a la vista: ${nb2}`);
+    await close(page);
+  }
+  // Intro baja a la misma columna de la fila siguiente.
+  const p0 = await pbLab({ sd: 2026, lv: 'medium', lang: 'es' });
+  await exCell(p0, 'A.var').focus();
+  await p0.keyboard.press('Enter');
+  assert.equal(await activeId(p0), exId('B.var'));
+  await close(p0);
+  for (const lang of ['es', 'en']) {
+    const s = { sd: 2026, lv: 'medium', lang, xo: 1 };
+    const { ex } = pbEx(s);
+    const page = await pbLab(Object.assign({ pa: pbStudent(ex, { pre: { 'G.te': '8.5' } }) }, s), { width: 360, height: 740 });
+    const narrow = async (label) => { const w = await page.evaluate(() => document.documentElement.scrollWidth); assert.ok(w <= 360, `${lang} 360 px, ${label}: ${w} px`); };
+    assert.equal(await page.locator('#exKindSel').isVisible(), true, 'el tipo, en un desplegable');
+    await narrow('al abrir');
+    await page.locator('#pbCheck').click();
+    await exCell(page, 'G.te').focus();
+    await narrow('corregido');
+    await page.locator('#pbTable').click();
+    await narrow('con la tabla de la normal');
+    await axe(page, `TCL a 360 px (${lang})`);
+    await shot(page, `f3e-tcl-360-${lang}`, true);
+    await close(page);
+  }
+});
+
+check('F3e T010 · oculto (hasta T017): sin xk=tcl la barra no ofrece TCL ni Montecarlo; con xk=tcl, sí, y desde TCL se puede ir a los otros tipos y volver por el enlace', async () => {
+  const page = await exLab({ sd: 14844, lv: 'medium', lang: 'es' });
+  assert.deepEqual(await page.locator('.ex-kind-seg button').allInnerTexts(), ['calc', 'roy', 'pert', 'det'].map((k) => I0.t('es', `ex.kind.${k}`)));
+  assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-prob\.js|probgen\.js/.test(e.name))), false);
+  await close(page);
+  const p2 = await pbLab({ sd: 14844, lv: 'medium', lang: 'en' });
+  assert.deepEqual(await p2.locator('.ex-kind-seg button').allInnerTexts(), ['calc', 'roy', 'pert', 'det', 'tcl'].map((k) => I0.t('en', `ex.kind.${k}`)));
+  await exCell(p2, 'A.te').fill('3');
+  await p2.waitForFunction(() => PNL.app.state().pa);
+  await p2.locator('#exKind-calc').click();
+  assert.equal(await p2.locator('#exLoseText').innerText(), I0.t('en', 'ex.loseKind'));
+  await p2.locator('#exLoseYes').click();
+  await p2.waitForFunction(() => PNL.app.state().xk === 'calc' && PNL.ex.state().kind === 'calc');
+  assert.equal((await state(p2)).pa, null);
+  await p2.goBack();
+  await p2.waitForFunction(() => PNL.app.state().xk === 'tcl' && PNL.exProb.state() && PNL.exProb.state().ex);
+  await close(p2);
+});
+
+check('F3e T010 · principio 27: TCL difícil con la otra ruta, corregido, con la tabla de la normal y con «Aprende más» abierto, por debajo de 1 MB', async () => {
+  const s = { sd: 50, lv: 'hard', lang: 'es', xo: 1 };
+  const { ex } = pbEx(s);
+  const page = await pbLab(Object.assign({ pa: pbStudent(ex) }, s));
+  await page.locator('#pbCheck').click();
+  await page.locator('#pbTable').click();
+  await page.locator('#pbLearn').click();
+  await page.locator('dialog[open]').first().waitFor();
+  await page.waitForLoadState('networkidle');
+  const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+    .reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+  console.log(`    TCL difícil con todo abierto: ${(bytes / 1024).toFixed(0)} KB`);
+  assert.ok(bytes > 0 && bytes <= BUDGET, `${bytes} bytes`);
+  await close(page);
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   for (const url of ['index.html', 'cpm.html#v=route&ex=ej6&step=0&lang=es', 'cpm.html#v=work&lang=es', 'cpm.html#v=route&ex=ej6&step=27&graph=aoa&view=side&lang=es', 'cpm.html#graph=aoa&ex=ej6&step=5&lang=es',
     `cpm.html#graph=aoa&view=cmp&ex=ej6&ms=${ALL_MS}&lang=es`, 'cpm.html#graph=aoa&m=prog&ex=ej6&step=13&lang=es',
     `cpm.html#graph=aoa&view=reto&ex=ej6&lang=es&sn=${retoSn()}`, 'cpm.html#v=m0&st=ej5&lang=es', 'cpm.html#v=m0&st=ej5&mm=route&step=23&lang=es', 'cpm.html#v=m0&st=gen&sd=22&lv=hard&cx=lab&sv=2&lang=es',
-    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aon', dk: 'all' }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
+    exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK }), exUrl({ sd: 92846, lv: 'hard', ask: ALL_ASK, xt: 1 }), exUrl({ sd: 92846, lv: 'hard', xk: 'roy' }), exUrl({ sd: 92846, lv: 'hard', xk: 'pert' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }), exUrl({ sd: 92846, lv: 'hard', xk: 'det', dg: 'aon', dk: 'all' }), exUrl({ sd: 50, lv: 'hard', xk: 'tcl', xo: 1 }), rrUrl({ ex: 'ej6', rn: XB0.placeLevels(RC0.fromTable(ej6())) }), 'cpm.html#v=moodle&lang=es', 'cpm.html#v=unc&ue=hl&uc=1&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=idx&lang=es', 'cpm.html#v=unc&um=m7&ue=hl&uy=conv&lang=es']) {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
@@ -8439,7 +8812,10 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     // F4a (decisión del autor): «Aprende más» (learn.js) no se carga al abrir ninguna vista, solo al abrir su diálogo.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn(-unc|-m7)?\.js/.test(e.name))), false, `${url}: learn.js`);
     // F4a (plan P3): los tres tiempos, la simulación y el TCL, solo en «Duraciones inciertas».
-    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/sim\.js|tcl\.js|unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
+    // F3e (T010, H10): threept y tcl también con TCL en «Ejercicios» (grupo pb); la simulación y la vista, no.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /core\/sim\.js|\/unc\.js/.test(e.name))), url.includes('v=unc'), `${url}: grupo de la F4a`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /threept\.js|core\/tcl\.js/.test(e.name))), url.includes('v=unc') || url.includes('xk=tcl'), `${url}: threept y tcl`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /ex-prob\.js|i18n-prob\.js|normal-table\.js|prob\.css|probgen\.js|probgrade\.js/.test(e.name))), url.includes('xk=tcl'), `${url}: grupo pb`);
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo (grupo cr), solo con view=cmp, view=reto o m=prog.
     // F3d (T009 y T010): el reto ROY (view=reto sin graph=aoa) no carga el grupo cr; construir la PERT, sí.
     const cr = (/graph=aoa/.test(url) && /view=(cmp|reto)|m=prog/.test(url)) || url.includes('xk=pert');

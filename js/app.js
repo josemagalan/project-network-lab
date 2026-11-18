@@ -82,6 +82,8 @@
     // F3d (plan P1, T011): el detective (xk=det), con aoacheck y roycheck para confirmar los errores sembrados (H1), sus
     // textos (i18n-det, aparte de los de construir), su vista y su hoja.
     dt: ['css/det.css', 'js/core/aoacheck.js', 'js/core/roycheck.js', 'js/core/detective.js', 'js/i18n-det.js', 'js/views/det-view.js', 'js/ex-det.js'],
+    // F3e (P1, T010): TCL en «Ejercicios» (xk=tcl).
+    pb: ['css/prob.css', 'js/core/threept.js', 'js/core/tcl.js', 'js/core/probgen.js', 'js/core/probgrade.js', 'js/i18n-prob.js', 'js/views/normal-table.js', 'js/ex-prob.js'],
     un: ['css/unc.css', 'js/core/threept.js', 'js/core/sim.js', 'js/core/tcl.js', 'js/core/stochex.js', 'js/i18n-unc.js', 'js/views/dist-chart.js', 'js/unc.js'],
     // F4b (plan P4, T010): M7, solo con um=m7 y siempre después de un (usa su núcleo y su vista).
     u7: ['css/m7.css', 'js/core/mc.js', 'js/i18n-m7.js', 'js/views/mc-charts.js', 'js/m7.js'],
@@ -90,7 +92,7 @@
     // F4b (T012, reserva 2 de T001): la vista de M5 y M6, aparte de unc.js, para no cargarla con um=m7; después de un.
     u56: ['js/unc-m56.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -160,7 +162,7 @@
     // necesita (revisión de la F3c, F1).
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
     // F3d (H1): el tipo de ejercicio; xt=1 solo pide el generador de enunciados con el cálculo.
-    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb'] : xk === 'pert' ? ['xb', 'cr'] : xk === 'det' ? ['dt'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
+    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb'] : xk === 'pert' ? ['xb', 'cr'] : xk === 'det' ? ['dt'] : xk === 'tcl' ? ['pb'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
     if (royRetoOf({ v, graph: q.get('graph'), view: q.get('view') })) return ['xb'];
     if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);

@@ -32,12 +32,12 @@
     uh: ['t', 'p'],
     // F3d (plan f3d-construir-detectar, §3): tipo de ejercicio y, en el detective, la red y los errores que se buscan.
     xk: ['calc', 'roy', 'pert', 'det', 'tcl', 'mc'], dg: ['aon', 'aoa'], dk: ['net', 'calc', 'all'],
-    mv: ['read', 'disc', 'rep'],   // F3e: variante de Montecarlo
+    mv: ['read', 'disc', 'rep'], xo: ['0', '1'],   // F3e: variante de Montecarlo y la otra ruta (TCL)
   };
-  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur', 'xo'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
     'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh',
-    'xk', 'rn', 'dg', 'dk', 'dm', 'mv', 'pa'];
+    'xk', 'rn', 'dg', 'dk', 'dm', 'mv', 'pa', 'xo'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -67,7 +67,7 @@
       cx: null, sv: null, xt: 0,
       um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
       ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c', uh: 't',
-      xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null, mv: 'read', pa: null };
+      xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null, mv: 'read', pa: null, xo: 0 };
   }
 
   // F3d: red ROY del alumno (rn) y marcas del detective (dm) (plan §3; análisis H12). Nodos: actividad, Inicio (_S) o
@@ -630,6 +630,7 @@
       const xk = ENUMS.xk.includes(s.xk) ? s.xk : 'calc';
       if (xk !== 'calc') q.set('xk', xk);
       if (xk === 'mc' && s.mv !== 'read' && ENUMS.mv.includes(s.mv)) q.set('mv', s.mv);   // F3e
+      if (xk === 'tcl' && s.xo) q.set('xo', '1');
       const ask = cleanAsk(s.ask) || DEFAULT_ASK;
       if (xk === 'calc' && ask.join() !== DEFAULT_ASK.join()) q.set('ask', ask.map((x) => ASK_CODE[x]).join(''));
       if (s.xm === 'exam') q.set('xm', 'exam');
@@ -793,6 +794,7 @@
     } else { state.dg = 'aon'; state.dk = 'all'; }
     // F3e: mv solo con xk=mc; pa con xk=tcl o mc.
     if (!(state.v === 'ex' && state.xk === 'mc')) state.mv = 'read';
+    if (!(state.v === 'ex' && state.xk === 'tcl')) state.xo = 0;
     const pk = state.v === 'ex' && paKind(state.xk, state.mv);
     if (pk && q.has('pa')) { const pa = decodePa(q.get('pa'), pk); if (!pa) malformed = true; else if (Object.keys(pa).length) state.pa = pa; }
     const out = { state };

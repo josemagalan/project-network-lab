@@ -157,8 +157,9 @@
   // ---------- Tipo de ejercicio (F3d, T008; tableros 81 y 92) ----------
   // Cálculo (la F3a, sin cambios), construir la ROY o la PERT y detective. Solo se ofrecen los que ya están hechos; la
   // barra con el tipo se ve con buildPublic (publicado en T014) o, sin él, con un tipo que no es el cálculo (por URL).
-  const KINDS = ['calc', 'roy', 'pert', 'det'];
-  const kindReady = { calc: true, roy: true, pert: true, det: true };
+  // F3e (T010): «Probabilidad (TCL)», oculta hasta T017 (solo se ofrece con xk=tcl en el enlace).
+  const KINDS = ['calc', 'roy', 'pert', 'det', 'tcl'];
+  const kindReady = { calc: true, roy: true, pert: true, det: true, tcl: false };
   const kindOf = (state) => (KINDS.includes(state.xk) ? state.xk : 'calc');
   // Lo que se pierde al cambiar de ejercicio: las respuestas del cálculo, la red del alumno o las marcas del detective.
   function hasWork(state) {
@@ -166,6 +167,7 @@
     if (k === 'calc') return hasAnswers(state);
     if (k === 'roy') return !!state.rn && (state.rn.arcs.length > 0 || state.rn.nodes.some((n) => n.id !== '_S' && n.id !== '_E'));
     if (k === 'pert') return !!state.sn;
+    if (k === 'tcl') return !!(state.pa && Object.keys(state.pa).length);
     return !!(state.dm && state.dm.length);
   }
 
@@ -347,13 +349,15 @@
     let builder = null;
     // F3d (T011): el detective, PNL.exDet (grupo dt).
     let detective = null;
+    // F3e (T010): «Probabilidad (TCL)», PNL.exProb (grupo pb).
+    let prob = null;
 
     const state = () => hooks.state();
     const nota = () => state().nota;
     const vis = () => visibility(state());
     const grading = () => (m && m.grading ? m.grading : checked ? checked.grading : null);
     const marksOn = () => { const v = vis(); return v.marks === 'always' || (v.marks === 'checked' && !!checked && !stale); };
-    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv, kindOf(s), s.dg, s.dk]);
+    const keyOf = (s) => JSON.stringify([s.sd, s.lv, s.gp, s.ask, s.xm, s.xd, s.gv, kindOf(s), s.dg, s.dk, s.xo]);
 
     // Un ejercicio nuevo (semilla, nivel, parámetros, lo que se pide o el modo): si hay respuestas, antes se confirma.
     function newExercise(action) {
@@ -366,7 +370,7 @@
     function setKind(k) {
       if (k === kindOf(state()) || !kindReady[k]) return;
       const go = () => newExercise({ xk: k });
-      const group = { roy: 'xb', det: 'dt' }[k];
+      const group = { roy: 'xb', det: 'dt', tcl: 'pb' }[k];
       if (group && hooks.need) hooks.need(group).then(go, () => {}); else go();
     }
     const another = () => newExercise({ sd: hooks.newSeed() });
@@ -463,8 +467,11 @@
             h('span', { class: 'ex-cap' }, [tt('det.errors')]),
             seg(['net', 'calc', 'all'].map((k) => [tt(`det.kind.${k}`), (s.dk || 'all') === k, () => { if ((s.dk || 'all') !== k) newExercise({ dk: k }); }, `dtKind-${k}`]), tt('det.errors'))])
           : h('div', { class: 'ex-row' }, [h('span', { class: 'ex-cap' }, [tt('ex.level')]), levels,
-            h('span', { class: 'muted small ex-sum' }, [levelSummary(prm, lang())]), kind === 'calc' ? textCtl : null]);
-        const r3 = kind === 'calc' ? h('div', { class: 'ex-row' }, [asksBox()]) : null;
+            h('span', { class: 'muted small ex-sum' }, [kind === 'tcl' ? root.PNL.exProb.levelText(prm, s.lv, lang()) : levelSummary(prm, lang())]), kind === 'calc' ? textCtl : null]);
+        // F3e (T010, tablero 93): en TCL, «Qué se pide: La otra ruta» (xo), sin marcar por defecto.
+        const r3 = kind === 'calc' ? h('div', { class: 'ex-row' }, [asksBox()]) : kind === 'tcl' ? h('div', { class: 'ex-row' }, [h('fieldset', { class: 'ex-ask' }, [
+          h('legend', { class: 'ex-cap' }, [tt('ex.ask')]), h('label', {}, [h('input', { type: 'checkbox', id: 'exRoute', checked: !!s.xo,
+            onchange: (e) => newExercise({ xo: e.target.checked ? 1 : 0 }) }), ' ', tt('pb.route')])])]) : null;
         return h('section', { class: 'card ex-bar' }, [r1, r2, r3, kind === 'calc' ? textOff : null, customOpen ? customPanel() : null]);
       }
       const row1 = h('div', { class: 'ex-row' }, [
@@ -696,12 +703,14 @@
     function paint() {
       clear(container);
       if (!m) return;
+      // F3e (T010): la barra de TCL usa los textos del grupo pb; se espera a que llegue.
+      if (m.kind === 'tcl' && !root.PNL.exProb) { if (hooks.need) hooks.need('pb').then(draw, () => {}); return; }
       container.appendChild(bar());
       if (pending) {
         const toKind = pending.xk && pending.xk !== kindOf(state());
         const text = toKind ? tt('ex.loseKind') : kindOf(state()) === 'calc' ? tt('ex.lose') : tt('ex.loseWork');
         container.appendChild(h('div', { class: 'banner ex-lose', role: 'alertdialog', 'aria-labelledby': 'exLoseText' }, [h('span', { id: 'exLoseText' }, [text]),
-          button(toKind ? tt('ex.loseKindYes') : tt('ex.loseYes'), () => { const a = pending; pending = null; hooks.dispatch(a, { push: true }); }, { primary: true, attrs: { id: 'exLoseYes' } }),
+          button(toKind ? tt('ex.loseKindYes') : tt('ex.loseYes'), () => { const a = pending; pending = null; hooks.dispatch(a, { push: true }); if (a.xo !== undefined) focus('exRoute'); }, { primary: true, attrs: { id: 'exLoseYes' } }),
           button(tt('ex.loseNo'), () => { pending = null; draw(); focus('exAnother'); }, { attrs: { id: 'exLoseNo' } })]));
       }
       if (m.oldVersion) container.appendChild(h('p', { class: 'banner', role: 'status' }, [tt('ex.oldVersion')]));
@@ -722,6 +731,16 @@
         const body = h('div', { class: 'dt-body' });
         container.appendChild(body);
         detective.draw(body, m);
+        return;
+      }
+      if (m.kind === 'tcl') {
+        if (!prob) {
+          prob = root.PNL.exProb.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, another, learn: hooks.learn });
+          root.PNL.exProb.state = () => prob.debug();
+        }
+        const body = h('div', { class: 'pb-body' });
+        container.appendChild(body);
+        prob.draw(body, m);
         return;
       }
       if (m.kind !== 'calc') {
@@ -754,6 +773,7 @@
         exKey = k; checked = null; stale = false; selKey = null; selAct = null; confirmOpen = false; arcs = false; pending = null; pathFields = 1;
         if (builder) builder.reset();
         if (detective) detective.reset();
+        if (prob) prob.reset();
         if (state().lv !== 'custom') draft = null;
       }
       // Con el enunciado, la red y la tabla empiezan plegadas: las dos dejan ver las precedencias (decisión del autor, T008).

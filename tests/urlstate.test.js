@@ -1083,3 +1083,40 @@ test('F3e T008: los enlaces de la F1 a la F4b se leen y se escriben igual que an
     assert.deepEqual([r.state.mv, r.state.pa], ['read', null], h);
   }
 });
+
+// ---------- F3e T010: «la otra ruta» en TCL (xo; bocetos aprobados, T009, decisión 1) ----------
+
+test('F3e T010: xo=1 (la otra ruta) hace ida y vuelta solo con xk=tcl; sin marcar no se escribe', () => {
+  const s = Object.assign(U.defaults(), { v: 'ex', sd: 2026, xk: 'tcl', xo: 1 });
+  assert.equal(U.defaults().xo, 0, 'sin marcar por defecto');
+  const h = U.encode(s);
+  assert.equal(paQ(h).get('xo'), '1');
+  const r = U.decode(h);
+  assert.equal(r.warning, undefined);
+  assert.equal(r.state.xo, 1);
+  assert.equal(U.encode(r.state), h);
+  assert.ok(!paQ(U.encode(Object.assign({}, s, { xo: 0 }))).has('xo'), 'sin la otra ruta no se escribe');
+  // Con otro tipo o fuera de «Ejercicios», ni se escribe ni se lee.
+  for (const o of [{ xk: 'calc' }, { xk: 'mc' }, { xk: 'det' }, { v: 'route' }]) {
+    const x = Object.assign({}, s, o);
+    assert.ok(!paQ(U.encode(x)).has('xo'), JSON.stringify(o));
+  }
+  for (const h2 of ['#v=ex&sd=3&xo=1', '#v=ex&sd=3&xk=mc&xo=1', '#v=route&ex=ej6&xo=1']) {
+    const r2 = U.decode(h2);
+    assert.equal(r2.state.xo, 0, h2);
+    assert.equal(r2.warning, undefined, `${h2}: una clave conocida en otra vista no es un error`);
+  }
+});
+
+test('F3e T010: xo malformado vuelve a 0 con aviso; los enlaces de antes siguen igual', () => {
+  for (const v of ['2', 'si', '', 'true']) {
+    const r = U.decode(`#v=ex&sd=3&xk=tcl&xo=${v}`);
+    assert.equal(r.state.xo, 0, v);
+    assert.equal(r.warning, 'malformed', v);
+  }
+  // Un enlace de TCL de antes (sin xo) se abre sin la otra ruta.
+  const old = U.decode('#v=ex&sd=41&lv=hard&xk=tcl&xm=exam&pa=mu%3A23%252C83&xd=1');
+  assert.equal(old.warning, undefined);
+  assert.deepEqual([old.state.xo, old.state.xk, old.state.pa], [0, 'tcl', { mu: '23,83' }]);
+  assert.ok(!paQ(U.encode(old.state)).has('xo'));
+});

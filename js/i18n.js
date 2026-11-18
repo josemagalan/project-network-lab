@@ -1063,10 +1063,10 @@
 
   // ---------- F3d · tipo de ejercicio en «Ejercicios» y «Reto ROY» del taller (T008, bloque 1; H11) ----------
   // Solo lo que se ve sin el grupo xb: lo demás de construir la ROY está en i18n-build (plan P1).
-  Object.assign(dict.es.ex, { kind: { label: 'Tipo', calc: 'Cálculo', roy: 'Construir la ROY', pert: 'Construir la PERT', det: 'Detective' },
+  Object.assign(dict.es.ex, { kind: { label: 'Tipo', calc: 'Cálculo', roy: 'Construir la ROY', pert: 'Construir la PERT', det: 'Detective', tcl: 'Probabilidad (TCL)', mc: 'Montecarlo' },
     loseKind: 'Se perderá lo que llevas en este ejercicio. ¿Cambiar de tipo?', loseKindYes: 'Sí, cambiar de tipo',
     loseWork: 'Tienes trabajo hecho: el ejercicio nuevo lo borra.' });
-  Object.assign(dict.en.ex, { kind: { label: 'Type', calc: 'Calculation', roy: 'Build the AON', pert: 'Build the AOA', det: 'Detective' },
+  Object.assign(dict.en.ex, { kind: { label: 'Type', calc: 'Calculation', roy: 'Build the AON', pert: 'Build the AOA', det: 'Detective', tcl: 'Probability (CLT)', mc: 'Monte Carlo' },
     loseKind: 'What you have done in this exercise will be lost. Change the type?', loseKindYes: 'Yes, change the type',
     loseWork: 'You have work done: the new exercise clears it.' });
   dict.es.view.retoRoy = 'Reto ROY';
