@@ -879,7 +879,8 @@
     // F3e (P6): varias respuestas al 100 %, cada una con su tolerancia (la tabla o la exacta; las z del 95 %).
     if (c && typeof c === 'object' && 'nums' in c) return `{1:NUMERICAL:${c.nums.map((a) => `%100%${clozeNum(a.v)}:${clozeNum(a.tol)}`).join('~')}}`;
     if (c && typeof c === 'object' && 'mc' in c) return `{1:MULTICHOICE:${c.mc.map((o) => `${o.ok ? '=' : ''}${escText(escCloze(o.label))}`).join('~')}}`;
-    if (c && typeof c === 'object' && 'mr' in c) return `{1:MULTIRESPONSE_H:${c.mr.map((o) => `%${o.fraction}%${escText(escCloze(o.label))}`).join('~')}}`;
+    // F3e (T015): en las series, los caminos críticos van en vertical (MULTIRESPONSE): son opciones largas.
+    if (c && typeof c === 'object' && 'mr' in c) return `{1:${c.vertical ? 'MULTIRESPONSE' : 'MULTIRESPONSE_H'}:${c.mr.map((o) => `%${o.fraction}%${escText(escCloze(o.label))}`).join('~')}}`;
     if (c && typeof c === 'object' && 'yesNo' in c) {
       const yes = escText(escCloze(tr('yes'))); const no = escText(escCloze(tr('no')));
       return `{1:MULTICHOICE:${c.yesNo ? '=' : ''}${yes}~${c.yesNo ? '' : '='}${no}}`;
@@ -903,6 +904,7 @@
       if (b.quote) return `<blockquote>${b.quote.map((x) => `<p>${escText(x)}</p>`).join('')}</blockquote>`;
       if (b.fold) return `<details><summary>${escText(b.fold.summary)}</summary>${blocksHtml(b.fold.blocks, tr)}</details>`;
       if (b.strong) return `<p><strong>${escText(b.strong)}</strong></p>`;
+      if (b.h) return `<h4>${escText(b.h)}</h4>`;   // F3e (T015): el título de cada parte de una serie
       return `<p>${escText(b.p)}${b.hole ? ` ${cellHtml(b.hole, tr)}` : ''}</p>`;
     }).join('');
   }
@@ -940,7 +942,9 @@
   }
 
   const api = { STAGES, STAGES_ALL, STAGES_F3E, LEVELS, APP, FRACTIONS, MR_FRACTIONS, MIN_DISTRACTORS, MAX_DISTRACTORS, MAX_COUNT, DEFAULT_COUNT, TRIES_PER,
-    TRIES_MULT, TOL, fraction, exercise, fromRows, links, question, stochExercise, runner, generate, toXml, cdata, base64, claimHolds, transitive };
+    TRIES_MULT, TOL, fraction, exercise, fromRows, links, question, stochExercise, runner, generate, toXml, cdata, base64, claimHolds, transitive,
+    // F3e (T015): piezas que usa core/series (la familia de las series de moodle.html); no son parte del contrato.
+    _: { ASK, PATH_SEP, Z95, SEED_MAX, PATH_LIMIT, BUILD, tclData, numText, roundTo, clozeNum, stochLinks, natural } };
   root.PNL = root.PNL || {};
   root.PNL.moodle = api;
   if (isNode) module.exports = api;

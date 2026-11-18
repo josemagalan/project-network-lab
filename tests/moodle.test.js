@@ -579,7 +579,9 @@ test('T016: textos del banco (i18n-moodle) aprobados en T006', () => {
     'sol.tclRoute': ['T', 'mu', 'p', 'pe', 'route', 'sd', 'var', 'z'], 'sol.tclBoth': ['both', 'pc', 'pr'], 'sol.mcRead': ['T', 'a', 'c', 'p', 'pT', 'v', 'w'],
     'sol.mcq.mostCrit': ['c', 'c2', 'n2', 'r'], 'sol.mcq.mostCruc': ['c', 'c2', 'n2', 'r'], 'sol.mcq.critLowCruc': ['c', 'r', 'u'],
     'sol.mcq.optimistic': ['T', 'o', 'pn', 'ps'], 'sol.mcq.pessimistic': ['T', 'o', 'pn', 'ps'], 'sol.mcq.promise': ['r'],
-    'sol.mcDisc': ['T', 'mean', 'pT'], 'sol.crit': ['list'], 'sol.mcRepT': ['list'], 'sol.mcRep': ['T', 'k', 'n', 'p'] };
+    'sol.mcDisc': ['T', 'mean', 'pT'], 'sol.crit': ['list'], 'sol.mcRepT': ['list'], 'sol.mcRep': ['T', 'k', 'n', 'p'],
+    // F3e (T015): series.
+    'series.part': ['name'], 'series.ask.tclRoute': ['route'] };
   const I = require('../js/i18n.js');
   const walk = (o, pre, out) => { for (const [k, v] of Object.entries(o)) { if (k === 'page') continue; if (typeof v === 'string') out[pre + k] = v; else walk(v, `${pre}${k}.`, out); } return out; };
   const keysOf = (s) => [...new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].sort();

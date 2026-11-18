@@ -301,6 +301,37 @@
     },
     link: { m6: 'Ver la solución en M6', m7: 'Ver la solución en M7' },
     and: '{a} y {b}',
+    // F3e (T015; plan §0 y P7; análisis H4; tablero 101): las series encadenadas, un cloze con un solo proyecto.
+    series: {
+      cat: 'Series', name: 'Serie', part: 'Parte {name}',
+      intro: 'Todas las partes de esta pregunta son sobre el mismo proyecto. Una parte no da los resultados de las anteriores: sigue con los tuyos.',
+      table: 'Esta es su tabla de precedencias, con la duración de cada actividad:',
+      tableTcl: 'Esta es su tabla de precedencias, con tres estimaciones de la duración de cada actividad, en semanas: optimista (a), más probable (m) y pesimista (b).',
+      stmt: 'Este es su enunciado:',
+      ab: 'Las duraciones del enunciado son las más probables (m). Esta tabla da la optimista (a) y la pesimista (b) de cada actividad, en semanas:',
+      means: 'En las partes de tiempos, holguras, caminos y sucesos, las duraciones son las medias de la beta-PERT, tₑ = (a + 4m + b) / 6, con dos decimales.',
+      withMeans: 'Con las medias tₑ como duraciones (dos decimales):',
+      ask: {
+        early: 'Comienzo temprano y fin temprano de cada actividad, y duración del proyecto:',
+        late: 'Comienzo tardío y fin tardío de cada actividad:',
+        floats: 'Holgura total, libre e independiente de cada actividad:',
+        floatsSf: 'Holgura total, libre, independiente y de seguridad de cada actividad:',
+        critAct: '¿Es crítica cada actividad?',
+        critPath: 'Marca todos los caminos críticos. Cada uno bien marcado suma y cada uno mal marcado resta:',
+        evNet: 'Esta es la red PERT del proyecto (actividades en los arcos), dada por sus arcos; las ficticias duran 0.',
+        evSucc: 'Usa la red PERT de la parte 8, con sus sucesos numerados como allí; las ficticias duran 0.',
+        evEarly: 'Tiempo temprano de cada suceso:',
+        evLate: 'Tiempo tardío y holgura de cada suceso:',
+        minDummy: '¿Cuántas ficticias tiene la red PERT con el menor número de ficticias?',
+        tclMoments: 'Media (tₑ) y varianza (σ²) de cada actividad, con dos decimales: tₑ = (a + 4m + b) / 6 y σ² = ((b − a) / 6)².',
+        tclPath: 'Elige el camino crítico de las medias (si dos caminos empatan en media, el de mayor varianza) y calcula la media (μ) y la varianza (σ²) de la duración del proyecto, con dos decimales:',
+        tclProb: 'Con la aproximación normal (TCL) del camino crítico de las medias y la tabla de la normal:',
+        tclRoute: 'La ruta {route} no comparte actividades con el camino crítico de las medias, así que las dos duraciones son independientes. Con la aproximación normal (TCL) y la tabla:',
+      },
+      solNote: 'Un solo proyecto en todas las partes; una parte no da los resultados de la anterior.',
+      solMeans: 'Los tiempos, las holguras y los sucesos van con las medias a dos decimales; con las medias exactas también se aceptan (±0,01).',
+      solTcl: 'En las partes del TCL se aceptan también z, P y el plazo calculados con μ y σ² sumadas con las medias ya redondeadas.',
+    },
   };
   const en3 = {
     stage: {
@@ -363,6 +394,36 @@
     },
     link: { m6: 'See the solution in M6', m7: 'See the solution in M7' },
     and: '{a} and {b}',
+    series: {
+      cat: 'Series', name: 'Series', part: 'Part {name}',
+      intro: 'Every part of this question is about the same project. A part does not give the results of the previous ones: carry on with yours.',
+      table: 'This is its precedence table, with the duration of each activity:',
+      tableTcl: 'This is its precedence table, with three estimates of the duration of each activity, in weeks: optimistic (a), most likely (m) and pessimistic (b).',
+      stmt: 'This is its statement:',
+      ab: 'The durations in the statement are the most likely ones (m). This table gives the optimistic (a) and the pessimistic (b) duration of each activity, in weeks:',
+      means: 'In the parts on times, floats, paths and events, the durations are the beta-PERT means, tₑ = (a + 4m + b) / 6, to two decimals.',
+      withMeans: 'With the means tₑ as durations (two decimals):',
+      ask: {
+        early: 'Early start and early finish of each activity, and project duration:',
+        late: 'Late start and late finish of each activity:',
+        floats: 'Total, free and independent float of each activity:',
+        floatsSf: 'Total, free, independent and safety float of each activity:',
+        critAct: 'Is each activity critical?',
+        critPath: 'Tick all the critical paths. Each right box adds and each wrong one subtracts:',
+        evNet: 'This is the AOA network of the project (activities on the arcs), given by its arcs; dummies last 0.',
+        evSucc: 'Use the AOA network of part 8, with its events numbered as there; dummies last 0.',
+        evEarly: 'Earliest time of each event:',
+        evLate: 'Latest time and slack of each event:',
+        minDummy: 'How many dummies does the AOA network with the fewest dummies have?',
+        tclMoments: 'Mean (tₑ) and variance (σ²) of each activity, to two decimals: tₑ = (a + 4m + b) / 6 and σ² = ((b − a) / 6)².',
+        tclPath: 'Choose the critical path of the means (if two paths tie on the mean, the one with the larger variance) and work out the mean (μ) and the variance (σ²) of the project duration, to two decimals:',
+        tclProb: 'With the normal approximation (CLT) of the critical path of the means and the normal table:',
+        tclRoute: 'The route {route} shares no activities with the critical path of the means, so the two durations are independent. With the normal approximation (CLT) and the table:',
+      },
+      solNote: 'One project for every part; a part does not give the results of the previous one.',
+      solMeans: 'Times, floats and events use the means to two decimals; with the exact means they are also accepted (±0.01).',
+      solTcl: 'In the CLT parts, z, P and the deadline worked out with μ and σ² added from the rounded means are also accepted.',
+    },
   };
   // Une los textos del bloque 3 con los de arriba, sin pisar ninguno.
   const merge = (to, from) => {
@@ -377,8 +438,9 @@
 
   I.dict.es.mq = es;
   I.dict.en.mq = en;
-  // F3e (T013): los nombres de los idiomas se escriben igual en las dos páginas (cada uno en su lengua).
-  for (const k of ['mq.app.langEs', 'mq.app.langEn']) if (!I.SAME_IN_BOTH.includes(k)) I.SAME_IN_BOTH.push(k);
+  // F3e (T013): los nombres de los idiomas se escriben igual en las dos páginas (cada uno en su lengua); T015: «Series»,
+  // la categoría de las series, es la misma palabra en los dos idiomas.
+  for (const k of ['mq.app.langEs', 'mq.app.langEn', 'mq.series.cat']) if (!I.SAME_IN_BOTH.includes(k)) I.SAME_IN_BOTH.push(k);
 
   /** La función de textos que recibe core/moodle: tr(key, params) = i18n.t(lang, 'mq.' + key, params). */
   const tr = (lang) => (k, p) => I.t(lang, `mq.${k}`, p);
