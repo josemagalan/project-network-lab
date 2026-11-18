@@ -296,6 +296,7 @@
       if (!exam) actions.push(h('button', { type: 'button', class: 'ghost primary', id: 'dtCheck', onclick: check }, [t('check')]));
       if (exam && !delivered) actions.push(h('button', { type: 'button', class: 'ghost primary', id: 'dtDeliver', onclick: () => { confirmOpen = true; focusAfter = { id: 'dtConfirmYes' }; redraw(); } }, [t('deliver')]));
       if (delivered) actions.push(h('button', { type: 'button', class: 'ghost primary', id: 'dtAnother2', onclick: hooks.another }, [I.t(lang(), 'ex.another')]));
+      if (hooks.learn) actions.push(h('button', { type: 'button', class: 'ghost', id: 'dtLearn', onclick: () => hooks.learn() }, [I.t(lang(), 'learn.button')]));
       const confirm = confirmOpen && exam && !delivered ? h('div', { class: 'ex-confirm', role: 'alertdialog', 'aria-labelledby': 'dtConfirmText' }, [
         h('p', { id: 'dtConfirmText' }, [t('exam.confirm')]),
         h('div', { class: 'ex-btns' }, [h('button', { type: 'button', class: 'ghost primary', id: 'dtConfirmYes', onclick: deliver }, [t('exam.confirmYes')]),

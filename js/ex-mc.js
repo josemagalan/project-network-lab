@@ -362,6 +362,7 @@
           if (exam && !delivered) out.push(h('button', { type: 'button', class: 'ghost primary', id: 'mxDeliver', onclick: () => { confirmOpen = true; focusAfter = 'mxConfirmYes'; redraw(); } }, [t('ex.deliver')]));
           if (!exam || delivered) out.push(h('a', { class: `mx-link${delivered ? ' primary' : ''}`, id: 'mxSol', href: m7Hash(ex, s) }, [t('mx.sol')]));
           if (delivered) out.push(h('button', { type: 'button', class: 'ghost', id: 'mxAnother2', onclick: hooks.another }, [t('ex.another')]));
+          if (hooks.learn) out.push(h('button', { type: 'button', class: 'ghost', id: 'mxLearn', onclick: () => hooks.learn() }, [t('learn.button')]));
           return h('div', { class: 'ex-btns' }, out);
         },
         details: (id, summary, body) => {

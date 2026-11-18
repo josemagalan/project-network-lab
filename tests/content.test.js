@@ -1111,15 +1111,18 @@ test('F3a T014 · AC7: «Aprende más» de los ejercicios: error consecuente, c�
     en: [/carried error/, /your (own )?data/, /empty/, /total float/, /critical path/, /event/, /self-assessment/, /seed/, /does not hide/,
       /Moodle/, /activities/, /predecessors/, /dummies/, /critical paths/, /durations/, /Customise/],
   };
+  // F3e (T012): el tema pasa a learn-ex (sección «Cálculo»), con el párrafo de Moodle en su pie.
+  const LX = require('../js/learn-ex.js');
+  require('../js/learn-ex-calc.js');
   for (const lang of ['es', 'en']) {
-    const ps = LR0.topics.ex[lang];
+    const ps = LX.section('calc', lang).blocks.concat([LX.TX[lang].moodle]);
     assert.ok(Array.isArray(ps) && ps.length >= 5, `${lang}: al menos cinco párrafos`);
     const text = ps.join(' ');
     for (const re of want[lang]) assert.match(text, re, `${lang}: ${re}`);
     assert.doesNotMatch(text, /\{|\}|undefined/);
   }
-  assert.equal(LR0.topics.ex.es.length, LR0.topics.ex.en.length);
-  for (const lang of ['es', 'en']) assert.ok(require('../js/i18n.js').t(lang, 'ex.learnTitle').length > 10);
+  assert.equal(LX.section('calc', 'es').blocks.length, LX.section('calc', 'en').blocks.length);
+  for (const lang of ['es', 'en']) assert.ok(LX.TX[lang].title.length > 10);
 });
 
 // ── F3c T013: publicación del generador de enunciados y su «Aprende más» ─────────────
@@ -1138,7 +1141,8 @@ test('F3c T013 · «Aprende más» de M0 explica el enunciado al azar y el de «
     assert.ok(m0, `${lang}: párrafo del enunciado al azar`);
     for (const c of Object.values(X.CONTEXTS)) assert.ok(m0.toLowerCase().includes(c.title[lang].toLowerCase()), `${lang}: ${c.title[lang]}`);
     assert.match(m0, lang === 'es' ? /semilla/ : /seed/);
-    const ex = LR0.topics.ex[lang].find((p) => p.startsWith(I.t(lang, 'ex.text.asText')));
+    require('../js/learn-ex-calc.js');
+    const ex = require('../js/learn-ex.js').section('calc', lang).blocks.find((p) => typeof p === 'string' && p.startsWith(I.t(lang, 'ex.text.asText')));
     assert.ok(ex, `${lang}: párrafo del proyecto como enunciado`);
     for (const key of ['ex.text.showTable', 'm0.gen.random']) assert.ok(ex.includes(I.t(lang, key)), `${lang}: ${key}`);
     assert.match(ex, lang === 'es' ? /Personalizar/ : /Customise/);

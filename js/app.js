@@ -79,7 +79,9 @@
     // (la carga común baja unos 88 KiB y deja sitio a M7).
     cr: ['js/core/aoacheck.js', 'js/core/aoamethods.js', 'js/core/compare.js', 'js/compare-view.js', 'js/reto.js', 'js/views/reto-canvas.js', 'js/views/reto-table.js'],
     // F3d (plan P1, T008): construir la ROY en «Ejercicios» (xk=roy), con su núcleo, sus textos, sus vistas y su hoja.
-    xb: ['css/build.css', 'js/core/roycheck.js', 'js/i18n-build.js', 'js/views/roy-canvas.js', 'js/views/roy-table.js', 'js/ex-build.js'],
+    xb: ['css/build.css', 'js/core/roycheck.js', 'js/i18n-build.js', 'js/ex-build.js'],
+    // F3e (P1, T012): la reserva de la F3d, el lienzo y la tabla de la ROY, solo con xk=roy y el reto ROY.
+    xr: ['js/views/roy-canvas.js', 'js/views/roy-table.js'],
     // F3d (plan P1, T011): el detective (xk=det), con aoacheck y roycheck para confirmar los errores sembrados (H1), sus
     // textos (i18n-det, aparte de los de construir), su vista y su hoja.
     dt: ['css/det.css', 'js/core/aoacheck.js', 'js/core/roycheck.js', 'js/core/detective.js', 'js/i18n-det.js', 'js/views/det-view.js', 'js/ex-det.js'],
@@ -96,10 +98,12 @@
     // F4b (T012, reserva 2 de T001): la vista de M5 y M6, aparte de unc.js, para no cargarla con um=m7; después de un.
     u56: ['js/unc-m56.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
+  // F3e (P8, T012): «Aprende más» de «Ejercicios», con la sección del tipo (lxcalc… = learn-ex y learn-ex-calc…).
+  for (const k of ['calc', 'roy', 'pert', 'det', 'tcl', 'mc']) { LAZY[`lx${k}`] = ['css/learn-ex.css', 'js/learn-ex.js', `js/learn-ex-${k}.js`]; READY[`lx${k}`] = () => !!G.learnEx && !!G.learnEx.s[k]; }
   for (const g of Object.keys(READY)) { const f = READY[g]; READY[g] = () => !broken.has(g) && f(); }
   const loading = {};
   function need(group) {
@@ -148,6 +152,7 @@
   const royRetoOf = (s) => (!s.v || s.v === 'route' || s.v === 'work') && s.graph !== 'aoa' && s.view === 'reto';
   // F3d (T008 y T009, H1): construir la ROY en «Ejercicios» y el reto ROY necesitan el grupo xb.
   const needsXb = (s) => (s.v === 'ex' && (s.xk === 'roy' || s.xk === 'pert')) || royRetoOf(s);
+  const needsXr = (s) => (s.v === 'ex' && s.xk === 'roy') || royRetoOf(s);
   // F3d (T011, H1): el detective necesita el grupo dt.
   const needsDt = (s) => s.v === 'ex' && s.xk === 'det';
   // F4b (T010): M7 necesita su grupo (u7) además del de la pestaña (un), en ese orden.
@@ -166,9 +171,9 @@
     // necesita (revisión de la F3c, F1).
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
     // F3d (H1): el tipo de ejercicio; xt=1 solo pide el generador de enunciados con el cálculo.
-    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb'] : xk === 'pert' ? ['xb', 'cr'] : xk === 'det' ? ['dt'] : xk === 'tcl' ? ['pb'] : xk === 'mc' ? ['mx', q.get('mv') ? 'mxh' : 'mxr'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
+    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb', 'xr'] : xk === 'pert' ? ['xb', 'cr'] : xk === 'det' ? ['dt'] : xk === 'tcl' ? ['pb'] : xk === 'mc' ? ['mx', q.get('mv') ? 'mxh' : 'mxr'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
-    if (royRetoOf({ v, graph: q.get('graph'), view: q.get('view') })) return ['xb'];
+    if (royRetoOf({ v, graph: q.get('graph'), view: q.get('view') })) return ['xb', 'xr'];
     if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);
     if (v === 'unc') return ['un', 'u56'];
     return [groupOf(v)];
@@ -311,6 +316,7 @@
     // F4b (T002): el comparador, el reto y el dibujo progresivo esperan a su grupo (cr) antes de cambiar nada.
     if (needsCr(next) && !READY.cr()) { need('cr').then(() => dispatch(action, opts), noop); return; }
     if (needsXb(next) && !READY.xb()) { need('xb').then(() => dispatch(action, opts), noop); return; }
+    if (needsXr(next) && !READY.xr()) { need('xr').then(() => dispatch(action, opts), noop); return; }
     if (needsDt(next) && !READY.dt()) { need('dt').then(() => dispatch(action, opts), noop); return; }
     if (missingU7(next)) { needU7(next).then(() => dispatch(action, opts), noop); return; }
     state = next;
@@ -385,6 +391,7 @@
     // F4b (T002): red de seguridad; dispatch y los enlaces ya piden el grupo cr antes de llegar aquí.
     if (needsCr(state) && !READY.cr()) { need('cr').then(() => render(opts), noop); return; }
     if (needsXb(state) && !READY.xb()) { need('xb').then(() => render(opts), noop); return; }
+    if (needsXr(state) && !READY.xr()) { need('xr').then(() => render(opts), noop); return; }
     if (needsDt(state) && !READY.dt()) { need('dt').then(() => render(opts), noop); return; }
     if (missingU7(state)) { needU7(state).then(() => { compute(); render(opts); }, noop); return; }
     renderTexts();
@@ -1050,19 +1057,14 @@
   }
   // «Aprende más» de M0 (F2c, T018): precedencias inmediatas, transitivas y redundantes, depurar y leer el texto.
   function openM0Learn() { openTopicLearn('m0Narr.learnTitle', 'm0'); }
-  // «Aprende más» de «Ejercicios» (F3a, T015): el mismo diálogo, con su tema.
-  function openExLearn() { openTopicLearn('ex.learnTitle', 'ex'); }
+  // «Aprende más» de «Ejercicios» (F3a, T015; F3e, T012): el mismo diálogo, con la sección del tipo (learn-ex).
+  function openExLearn(k) { need(`lx${k}`).then(() => G.learnEx.open(k, { need, lang: lang(), nota: state.nota, dlg: $('learnDialog'), body: clear($('learnBody')), title: $('learnTitle') }), noop); }
   function openTopicLearn(titleKey, topic) {
     if (!READY.lr()) { need('lr').then(() => openTopicLearn(titleKey, topic), noop); return; }
     const LR = G.learn;
     const body = clear($('learnBody'));
     $('learnTitle').textContent = t(titleKey);
     LR.topics[topic][lang()].forEach((p) => body.appendChild(h('p', {}, [p])));
-    // F3b (T012): «Ejercicios» termina con el enlace al exportador de Moodle (tablero 56).
-    if (topic === 'ex') {
-      const close = () => { const d = $('learnDialog'); if (typeof d.close === 'function') d.close(); else d.removeAttribute('open'); };
-      body.appendChild(h('p', {}, [t('ex.learnMoodle'), ' ', h('a', { id: 'exLearnMoodle', href: U.encode({ v: 'moodle', lang: lang(), nota: state.nota }), onclick: close }, [t('ex.moodle')]), '.']));
-    }
     body.appendChild(h('h3', {}, [t('learn.refs')]));
     body.appendChild(h('ul', {}, LR.refs.map((r) => h('li', {}, [r]))));
     const dlg = $('learnDialog');

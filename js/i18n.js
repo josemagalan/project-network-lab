@@ -946,8 +946,7 @@
   dict.en.nav.ex = 'Exercises';
   dict.es.ex = {
     region: 'Ejercicios', level: 'Nivel', seed: 'Semilla', another: 'Otro ejercicio',
-    moodle: 'Para profesorado: bancos de preguntas para Moodle',
-    learnMoodle: 'Para un examen con nota, usa Moodle: el laboratorio genera bancos de preguntas por etapas con estos mismos niveles.', mode: 'Modo', practice: 'Practicar', exam: 'Examen',
+    mode: 'Modo', practice: 'Practicar', exam: 'Examen',
     levels: { easy: 'Fácil', medium: 'Media', hard: 'Difícil', custom: 'Personalizar' },
     sum: { acts: '{lo}–{hi} actividades', actsOne: '{n} actividades', pred: '{p} predecesoras de media', dummies: '{lo}–{hi} ficticias', dummiesOne: '{n} ficticias', dummyOne: '1 ficticia',
       dummiesFree: 'ficticias libres', crit: '{lo}–{hi} caminos críticos', critOne: '1 camino crítico', critN: '{n} caminos críticos', dmax: 'd de 1 a {max}' },
@@ -1000,12 +999,10 @@
     advice: { critical: 'Prueba a pedir menos caminos críticos o menos predecesoras por actividad.', dummies: 'Prueba a ampliar el rango de ficticias.', exact: 'Prueba con menos actividades.' },
     lose: 'Tienes respuestas escritas: el ejercicio nuevo las borra.', loseYes: 'Sí, ejercicio nuevo', loseNo: 'Cancelar',
     oldVersion: 'Este enlace se hizo con otra versión del generador: se ha abierto el ejercicio de la versión actual.',
-    learnTitle: 'Ejercicios: el error consecuente y cómo se corrige',
   };
   dict.en.ex = {
     region: 'Exercises', level: 'Level', seed: 'Seed', another: 'New exercise',
-    moodle: 'For teachers: question banks for Moodle',
-    learnMoodle: 'For a graded exam, use Moodle: the lab generates question banks in stages with these same levels.', mode: 'Mode', practice: 'Practice', exam: 'Exam',
+    mode: 'Mode', practice: 'Practice', exam: 'Exam',
     levels: { easy: 'Easy', medium: 'Medium', hard: 'Hard', custom: 'Customise' },
     sum: { acts: '{lo}–{hi} activities', actsOne: '{n} activities', pred: '{p} predecessors on average', dummies: '{lo}–{hi} dummies', dummiesOne: '{n} dummies', dummyOne: '1 dummy',
       dummiesFree: 'any dummies', crit: '{lo}–{hi} critical paths', critOne: '1 critical path', critN: '{n} critical paths', dmax: 'd from 1 to {max}' },
@@ -1058,7 +1055,6 @@
     advice: { critical: 'Try asking for fewer critical paths or fewer predecessors per activity.', dummies: 'Try widening the range of dummies.', exact: 'Try with fewer activities.' },
     lose: 'You have answers written: the new exercise clears them.', loseYes: 'Yes, new exercise', loseNo: 'Cancel',
     oldVersion: 'This link was made with another version of the generator: the exercise of the current version has been opened.',
-    learnTitle: 'Exercises: carried errors and how cells are marked',
   };
 
   // ---------- F3d · tipo de ejercicio en «Ejercicios» y «Reto ROY» del taller (T008, bloque 1; H11) ----------

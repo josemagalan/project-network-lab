@@ -384,6 +384,7 @@
       if (!exam) actions.push(button(tt('xb.check'), check, { primary: true, attrs: { id: 'xbCheck' } }));
       if (exam && !delivered) actions.push(button(tt('xb.deliver'), () => { confirmOpen = true; focusAfter = 'xbConfirmYes'; redraw(); }, { primary: true, attrs: { id: 'xbDeliver' } }));
       if (delivered) actions.push(button(tt('ex.another'), hooks.another, { primary: true, attrs: { id: 'xbAnother2' } }));
+      if (hooks.learn && !reto) actions.push(button(I.t(lang(), 'learn.button'), () => hooks.learn('roy'), { attrs: { id: 'xbLearn' } }));
       const foot = h('div', { class: 'xb-foot' }, [
         h('p', { class: 'muted small' }, [delivered ? tt('xb.exam.delivered') : r ? tt('xb.diag.marks') : exam ? tt('xb.exam.note') : '']),
         h('div', { class: 'ex-btns' }, actions)]);
@@ -523,6 +524,8 @@
       clear(container);
       const holder = h('div', { class: 'reto xb-pert' });
       container.appendChild(holder);
+      // F3e (T012): «Aprende más» de la PERT, debajo del reto (sus botones son los de reto-table, compartida con el taller).
+      if (hooks.learn) container.appendChild(h('div', { class: 'ex-btns xb-learn' }, [button(I.t(lang(), 'learn.button'), () => hooks.learn('pert'), { attrs: { id: 'xbLearn' } })]));
       G.retoTable.render(holder, {
         reto: Object.assign({}, st, { result: delivered ? res : st.result }), project: p, lang: lang(), nota: s.nota, numFmt: hooks.numFmt,
         name: `${tt('ex.seed')} ${s.sd}`, methods: G.compare.METHODS, solution: sol && (!exam || delivered) ? solutionOf(p, sol) : null, solutionMethod: solMethod,
@@ -545,7 +548,7 @@
       const delivered = !reto && s.xm === 'exam' && !!s.xd;
       const r = m ? (delivered ? RC.diagnose(m.project, net) : checked ? checked.r : null) : null;
       const pert = m && m.kind === 'pert' && lastPert ? { net: pst ? pst.st.net : null, result: lastPert.result, score: lastPert.score, min: lastPert.min, solution: sol } : null;
-      return { net, result: r, score: delivered && r ? RC.score(r) : null, showCorrect, confirmOpen, canvas: G.royCanvas.state(), pert };
+      return { net, result: r, score: delivered && r ? RC.score(r) : null, showCorrect, confirmOpen, canvas: G.royCanvas ? G.royCanvas.state() : null, pert };
     }
 
     return { draw, reset, debug };

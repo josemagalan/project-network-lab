@@ -1,0 +1,21 @@
+/* F3e · «Aprende más» de «Ejercicios» (T012; tablero 99): pestañas de los tipos a la izquierda y la sección a la derecha.
+   Hoja de los grupos lx<tipo>: solo al abrir el diálogo. La pestaña elegida va rellena y en negrita (no solo el color). */
+dialog:has(.lx) { max-width: min(980px, 94vw); }
+.lx { display: flex; gap: 18px; padding: 12px 16px 16px; align-items: flex-start; }
+.lx-tabs { display: flex; flex-direction: column; gap: 4px; flex: none; width: 190px; position: sticky; top: 0; }
+.lx-tabs button { text-align: left; padding: 8px 10px; min-height: 36px; border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+  color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.lx-tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.lx-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14.5px; line-height: 1.5; }
+.lx-panel h3 { margin: 0; font-size: 18px; }
+.lx-panel h4 { margin: 4px 0 0; font-size: 15px; }
+.lx-panel p, .lx-panel ul { margin: 0; }
+.lx-panel ul { padding-left: 20px; font-size: 13px; }
+.lx-table { overflow-x: auto; }
+.lx-links a { display: inline-block; min-height: 24px; line-height: 24px; }
+.lx-table table.data { font-size: 13.5px; width: 100%; }
+.lx-table table.data th, .lx-table table.data td { text-align: left; padding: 4px 8px; vertical-align: top; }
+@media (max-width: 720px) {
+  .lx { flex-direction: column; padding: 10px 12px 14px; }
+  .lx-tabs { width: 100%; position: static; }
+}

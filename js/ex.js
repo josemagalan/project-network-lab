@@ -379,6 +379,8 @@
       else if (group && hooks.need) hooks.need(group).then(go, () => {}); else go();
     }
     const another = () => newExercise({ sd: hooks.newSeed() });
+    // «Aprende más» de cada tipo (F3e, T012, P8): el diálogo se abre en la sección del tipo.
+    const learnOf = (k) => hooks.learn && (() => hooks.learn(k));
 
     function focus(id) { const el = root.document.getElementById(id); if (el) el.focus(); }
     function keepFocus(fn) {
@@ -697,7 +699,7 @@
       if (v.deliver) actions.push(button(tt('ex.deliver'), () => { confirmOpen = true; draw(); focus('exConfirmYes'); }, { primary: true, attrs: { id: 'exDeliver' } }));
       if (v.step) actions.push(button(tt('ex.step'), () => hooks.open(stepState(state(), m, view)), { primary: v.locked, attrs: { id: 'exStep' } }));
       if (v.locked) actions.push(button(tt('ex.another'), another, { attrs: { id: 'exAnother2' } }));
-      if (hooks.learn) actions.push(button(tt('learn.button'), () => hooks.learn(), { attrs: { id: 'exLearn' } }));
+      if (hooks.learn) actions.push(button(tt('learn.button'), () => hooks.learn('calc'), { attrs: { id: 'exLearn' } }));
       const note = m.mode === 'exam' ? h('p', { class: 'muted small ex-note' }, [m.delivered ? tt('ex.delivered') : tt('ex.examNote')]) : null;
       return h('section', { class: 'card ex-answers', 'aria-label': tt('ex.answers') }, [
         h('div', { class: 'ex-head' }, head), note,
@@ -745,7 +747,7 @@
       if (m.kind === 'det') {
         if (!root.PNL.exDet || !root.PNL.detView) { if (hooks.need) hooks.need('dt').then(draw, () => {}); return; }
         if (!detective) {
-          detective = root.PNL.exDet.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, numFmt, another });
+          detective = root.PNL.exDet.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, numFmt, another, learn: learnOf('det') });
           root.PNL.exDet.state = () => detective.debug();
         }
         const body = h('div', { class: 'dt-body' });
@@ -755,7 +757,7 @@
       }
       if (m.kind === 'tcl') {
         if (!prob) {
-          prob = root.PNL.exProb.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, another, learn: hooks.learn });
+          prob = root.PNL.exProb.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, another, learn: learnOf('tcl') });
           root.PNL.exProb.state = () => prob.debug();
         }
         const body = h('div', { class: 'pb-body' });
@@ -765,7 +767,7 @@
       }
       if (m.kind === 'mc') {
         if (!carlo) {
-          carlo = root.PNL.exMc.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, another });
+          carlo = root.PNL.exMc.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, another, learn: learnOf('mc') });
           root.PNL.exMc.state = () => carlo.debug();
         }
         const body = h('div', { class: 'mx-body' });
@@ -775,10 +777,11 @@
       }
       if (m.kind !== 'calc') {
         if (m.kind !== 'roy' && m.kind !== 'pert') return;
-        const want = m.kind === 'pert' ? ['xb', 'cr'] : ['xb'];
-        if (!root.PNL.exBuild || (m.kind === 'pert' && !root.PNL.retoTable)) { if (hooks.need) Promise.all(want.map((g) => hooks.need(g))).then(draw, () => {}); return; }
+        // F3e (T012, reserva de la F3d): el lienzo y la tabla de la ROY van en xr, que la PERT no carga.
+        const want = m.kind === 'pert' ? ['xb', 'cr'] : ['xb', 'xr'];
+        if (!root.PNL.exBuild || (m.kind === 'pert' ? !root.PNL.retoTable : !root.PNL.royTable)) { if (hooks.need) Promise.all(want.map((g) => hooks.need(g))).then(draw, () => {}); return; }
         if (!builder) {
-          builder = root.PNL.exBuild.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, numFmt, another, need: hooks.need });
+          builder = root.PNL.exBuild.create({ state, lang, dispatch: hooks.dispatch, announce: hooks.announce, numFmt, another, need: hooks.need, learn: hooks.learn && ((k) => hooks.learn(k)) });
           root.PNL.exBuild.state = () => builder.debug();
         }
         const body = h('div', { class: 'xb-body' });

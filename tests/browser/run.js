@@ -2894,7 +2894,8 @@ const GEN0 = require(path.join(ROOT, 'js', 'core', 'generator.js'));
 const P0 = require(path.join(ROOT, 'js', 'core', 'project.js'));
 const GR0 = require(path.join(ROOT, 'js', 'core', 'grade.js'));
 const I0 = require(path.join(ROOT, 'js', 'i18n.js'));
-const LR0 = require(path.join(ROOT, 'js', 'learn.js'));
+// F3e (T012): «Aprende más» de «Ejercicios», con sus seis secciones (al pedirlo: las pruebas en rojo corrían sin él).
+const LX0 = new Proxy({}, { get: (o, k) => { const L = require(path.join(ROOT, 'js', 'learn-ex.js')); for (const x of L.KINDS) require(path.join(ROOT, 'js', `learn-ex-${x}.js`)); return L[k]; } });
 const ED0 = require(path.join(ROOT, 'js', 'editor.js'));
 const X0 = require(path.join(ROOT, 'js', 'ex.js'));
 const OR0 = require(path.join(ROOT, 'tests', 'oracle-grade.js'));
@@ -3621,10 +3622,12 @@ check('F3a AC7 · «Aprende más» de «Ejercicios» abre su tema en el idioma d
     const page = await exLab({ sd: 14844, lv: 'medium', lang, xm: 'exam' });
     await page.locator('#exLearn').click();
     await page.locator('#learnDialog[open]').waitFor();
-    assert.equal(await page.locator('#learnTitle').innerText(), I0.t(lang, 'ex.learnTitle'));
-    const ps = await page.locator('#learnBody > p').allInnerTexts();
+    // F3e (T012): el diálogo de «Ejercicios» es el de learn-ex, abierto en la sección del cálculo (el tema de la F3a).
+    assert.equal(await page.locator('#learnTitle').innerText(), LX0.TX[lang].title);
+    assert.equal(await page.locator('#lxTab-calc').getAttribute('aria-selected'), 'true');
+    const ps = await page.locator('#lxPanel > p').allInnerTexts();
     // F3b (T012): el tema termina con el párrafo del banco de Moodle y su enlace.
-    assert.deepEqual(ps, [...LR0.topics.ex[lang], `${I0.t(lang, 'ex.learnMoodle')} ${I0.t(lang, 'ex.moodle')}.`]);
+    assert.deepEqual(ps, [...LX0.section('calc', lang).blocks, `${LX0.TX[lang].moodle} ${LX0.TX[lang].moodleLink}.`]);
     await page.locator('#btnLearnClose').click();
     assert.equal(await page.locator('#learnDialog[open]').count(), 0);
     assert.equal(await activeId(page), 'exLearn', 'el foco vuelve al botón');
@@ -9182,6 +9185,82 @@ check('F3e T011 · principio 27: cada variante difícil, corregida y con todo ab
   }
 });
 
+// ---------- F3e, T012: «Aprende más» de «Ejercicios», una sección por tipo (tablero 99) ----------
+
+// Cada tipo, con su botón y una semilla del nivel difícil.
+const LX_VIEWS = [['calc', '#exLearn', { sd: 92846, lv: 'hard', ask: ALL_ASK }], ['roy', '#xbLearn', { sd: 92846, lv: 'hard', xk: 'roy' }], ['pert', '#xbLearn', { sd: 92846, lv: 'hard', xk: 'pert' }],
+  ['det', '#dtLearn', { sd: 92846, lv: 'hard', xk: 'det', dg: 'aoa', dk: 'all' }], ['tcl', '#pbLearn', { sd: 50, lv: 'hard', xk: 'tcl', xo: 1 }], ['mc', '#mxLearn', { sd: 12, lv: 'hard', xk: 'mc' }]];
+const lxFiles = (page) => page.evaluate(() => performance.getEntriesByType('resource').map((e) => e.name.split('/').pop()).filter((n) => /^learn-ex/.test(n)).sort());
+
+check('F3e T012 AC22 · «Aprende más» en cada tipo de «Ejercicios»: se abre en la sección del tipo, con su título, y solo carga learn-ex y esa sección; Moodle al final', async () => {
+  for (const [k, btn, s] of LX_VIEWS) {
+    const lang = k === 'det' || k === 'mc' ? 'en' : 'es';
+    const page = await open(exUrl(Object.assign({ lang }, s)));
+    await page.locator(btn).click({ timeout: 30000 });
+    await page.locator('#learnDialog[open] #lxPanel').waitFor();
+    assert.equal(await page.locator('#learnTitle').innerText(), LX0.TX[lang].title, k);
+    assert.equal(await page.locator(`#lxTab-${k}`).getAttribute('aria-selected'), 'true', k);
+    assert.deepEqual(await page.locator('#lxPanel [role="tab"], .lx-tabs [role="tab"]').allInnerTexts(), LX0.KINDS.map((x) => LX0.TX[lang].kinds[x]));
+    assert.equal(await page.locator('#lxHead').innerText(), LX0.section(k, lang).title);
+    const sec = LX0.section(k, lang);
+    assert.deepEqual(await page.locator('#lxPanel > p').allInnerTexts(), sec.blocks.filter((b) => typeof b === 'string')
+      .concat(sec.blocks.filter((b) => Array.isArray(b) && b[0] === 'links').map((b) => b[1].map((x) => x[0]).join(' · ')), [`${LX0.TX[lang].moodle} ${LX0.TX[lang].moodleLink}.`]), k);
+    assert.deepEqual(await lxFiles(page), ['learn-ex.css', 'learn-ex.js', `learn-ex-${k}.js`].sort(), `${k}: solo su sección`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn\.js/.test(e.name))), false, `${k}: sin learn.js`);
+    await page.locator('#btnLearnClose').click();
+    assert.equal(await activeId(page), btn.slice(1), `${k}: el foco vuelve al botón`);
+    await close(page);
+  }
+});
+
+check('F3e T012 · las pestañas: flechas, Inicio y Fin cambian de sección y la cargan; «Para repasarlo» abre M6; a 360 px en oscuro, axe', async () => {
+  const page = await open(exUrl({ sd: 2026, lv: 'medium', lang: 'es', xk: 'tcl' }));
+  await page.locator('#pbLearn').click({ timeout: 30000 });
+  await page.locator('#learnDialog[open] #lxPanel').waitFor();
+  await page.locator('#lxTab-tcl').focus();
+  const at = async (k) => { await page.waitForFunction((x) => document.getElementById('lxHead') && document.getElementById(`lxTab-${x}`).getAttribute('aria-selected') === 'true', k); assert.equal(await activeId(page), `lxTab-${k}`); };
+  await page.keyboard.press('ArrowDown'); await at('mc');
+  await page.keyboard.press('ArrowDown'); await at('calc');
+  await page.keyboard.press('ArrowUp'); await at('mc');
+  await page.keyboard.press('Home'); await at('calc');
+  await page.keyboard.press('End'); await at('mc');
+  assert.deepEqual(await lxFiles(page), ['learn-ex-calc.js', 'learn-ex-mc.js', 'learn-ex-tcl.js', 'learn-ex.css', 'learn-ex.js'].sort());
+  assert.deepEqual(await page.locator('.lx-tabs [role="tab"]').evaluateAll((xs) => xs.map((x) => x.tabIndex)), [-1, -1, -1, -1, -1, 0], 'una sola pestaña en el orden de tabulación');
+  await page.locator('#lxTab-tcl').click();
+  await at('tcl');
+  await page.locator('#lxPanel a', { hasText: 'M6' }).click();
+  await page.waitForFunction(() => PNL.app.state().v === 'unc' && PNL.app.state().um === 'm6');
+  assert.equal(await page.locator('#learnDialog[open]').count(), 0, 'el enlace cierra el diálogo');
+  await close(page);
+  for (const lang of ['es', 'en']) {
+    const p2 = await open(exUrl({ sd: 12, lv: 'hard', lang, xk: 'mc', mv: 'rep' }), { width: 360, height: 740, scheme: 'dark' });
+    await p2.locator('#mxLearn').click({ timeout: 30000 });
+    await p2.locator('#learnDialog[open] #lxPanel').waitFor();
+    const w = await p2.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(w <= 360, `${lang} a 360 px: ${w}`);
+    await axe(p2, `«Aprende más» de Montecarlo a 360 px (${lang}, oscuro)`);
+    await shot(p2, `f3e-learn-ex-360-${lang}`);
+    await close(p2);
+  }
+});
+
+check('F3e T012 · principio 27: cada tipo de «Ejercicios» con «Aprende más» abierto, por debajo de 1 MB; la PERT ya no carga el lienzo de la ROY (reserva xr)', async () => {
+  for (const [k, btn, s] of LX_VIEWS) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/${exUrl(Object.assign({ lang: 'es' }, s))}`, { waitUntil: 'networkidle' });
+    await page.locator(btn).click({ timeout: 30000 });
+    await page.locator('#learnDialog[open] #lxPanel').waitFor();
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+    console.log(`    ${k} con «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${k}: ${bytes} bytes`);
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /roy-canvas\.js|roy-table\.js/.test(e.name))), k === 'roy', `${k}: xr`);
+    await ctx.close();
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
@@ -9233,7 +9312,9 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /core\/detective\.js/.test(e.name))), url.includes('xk=det') || url.includes('v=moodle'), `${url}: core/detective`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /views\/net-svg\.js/.test(e.name))), url.includes('v=moodle'), `${url}: net-svg`);
     // F3d (plan P1, T008 y T009): construir la ROY (grupo xb), solo con xk=roy o con el reto ROY del taller.
-    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || url.includes('xk=pert') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : url.includes('xk=det') || url.includes('v=moodle') ? 1 : 0, `${url}: grupo xb (con el detective y el exportador, solo roycheck)`);
+    assert.equal(await page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, xbFiles.source), url.includes('xk=roy') || (/view=reto/.test(url) && !/graph=aoa/.test(url)) ? 6 : url.includes('xk=pert') ? 4 : url.includes('xk=det') || url.includes('v=moodle') ? 1 : 0, `${url}: grupo xb (con el detective y el exportador, solo roycheck; F3e T012: la PERT, sin el lienzo ni la tabla de la ROY, xr)`);
+    // F3e (T012): «Aprende más» de «Ejercicios» (learn-ex y sus secciones) solo al abrir el diálogo.
+    assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /learn-ex/.test(e.name))), false, `${url}: learn-ex`);
     // F4b (plan P4, T010): M7 (grupo u7), solo con um=m7.
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /m7-rep\.js/.test(e.name))), url.includes('uy=conv'), `${url}: grupo u7r`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/m7\.js|mc-charts\.js/.test(e.name))), url.includes('um=m7'), `${url}: grupo u7`);
