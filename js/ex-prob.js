@@ -462,7 +462,9 @@
 
     function check() {
       if (!view) return;
-      checked = { key: JSON.stringify(view.ans), g: grade(view.ex, view.ans) };
+      // Lo escrito ahora (escribir no repinta la vista: view.ans puede ser de antes; revisión de T011).
+      const ans = answers(hooks.state());
+      checked = { key: JSON.stringify(ans), g: grade(view.ex, ans) };
       focusAfter = 'pbCheck';
       redraw();
       hooks.announce(`${scoreText(checked.g, lang())}. ${countText(checked.g, lang())}`);
@@ -471,7 +473,7 @@
       confirmOpen = false;
       focusAfter = 'pbSol';
       hooks.dispatch({ type: 'exDeliver' });
-      if (view) { const g = grade(view.ex, view.ans); hooks.announce(`${scoreText(g, lang())}. ${countText(g, lang())}`); }
+      if (view) { const g = grade(view.ex, answers(hooks.state())); hooks.announce(`${scoreText(g, lang())}. ${countText(g, lang())}`); }
     }
 
     function debug() {

@@ -8770,6 +8770,27 @@ check('F3e T010 · oculto (hasta T017): sin xk=tcl la barra no ofrece TCL ni Mon
   await close(p2);
 });
 
+check('F3e T010 (arreglo en T011) · «Comprobar» y «Entregar» corrigen lo último escrito, aunque la vista no se haya repintado desde entonces (marcar el camino y después escribir)', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'es' };
+  const { ex } = pbEx(s);
+  const page = await pbLab(s);
+  await page.locator('#pbPath-B').click();
+  await exCell(page, 'A.te').fill('3');
+  await page.waitForFunction(() => PNL.app.state().pa && PNL.app.state().pa['A.te'] === '3');
+  await page.locator('#pbCheck').click();
+  const st = await pbSt(page);
+  assert.equal(st.stale, false, 'sin el aviso de «cambiado»');
+  assert.deepEqual(st.grading, PR0.tcl(ex, { path: ['B'], 'A.te': '3' }));
+  assert.equal(await page.locator('#pbScore').innerText(), XP0.scoreText(st.grading, 'es'));
+  await close(page);
+  const p2 = await pbLab(Object.assign({ xm: 'exam' }, s));
+  await p2.locator('#pbPath-B').click();
+  await exCell(p2, 'A.te').fill('3');
+  await p2.locator('#pbDeliver').click();
+  assert.equal(await p2.locator('#pbConfirmText').innerText(), I0.t('es', 'ex.confirm', { n: PR0.fields('tcl', ex).length - 2 }), 'la confirmación cuenta lo último escrito');
+  await close(p2);
+});
+
 check('F3e T010 · principio 27: TCL difícil con la otra ruta, corregido, con la tabla de la normal y con «Aprende más» abierto, por debajo de 1 MB', async () => {
   const s = { sd: 50, lv: 'hard', lang: 'es', xo: 1 };
   const { ex } = pbEx(s);
