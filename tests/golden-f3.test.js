@@ -42,7 +42,10 @@ test('huella dorada · errores sembrados del detective (F3d), red ROY y PERT, de
 
 test('huella dorada · XML de las doce etapas del exportador (F3b, F3c y F3d), en español y en inglés', () => {
   for (const [lang, nota] of [['es', 'es'], ['en', 'en']]) {
-    const bank = M.generate({ lang, nota, sf: true, labels: IM.labels(nota), stages: M.STAGES_ALL, levels: M.LEVELS, count: 2, seed: 20261117, svg: NS.render }, IM.tr(lang));
+    // Las doce de antes de la F3e (STAGES_ALL crece por el final: F3e, T014).
+    const stages = M.STAGES_ALL.slice(0, M.STAGES_ALL.indexOf('detective') + 1);
+    assert.equal(stages.length, 12);
+    const bank = M.generate({ lang, nota, sf: true, labels: IM.labels(nota), stages, levels: M.LEVELS, count: 2, seed: 20261117, svg: NS.render }, IM.tr(lang));
     assert.equal(hashOf(M.toXml(bank, IM.tr(lang))), HUELLA[`moodle|${lang}`], lang);
   }
 });

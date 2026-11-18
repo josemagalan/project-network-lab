@@ -49,7 +49,9 @@ test('cada etapa de core/moodle tiene su familia: la base (F3b), el enunciado (s
   assert.deepEqual(MA.familiesOf(['detective', 'early', 'stmt', 'succ']), ['sg', 'lab']);
   assert.deepEqual(MA.familiesOf([]), []);
   assert.deepEqual(MA.familiesOf(['otra']), []);
-  assert.deepEqual(Object.keys(MA.FAMILY_OF).sort(), M.STAGES_ALL.filter((s) => !M.STAGES.includes(s)).sort());
+  // Las etapas 11 a 17 de la F3e (al final de STAGES_ALL) tendrán su familia en T016.
+  const upToF3d = M.STAGES_ALL.slice(0, M.STAGES_ALL.indexOf('detective') + 1);
+  assert.deepEqual(Object.keys(MA.FAMILY_OF).sort(), upToF3d.filter((s) => !M.STAGES.includes(s)).sort());
   for (const f of Object.values(MA.FAMILIES).flat()) assert.ok(fs.existsSync(path.join(ROOT, f)), `existe ${f}`);
 });
 

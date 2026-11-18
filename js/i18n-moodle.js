@@ -239,6 +239,142 @@
     },
   };
 
+  // F3e (T014; plan P9, bloque 3): los textos de las preguntas de las etapas 11 a 17. Se añaden a los de arriba.
+  const es3 = {
+    stage: {
+      tclMoments: '11 · Medias y varianzas', tclPath: '12 · Camino crítico de las medias', tclProb: '13 · Probabilidad de un plazo',
+      tclRoute: '14 · La otra ruta', mcRead: '15 · Leer una simulación', mcDisc: '16 · Discretas a mano', mcRep: '17 · Réplicas a mano',
+    },
+    stem: {
+      tclMoments: 'Cada actividad tiene tres estimaciones de su duración, en semanas: optimista (a), más probable (m) y pesimista (b). Con la beta-PERT, tₑ = (a + 4m + b) / 6 y σ² = ((b − a) / 6)². Calcula la media y la varianza de cada actividad, con dos decimales.',
+      tclPath: 'Estas son la media (tₑ) y la varianza (σ²) de la duración de cada actividad, en semanas. Elige el camino crítico de las medias (si dos caminos empatan en media, el de mayor varianza) y calcula la media (μ) y la varianza (σ²) de la duración del proyecto, con dos decimales.',
+      tclProb: 'En un proyecto con duraciones beta-PERT (en semanas), el camino crítico de las medias es {path}, con media μ = {mu} y varianza σ² = {var}. Con la aproximación normal (TCL) y la tabla de la normal:',
+      tclRoute: 'Estas son la media (tₑ) y la varianza (σ²) de cada actividad, en semanas. El camino crítico de las medias es {path}, con μ = {mu} y σ² = {var}; con la tabla de la normal, P(T ≤ {T}) = {p}. La ruta {route} no comparte actividades con él, así que las dos duraciones son independientes. Con la aproximación normal (TCL) y la tabla:',
+      mcRead: 'Una simulación de Montecarlo del proyecto (beta-PERT en todas las actividades, 10 000 réplicas) da estos gráficos. Lee en ellos:',
+      mcDisc: 'Las actividades {list} tienen duración discreta: cada valor con su probabilidad, independiente de las demás. El resto tiene duración fija. Duraciones en semanas; plazo: {T} semanas. Responde con tres decimales.',
+      mcRep: 'Cada fila de la segunda tabla es una réplica de Montecarlo, con la duración sorteada de cada actividad (en semanas). Escribe la duración del proyecto en cada réplica. Después estima, con tres decimales (por ejemplo, 3/8 = 0,375), la probabilidad de acabar en {T} semanas o menos y la criticidad de cada actividad (una actividad es crítica en una réplica si su holgura es 0; los empates cuentan).',
+    },
+    col: { durP: 'Duración (probabilidad)', run: 'Réplica', cls: 'Duración (de – a)', cum: 'Frecuencia acumulada', critIdx: 'Criticidad', crucIdx: 'Crucialidad', prob: 'Probabilidad' },
+    ask: {
+      path: 'Camino crítico de las medias:', mu: 'Media del proyecto, μ:', var: 'Varianza del proyecto, σ²:',
+      z: 'z del plazo de {T} semanas:', p: 'P(T ≤ {T}):', zp: 'z para una probabilidad del {pct} %:', Tp: 'Plazo con esa probabilidad (semanas):',
+      rMu: 'Media de la ruta {route}:', rVar: 'Varianza de la ruta:', rZ: 'z de la ruta para el plazo de {T} semanas:',
+      rP: 'Probabilidad de que la ruta acabe en {T} semanas o menos:', both: 'Probabilidad de que las dos acaben en {T} semanas o menos:',
+      pct: 'Percentil {p} de la duración del proyecto (semanas):', crit: 'Índice de criticidad de {a}:', mean: 'Duración media del proyecto, E[T]:',
+    },
+    mcq: {
+      mostCrit: '¿Qué actividad es crítica en más réplicas?',
+      mostCruc: '¿Qué actividad influye más en la duración del proyecto (la de más crucialidad)?',
+      critLowCruc: '¿Qué actividad es crítica a menudo pero influye poco en la duración?',
+      normal: 'La normal del TCL (con el camino crítico de las medias) da P(T ≤ {T}) = {pn}. Frente a la de la simulación, esa probabilidad es:',
+      promise: '¿Qué plazo prometerías con un 90 % de confianza?',
+      optimistic: 'Optimista: da más probabilidad; olvida los caminos que se funden', pessimistic: 'Pesimista: da menos probabilidad', exact: 'Casi igual',
+    },
+    chart: {
+      dist: 'Duración del proyecto en 10 000 réplicas', distDesc: 'Histograma (arriba) y función de distribución (abajo), con el plazo marcado. Sus datos están debajo, en «Los gráficos como tabla».',
+      idx: 'Índices de criticidad y crucialidad', idxDesc: 'Tornado por actividad: criticidad a la izquierda y crucialidad a la derecha. Sus datos están debajo, en «Los gráficos como tabla».',
+      deadline: 'Plazo = {d}', x: 'Duración del proyecto (semanas)', hist: 'Histograma', cdf: 'Función de distribución', crit: 'Criticidad', cruc: 'Crucialidad',
+    },
+    fold: { asTable: 'Los gráficos como tabla' },
+    sol: {
+      tclPath: 'Camino crítico de las medias: {path}, con μ = {mu} y σ² = {var} (se acepta ±0,01 por actividad sumada).',
+      tclTie: 'Otro camino tiene la misma media: vale el de mayor varianza.',
+      tclProb: 'σ = √{var} = {sd}; z = ({T} − {mu}) / {sd} = {z}; la tabla da Φ({z}) = {p} (la exacta, {pe}).',
+      tclProbQ: 'Para el {pct} %, z = {zp} (interpolada, {zpe}) y el plazo es μ + zσ = {Tp} semanas.',
+      tcl95: 'Con el 95 % valen z = 1,64, 1,645 o 1,65 (las tablas impresas difieren), cada una con su plazo.',
+      tclRoute: 'Ruta {route}: μ = {mu}, σ² = {var} y σ = {sd}; z = ({T} − {mu}) / {sd} = {z}; la tabla da {p} (la exacta, {pe}).',
+      tclBoth: 'Las dos rutas son independientes: P = {pc} × {pr} = {both}. Con solo el camino crítico se diría {pc}: la otra ruta baja la probabilidad de cumplir el plazo.',
+      mcRead: 'Percentil {p}: {v} semanas (se acepta ± una clase del histograma, {w}). P(T ≤ {T}) = {pT} y la criticidad de {a} es {c} (se acepta ±0,05).',
+      mcq: {
+        mostCrit: 'La más crítica es {r}: su barra de criticidad es la más larga ({c}); la siguiente es la de {n2} ({c2}).',
+        mostCruc: 'La que más influye es {r}: su barra de crucialidad es la más larga ({c}); la siguiente es la de {n2} ({c2}).',
+        critLowCruc: 'Es {r}: es crítica a menudo (criticidad {c}), pero su crucialidad es baja ({u}): su duración varía poco o casi no mueve la del proyecto.',
+        optimistic: 'La respuesta es «{o}»: la normal del TCL da P(T ≤ {T}) = {pn} y la simulación, {ps}. La normal solo mira el camino crítico de las medias; los caminos que se funden con él alargan el proyecto.',
+        pessimistic: 'La respuesta es «{o}»: la normal del TCL da P(T ≤ {T}) = {pn} y la simulación, {ps}.',
+        promise: 'La respuesta es {r}: con un 90 % de confianza se promete el percentil 90 de la simulación, donde la función de distribución llega a 0,9.',
+      },
+      mcDiscDist: 'Distribución de la duración del proyecto (las combinaciones con la misma T suman su probabilidad):',
+      mcDisc: 'E[T] = {mean} y P(T ≤ {T}) = {pT}.',
+      crit: 'Criticidad (los empates cuentan): {list}.',
+      mcRepT: 'Duración del proyecto en cada réplica: {list}.',
+      mcRep: '{k} de {n} réplicas acaban en {T} semanas o menos: P ≈ {k}/{n} = {p}.',
+    },
+    link: { m6: 'Ver la solución en M6', m7: 'Ver la solución en M7' },
+    and: '{a} y {b}',
+  };
+  const en3 = {
+    stage: {
+      tclMoments: '11 · Means and variances', tclPath: '12 · Critical path of the means', tclProb: '13 · Probability of a deadline',
+      tclRoute: '14 · The other route', mcRead: '15 · Read a simulation', mcDisc: '16 · Discrete by hand', mcRep: '17 · Runs by hand',
+    },
+    stem: {
+      tclMoments: 'Each activity has three estimates of its duration, in weeks: optimistic (a), most likely (m) and pessimistic (b). With the beta-PERT, tₑ = (a + 4m + b) / 6 and σ² = ((b − a) / 6)². Work out the mean and the variance of each activity, to two decimals.',
+      tclPath: 'These are the mean (tₑ) and the variance (σ²) of the duration of each activity, in weeks. Choose the critical path of the means (if two paths tie on the mean, the one with the larger variance) and work out the mean (μ) and the variance (σ²) of the project duration, to two decimals.',
+      tclProb: 'In a project with beta-PERT durations (in weeks), the critical path of the means is {path}, with mean μ = {mu} and variance σ² = {var}. With the normal approximation (CLT) and the normal table:',
+      tclRoute: 'These are the mean (tₑ) and the variance (σ²) of each activity, in weeks. The critical path of the means is {path}, with μ = {mu} and σ² = {var}; with the normal table, P(T ≤ {T}) = {p}. The route {route} shares no activities with it, so the two durations are independent. With the normal approximation (CLT) and the table:',
+      mcRead: 'A Monte Carlo simulation of the project (beta-PERT on every activity, 10,000 runs) gives these charts. Read on them:',
+      mcDisc: 'Activities {list} have discrete durations: each value with its probability, independent of the others. The rest have fixed durations. Durations in weeks; deadline: {T} weeks. Answer to three decimals.',
+      mcRep: 'Each row of the second table is a Monte Carlo run, with the sampled duration of each activity (in weeks). Write the project duration in each run. Then estimate, to three decimals (for example, 3/8 = 0.375), the probability of finishing in {T} weeks or less and the criticality of each activity (an activity is critical in a run if its float is 0; ties count).',
+    },
+    col: { durP: 'Duration (probability)', run: 'Run', cls: 'Duration (from – to)', cum: 'Cumulative frequency', critIdx: 'Criticality', crucIdx: 'Cruciality', prob: 'Probability' },
+    ask: {
+      path: 'Critical path of the means:', mu: 'Project mean, μ:', var: 'Project variance, σ²:',
+      z: 'z for the deadline of {T} weeks:', p: 'P(T ≤ {T}):', zp: 'z for a probability of {pct}%:', Tp: 'Deadline with that probability (weeks):',
+      rMu: 'Mean of the route {route}:', rVar: 'Variance of the route:', rZ: 'z of the route for the deadline of {T} weeks:',
+      rP: 'Probability that the route finishes in {T} weeks or less:', both: 'Probability that both finish in {T} weeks or less:',
+      pct: '{p}th percentile of the project duration (weeks):', crit: 'Criticality index of {a}:', mean: 'Mean project duration, E[T]:',
+    },
+    mcq: {
+      mostCrit: 'Which activity is critical in the most runs?',
+      mostCruc: 'Which activity has the most influence on the project duration (the highest cruciality)?',
+      critLowCruc: 'Which activity is often critical but has little influence on the duration?',
+      normal: 'The CLT normal (with the critical path of the means) gives P(T ≤ {T}) = {pn}. Compared with the simulation, that probability is:',
+      promise: 'Which deadline would you promise with 90% confidence?',
+      optimistic: 'Optimistic: higher probability; it ignores merging paths', pessimistic: 'Pessimistic: lower probability', exact: 'About the same',
+    },
+    chart: {
+      dist: 'Project duration in 10,000 runs', distDesc: 'Histogram (top) and distribution function (bottom), with the deadline marked. Their data are below, under «The charts as a table».',
+      idx: 'Criticality and cruciality indices', idxDesc: 'Tornado by activity: criticality on the left and cruciality on the right. Its data are below, under «The charts as a table».',
+      deadline: 'Deadline = {d}', x: 'Project duration (weeks)', hist: 'Histogram', cdf: 'Distribution function', crit: 'Criticality', cruc: 'Cruciality',
+    },
+    fold: { asTable: 'The charts as a table' },
+    sol: {
+      tclPath: 'Critical path of the means: {path}, with μ = {mu} and σ² = {var} (±0.01 per activity added is accepted).',
+      tclTie: 'Another path has the same mean: the one with the larger variance counts.',
+      tclProb: 'σ = √{var} = {sd}; z = ({T} − {mu}) / {sd} = {z}; the table gives Φ({z}) = {p} (the exact one, {pe}).',
+      tclProbQ: 'For {pct}%, z = {zp} (interpolated, {zpe}) and the deadline is μ + zσ = {Tp} weeks.',
+      tcl95: 'With 95%, z = 1.64, 1.645 or 1.65 are accepted (printed tables differ), each with its deadline.',
+      tclRoute: 'Route {route}: μ = {mu}, σ² = {var} and σ = {sd}; z = ({T} − {mu}) / {sd} = {z}; the table gives {p} (the exact one, {pe}).',
+      tclBoth: 'The two routes are independent: P = {pc} × {pr} = {both}. With the critical path alone one would say {pc}: the other route lowers the probability of meeting the deadline.',
+      mcRead: '{p}th percentile: {v} weeks (± one histogram class, {w}, is accepted). P(T ≤ {T}) = {pT} and the criticality of {a} is {c} (±0.05 is accepted).',
+      mcq: {
+        mostCrit: 'The most critical is {r}: its criticality bar is the longest ({c}); the next one is {n2} ({c2}).',
+        mostCruc: 'The most influential is {r}: its cruciality bar is the longest ({c}); the next one is {n2} ({c2}).',
+        critLowCruc: 'It is {r}: it is often critical (criticality {c}), but its cruciality is low ({u}): its duration varies little or hardly moves the project duration.',
+        optimistic: 'The answer is «{o}»: the CLT normal gives P(T ≤ {T}) = {pn} and the simulation, {ps}. The normal only looks at the critical path of the means; the paths that merge with it make the project longer.',
+        pessimistic: 'The answer is «{o}»: the CLT normal gives P(T ≤ {T}) = {pn} and the simulation, {ps}.',
+        promise: 'The answer is {r}: with 90% confidence you promise the 90th percentile of the simulation, where the distribution function reaches 0.9.',
+      },
+      mcDiscDist: 'Distribution of the project duration (the combinations with the same T add up their probabilities):',
+      mcDisc: 'E[T] = {mean} and P(T ≤ {T}) = {pT}.',
+      crit: 'Criticality (ties count): {list}.',
+      mcRepT: 'Project duration in each run: {list}.',
+      mcRep: '{k} of {n} runs finish in {T} weeks or less: P ≈ {k}/{n} = {p}.',
+    },
+    link: { m6: 'See the solution in M6', m7: 'See the solution in M7' },
+    and: '{a} and {b}',
+  };
+  // Une los textos del bloque 3 con los de arriba, sin pisar ninguno.
+  const merge = (to, from) => {
+    for (const [k, v] of Object.entries(from)) {
+      if (v && typeof v === 'object') merge(to[k] || (to[k] = {}), v);
+      else if (k in to) throw new Error(`i18n-moodle: ${k} repetida`);
+      else to[k] = v;
+    }
+  };
+  merge(es, es3);
+  merge(en, en3);
+
   I.dict.es.mq = es;
   I.dict.en.mq = en;
   // F3e (T013): los nombres de los idiomas se escriben igual en las dos páginas (cada uno en su lengua).

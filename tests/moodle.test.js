@@ -570,7 +570,16 @@ test('T016: textos del banco (i18n-moodle) aprobados en T006', () => {
     'sol.minDummy': ['n'], 'sol.added': ['list'], 'sol.det': ['text'], critMarked: ['acts'], 'alt.aon': ['m', 'n'], 'alt.aoa': ['k', 'm', 'n'],
     'opt.royMissing': ['a', 'b'], 'opt.royFalse': ['a', 'b'], 'opt.royInverted': ['a', 'b'], 'opt.royCycle': ['a', 'b'], 'opt.pertFalseDummy': ['a', 'b'],
     'opt.pertMissingDummy': ['a', 'b'], 'opt.pertInvertedDummy': ['a', 'b'], 'opt.pertParallel': ['a', 'b'], 'opt.calcES': ['a', 'f'], 'opt.calcLF': ['a', 'f'],
-    'opt.calcFloat': ['a', 'f'], 'opt.calcCrit': ['a'], 'opt.calcTE': ['a', 'f'], 'opt.calcTL': ['a', 'f'], 'opt.calcSlack': ['a'] };
+    'opt.calcFloat': ['a', 'f'], 'opt.calcCrit': ['a'], 'opt.calcTE': ['a', 'f'], 'opt.calcTL': ['a', 'f'], 'opt.calcSlack': ['a'],
+    // F3e (T014): etapas 11 a 17.
+    'stem.tclProb': ['mu', 'path', 'var'], 'stem.tclRoute': ['T', 'mu', 'p', 'path', 'route', 'var'], 'stem.mcDisc': ['T', 'list'], 'stem.mcRep': ['T'],
+    'ask.z': ['T'], 'ask.p': ['T'], 'ask.zp': ['pct'], 'ask.rMu': ['route'], 'ask.rZ': ['T'], 'ask.rP': ['T'], 'ask.both': ['T'], 'ask.pct': ['p'], 'ask.crit': ['a'],
+    'mcq.normal': ['T', 'pn'], 'chart.deadline': ['d'], and: ['a', 'b'],
+    'sol.tclPath': ['mu', 'path', 'var'], 'sol.tclProb': ['T', 'mu', 'p', 'pe', 'sd', 'var', 'z'], 'sol.tclProbQ': ['Tp', 'pct', 'zp', 'zpe'],
+    'sol.tclRoute': ['T', 'mu', 'p', 'pe', 'route', 'sd', 'var', 'z'], 'sol.tclBoth': ['both', 'pc', 'pr'], 'sol.mcRead': ['T', 'a', 'c', 'p', 'pT', 'v', 'w'],
+    'sol.mcq.mostCrit': ['c', 'c2', 'n2', 'r'], 'sol.mcq.mostCruc': ['c', 'c2', 'n2', 'r'], 'sol.mcq.critLowCruc': ['c', 'r', 'u'],
+    'sol.mcq.optimistic': ['T', 'o', 'pn', 'ps'], 'sol.mcq.pessimistic': ['T', 'o', 'pn', 'ps'], 'sol.mcq.promise': ['r'],
+    'sol.mcDisc': ['T', 'mean', 'pT'], 'sol.crit': ['list'], 'sol.mcRepT': ['list'], 'sol.mcRep': ['T', 'k', 'n', 'p'] };
   const I = require('../js/i18n.js');
   const walk = (o, pre, out) => { for (const [k, v] of Object.entries(o)) { if (k === 'page') continue; if (typeof v === 'string') out[pre + k] = v; else walk(v, `${pre}${k}.`, out); } return out; };
   const keysOf = (s) => [...new Set([...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))].sort();
@@ -705,7 +714,7 @@ const decodeLink = (href) => U.decode(href.slice(href.indexOf('#'))).state;
 const mrOf = (q) => q.text.filter((b) => b.table).flatMap((b) => b.table.rows.flatMap((r) => r.filter((c) => c && typeof c === 'object' && 'mr' in c)));
 
 test('F3d T012: las cuatro etapas van al final de STAGES_ALL y las ocho de antes dan el mismo XML (instantánea sobre 698cdff)', () => {
-  assert.deepEqual(M.STAGES_ALL, [...M.STAGES, 'stmt', ...NEW]);
+  assert.deepEqual(M.STAGES_ALL.slice(0, 12), [...M.STAGES, 'stmt', ...NEW]);   // la F3e (T014) añade las suyas detrás
   const IM = require('../js/i18n-moodle.js');
   const OLD = [...M.STAGES, 'stmt'];
   const HUELLA = {   // M.generate con las ocho etapas de la F3b y la F3c, calculadas sobre 698cdff antes de tocar STAGES_ALL
@@ -719,7 +728,7 @@ test('F3d T012: las cuatro etapas van al final de STAGES_ALL y las ocho de antes
     const bank = M.generate(Object.assign({ stages: OLD }, o), IM.tr(lang));
     assert.equal(hashOf(M.toXml(bank, IM.tr(lang))), h, k);
     // Con las doce marcadas, las de antes salen iguales y en el mismo orden.
-    const all = M.generate(Object.assign({ stages: M.STAGES_ALL, svg: NS.render }, o), IM.tr(lang));
+    const all = M.generate(Object.assign({ stages: M.STAGES_ALL.slice(0, 12), svg: NS.render }, o), IM.tr(lang));
     assert.deepEqual(all.questions.filter((q) => OLD.includes(q.stage)).map((q) => q.name), bank.questions.map((q) => q.name));
     assert.equal(all.questions.filter((q) => NEW.includes(q.stage)).length, NEW.length * 3 * 2);
   }
@@ -987,4 +996,414 @@ test('T018 r2 · R2-F4: «el arco a → b cierra un ciclo» es cierta solo en la
     }
   }
   assert.ok(right > 20 && wrong > 50, `${right} respuestas y ${wrong} distractores de ciclo`);
+});
+
+// ---------- F3e T014: etapas 11 a 17 (spec f3e-probabilidad-montecarlo, AC12, AC14 y AC15; plan §0, P6 y H7) ----------
+// Ejemplos citados (constitución, 8): Klastorin (Tema 6c), tres tiempos: A–C–E–F, 23,83, 8,25 y P(≤ 25) = 0,66 con la
+// tabla; Hillier y Lieberman (Reliable Construction): 44, 9 y P(≤ 47) = 0,84; dos rutas (Tema 6c), plazo 17: 0,81 y 0,71;
+// Klastorin discreto: E[T] = 23,248, P(T ≤ 20) = 0,157 y la criticidad de C, 0,660 (contando empates).
+const PG = require('../js/core/probgen.js');
+const T3 = require('../js/core/threept.js');
+const TLc = require('../js/core/tcl.js');
+const CS = require('../js/views/chart-svg.js');
+const XP = require('../js/ex-prob.js');
+const XM = require('../js/ex-mc.js');
+const F3E = ['tclMoments', 'tclPath', 'tclProb', 'tclRoute', 'mcRead', 'mcDisc', 'mcRep'];
+const KIND = { tclMoments: 'tcl', tclPath: 'tcl', tclProb: 'tcl', tclRoute: 'tcl', mcRead: 'read', mcDisc: 'disc', mcRep: 'rep' };
+const chart = (m) => CS[m.kind](m);
+// Todas las casillas de una pregunta (párrafos, tablas y bloques plegados): { key: casilla }.
+function cells(q) {
+  const out = {};
+  const cell = (c) => { if (c && typeof c === 'object' && ('num' in c || 'nums' in c || 'mc' in c)) out[c.key] = c; };
+  const walk = (blocks) => blocks.forEach((b) => {
+    if (b.hole) cell(b.hole);
+    if (b.table) b.table.rows.forEach((r) => r.forEach(cell));
+    if (b.fold) walk(b.fold.blocks);
+  });
+  walk(q.text);
+  return out;
+}
+// ¿Acepta Moodle el valor v en la casilla c? (NUMERICAL: |v − respuesta| ≤ tolerancia en alguna de sus respuestas.)
+const accepts = (c, v) => ('num' in c ? [{ v: c.num, tol: c.tol || 0 }] : c.nums).some((a) => Math.abs(v - a.v) <= a.tol + 1e-9);
+const tableOf = (q, h) => q.text.filter((b) => b.table).find((b) => b.table.head.includes(h));
+const colOf = (q, h) => { const t = tableOf(q, h); const i = t.table.head.indexOf(h); return Object.fromEntries(t.table.rows.map((r) => [String(r[0]), r[i]])); };
+const decNum = (s) => Number(String(s).replace(',', '.'));
+const r2 = (v) => Math.round(v * 100) / 100;
+
+test('F3e T014: las siete etapas van al final de STAGES_ALL; con todas marcadas, las doce de antes salen iguales', () => {
+  assert.deepEqual(M.STAGES_F3E, F3E);
+  assert.deepEqual(M.STAGES_ALL, [...M.STAGES, 'stmt', ...NEW, ...F3E]);
+  const IM = require('../js/i18n-moodle.js');
+  const o = { lang: 'es', nota: 'en', sf: true, labels: IM.labels('en'), levels: ['easy', 'medium'], count: 1, seed: 7, svg: NS.render, chart };
+  const old = M.generate(Object.assign({ stages: M.STAGES_ALL.slice(0, 12) }, o), IM.tr('es'));
+  const all = M.generate(Object.assign({ stages: M.STAGES_ALL }, o), IM.tr('es'));
+  const before = all.questions.filter((q) => !F3E.includes(q.stage));
+  assert.deepEqual(before.map((q) => q.name), old.questions.map((q) => q.name));
+  assert.equal(M.toXml({ seed: 7, questions: before }, IM.tr('es')), M.toXml(old, IM.tr('es')));
+  assert.equal(all.questions.filter((q) => F3E.includes(q.stage)).length, F3E.length * 2);
+  assert.deepEqual(all.missing, []);
+});
+
+test('F3e T014 · tclMoments, Klastorin: tₑ y σ² de la beta-PERT de examen (±0,01), con a, m y b y las predecesoras como datos', () => {
+  const ex = PG.fromExample('kl');
+  const q = M.question('tclMoments', ex, ctx(), tr);
+  const c = cells(q);
+  const want = { A: [20 / 3, 4], B: [44 / 6, (8 / 6) ** 2], C: [47 / 6, (11 / 6) ** 2], D: [86 / 6, 1], E: [5, (4 / 6) ** 2], F: [26 / 6, (4 / 6) ** 2] };
+  assert.equal(Object.keys(c).length, 12);
+  for (const [id, [te, v]] of Object.entries(want)) {
+    assert.ok(Math.abs(c[`${id}.te`].num - te) < 1e-9 && c[`${id}.te`].tol === 0.01, id);
+    assert.ok(Math.abs(c[`${id}.var`].num - v) < 1e-9 && c[`${id}.var`].tol === 0.01, id);
+    assert.ok(accepts(c[`${id}.te`], r2(te)) && !accepts(c[`${id}.te`], r2(te) + 0.02), id);
+  }
+  assert.deepEqual(colOf(q, 'a'), { A: '2', B: '4', C: '2', D: '12', E: '3', F: '3' });
+  assert.deepEqual(colOf(q, 'col.preds'), { A: 'none', B: 'A', C: 'A', D: 'A', E: 'B, C', F: 'E' });
+  assert.equal(q.qtype, 'cloze');
+  assert.equal(q.seed, null);
+  assert.deepEqual(q.category, ['root', 'stage.tclMoments']);
+  // Con μ y σ² dados (ejemplo de las dos rutas) no hay a, m y b que pasar a medias: no vale para esta etapa.
+  assert.equal(M.question('tclMoments', PG.fromExample('tr', { route: true }), ctx(), tr), null);
+  const xml = M.toXml({ seed: 1, questions: [q] }, tr);
+  assert.ok(xml.includes('{1:NUMERICAL:=6.666667:0.01}'));
+  assert.deepEqual(X.check(xml), { ok: true });
+});
+
+test('F3e T014 · tclPath, Klastorin y Hillier: el camino crítico de las medias (opción múltiple), 23,83 y 8,25; 44 y 9', () => {
+  const ex = PG.fromExample('kl');
+  const q = M.question('tclPath', ex, ctx(), tr);
+  const c = cells(q);
+  // Da las medias y las varianzas de la etapa 11, a dos decimales.
+  const m11 = M.question('tclMoments', ex, ctx(), tr).answers;
+  for (const r of ex.rows) {
+    assert.equal(decNum(colOf(q, 'tₑ')[r.id]), r2(m11[`${r.id}.te`]));
+    assert.equal(decNum(colOf(q, 'σ²')[r.id]), r2(m11[`${r.id}.var`]));
+  }
+  assert.equal(c.path.answer, 'A – C – E – F');
+  assert.deepEqual(c.path.mc.filter((o) => o.ok).map((o) => o.label), ['A – C – E – F']);
+  assert.ok(c.path.mc.length >= 3 && c.path.mc.length <= 4);
+  assert.ok(accepts(c.mu, 23.83) && accepts(c.var, 8.25) && accepts(c.var, 8.24), 'la suma de los datos de dos decimales también vale');
+  assert.equal(c.mu.tol, 0.04);
+  assert.ok(!accepts(c.mu, 23.88));
+  const h = cells(M.question('tclPath', PG.fromExample('hl'), ctx(), tr));
+  assert.equal(h.path.answer, 'A – B – C – E – F – J – L – N');
+  assert.ok(accepts(h.mu, 44) && accepts(h.var, 9));
+  const xml = M.toXml({ seed: 1, questions: [q] }, tr);
+  assert.match(xml, /\{1:MULTICHOICE:([^}~]+~){2,3}[^}~]+\}/);
+  assert.ok(xml.includes('=A – C – E – F'));
+  assert.deepEqual(X.check(xml), { ok: true });
+});
+
+test('F3e T014 · tclPath (H7): de 3 a 4 caminos (el crítico, el de las m si es otro y los de más media); con menos, null', () => {
+  let withM = 0; let n = 0;
+  for (const lv of M.LEVELS) for (let sd = 1; sd <= 40; sd++) {
+    const ex = M.stochExercise('tclPath', lv, sd);
+    if (!ex) continue;
+    const q = M.question('tclPath', ex, ctx(), tr);
+    const model = { acts: ex.rows.map((r) => ({ id: r.id, preds: r.preds, dist: { kind: 'pert', a: r.a, m: r.m, b: r.b } })) };
+    const P = TLc.paths(model, 0).list;
+    const exam = TLc.exam(model, { prob: 0.5 });
+    if (P.length < 3) { assert.equal(q, null, `${lv}/${sd}`); continue; }
+    if (!q) continue;           // un empate que los datos de dos decimales no deciden igual (se descarta)
+    n++;
+    const c = cells(q).path;
+    const labels = c.mc.map((o) => o.label);
+    assert.equal(new Set(labels).size, labels.length);
+    assert.equal(labels.length, Math.min(4, P.length));
+    assert.deepEqual(labels, labels.slice().sort((x, y) => x.localeCompare(y, 'en', { numeric: true })));
+    assert.equal(c.answer, exam.path.join(' – '));
+    const sumM = (acts) => acts.reduce((s, id) => s + ex.rows.find((r) => r.id === id).m, 0);
+    const bestM = Math.max(...P.map((p) => sumM(p.acts)));
+    assert.ok(P.some((p) => sumM(p.acts) === bestM && labels.includes(p.acts.join(' – '))), `${lv}/${sd}: el de las m`);
+    if (P.filter((p) => sumM(p.acts) === bestM).every((p) => p.acts.join(' – ') !== c.answer)) withM++;
+    const muOf = (l) => P.find((p) => p.acts.join(' – ') === l).mu;
+    assert.ok(labels.every((l) => l === c.answer || muOf(l) <= exam.mu + 1e-9));
+  }
+  assert.ok(n > 80 && withM >= 1, `${n} preguntas; ${withM} con el camino de las m distinto del crítico`);
+  // El camino de las m entra aunque tenga menos media que otros: cinco caminos de una actividad, A el crítico de las
+  // medias (4,33) y B el de las m (3,5 fija, la de menos media); sin la regla, las opciones serían A, C, D y E.
+  const row = (id, a, m, b) => ({ id, a, m, b, preds: [] });
+  const five = { kind: 'tcl', level: 'example', sd: null, rows: [row('A', 1, 2, 17), row('B', 3.5, 3.5, 3.5), row('C', 1, 3, 12), row('D', 1, 3, 11), row('E', 1, 3, 10)], deadline: 5, prob: 0.9, route: null };
+  const f = cells(M.question('tclPath', five, ctx(), tr)).path;
+  assert.deepEqual(f.mc.map((o) => [o.label, o.ok]), [['A', true], ['B', false], ['C', false], ['D', false]]);
+  // Dos caminos (A–C y B–C): menos de tres opciones.
+  const two = { kind: 'tcl', level: 'example', sd: null, rows: [{ id: 'A', a: 1, m: 2, b: 3, preds: [] }, { id: 'B', a: 1, m: 3, b: 5, preds: [] }, { id: 'C', a: 2, m: 2, b: 2, preds: ['A', 'B'] }], deadline: 6, prob: 0.9, route: null };
+  assert.equal(M.question('tclPath', two, ctx(), tr), null);
+});
+
+test('F3e T014 · tclPath, redondeo de los datos: si con los datos de dos decimales el camino es otro, la tabla no vale (null)', () => {
+  // X–Y suma 25/6 + 25/6 = 8,333… (se dan 4,17 y 4,17: 8,34) y Z, 25/3 = 8,333… (se da 8,33): empate exacto que gana Z por
+  // varianza (1 frente a 0,5), pero con los datos que se enseñan X–Y tiene más media. W, fija, da el tercer camino.
+  const row = (id, a, m, b, preds) => ({ id, a, m, b, preds: preds || [] });
+  const ex = { kind: 'tcl', level: 'example', sd: null, rows: [row('X', 3, 4, 6), row('Y', 3, 4, 6, ['X']), row('Z', 6, 8, 12), row('W', 1, 1, 1)], deadline: 9, prob: 0.9, route: null };
+  assert.deepEqual(TLc.exam({ acts: ex.rows.map((r) => ({ id: r.id, preds: r.preds, dist: { kind: 'pert', a: r.a, m: r.m, b: r.b } })) }, { prob: 0.5 }).path, ['Z']);
+  assert.equal(M.question('tclPath', ex, ctx(), tr), null);
+  // Con Z un poco más larga (b = 13), las dos cuentas eligen Z: hay pregunta.
+  ex.rows[2] = row('Z', 6, 8, 13);
+  assert.equal(cells(M.question('tclPath', ex, ctx(), tr)).path.answer, 'Z');
+});
+
+test('F3e T014 · mcRead: la pregunta de interpretación sale de las claras de probgen con la secuencia propia de la semilla', () => {
+  const R = require('../js/core/rng.js');
+  const keys = new Set();
+  for (let sd = 1; sd <= 30; sd++) {
+    const ex = M.stochExercise('mcRead', 'easy', sd);
+    if (!ex) continue;
+    const q = M.question('mcRead', ex, ctx(), tr);
+    const k = Object.keys(q.answers).find((x) => x.startsWith('q.')).slice(2);
+    assert.equal(k, ex.questions[R.int(R.mulberry32(((sd * 7) + 83) >>> 0), 0, ex.questions.length - 1)].key);
+    keys.add(k);
+  }
+  assert.ok(keys.size >= 3, [...keys].join());
+});
+
+test('F3e T014 · tclProb, Klastorin y Hillier: da μ y σ²; z, P con la tabla o la exacta, y para el 95 % las tres z con su plazo (AC25)', () => {
+  const kl = PG.fromExample('kl', { prob: 0.95 });
+  const q = M.question('tclProb', kl, ctx(), tr);
+  const c = cells(q);
+  assert.equal(q.text[0].p, `stem.tclProb${JSON.stringify({ path: 'A – C – E – F', mu: '23,83', var: '8,25' })}`);
+  assert.ok(accepts(c.z, 0.41) && !accepts(c.z, 0.43));
+  assert.equal(r2(c.p.nums[0].v), 0.66);
+  assert.ok(accepts(c.p, 0.6591) && accepts(c.p, T3.phi((25 - 23.83) / Math.sqrt(8.25))) && !accepts(c.p, 0.6628 + 0.006));
+  for (const z of [1.64, 1.645, 1.65]) {
+    assert.ok(accepts(c.zp, z), `z = ${z}`);
+    assert.ok(accepts(c.Tp, 23.83 + z * Math.sqrt(8.25)), `plazo con z = ${z}`);
+  }
+  assert.ok(!accepts(c.zp, 1.66) && !accepts(c.Tp, 23.83 + 1.7 * Math.sqrt(8.25)));
+  const h = cells(M.question('tclProb', PG.fromExample('hl'), ctx(), tr));
+  assert.ok(accepts(h.z, 1) && accepts(h.p, 0.8413) && accepts(h.p, 0.84));
+  // Sin el 95 %: la z de la tabla (±0,01) o la interpolada (±0,0005), y su plazo.
+  const p90 = cells(M.question('tclProb', PG.fromExample('kl', { prob: 0.9 }), ctx(), tr));
+  assert.deepEqual(p90.zp.nums.map((a) => [a.v, a.tol]), [[1.28, 0.01], [1.282, 0.0005]]);
+  assert.ok(!accepts(p90.zp, 1.645));
+  assert.equal(p90.Tp.nums.length, 2);
+  const xml = M.toXml({ seed: 1, questions: [q] }, tr);
+  assert.ok(xml.includes('{1:NUMERICAL:%100%0.6591:0.0005~%100%'));
+  assert.ok(xml.includes('%100%1.645:0.0005~%100%1.65:0.0005}'));
+  assert.deepEqual(X.check(xml), { ok: true });
+});
+
+test('F3e T014 · tclProb: z y P salen de los datos que se enseñan (μ y σ² a dos decimales), como los calcula el alumno', () => {
+  // Fácil, semilla 13: μ = 16,333… y σ² = 0,222… se dan como 16,33 y 0,22; z = (17 − 16,33) / √0,22 = 1,43 (con los
+  // exactos, 1,41: el alumno que usa los datos quedaría fuera de ±0,01).
+  const ex = M.stochExercise('tclProb', 'easy', 13);
+  assert.equal(ex.deadline, 17);
+  const q = M.question('tclProb', ex, ctx(), tr);
+  const c = cells(q);
+  assert.deepEqual(JSON.parse(q.text[0].p.slice('stem.tclProb'.length)).mu, '16,33');
+  assert.equal(c.z.num, 1.43);
+  assert.equal(c.p.nums[0].v, 0.9236);
+  assert.ok(accepts(c.z, (17 - 16.33) / Math.sqrt(0.22)) && !accepts(c.z, 1.41));
+  // Fácil, semilla 7: 0,10 y 0,5398 con los datos (0,09 y 0,5359 con los exactos).
+  const c7 = cells(M.question('tclProb', M.stochExercise('tclProb', 'easy', 7), ctx(), tr));
+  assert.deepEqual([c7.z.num, c7.p.nums[0].v], [0.1, 0.5398]);
+});
+
+test('F3e T014 · tclRoute, dos rutas del Tema 6c con plazo 17: la crítica sola 0,81 (dato) y las dos 0,71', () => {
+  const ex = PG.fromExample('tr', { route: true });
+  const q = M.question('tclRoute', ex, ctx(), tr);
+  const c = cells(q);
+  const stem = JSON.parse(q.text[0].p.slice('stem.tclRoute'.length));
+  assert.deepEqual(stem, { path: 'B – D', mu: '15', var: '5', T: 17, p: '0,8133', route: 'A – C' });
+  assert.ok(accepts(c['r.mu'], 14) && accepts(c['r.var'], 7) && accepts(c['r.z'], 1.13));
+  assert.ok(accepts(c['r.p'], 0.8708));
+  assert.equal(Math.round(c.both.nums[0].v * 100) / 100, 0.71);
+  assert.ok(accepts(c.both, 0.8133 * 0.8708) && !accepts(c.both, 0.8133 + 0.8708 - 1));
+  assert.equal(M.question('tclRoute', PG.fromExample('tr'), ctx(), tr), null, 'sin la otra ruta no hay pregunta');
+  assert.deepEqual(X.check(M.toXml({ seed: 1, questions: [q] }, tr)), { ok: true });
+});
+
+test('F3e T014 · mcDisc, Klastorin discreto: E[T] = 23,248, P(T ≤ 20) = 0,157 y la criticidad de C, 0,660 (±0,001), con las fracciones como datos', () => {
+  const ex = PG.fromExample('kd');
+  const q = M.question('mcDisc', ex, ctx(), tr);
+  const c = cells(q);
+  assert.ok(accepts(c.mean, 23.248) && accepts(c.pT, 0.157) && accepts(c['C.crit'], 0.66));
+  assert.ok(!accepts(c.mean, 23.25 + 0.002));
+  const sol = PG.solve('disc', ex);
+  for (const id of ex.disc) assert.equal(c[`${id}.crit`].num, sol.crit[id]);
+  assert.deepEqual(colOf(q, 'col.durP'), { A: '7 (1/3) · 8 (1/3) · 9 (1/3)', B: '2 (1/5) · 12 (4/5)', C: '5 (1/5) · 15 (1/5) · 25 (3/5)', D: '3 (3/10) · 12 (7/10)' });
+  assert.deepEqual(X.check(M.toXml({ seed: 1, questions: [q] }, tr)), { ok: true });
+});
+
+test('F3e T014 · mcRep, réplicas de Klastorin (semilla 2026, las de M7): T de cada réplica (exacta) y las estimaciones k/n (±0,001)', () => {
+  const ex = PG.fromExample('kl', { kind: 'rep', us: 2026, n: 5 });
+  const q = M.question('mcRep', ex, ctx(), tr);
+  const c = cells(q);
+  const sol = PG.solve('rep', ex);
+  sol.reps.forEach((o, i) => { assert.equal(c[`r${i + 1}.T`].num, o.T); assert.equal(c[`r${i + 1}.T`].tol, 0); });
+  assert.ok(accepts(c.pT, sol.k / 5));
+  for (const r of ex.rows) assert.ok(accepts(c[`${r.id}.crit`], sol.count[r.id] / 5), r.id);
+  // La tabla de réplicas da las duraciones sorteadas (enteras) de cada actividad.
+  const t = tableOf(q, 'col.run');
+  assert.deepEqual(t.table.head, ['col.run', ...ex.rows.map((r) => r.id), 'T']);
+  assert.deepEqual(t.table.rows.map((r) => r.slice(1, -1)), ex.reps);
+  assert.deepEqual(X.check(M.toXml({ seed: 1, questions: [q] }, tr)), { ok: true });
+});
+
+test('F3e T014 · mcRead: los valores de la simulación de M7 (probgen), la imagen por ctx.chart y los gráficos como tabla (AC15)', () => {
+  let done = 0;
+  for (const [lv, sd] of [['easy', 3], ['medium', 2026], ['hard', 11]]) {
+    const ex = M.stochExercise('mcRead', lv, sd) || PG.read(sd, lv).ex;
+    const sol = PG.solve('read', ex);
+    const q = M.question('mcRead', ex, ctx({ chart }), tr);
+    const c = cells(q);
+    assert.equal(c.pct.num, sol.pct.value);
+    assert.equal(c.pct.tol, sol.classW);
+    assert.ok(accepts(c.pct, sol.pct.value + sol.classW * 0.99) && !accepts(c.pct, sol.pct.value + sol.classW * 1.05));
+    assert.ok(accepts(c.pT, sol.pT + 0.049) && !accepts(c.pT, sol.pT + 0.06));
+    assert.ok(accepts(c.crit, sol.act.crit));
+    const mc = Object.values(c).find((x) => 'mc' in x);
+    const key = mc.key.slice(2);
+    const iq = ex.questions.find((x) => x.key === key);
+    assert.ok(iq, key);
+    assert.equal(mc.mc.filter((o) => o.ok).length, 1);
+    assert.equal(mc.mc.length, iq.options.length);
+    // Dos imágenes: las de chart-svg con los datos de la simulación, como archivos con su texto alternativo.
+    assert.equal(q.files.length, 2);
+    assert.equal(q.files[0].svg, CS.dist({ durations: sol.sorted, deadline: ex.ask.deadline, title: 'chart.dist', desc: 'chart.distDesc', dec: ',',
+      labels: { deadline: `chart.deadline${JSON.stringify({ d: String(ex.ask.deadline) })}`, x: 'chart.x', hist: 'chart.hist', cdf: 'chart.cdf' } }));
+    const rows = ex.tcl.rows.map((r) => ({ id: r.id, crit: sol.crit[r.id], cruc: sol.cruc[r.id] }));
+    assert.equal(q.files[1].svg, CS.indices({ rows, title: 'chart.idx', desc: 'chart.idxDesc', dec: ',', labels: { crit: 'chart.crit', cruc: 'chart.cruc' } }));
+    const imgs = q.text.filter((b) => b.img);
+    assert.deepEqual(imgs.map((b) => b.img.src), q.files.map((f) => f.name));
+    assert.ok(imgs.every((b) => b.img.alt.length > 20));
+    // La alternativa en texto: las clases y la frecuencia acumulada de chart-svg.table, y los índices a una cifra.
+    const fold = q.text.find((b) => b.fold);
+    const [freq, idx] = fold.fold.blocks.map((b) => b.table);
+    assert.deepEqual(freq.rows.map((r) => decNum(r[1])), CS.table(sol.sorted).map((x) => x.cum));
+    assert.deepEqual(freq.rows.map((r) => r[0].split(' – ').map(decNum)), CS.table(sol.sorted).map((x) => [x.from, x.to]));
+    assert.deepEqual(idx.rows.map((r) => [r[0], decNum(r[1]), decNum(r[2])]), CS.indexTable(rows).map((x) => [x.id, x.crit, x.cruc]));
+    const xml = M.toXml({ seed: 1, questions: [q] }, tr);
+    assert.ok(xml.includes(`<file name="${q.files[0].name}" path="/" encoding="base64">`) && xml.includes(`@@PLUGINFILE@@/${q.files[1].name}`));
+    assert.ok(xml.includes('<details><summary>fold.asTable</summary>'));
+    assert.deepEqual(X.check(xml), { ok: true });
+    done++;
+  }
+  assert.equal(done, 3);
+  // Sin ctx.chart, sin imágenes; los gráficos siguen como tabla.
+  const q0 = M.question('mcRead', M.stochExercise('mcRead', 'medium', 2026) || PG.read(2026, 'medium').ex, ctx(), tr);
+  assert.equal(q0.files, undefined);
+  assert.ok(q0.text.some((b) => b.fold) && !q0.text.some((b) => b.img));
+});
+
+// AC14: en tablas generadas, cada etapa pide lo que da probgen con los datos que enseña, enlaza a su ejercicio y a la
+// solución, y la semilla del enlace abre en «Ejercicios» el mismo ejercicio.
+for (const lv of M.LEVELS) {
+  test(`F3e T014: las siete etapas con la solución del núcleo, sus enlaces y XML bien formado · ${lv}`, () => {
+    const seen = Object.fromEntries(F3E.map((s) => [s, 0]));
+    for (let sd = 1; sd <= 60 && F3E.some((s) => seen[s] < 3); sd++) {
+      for (const stage of F3E) {
+        if (seen[stage] >= 3 || (stage === 'mcRead' && sd > 12)) continue;
+        const ex = M.stochExercise(stage, lv, sd);
+        const cand = PG.candidate(KIND[stage], sd, lv, { route: stage === 'tclRoute' });
+        assert.equal(!!ex, cand.ok, `${stage} ${sd}`);
+        if (!ex) continue;
+        const q = M.question(stage, ex, ctx({ lang: 'en', nota: 'es', chart }), tr);
+        if (!q) continue;
+        seen[stage]++;
+        assert.equal(q.seed, sd);
+        assert.equal(q.level, lv);
+        assert.deepEqual(q.category, ['root', `stage.${stage}`, `level.${lv}`]);
+        assert.equal(q.name, [`stage.${stage}`, `level.${lv}`, `n=${q.n}`, `s=${sd}`, `gv=${G.VERSION}`, `pg=${PG.VERSION}`].join(' · '));
+        assert.deepEqual(q.tags, [`pnl-${stage}`, `level-${lv}`, 'lang-en', `gv-${G.VERSION}`, `pg-${PG.VERSION}`]);
+        const c = cells(q);
+        assert.deepEqual(Object.keys(q.answers).sort(), Object.keys(c).sort());
+        const s = PG.solve(KIND[stage], ex);
+        if (stage === 'tclMoments') for (const id of Object.keys(s.acts)) { assert.ok(accepts(c[`${id}.te`], s.acts[id].te)); assert.ok(accepts(c[`${id}.var`], s.acts[id].var)); }
+        if (stage === 'tclPath') { assert.equal(c.path.answer, s.path.join(' – ')); assert.ok(accepts(c.mu, s.mu) && accepts(c.var, s.var)); }
+        if (stage === 'tclProb') {
+          // Con los datos que enseña (μ y σ² a dos decimales), como el examen; la solución exacta queda dentro de la tolerancia.
+          const mu = r2(s.mu); const v = r2(s.var); const z = (ex.deadline - mu) / Math.sqrt(v);
+          assert.equal(c.z.num, T3.tableP(z).z2);
+          assert.equal(c.p.nums[0].v, T3.tableP(z).p4);
+          assert.ok(accepts(c.p, s.pExact) && accepts(c.zp, s.zp) && accepts(c.Tp, s.TpExact));
+          if (ex.prob === 0.95) for (const zz of [1.64, 1.645, 1.65]) assert.ok(accepts(c.zp, zz));
+        }
+        if (stage === 'tclRoute') { assert.ok(accepts(c['r.mu'], s.route.mu) && accepts(c['r.var'], s.route.var) && accepts(c['r.p'], s.route.pExact) && accepts(c.both, s.route.bothExact)); }
+        if (stage === 'mcRead') { assert.equal(c.pct.num, s.pct.value); assert.equal(c.pT.num, s.pT); assert.equal(c.crit.num, s.act.crit); }
+        if (stage === 'mcDisc') { assert.equal(c.mean.num, s.mean); assert.equal(c.pT.num, s.pT); for (const id of ex.disc) assert.equal(c[`${id}.crit`].num, s.crit[id]); }
+        if (stage === 'mcRep') { s.reps.forEach((o, i) => assert.equal(c[`r${i + 1}.T`].num, o.T)); assert.equal(c.pT.num, s.pT); for (const r of ex.rows) assert.equal(c[`${r.id}.crit`].num, s.crit[r.id]); }
+        // «Abrir este ejercicio» (modo Examen): la misma semilla abre el mismo ejercicio, sin pasar a otra.
+        const e = decodeLink(q.links.ex);
+        assert.deepEqual([e.v, e.sd, e.lv, e.xm, e.gv, e.lang, e.nota], ['ex', sd, lv, 'exam', G.VERSION, 'en', 'es']);
+        const kind = KIND[stage];
+        if (kind === 'tcl') { assert.equal(e.xk, 'tcl'); assert.equal(e.xo, stage === 'tclRoute' ? 1 : 0); } else { assert.equal(e.xk, 'mc'); assert.equal(e.mv, kind); }
+        const lab = PG[kind](e.sd, e.lv, { route: e.xo === 1 });
+        assert.equal(lab.info.sdUsed, sd);
+        assert.deepEqual(kind === 'read' ? lab.ex.tcl.rows : lab.ex.rows, kind === 'read' ? ex.tcl.rows : ex.rows);
+        // «Ver la solución en M6 / M7»: el enlace de «Ejercicios».
+        const state = Object.assign(U.defaults(), { lang: 'en', nota: 'es' });
+        assert.equal(q.links.step, M.APP + (kind === 'tcl' ? XP.m6Hash(ex, state) : XM.m7Hash(ex, state)));
+        assert.equal(q.links.stepKey, kind === 'tcl' ? 'link.m6' : 'link.m7');
+        assert.equal(q.links.exKey, 'link.buildExam');
+        const xml = M.toXml({ seed: 1, questions: [q] }, tr);
+        assert.deepEqual(X.check(xml), { ok: true }, `${stage} ${sd}`);
+        assert.ok(!/NaN|Infinity|undefined/.test(xml), `${stage} ${sd}`);
+      }
+    }
+    for (const s of F3E) assert.equal(seen[s], 3, `${lv}: ${s}`);
+  });
+}
+
+test('F3e T014: las etapas del TCL encadenadas con la misma tabla: cada una da los datos de la anterior (dos decimales)', () => {
+  let n = 0;
+  for (const lv of M.LEVELS) for (let sd = 1; sd <= 400 && n < 6; sd++) {
+    const ex = M.stochExercise('tclRoute', lv, sd);
+    if (!ex) continue;
+    const q = Object.fromEntries(['tclMoments', 'tclPath', 'tclProb', 'tclRoute'].map((s) => [s, M.question(s, ex, ctx(), tr)]));
+    if (!q.tclPath) continue;
+    n++;
+    for (const r of ex.rows) {
+      assert.equal(decNum(colOf(q.tclPath, 'tₑ')[r.id]), r2(q.tclMoments.answers[`${r.id}.te`]));
+      assert.equal(decNum(colOf(q.tclRoute, 'σ²')[r.id]), r2(q.tclMoments.answers[`${r.id}.var`]));
+    }
+    const st13 = JSON.parse(q.tclProb.text[0].p.slice('stem.tclProb'.length));
+    assert.deepEqual([st13.path, decNum(st13.mu), decNum(st13.var)], [q.tclPath.answers.path, r2(q.tclPath.answers.mu), r2(q.tclPath.answers.var)]);
+    const st14 = JSON.parse(q.tclRoute.text[0].p.slice('stem.tclRoute'.length));
+    assert.equal(decNum(st14.p), q.tclProb.answers.p);
+    assert.equal(st14.route, ex.route.join(' – '));
+  }
+  assert.equal(n, 6);
+});
+
+test('F3e T014: el banco con las siete etapas: sin huecos, sin semillas repetidas en un nivel y el mismo con cualquier reparto de pasos', () => {
+  const o = OPTS({ stages: F3E, count: 2, seed: 20261118, chart });
+  const a = M.generate(o, tr);
+  assert.deepEqual(a.missing, []);
+  assert.equal(a.questions.length, F3E.length * 3 * 2);
+  for (const lv of M.LEVELS) {
+    const seeds = a.questions.filter((q) => q.level === lv).map((q) => q.seed);
+    assert.equal(new Set(seeds).size, seeds.length, lv);
+  }
+  // Orden: nivel y después etapa, como las de antes.
+  assert.deepEqual([...new Set(a.questions.map((q) => `${q.level}|${q.stage}`))], M.LEVELS.flatMap((lv) => F3E.map((s) => `${lv}|${s}`)));
+  const xml = M.toXml(a, tr);
+  assert.deepEqual(X.check(xml), { ok: true });
+  const r = M.runner(o, tr);
+  while (!r.step(3).done);
+  assert.equal(M.toXml(r.result(), tr), xml);
+  // Las etapas con pocas semillas válidas tienen más intentos (TRIES_MULT): 1 intento por ejemplar y etapa los agota.
+  assert.deepEqual(M.TRIES_MULT, { tclRoute: 20, mcDisc: 3 });
+  const few = M.generate(OPTS({ stages: ['tclRoute', 'tclMoments'], levels: ['easy'], count: 3, triesPer: 1, seed: 5 }), tr);
+  const made = (s) => few.questions.filter((q) => q.stage === s).length;
+  assert.ok(made('tclRoute') <= 3 && made('tclMoments') <= 3);
+  for (const m of few.missing) assert.ok(m.made < 3);
+});
+
+test('F3e T014: bancos en inglés y en español con los textos de i18n-moodle, sin claves ni parámetros sin sustituir (bloque 3)', () => {
+  const IM = require('../js/i18n-moodle.js');
+  const I = require('../js/i18n.js');
+  for (const lang of ['es', 'en']) {
+    const t = IM.tr(lang);
+    const bank = M.generate({ lang, nota: lang, sf: false, labels: IM.labels(lang), stages: F3E, levels: ['medium'], count: 1, seed: 11, chart }, t);
+    const xml = M.toXml(bank, t);
+    assert.deepEqual(X.check(xml), { ok: true });
+    const words = xml.replace(/href="[^"]*"/g, '').replace(/<tags>.*?<\/tags>/g, '').replace(/<file [^>]*>[^<]*<\/file>/g, '');
+    assert.ok(!/(^|[^\w.])(stem|col|sol|ask|mcq|chart|fold|link|stage|level)\.[a-z]/i.test(words.replace(/<name>.*?<\/name>/g, '')), lang);
+    assert.ok(!/\{(path|mu|var|T|p|pe|z|route|list|pct|a|r|c|n2|c2|u|o|pn|ps|v|w|k|n|mean|pT|zp|zpe|Tp|sd|pc|pr|both|d)\}/.test(words), lang);
+    const other = lang === 'es' ? ['Activity', 'Predecessors', 'weeks', 'Solution', 'Run', 'Criticality'] : ['Actividad', 'Predecesoras', 'semanas', 'Solución', 'Réplica', 'Criticidad'];
+    for (const w of other) assert.ok(!words.includes(w), `${lang}: ${w}`);
+  }
+  // Las mismas claves en los dos idiomas.
+  const keys = (o, pre) => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? keys(v, `${pre}${k}.`) : [`${pre}${k}`]));
+  assert.deepEqual(keys(I.dict.es.mq, '').sort(), keys(I.dict.en.mq, '').sort());
+  for (const s of F3E) for (const lang of ['es', 'en']) assert.ok(I.dict[lang].mq.stage[s], `${lang}: ${s}`);
 });

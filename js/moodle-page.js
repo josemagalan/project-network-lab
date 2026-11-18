@@ -37,8 +37,9 @@
   const CHUNK_MS = 40;
   const pt = (lang, k, p) => I.t(lang, `mq.page.${k}`, p);
 
-  /** Las etapas de la F3d (7 a 10), en el orden del núcleo: las que siguen a la 0 en STAGES_ALL. */
-  const LAB_STAGES = M.STAGES_ALL.slice(M.STAGES_ALL.indexOf('stmt') + 1);
+  /** Las etapas de la F3d (7 a 10), en el orden del núcleo: las que siguen a la 0 en STAGES_ALL, hasta el detective (las
+   *  11 a 17 de la F3e, detrás, llegan al formulario en T016). */
+  const LAB_STAGES = M.STAGES_ALL.slice(M.STAGES_ALL.indexOf('stmt') + 1, M.STAGES_ALL.indexOf('detective') + 1);
   /** Las etapas que ofrece el formulario, en su orden: la 0 la primera, solo si está publicada (F3c, P6); las 7 a 10
    *  al final, solo si están publicadas (F3d, T014). */
   const stagesOf = (pub, lab) => [...(pub ? ['stmt'] : []), ...M.STAGES, ...(lab ? LAB_STAGES : [])];
