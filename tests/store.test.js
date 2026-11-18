@@ -455,3 +455,45 @@ test('F3d T006 (H6): en el taller, otra tabla, otro ejemplo o abrir una tabla bo
   assert.equal(S.reduce(s, { type: 'graph', value: 'aoa', step: 0 }, 1).view, 'net');
 });
 
+
+// ---------- F3e T008: probabilidad y Montecarlo en «Ejercicios» ----------
+
+test('F3e T008: xk=tcl y xk=mc con mv en lista blanca; otro ejercicio, cambiar de tipo o de variante borran pa', () => {
+  let s = Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'tcl', pa: { mu: '3' }, xd: 1, xm: 'exam' });
+  s = S.reduce(s, { type: 'ex', sd: 4 }, 1);
+  assert.deepEqual([s.xk, s.pa, s.xd, s.sd], ['tcl', null, 0, 4]);
+  s = S.reduce(Object.assign({}, s, { pa: { mu: '3' } }), { type: 'ex', xk: 'mc', mv: 'disc' }, 1);
+  assert.deepEqual([s.xk, s.mv, s.pa], ['mc', 'disc', null]);
+  s = S.reduce(Object.assign({}, s, { pa: { mean: '3' } }), { type: 'ex', mv: 'rep' }, 1);
+  assert.deepEqual([s.xk, s.mv, s.pa], ['mc', 'rep', null]);
+  s = S.reduce(s, { type: 'ex', mv: 'nope' }, 1);
+  assert.equal(s.mv, 'rep');
+  s = S.reduce(Object.assign({}, s, { pa: { pT: '3' } }), { type: 'ex', xk: 'calc' }, 1);
+  assert.deepEqual([s.xk, s.pa], ['calc', null]);
+  // Con los tipos nuevos no hay enunciado (xt).
+  s = S.reduce(Object.assign({}, s, { xt: 1 }), { type: 'ex', xk: 'tcl' }, 1);
+  assert.equal(s.xt, 0);
+  s = S.reduce(Object.assign({}, s, { xt: 1 }), { type: 'ex', xk: 'mc' }, 1);
+  assert.equal(s.xt, 0);
+});
+
+test('F3e T008: pa se cambia mientras no se ha entregado y solo con campos del tipo; entregar fija xd=1 solo en Examen', () => {
+  let s = Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'tcl', xm: 'exam' });
+  s = S.reduce(s, { type: 'pa', value: { 'A.te': '3,5', path: ['A', 'C'] } }, 1);
+  assert.deepEqual(s.pa, { 'A.te': '3,5', path: ['A', 'C'] });
+  assert.deepEqual(S.reduce(s, { type: 'pa', value: { pct: '1' } }, 1).pa, s.pa, 'un campo de otro tipo no entra');
+  assert.deepEqual(S.reduce(s, { type: 'pa', value: { mu: '123456789' } }, 1).pa, s.pa, 'un valor demasiado largo no entra');
+  assert.equal(S.reduce(s, { type: 'pa', value: null }, 1).pa, null);
+  assert.equal(S.reduce(s, { type: 'pa', value: { mu: '' } }, 1).pa, null, 'todo vacío es sin respuestas');
+  s = S.reduce(s, { type: 'exDeliver' }, 1);
+  assert.equal(s.xd, 1);
+  assert.deepEqual(S.reduce(s, { type: 'pa', value: { mu: '9' } }, 1).pa, s.pa, 'entregada, no cambia');
+  assert.deepEqual(S.reduce(s, { type: 'pa', value: null }, 1).pa, s.pa);
+  // En Practicar no se entrega.
+  const p = S.reduce(Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'mc', mv: 'rep' }), { type: 'exDeliver' }, 1);
+  assert.equal(p.xd, 0);
+  const m = S.reduce(Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'mc', mv: 'rep' }), { type: 'pa', value: { 'r1.crit': ['A'], 'r1.T': '7' } }, 1);
+  assert.deepEqual(m.pa, { 'r1.crit': ['A'], 'r1.T': '7' });
+  // Fuera de los tipos nuevos, pa no se guarda.
+  assert.equal(S.reduce(Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'calc' }), { type: 'pa', value: { mu: '3' } }, 1).pa, null);
+});

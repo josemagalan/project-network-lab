@@ -121,9 +121,10 @@
       // F3a: ejercicio nuevo (semilla, nivel, parámetros, qué se pide, modo): sin respuestas, sin entregar.
       case 'ex': {
         s.v = 'ex'; s.ex = null; s.t = null; s.step = 0; s.wi = null; s.ans = null; s.xd = 0; s.gv = null;
-        // F3d: otro ejercicio o cambiar de tipo borra lo hecho (red ROY o PERT del alumno y marcas del detective).
-        s.rn = null; s.sn = null; s.dm = null;
-        if (['calc', 'roy', 'pert', 'det'].includes(action.xk)) s.xk = action.xk;
+        // F3d: otro ejercicio o cambiar de tipo borra lo hecho (red ROY o PERT del alumno y marcas del detective; F3e, pa).
+        s.rn = null; s.sn = null; s.dm = null; s.pa = null;
+        if (['calc', 'roy', 'pert', 'det', 'tcl', 'mc'].includes(action.xk)) s.xk = action.xk;
+        if (['read', 'disc', 'rep'].includes(action.mv)) s.mv = action.mv;
         if (['aon', 'aoa'].includes(action.dg)) s.dg = action.dg;
         if (['net', 'calc', 'all'].includes(action.dk)) s.dk = action.dk;
         if (Number.isInteger(action.sd) && action.sd >= 1 && action.sd <= U.EX.seed) s.sd = action.sd;
@@ -155,6 +156,12 @@
         if (action.value === null) { s.rn = null; break; }
         const rn = U.cleanRn(action.value);
         if (rn) s.rn = rn;
+        break;
+      }
+      case 'pa': {   // F3e: entregada, no cambia
+        if (s.xd) break;
+        const pa = action.value === null ? {} : U.cleanPa(action.value, s.v === 'ex' && U.paKind(s.xk, s.mv));
+        if (pa) s.pa = Object.keys(pa).length ? pa : null;
         break;
       }
       case 'dm': {

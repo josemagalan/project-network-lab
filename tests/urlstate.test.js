@@ -890,3 +890,196 @@ test('F3d T006: cleanRn y cleanDm aceptan solo redes y marcas válidas', () => {
   assert.deepEqual(U.DET_TYPES.length, 15);
 });
 
+
+// ---------- F3e T008: probabilidad y Montecarlo en «Ejercicios» (plan f3e §3; análisis H12) ----------
+
+const PG = require('../js/core/probgen.js');
+const PR = require('../js/core/probgrade.js');
+const paQ = (h) => new URLSearchParams(h.slice(1));
+
+test('F3e T008: xk=tcl y xk=mc, mv y pa hacen ida y vuelta; mv y pa solo se escriben cuando hacen falta', () => {
+  const tcl = Object.assign(U.defaults(), { v: 'ex', sd: 41, lv: 'hard', xk: 'tcl', xm: 'exam',
+    pa: { 'A.te': '3,5', 'A.var': '1/4', path: ['A', 'C', 'F'], mu: '23,83', z: '0.41', 'r.mu': '-2', both: 'a:b%c,d' } });
+  const h1 = U.encode(tcl);
+  const r1 = U.decode(h1);
+  assert.equal(r1.warning, undefined);
+  assert.deepEqual([r1.state.xk, r1.state.mv, r1.state.pa, r1.state.xm], ['tcl', 'read', tcl.pa, 'exam']);
+  assert.equal(paQ(h1).get('xk'), 'tcl');
+  assert.ok(!paQ(h1).has('mv'), 'mv solo con xk=mc');
+  for (const mv of ['read', 'disc', 'rep']) {
+    const pa = { read: { pct: '42,2', pT: '0,65', 'q.mostCrit': '2', 'q.normal': '0' }, disc: { 'c1.T': '12', 'c36.p': '1/36', mean: '13,25', 'C.crit': '0,66' },
+      rep: { 'r1.T': '14', 'r10.crit': ['B', 'D'], pT: '3/10', 'D.crit': '0,4' } }[mv];
+    const s = Object.assign(U.defaults(), { v: 'ex', sd: 7, xk: 'mc', mv, pa });
+    const h = U.encode(s);
+    const r = U.decode(h);
+    assert.equal(r.warning, undefined, mv);
+    assert.deepEqual([r.state.xk, r.state.mv, r.state.pa], ['mc', mv, pa]);
+    assert.equal(paQ(h).has('mv'), mv !== 'read', `${mv}: read es lo de siempre`);
+  }
+  // Sin respuestas, sin pa; un valor vacío no se escribe.
+  assert.ok(!paQ(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'tcl' }))).has('pa'));
+  const blank = U.decode(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'tcl', pa: { mu: '', z: '1', path: [] } }))).state.pa;
+  assert.deepEqual(blank, { z: '1' });
+  assert.ok(!paQ(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 3, xk: 'tcl', pa: { mu: '' } }))).has('pa'));
+});
+
+test('F3e T008: pa con todos los campos de probgrade de ejercicios de verdad, con sus nombres, hace ida y vuelta y se corrige', () => {
+  const cases = [];
+  for (const lv of ['easy', 'medium', 'hard']) {
+    for (const sd of [3, 26]) {
+      cases.push(['tcl', 'read', PG.tcl(sd, lv, { route: sd === 3 }).ex]);
+      cases.push(['mc', 'disc', PG.disc(sd, lv).ex]);
+      cases.push(['mc', 'rep', PG.rep(sd, lv).ex]);
+    }
+    cases.push(['mc', 'read', PG.read(3, lv).ex]);
+  }
+  assert.ok(cases.some(([, , ex]) => ex.route) && cases.some(([, , ex]) => ex.combos === 36), 'con la otra ruta y con 36 combinaciones');
+  for (const [xk, mv, ex] of cases) {
+    const kind = xk === 'tcl' ? 'tcl' : mv;
+    const ids = (ex.rows || ex.tcl.rows).map((r) => r.id);
+    const pa = Object.fromEntries(PR.fields(kind, ex).map((f, i) => [f, f === 'path' || /^r\d+\.crit$/.test(f) ? ids.slice(0, 1 + (i % ids.length)) : `${i},5`]));
+    const s = Object.assign(U.defaults(), { v: 'ex', sd: ex.sd, lv: ex.level, xk, mv, pa });
+    const { hash, length } = U.encodeSafe(s);
+    assert.ok(hash, `${kind} ${ex.level}: ${length} caracteres`);
+    const r = U.decode(hash);
+    assert.equal(r.warning, undefined, `${kind} ${ex.level}`);
+    assert.deepEqual(r.state.pa, pa, `${kind} ${ex.level}`);
+    assert.deepEqual(U.cleanPa(pa, kind), pa);
+    const g = PR.grade(kind, ex, r.state.pa);
+    assert.equal(Object.keys(g.cells).length, PR.fields(kind, ex).length);
+  }
+  // Las preguntas de probgen, la combinación y la réplica más altas, sí; una más, no.
+  assert.deepEqual(U.cleanPa(Object.fromEntries(PG.QUESTIONS.map((k) => [`q.${k}`, '1'])), 'read'), Object.fromEntries(PG.QUESTIONS.map((k) => [`q.${k}`, '1'])));
+  const top = Math.max(...PG.DISC.hard.map((d) => d.reduce((a, b) => a * b, 1)));
+  const reps = Math.max(...Object.values(PG.REPS));
+  assert.ok(U.cleanPa({ [`c${top}.T`]: '1' }, 'disc') && !U.cleanPa({ [`c${top + 1}.T`]: '1' }, 'disc'));
+  assert.ok(U.cleanPa({ [`r${reps}.T`]: '1', [`r${reps}.crit`]: ['A'] }, 'rep') && !U.cleanPa({ [`r${reps + 1}.T`]: '1' }, 'rep'));
+});
+
+test('F3e T008 (H12): la pa más larga (discretas con 36 combinaciones, réplicas difíciles con todas las marcas, TCL de 30 actividades) cabe en 8000', () => {
+  const v8 = (i) => `${String(1000 + i).slice(-4)},${String(i).padStart(3, '0')}`;     // ocho caracteres con coma decimal
+  const ids = Array.from({ length: U.EX.acts }, (_, i) => `AB${String(i).padStart(2, '0')}`);
+  const disc = {};
+  for (let k = 1; k <= 36; k++) { disc[`c${k}.T`] = v8(k); disc[`c${k}.p`] = v8(k + 50); }
+  Object.assign(disc, { mean: v8(1), pT: v8(2) });
+  for (const id of ids.slice(0, 4)) disc[`${id}.crit`] = v8(3);
+  const rep = { pT: v8(4) };
+  for (let k = 1; k <= 10; k++) { rep[`r${k}.T`] = v8(k); rep[`r${k}.crit`] = ids.slice(0, 12); }
+  for (const id of ids.slice(0, 12)) rep[`${id}.crit`] = v8(5);
+  const tcl = { path: ids.slice(), mu: v8(6), var: v8(7), z: v8(8), p: v8(9), zp: v8(10), Tp: v8(11), 'r.mu': v8(12), 'r.var': v8(13), 'r.z': v8(14), 'r.p': v8(15), both: v8(16) };
+  for (const id of ids) { tcl[`${id}.te`] = v8(17); tcl[`${id}.var`] = v8(18); }
+  const lengths = {};
+  for (const [xk, mv, pa] of [['mc', 'disc', disc], ['mc', 'rep', rep], ['tcl', 'read', tcl]]) {
+    const s = Object.assign(U.defaults(), { v: 'ex', sd: 999999, lv: 'hard', xk, mv, xm: 'exam', xd: 1, lang: 'en', nota: 'es', pa });
+    const h = U.encode(s);
+    lengths[xk === 'tcl' ? 'tcl' : mv] = h.length;
+    assert.ok(h.length <= U.LIMITS.hash, `${mv}: ${h.length}`);
+    assert.deepEqual(U.decode(h).state.pa, pa);
+  }
+  assert.ok(Math.max(...Object.values(lengths)) < 4000, JSON.stringify(lengths));
+});
+
+test('F3e T008: mv y pa malformados vuelven a lo de siempre con aviso', () => {
+  const pa = (txt) => `pa=${encodeURIComponent(txt)}`;
+  const bad = [
+    ['xk=mc&mv=nope', (s) => s.mv === 'read'],
+    ['xk=tcl&' + pa('x.y:1'), (s) => s.pa === null],                 // campo desconocido
+    ['xk=tcl&' + pa('c1.T:3'), (s) => s.pa === null],                // campo de otro tipo
+    ['xk=mc&' + pa('path:A'), (s) => s.pa === null],                 // el camino no es de «Leer»
+    ['xk=mc&mv=disc&' + pa('r1.T:3'), (s) => s.pa === null],         // réplicas en discretas
+    ['xk=mc&mv=disc&' + pa('c37.T:3'), (s) => s.pa === null],        // más de 36 combinaciones
+    ['xk=mc&mv=rep&' + pa('r11.T:3'), (s) => s.pa === null],         // más de 10 réplicas
+    ['xk=mc&mv=rep&' + pa('r0.T:3'), (s) => s.pa === null],
+    ['xk=mc&' + pa('q.nope:1'), (s) => s.pa === null],               // pregunta que no existe
+    ['xk=tcl&' + pa('mu:123456789'), (s) => s.pa === null],          // más de 8 caracteres
+    ['xk=tcl&' + pa('mu'), (s) => s.pa === null],                    // sin «:»
+    ['xk=tcl&' + pa('mu:1,mu:2'), (s) => s.pa === null],             // campo repetido
+    ['xk=tcl&' + pa('mu:5%'), (s) => s.pa === null],                 // «%» suelto
+    ['xk=tcl&' + pa('mu:5%41'), (s) => s.pa === null],               // escape que no es de pa
+    ['xk=tcl&' + pa('path:A.b'), (s) => s.pa === null],              // id no válido
+    ['xk=tcl&' + pa('path:A.A'), (s) => s.pa === null],              // id repetido
+    ['xk=tcl&' + pa('a.te:1'), (s) => s.pa === null],                // id en minúsculas
+    ['xk=tcl&' + pa('__proto__:1'), (s) => s.pa === null],
+    ['xk=tcl&' + pa('constructor:1'), (s) => s.pa === null],
+  ];
+  for (const [tail, ok] of bad) {
+    const { state, warning } = U.decode(`#v=ex&sd=3&${tail}`);
+    assert.equal(warning, 'malformed', tail);
+    assert.ok(ok(state), tail);
+  }
+  // Más de 400 campos o de 40 ids en una lista: malformado.
+  const f400 = Array.from({ length: 200 }, (_, i) => [`A${i}.te:1`, `A${i}.var:1`]).flat();
+  const ok400 = U.decode(`#v=ex&xk=tcl&${pa(f400.join(','))}`);
+  assert.deepEqual([ok400.warning, Object.keys(ok400.state.pa).length], [undefined, 400], '400 campos, sí');
+  assert.equal(U.decode(`#v=ex&xk=tcl&${pa(f400.concat(['mu:1']).join(','))}`).warning, 'malformed');
+  assert.equal(U.PA.fields, 400);
+  const ids = Array.from({ length: 41 }, (_, i) => `N${i}`).join('.');
+  assert.equal(U.decode(`#v=ex&xk=tcl&${pa(`path:${ids}`)}`).warning, 'malformed');
+  // Un campo vacío no es malformado: se quita.
+  const r = U.decode(`#v=ex&xk=tcl&${pa('mu:,z:1')}`);
+  assert.deepEqual([r.warning, r.state.pa], [undefined, { z: '1' }]);
+});
+
+test('F3e T008: mv solo cuenta con xk=mc y pa con xk=tcl o mc; ask, ans y xt siguen solo con xk=calc', () => {
+  assert.equal(U.decode('#v=ex&sd=5&xk=tcl&mv=disc').state.mv, 'read');
+  assert.equal(U.decode('#v=ex&sd=5&mv=rep').state.mv, 'read');
+  assert.equal(U.decode('#v=route&xk=mc&mv=rep').state.mv, 'read');
+  assert.equal(U.decode('#v=route&xk=mc&mv=rep').state.xk, 'calc');
+  for (const xk of ['calc', 'roy', 'pert', 'det']) assert.equal(U.decode(`#v=ex&sd=5&xk=${xk}&pa=mu%3A3`).state.pa, null, xk);
+  assert.equal(U.decode('#v=unc&pa=mu%3A3').state.pa, null);
+  for (const xk of ['tcl', 'mc']) {
+    const st = U.decode(`#v=ex&sd=5&ask=t&xt=1&xk=${xk}`).state;
+    assert.deepEqual([st.ask, st.xt, st.ans], [U.DEFAULT_ASK, 0, null], xk);
+    const q = paQ(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 5, xk, ask: ['times'], xt: 1, ans: { dur: '7' }, pa: { pT: '1' } })));
+    for (const k of ['ask', 'ans', 'xt', 'sv']) assert.ok(!q.has(k), `${xk} ${k}`);
+    assert.equal(q.get('xk'), xk);
+  }
+  // Con otro tipo, ni mv ni pa en el enlace.
+  const q = paQ(U.encode(Object.assign(U.defaults(), { v: 'ex', sd: 5, xk: 'roy', mv: 'disc', pa: { mu: '3' } })));
+  assert.ok(!q.has('mv') && !q.has('pa'));
+});
+
+test('F3e T008: cleanPa acepta solo campos del tipo y valores de texto (o listas de ids en las marcas)', () => {
+  assert.deepEqual(U.cleanPa({ mu: '3', path: ['A', 'B'] }, 'tcl'), { mu: '3', path: ['A', 'B'] });
+  assert.deepEqual(U.cleanPa({ mu: '3', z: '' }, 'tcl'), { mu: '3' });
+  assert.deepEqual(U.cleanPa({ mu: '' }, 'tcl'), {}, 'todo vacío: sin respuestas, pero vale');
+  assert.deepEqual(U.cleanPa({}, 'tcl'), {});
+  assert.equal(U.cleanPa(null, 'tcl'), null);
+  assert.equal(U.cleanPa({ mu: 3 }, 'tcl'), null, 'los valores son texto');
+  assert.equal(U.cleanPa({ path: 'A,B' }, 'tcl'), null, 'las marcas, una lista');
+  assert.equal(U.cleanPa({ mu: ['A'] }, 'tcl'), null);
+  assert.equal(U.cleanPa({ mu: '3' }, 'nope'), null);
+  assert.equal(U.cleanPa({ pct: '3' }, 'tcl'), null);
+  assert.deepEqual(U.cleanPa({ 'r3.crit': ['B'], 'r3.T': '9' }, 'rep'), { 'r3.crit': ['B'], 'r3.T': '9' });
+  assert.deepEqual(U.cleanPa({ 'r3.crit': [] }, 'rep'), {});
+  assert.equal(U.cleanPa({ path: [1] }, 'tcl'), null, 'ids de texto');
+  assert.equal(U.cleanPa({ mu: '3' }, null), null);
+  assert.equal(U.cleanPa({ mu: '3' }, 'mc'), null, 'mc no es un tipo de pa: lo es su variante');
+});
+
+test('F3e T008: los enlaces de la F1 a la F4b se leen y se escriben igual que antes (codificación de 4530620)', () => {
+  const OLD = [
+  ["#v=route&ex=ej6&step=17&view=matrix&lang=en&nota=es&box=c&pred=1", null, "#v=route&ex=ej6&step=17&view=matrix&lang=en&nota=es&box=c&mode=pred&pred=1"],
+  ["#v=route&ex=roy10&graph=aon&view=matrix", null, "#v=route&ex=roy10&step=0&view=matrix&nota=en&box=7&mode=pred&pred=0"],
+  ["#v=work&graph=aoa&view=reto&sn=0.1%7CA%3A0-%7C", null, "#v=work&graph=aoa&ex=ej6&step=0&view=reto&nota=en&box=7&mode=pred&pred=0&sn=0.1%7CA%3A0-%7C"],
+  ["#v=route&ex=klastorin&graph=aoa&view=cmp&ms=prog,rules,cs&pair=prog,cs", null, "#v=route&graph=aoa&ex=klastorin&step=0&view=cmp&nota=en&box=7&mode=pred&pred=0&ms=prog%2Crules%2Ccs&pair=prog%2Ccs"],
+  ["#v=m0&st=gen&sd=77&lv=hard&cx=lab&sv=2", null, "#v=m0&step=0&view=net&nota=en&box=7&mode=pred&pred=0&st=gen&sd=77&lv=hard&cx=lab&sv=2"],
+  ["#v=m0&st=ej5&mk=0:a,4:d&tv=matrix&mm=route&sol=1", "malformed", "#v=m0&step=0&view=net&nota=en&box=7&mode=pred&pred=0&st=ej5&tv=matrix&mm=route&sol=1"],
+  ["#v=ex&sd=41&lv=hard&ask=tfc&xm=exam&xd=1", null, "#v=ex&step=0&view=net&nota=en&box=7&mode=pred&pred=0&sd=41&lv=hard&xm=exam&xd=1"],
+  ["#v=ex&sd=12&xt=1&sv=2", null, "#v=ex&step=0&view=net&nota=en&box=7&mode=pred&pred=0&sd=12&xt=1&sv=2"],
+  ["#v=ex&sd=5&lv=custom&gp=n12-15.p30.c1-3.d9", null, "#v=ex&step=0&view=net&nota=en&box=7&mode=pred&pred=0&sd=5&lv=custom&gp=n12-15.p30.c1-3.d9"],
+  ["#v=ex&sd=41&lv=hard&xk=roy&xm=exam&xd=1", null, "#v=ex&step=0&view=net&nota=en&box=7&mode=pred&pred=0&sd=41&lv=hard&xk=roy&xm=exam&xd=1"],
+  ["#v=ex&sd=7&xk=det&dg=aoa&dk=calc", null, "#v=ex&step=0&view=net&nota=en&box=7&mode=pred&pred=0&sd=7&xk=det&dg=aoa&dk=calc"],
+  ["#v=ex&sd=9&xk=pert", null, "#v=ex&step=0&view=net&nota=en&box=7&mode=pred&pred=0&sd=9&xk=pert"],
+  ["#v=moodle&lang=en&nota=es", null, "#v=moodle&lang=en&nota=es"],
+  ["#v=unc&um=m6&ue=hl&ux=merge&uk=n3.s25&us=12", null, "#v=unc&step=0&nota=en&um=m6&ue=hl&ux=merge&uk=n3.s25&us=12"],
+  ["#v=unc&um=m7&uy=idx&uz=u&ur=5&uo=s", null, "#v=unc&step=0&nota=en&um=m7&ur=5&uo=s&uy=idx&uz=u"],
+  ["#v=unc&um=m7&uy=rep&uh=p&pred=1&us=2026", null, "#v=unc&step=0&nota=en&pred=1&um=m7&us=2026&uy=rep&uh=p"],
+  ];
+  for (const [h, warning, enc] of OLD) {
+    const r = U.decode(h);
+    assert.equal(r.warning || null, warning, h);
+    assert.equal(U.encode(r.state), enc, h);
+    assert.deepEqual([r.state.mv, r.state.pa], ['read', null], h);
+  }
+});

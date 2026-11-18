@@ -31,12 +31,13 @@
     // F4b (T011): qué se predice en «Réplica a réplica», la duración (t) o el camino crítico (p).
     uh: ['t', 'p'],
     // F3d (plan f3d-construir-detectar, §3): tipo de ejercicio y, en el detective, la red y los errores que se buscan.
-    xk: ['calc', 'roy', 'pert', 'det'], dg: ['aon', 'aoa'], dk: ['net', 'calc', 'all'],
+    xk: ['calc', 'roy', 'pert', 'det', 'tcl', 'mc'], dg: ['aon', 'aoa'], dk: ['net', 'calc', 'all'],
+    mv: ['read', 'disc', 'rep'],   // F3e: variante de Montecarlo
   };
   const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
     'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh',
-    'xk', 'rn', 'dg', 'dk', 'dm'];
+    'xk', 'rn', 'dg', 'dk', 'dm', 'mv', 'pa'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -66,7 +67,7 @@
       cx: null, sv: null, xt: 0,
       um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
       ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c', uh: 't',
-      xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null };
+      xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null, mv: 'read', pa: null };
   }
 
   // F3d: red ROY del alumno (rn) y marcas del detective (dm) (plan §3; análisis H12). Nodos: actividad, Inicio (_S) o
@@ -522,6 +523,40 @@
     return bad;
   }
 
+  // F3e (§3, H12): pa = { campo de probgrade.fields: texto o, en path y rK.crit, ids }; «campo:valor,…» (%25, %2C; ids con «.»).
+  const PA = { fields: 400, value: EX.value, ids: LIMITS.rows };
+  const PA_RE = {
+    tcl: /^(?:[A-Z0-9]{1,4}\.(?:te|var)|mu|var|z|p|zp|Tp|both|r\.(?:mu|var|z|p))$/,
+    read: /^(?:pct|pT|crit|q\.(?:mostCrit|mostCruc|critLowCruc|normal|promise))$/,
+    disc: /^(?:c(?:[1-9]|[12]\d|3[0-6])\.[Tp]|mean|pT|[A-Z0-9]{1,4}\.crit)$/,
+    rep: /^(?:r(?:[1-9]|10)\.T|pT|[A-Z0-9]{1,4}\.crit)$/,
+  };
+  const PA_LIST = { tcl: /^path$/, rep: /^r(?:[1-9]|10)\.crit$/ };
+  const paKind = (xk, mv) => (xk === 'tcl' ? 'tcl' : xk === 'mc' ? mv : null);
+  const isList = (kind, k) => !!PA_LIST[kind] && PA_LIST[kind].test(k);
+  /** null si algo no vale; si no, sin las vacías ({} si no queda ninguna). */
+  function cleanPa(pa, kind) {
+    if (!pa || typeof pa !== 'object' || Array.isArray(pa) || !PA_RE[kind] || Object.keys(pa).length > PA.fields) return null;
+    const out = {};
+    for (const [k, v] of Object.entries(pa)) {
+      const list = isList(kind, k);
+      if (list ? !Array.isArray(v) || v.length > PA.ids || !v.every((x) => typeof x === 'string' && ID_UPPER.test(x)) || new Set(v).size < v.length
+        : !PA_RE[kind].test(k) || typeof v !== 'string' || v.length > PA.value) return null;
+      if (v.length) out[k] = list ? v.slice() : v;
+    }
+    return out;
+  }
+  const encodePa = (pa, kind) => Object.entries(pa).map(([k, v]) => `${k}:${isList(kind, k) ? v.join('.') : v.replace(/%/g, '%25').replace(/,/g, '%2C')}`).join(',');
+  function decodePa(text, kind) {
+    const pa = Object.create(null);
+    for (const item of String(text).split(',')) {
+      const i = item.indexOf(':'); const k = item.slice(0, i); const v = item.slice(i + 1);
+      if (i < 0 || k in pa || /%(?!25|2C)/.test(v)) return null;
+      pa[k] = isList(kind, k) ? (v ? v.split('.') : []) : v.replace(/%2C/g, ',').replace(/%25/g, '%');
+    }
+    return cleanPa(pa, kind);
+  }
+
   function encode(state) {
     const s = Object.assign(defaults(), state);
     const q = new URLSearchParams();
@@ -594,11 +629,14 @@
       // F3d: el tipo de ejercicio; qué se pide, las respuestas y el enunciado solo son del cálculo (xk=calc).
       const xk = ENUMS.xk.includes(s.xk) ? s.xk : 'calc';
       if (xk !== 'calc') q.set('xk', xk);
+      if (xk === 'mc' && s.mv !== 'read' && ENUMS.mv.includes(s.mv)) q.set('mv', s.mv);   // F3e
       const ask = cleanAsk(s.ask) || DEFAULT_ASK;
       if (xk === 'calc' && ask.join() !== DEFAULT_ASK.join()) q.set('ask', ask.map((x) => ASK_CODE[x]).join(''));
       if (s.xm === 'exam') q.set('xm', 'exam');
       const ans = xk === 'calc' ? cleanAns(s.ans) : null;
       if (ans) q.set('ans', packAns(ans));
+      const pk = paKind(xk, s.mv); const pa = cleanPa(s.pa, pk);
+      if (pa && Object.keys(pa).length) q.set('pa', encodePa(pa, pk));
       if (xk === 'det') {
         if (s.dg === 'aoa') q.set('dg', 'aoa');
         if (ENUMS.dk.includes(s.dk) && s.dk !== 'all') q.set('dk', s.dk);
@@ -753,13 +791,17 @@
     if (state.v === 'ex' && state.xk === 'det') {
       if (q.has('dm')) { const dm = decodeDm(q.get('dm')); if (dm && dm.length) state.dm = dm; else malformed = true; }
     } else { state.dg = 'aon'; state.dk = 'all'; }
+    // F3e: mv solo con xk=mc; pa con xk=tcl o mc.
+    if (!(state.v === 'ex' && state.xk === 'mc')) state.mv = 'read';
+    const pk = state.v === 'ex' && paKind(state.xk, state.mv);
+    if (pk && q.has('pa')) { const pa = decodePa(q.get('pa'), pk); if (!pa) malformed = true; else if (Object.keys(pa).length) state.pa = pa; }
     const out = { state };
     if (malformed) out.warning = 'malformed'; else if (unknown) out.warning = 'unknownParam'; else if (structure) out.warning = 'structureOnly';
     return out;
   }
 
   const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, MAX_DM: DM_MAX, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
-    ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns, DET_TYPES, cleanRn, cleanDm,
+    ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns, DET_TYPES, cleanRn, cleanDm, PA, paKind, cleanPa,
     UNC: { M6_ONLY: UNC_M6_ONLY, M7_ONLY: UNC_M7_ONLY, cleanUf, cleanUq, pctOk, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk } };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
