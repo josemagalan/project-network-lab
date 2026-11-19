@@ -10169,7 +10169,8 @@ check('F3e T018 AC20 · 1280×720, nivel difícil: TCL (con la otra ruta y sin e
     const f = await t15Fits(page);
     return f.y === 0 && f.bottom <= 720 && f.w <= 1280 ? [] : [`${what}: ${JSON.stringify(f)}`];
   };
-  const views = [['TCL con la otra ruta', (x) => pbLab(Object.assign({ pa: t18PbAns(Object.assign({ lang: 'es' }, T18.tcl)) }, { lang: 'es' }, T18.tcl, x)), '#pbDeliver', t18Wait.pb],
+  // T019: el TCL con la otra ruta, también en inglés (el enunciado es más largo y se pasaba medio píxel).
+  const views = [...['es', 'en'].map((lang) => [`TCL con la otra ruta (${lang})`, (x) => pbLab(Object.assign({ pa: t18PbAns(Object.assign({ lang }, T18.tcl)) }, { lang }, T18.tcl, x)), '#pbDeliver', t18Wait.pb]),
     ['TCL', (x) => pbLab(Object.assign({ pa: t18PbAns({ sd: 3141, lv: 'hard', lang: 'en' }), sd: 3141, lv: 'hard', lang: 'en' }, x)), '#pbDeliver', t18Wait.pb]]
     .concat(['read', 'disc', 'rep'].map((k) => [`Montecarlo ${k}`, (x) => mxLab(Object.assign(t18Mx(k, { lang: k === 'disc' ? 'en' : 'es', nota: 'en' }), x)), '#mxDeliver', t18Wait.mx]));
   const bad = [];

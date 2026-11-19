@@ -2,7 +2,10 @@
    P1). Las casillas y sus marcas son las de la F3a (.ex-cell, .ex-chip, .ex-explain); las marcas no dependen solo del
    color: llevan icono, borde y su estado en texto. */
 .pb-body h2 { margin: 0; font-size: 16px; }
-.pb-stmt { margin: 0; font-size: 13.5px; line-height: 1.4; }
+/* Los datos, compactos: con el aviso de la semilla y la otra ruta, el enunciado en inglés no cabía a 1280×720 (T019). */
+.pb-body .ex-given-card { gap: 6px; }
+.pb-body #pbMoved { padding: 6px 10px; }
+.pb-stmt { margin: 0; font-size: 13.5px; line-height: 1.35; }
 .pb-tie { font-size: 12px; line-height: 1.35; }
 .pb-grid { grid-template-columns: minmax(300px, 440px) minmax(0, 1fr); }
 .pb-body table.data.ex-given th, .pb-body table.data.ex-given td { padding: 1px 4px; }
