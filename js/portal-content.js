@@ -60,8 +60,8 @@
       practiceDesc: 'Proyectos nuevos de tres niveles, o con tus parámetros, que se repiten con su semilla. Calcula tiempos, holguras y caminos críticos y recibe una corrección casilla a casilla con error consecuente, en modo Practicar o Examen.',
       practiceTopics: 'Generador · Semilla · Error consecuente', practiceOpen: 'Generar un ejercicio',
       moodleEyebrow: 'Profesorado', moodleTitle: 'Banco de Moodle',
-      moodleDesc: 'Preguntas por etapas en Moodle XML: del enunciado a la tabla, tiempos, holguras, caminos críticos y sucesos, en tres niveles. Cada pregunta enlaza con su ejercicio o su enunciado y con la solución paso a paso en el laboratorio.',
-      moodleTopics: 'Moodle XML · Cloze · Por etapas', moodleOpen: 'Para profesorado: bancos de preguntas para Moodle',
+      moodleDesc: 'Preguntas por etapas en Moodle XML: del enunciado a la tabla, tiempos, holguras, caminos críticos, sucesos, construcción de redes, probabilidad con el TCL y Montecarlo, en tres niveles, y series encadenadas que recorren un proyecto entero. Cada pregunta enlaza con su ejercicio y con la solución en el laboratorio.',
+      moodleTopics: 'Moodle XML · Cloze · Por etapas · Series', moodleOpen: 'Para profesorado: bancos de preguntas para Moodle',
       learnEyebrow: 'En clase o por tu cuenta', learnTitle: 'Aprende haciendo.',
       learnLead: 'Todos los módulos comparten la misma forma de trabajar. Elige un ejemplo y sigue cada decisión del cálculo.',
       featStepTitle: 'Sigue cada paso', featStepDesc: 'Cada valor aparece con su explicación, su fórmula y la línea del pseudocódigo que lo calcula.',
@@ -138,8 +138,8 @@
       practiceDesc: 'New projects at three levels, or with your own parameters, that a seed reproduces. Work out times, floats and critical paths and get a cell-by-cell correction with carried errors, in Practice or Exam mode.',
       practiceTopics: 'Generator · Seed · Carried errors', practiceOpen: 'Generate an exercise',
       moodleEyebrow: 'For teachers', moodleTitle: 'Moodle question bank',
-      moodleDesc: 'Questions in stages in Moodle XML: from statement to table, times, floats, critical paths and events, at three levels. Each question links to its exercise or statement and to the step-by-step solution in the lab.',
-      moodleTopics: 'Moodle XML · Cloze · In stages', moodleOpen: 'For teachers: question banks for Moodle',
+      moodleDesc: 'Stage-by-stage questions in Moodle XML: from statement to table, times, floats, critical paths, events, building networks, probability with the CLT and Monte Carlo, at three levels, and chained series that walk through a whole project. Each question links to its exercise and to the solution in the lab.',
+      moodleTopics: 'Moodle XML · Cloze · By stage · Series', moodleOpen: 'For teachers: question banks for Moodle',
       learnEyebrow: 'In class or on your own', learnTitle: 'Learn by doing.',
       learnLead: 'Every module works the same way. Pick an example and follow each decision of the calculation.',
       featStepTitle: 'Follow every step', featStepDesc: 'Each value appears with its explanation, its formula and the line of pseudocode that computes it.',
@@ -187,7 +187,8 @@
   function labHref(target, lang) {
     if (!Object.prototype.hasOwnProperty.call(TARGETS, target)) throw new Error('unknown target: ' + target);
     if (!LANGS.includes(lang)) throw new Error('unknown language: ' + lang);
-    return `cpm.html#${TARGETS[target]}&lang=${lang}`;
+    // F3e (T017, P2): el exportador está en su página, moodle.html.
+    return `${target === 'moodle' ? 'moodle' : 'cpm'}.html#${TARGETS[target]}&lang=${lang}`;
   }
 
   // Contador de la portada (constitución v2.1.0): GoatCounter cuenta las vistas de la ruta de la portada (index.html

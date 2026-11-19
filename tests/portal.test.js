@@ -175,8 +175,18 @@ test('F3a T017 · AC17: «Ejercicios generados» está disponible y abre «Ejerc
   const mCard = html.slice(mStart, html.indexOf('</article>', mStart));
   assert.match(mCard, /data-lab="moodle"><span data-i18n="moodleOpen">Para profesorado: bancos de preguntas para Moodle<\/span>/);
   assert.match(mCard, /class="ok" data-i18n="available"/);
-  assert.equal(labHref('moodle', 'en'), 'cpm.html#v=moodle&lang=en');
-  for (const lang of ['es', 'en']) assert.doesNotMatch(messages[lang].moodleDesc, /probabilidad|probabilit/i, lang);
+  // F3e (T017, P2; tablero 106): la tarjeta abre la página del exportador, moodle.html, y nombra lo nuevo.
+  assert.equal(labHref('moodle', 'en'), 'moodle.html#v=moodle&lang=en');
+  assert.equal(labHref('moodle', 'es'), 'moodle.html#v=moodle&lang=es');
+  assert.match(mCard, /<a class="button" href="moodle\.html#v=moodle&amp;lang=es" data-lab="moodle">/);
+  assert.match(messages.es.moodleDesc, /probabilidad con el TCL y Montecarlo/);
+  assert.match(messages.es.moodleDesc, /series encadenadas/);
+  assert.match(messages.en.moodleDesc, /probability with the CLT and Monte Carlo/);
+  assert.match(messages.en.moodleDesc, /chained series/);
+  assert.equal(messages.es.moodleTopics, 'Moodle XML · Cloze · Por etapas · Series');
+  assert.equal(messages.en.moodleTopics, 'Moodle XML · Cloze · By stage · Series');
+  // Los demás enlaces siguen yendo al laboratorio.
+  for (const k of ['m0', 'm7', 'work', 'ex']) assert.match(labHref(k, 'es'), /^cpm\.html#/, k);
 });
 
 // Contador de la portada (constitución v2.1.0, principios 2 y 20): solo en index.html, asíncrono, con la ruta fija.

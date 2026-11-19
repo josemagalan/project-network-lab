@@ -49,7 +49,6 @@
   let rnKey = null;         // estructura de la última tabla válida con la red ROY del reto (dispatch, R2-F1)
   let m0 = null;            // controlador de M0 (F2c)
   let exc = null;           // controlador de «Ejercicios» (F3a)
-  let mqc = null;           // controlador del exportador de Moodle (F3b)
   let uncc = null;          // controlador de «Duraciones inciertas» (F4a)
   const UNC_PUBLIC = true;  // F4a: la pestaña se publica en T013
 
@@ -63,10 +62,6 @@
     st: ['js/core/statements.js'],
     sg: ['js/core/contexts.js', 'js/core/stmtgen.js'],
     ex: ['js/core/grade.js', 'js/views/answer-table.js', 'js/ex.js'],
-    // F3b (plan P5 y P7): el banco de Moodle, sus textos y su vista; F3c (P5): con el generador de enunciados (etapa 0).
-    // F3d (T013, H1): las etapas 7 a 10 piden aoacheck y roycheck (antes que detective, que los toma al cargarse),
-    // detective y la imagen SVG de la red (net-svg, que usa layout y aoa-layout de la carga común).
-    mq: ['js/core/grade.js', 'js/core/contexts.js', 'js/core/stmtgen.js', 'js/core/aoacheck.js', 'js/core/roycheck.js', 'js/core/detective.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/net-svg.js', 'js/views/question-view.js', 'js/moodle-page.js'],
     // F4a (plan P3): «Duraciones inciertas», con su núcleo (tres tiempos, simulación, TCL y ejemplos), textos y vista.
     // Con su hoja de estilos: M0 ya roza el presupuesto de 1 MB y no debe pagarla.
     // F4a (decisión del autor, 2026-11-13): «Aprende más» (learn.js, 57 KB) se carga al abrir el diálogo, en todas las vistas.
@@ -98,7 +93,7 @@
     // F4b (T012, reserva 2 de T001): la vista de M5 y M6, aparte de unc.js, para no cargarla con um=m7; después de un.
     u56: ['js/unc-m56.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, mq: () => !!G.moodlePage, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7 };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -162,7 +157,7 @@
   const needsU56 = (s) => s.v === 'unc' && s.um !== 'm7';
   const missingU7 = (s) => (needsU7(s) && (!READY.u7() || (needsU7r(s) && !READY.u7r()))) || (needsU56(s) && !READY.u56());
   const needU7 = (s) => need('un').then(() => (needsU7(s) ? need('u7').then(() => (needsU7r(s) ? need('u7r') : null)) : need('u56')));
-  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'moodle' ? 'mq' : v === 'unc' ? 'un' : null);
+  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'unc' ? 'un' : null);
   // Grupos que pide un enlace (F3c, P5 y P12): M0 con el texto de su enunciado (st) o con el generador (sg).
   function groupsOf(hash) {
     const q = new URLSearchParams(String(hash || '').replace(/^#/, ''));
@@ -194,8 +189,6 @@
     if (state.v === 'm0') { model = Object.assign(G.m0.model(state, lang()), { m0: true }); return; }
     // «Ejercicios» (F3a): la tabla generada, su solución y lo escrito; sin traza que reproducir.
     if (state.v === 'ex') { model = Object.assign(G.ex.model(state, lang()), { exm: true }); return; }
-    // El exportador de Moodle (F3b): sin tabla ni traza; la vista guarda su selección.
-    if (state.v === 'moodle') { model = { mqm: true }; return; }
     // «Duraciones inciertas» (F4a): su proyecto, medias y varianzas y, con «uw», la traza del paso a paso (T011).
     if (state.v === 'unc') { model = Object.assign(G.unc.model(state, lang()), { uncm: true }); model.trace = G.unc.trace(state, model); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
@@ -251,7 +244,7 @@
   // Una tabla solo de estructura no tiene red ROY: se pasa a la red PERT, desde su primer paso (T022), y sin
   // la vista lado a lado ni la matriz, que necesitan la red ROY (revisión de cierre, F2).
   function fitGraph() {
-    if (model.m0 || model.exm || model.mqm || model.uncm || !model.structureOnly || !model.project) return;
+    if (model.m0 || model.exm || model.uncm || !model.structureOnly || !model.project) return;
     const view = state.view === 'matrix' || state.view === 'side' ? 'net' : state.view;
     if (pert() && view === state.view) return;
     state = Object.assign({}, state, { graph: 'aoa', view, step: pert() ? state.step : 0 });
@@ -261,7 +254,7 @@
     if (!model) return null;
     if (model.m0) return state.mm === 'route' ? model.route : null;
     if (model.uncm) return model.trace || null;
-    if (model.exm || model.mqm) return null;
+    if (model.exm) return null;
     if (pert()) return model.net ? (prog() ? progNet().trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -400,19 +393,13 @@
     if (!royRetoOf(state)) leaveRoyReto();
     const m0On = state.v === 'm0';
     const exOn = state.v === 'ex';
-    const mqOn = state.v === 'moodle';
     $('m0View').hidden = !m0On;
     $('exView').hidden = !exOn;
-    $('mqView').hidden = !mqOn;
     const uncOn = state.v === 'unc';
     $('uncView').hidden = !uncOn;
-    // La caja del nodo no tiene sentido en el exportador (bocetos de la F3b).
-    $('selBox').closest('label').hidden = mqOn;
-    if (!mqOn && mqc) mqc.leave();
     if (!uncOn && uncc) uncc.leave();
     if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
     if (exOn) { $('workshop').hidden = true; $('stage').hidden = true; exc.render(model, opts); return; }
-    if (mqOn) { $('workshop').hidden = true; $('stage').hidden = true; mqc.render(model, opts); return; }
     if (uncOn) { $('workshop').hidden = true; $('stage').hidden = true; uncc.render(model, opts); return; }
     const work = state.v === 'work';
     $('workshop').hidden = !work;
@@ -1189,6 +1176,7 @@
       else if (e.key === ' ' && !uncRoute) { e.preventDefault(); togglePlay(); }
     });
     window.addEventListener('hashchange', () => {
+      if (toMoodle()) return;
       if (location.hash === U.encode(state)) return;
       const groups = groupsOf(location.hash).filter((g) => g && !READY[g]());
       if (groups.length) { needAll(groups).then(() => window.dispatchEvent(new Event('hashchange')), noop); return; }
@@ -1198,6 +1186,14 @@
       if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null;
       render({ fullEditor: true });
     });
+  }
+
+  // F3e (T017, P2): el exportador está en moodle.html. Un enlace cpm.html#v=moodle (de antes, de un banco importado o
+  // escrito a mano) lleva allí con la misma consulta y el mismo «#»; replace no deja v=moodle en el historial.
+  function toMoodle() {
+    if (U.decode(location.hash).state.v !== 'moodle') return false;
+    location.replace(`moodle.html${location.search}${location.hash}`);
+    return true;
   }
 
   function load() {
@@ -1241,13 +1237,6 @@
         learn: openExLearn,
       });
       G.ex.state = () => exc.debug();
-    }
-    if (G.moodlePage && !mqc) {
-      mqc = G.moodlePage.create($('mqView'), {
-        state: () => state, lang,
-        announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
-      });
-      G.moodlePage.state = () => mqc.debug();
     }
     if (G.unc && !uncc) {
       uncc = G.unc.create($('uncView'), {
@@ -1325,5 +1314,5 @@
       reto: () => (reto ? { net: reto.st.net, result: reto.st.result, solution: retoSol } : null),
       royReto: () => (royW ? royW.debug($('royRetoView')) : null) };
   }
-  needAll(groupsOf(location.hash)).then(start, start);
+  if (!toMoodle()) needAll(groupsOf(location.hash)).then(start, start);
 })();

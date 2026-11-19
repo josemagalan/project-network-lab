@@ -181,12 +181,12 @@ test('T008 · ex: el tipo de ejercicio y lo que se pierde al cambiar (respuestas
   assert.equal(X.kindOf(s({})), 'calc');
   assert.equal(X.kindOf(s({ xk: 'roy' })), 'roy');
   assert.equal(X.kindOf(s({ xk: 'zz' })), 'calc');
-  assert.deepEqual(X.KINDS, ['calc', 'roy', 'pert', 'det', 'tcl', 'mc'], 'F3e T010 y T011: TCL y Montecarlo, ocultos hasta T017');
+  assert.deepEqual(X.KINDS, ['calc', 'roy', 'pert', 'det', 'tcl', 'mc'], 'F3e T010 y T011: TCL y Montecarlo');
   assert.equal(X.kindOf(s({ xk: 'tcl' })), 'tcl');
   assert.equal(X.kindOf(s({ xk: 'mc' })), 'mc');
   assert.equal(X.hasWork(s({ xk: 'mc', pa: null })), false);
   assert.equal(X.hasWork(s({ xk: 'mc', mv: 'rep', pa: { 'r1.crit': ['A'] } })), true, 'F3e T011: lo escrito en Montecarlo');
-  assert.deepEqual(Object.keys(X.kindReady).filter((k) => X.kindReady[k]), ['calc', 'roy', 'pert', 'det'], 'T008, T010 y T011: los cuatro tipos');
+  assert.deepEqual(Object.keys(X.kindReady).filter((k) => X.kindReady[k]), X.KINDS, 'F3e T017: los seis tipos, publicados');
   assert.equal(X.buildPublic, true, 'publicado en T014');
   assert.equal(X.hasWork(s({ xk: 'roy', rn: null })), false);
   assert.equal(X.hasWork(s({ xk: 'roy', rn: XB.start() })), false);

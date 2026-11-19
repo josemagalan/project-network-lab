@@ -90,3 +90,12 @@ test('T012 · los enlaces de «Para repasarlo» abren vistas que existen, en el 
   assert.deepEqual(um('tcl'), ['m5', 'm6']);
   assert.deepEqual(um('mc'), ['m7']);
 });
+
+test('F3e T017 · el enlace al exportador abre moodle.html (no cpm.html#v=moodle) con el idioma y la notación del laboratorio', () => {
+  assert.equal(LX.moodleHref({ lang: 'en', nota: 'es' }), 'moodle.html#v=moodle&lang=en&nota=es');
+  assert.equal(LX.moodleHref({ lang: 'es', nota: 'en' }), 'moodle.html#v=moodle&lang=es&nota=en');
+  assert.equal(LX.moodleHref({ lang: 'xx', nota: 'en' }), 'moodle.html#v=moodle&lang=es&nota=en', 'otro idioma, el español');
+  // Es el mismo «#» que escribe moodle.html (moodle-app).
+  const MA = require('../js/moodle-app.js');
+  assert.equal(LX.moodleHref({ lang: 'en', nota: 'es' }), `moodle.html${MA.hashOf(MA.stateFrom('#lang=en&nota=es', '', 'es'))}`);
+});

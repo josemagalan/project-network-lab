@@ -145,3 +145,15 @@ test('moodle.html: idioma, enlace para saltar, un solo <h1> y los controles de l
   assert.match(html, /<link rel="stylesheet" href="css\/styles\.css">/);
   assert.match(html, /<link rel="stylesheet" href="css\/moodle\.css">/);
 });
+
+// F3e (T017, P2; tablero 106): cpm.html ya no trae el exportador; un enlace cpm.html#v=moodle lleva a moodle.html con el
+// mismo estado (lo comprueban las pruebas de navegador, «F3e T017»).
+test('F3e T017 · cpm.html ya no carga el exportador: sin su vista ni su grupo, y app.js manda v=moodle a moodle.html', () => {
+  const cpm = fs.readFileSync(path.join(ROOT, 'cpm.html'), 'utf8');
+  const app = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+  assert.doesNotMatch(cpm, /id="mqView"/, 'sin la vista del exportador');
+  for (const src of scriptsOf(cpm)) assert.doesNotMatch(src, /moodle/, src);
+  for (const f of ['js/moodle-page.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/question-view.js']) assert.equal(app.includes(f), false, `${f} en app.js`);
+  assert.doesNotMatch(app, /moodlePage|\bmqc\b|\bmq:/, 'sin el controlador ni el grupo mq');
+  assert.match(app, /location\.replace\(`moodle\.html\$\{location\.search\}\$\{location\.hash\}`\)/, 'la redirección, con la consulta y el «#»');
+});

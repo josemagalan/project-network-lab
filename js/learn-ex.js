@@ -34,6 +34,8 @@
   const s = {};
   const lang = (l) => (TX[l] ? l : 'es');
   const hashOf = (st, c) => U.encode(Object.assign(U.defaults(), st, { lang: lang(c.lang), nota: c.nota }));
+  // F3e (T017, P2): el exportador está en su página, moodle.html, con el mismo «#» que escribe ella.
+  const moodleHref = (c) => `moodle.html${hashOf({ v: 'moodle' }, c)}`;
 
   /** La sección de un tipo como bloques (para las pruebas y para pintarla). */
   const section = (k, l) => (s[k] ? s[k][lang(l)] : null);
@@ -70,7 +72,7 @@
         out.push(h('p', { class: 'lx-links' }, b[1].flatMap(([text, st], i) => [i ? ' · ' : '', h('a', { href: hashOf(st, c), onclick: close }, [text])])));
       }
     }
-    out.push(h('p', { class: 'lx-moodle' }, [tx.moodle, ' ', h('a', { id: 'exLearnMoodle', href: hashOf({ v: 'moodle' }, c), onclick: close }, [tx.moodleLink]), '.']));
+    out.push(h('p', { class: 'lx-moodle' }, [tx.moodle, ' ', h('a', { id: 'exLearnMoodle', href: moodleHref(c), onclick: close }, [tx.moodleLink]), '.']));
     out.push(h('h4', {}, [tx.refs]), h('ul', {}, REFS.map((r) => h('li', {}, [r]))));
     body.appendChild(h('div', { class: 'lx' }, [h('div', { class: 'lx-tabs', role: 'tablist', 'aria-orientation': 'vertical', 'aria-label': tx.tabs }, tabs),
       h('div', { class: 'lx-panel', id: 'lxPanel', role: 'tabpanel', 'aria-labelledby': `lxTab-${k}`, tabindex: '0' }, out)]));
@@ -81,7 +83,7 @@
     if (!c.dlg.open) { if (typeof c.dlg.showModal === 'function') c.dlg.showModal(); else c.dlg.setAttribute('open', ''); }
   }
 
-  const api = { KINDS, TX, REFS, s, section, open };
+  const api = { KINDS, TX, REFS, s, section, open, moodleHref };
   root.PNL = root.PNL || {};
   root.PNL.learnEx = api;
   if (isNode) module.exports = api;

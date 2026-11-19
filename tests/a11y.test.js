@@ -213,17 +213,20 @@ for (const file of Object.keys(PAIRS)) {
   });
 }
 
-test('css/styles.css: el borde de cada campo de texto y desplegable usa un token con 3:1 (1.4.11)', () => {
-  const css = read('css/styles.css');
-  const ok = new Set(PAIRS['css/styles.css'].ui.map(([fg]) => fg));
-  const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
-    .filter(([, sel, body]) => /(^|[\s,.])(input|select|textarea)\b/.test(sel) && !/checkbox/.test(sel) && /border(-color)?:/.test(body));
-  assert.ok(rules.length >= 4);
-  for (const [, sel, body] of rules) {
-    const token = body.match(/border(?:-color)?:[^;]*var\(--([a-z-]+)\)/);
-    assert.ok(token && ok.has(token[1]), `${sel.trim()}: --${token && token[1]} no llega a 3:1`);
-  }
-});
+// F3e (T017): las reglas del exportador pasaron de styles.css a moodle.css, con los mismos tokens.
+for (const [file, min] of [['css/styles.css', 4], ['css/moodle.css', 2]]) {
+  test(`${file}: el borde de cada campo de texto y desplegable usa un token con 3:1 (1.4.11)`, () => {
+    const css = read(file);
+    const ok = new Set(PAIRS['css/styles.css'].ui.map(([fg]) => fg));
+    const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(([, sel, body]) => /(^|[\s,.])(input|select|textarea)\b/.test(sel) && !/checkbox/.test(sel) && /border(-color)?:/.test(body));
+    assert.ok(rules.length >= min, `${rules.length} reglas`);
+    for (const [, sel, body] of rules) {
+      const token = body.match(/border(?:-color)?:[^;]*var\(--([a-z-]+)\)/);
+      assert.ok(token && ok.has(token[1]), `${sel.trim()}: --${token && token[1]} no llega a 3:1`);
+    }
+  });
+}
 
 // F4a (T009): la hoja de «Duraciones inciertas» se carga aparte y solo usa los tokens de styles.css; las curvas, las líneas
 // y los bordes que llevan información usan tokens con 3:1 sobre la tarjeta (1.4.11), y nada quita el contorno del foco.

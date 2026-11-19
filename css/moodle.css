@@ -1,5 +1,62 @@
-/* moodle.css — la cabecera de moodle.html, la página propia del exportador (F3e, plan P2, T013; tableros 100 y 105).
-   Solo la carga moodle.html; los colores son los de styles.css. */
+/* moodle.css — la hoja de moodle.html, la página propia del exportador (F3e, plan P2; tableros 100 y 105): el exportador
+   (F3b a F3d; en styles.css hasta T017) y la cabecera y la página (T013 y T016). Solo la carga moodle.html, después de
+   styles.css (el mismo orden de antes); los colores son los de styles.css. */
+/* ---------- F3b: exportador de Moodle (tableros 51–56; F3e, T017: aquí desde styles.css, que carga el laboratorio) ---------- */
+.mq-layout { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 22px; align-items: start; }
+.mq-form, .mq-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mq h1 { margin: 0; font-size: 22px; }
+.mq h2 { margin: 0; font-size: 16px; }
+.mq-lead { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.mq-box { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; }
+.mq-actions { display: flex; flex-direction: column; gap: 6px; }
+.mq-actions progress { width: 100%; height: 14px; accent-color: var(--accent); }
+.mq-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mq-summary, .mq-status { margin: 0; font-size: 14px; }
+.mq-status:empty { display: none; }
+.mq-group { margin: 0; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mq-group legend { padding: 0 4px; font-weight: 700; font-size: 14px; }
+.mq-stages { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.mq-check { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 1.35; min-height: 24px; }
+.mq-check input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.mq-hint { display: block; margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.mq-two { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 8px; align-items: start; }
+.mq-size input { width: 72px; font: inherit; font-size: 14px; padding: 5px 6px; border: 1px solid var(--edge); border-radius: 6px; background: var(--card); color: var(--ink); }
+.mq-count { font-size: 14px; }
+.mq-preview { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; max-height: 560px; overflow: auto; }
+.mq-preview p { margin: 0; font-size: 14px; line-height: 1.45; }
+/* Los bloques de la vista previa no se encogen: el recuadro se desplaza entero (las tablas se cortaban). */
+.mq-preview > * { flex-shrink: 0; }
+.mq-qname { font-family: var(--mono); font-size: 12px !important; color: var(--muted); }
+.mq-tables { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; max-width: 100%; overflow-x: auto; }
+.mq-table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.mq-table th, .mq-table td { padding: 2px 7px; border: 1px solid var(--line); text-align: center; }
+.mq-table thead th { background: var(--accent-soft); }
+.mq-hole { width: 40px; font-size: 12px; padding: 2px 4px; border: 1px solid var(--edge); border-radius: 4px; background: var(--card); color: var(--ink); }
+select.mq-hole { width: auto; }
+.mq-quote { margin: 0; padding: 6px 12px; border-left: 3px solid var(--line); background: var(--soft); border-radius: 6px; }
+.mq-quote p { margin: 0 0 3px; font-size: 13px; }
+.mq-mr { display: inline-flex; flex-wrap: wrap; gap: 2px 8px; text-align: left; }
+.mq-mr label { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; white-space: nowrap; }
+.mq-mr input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent); }
+/* F3d (T013; tablero 90): las etapas 7 a 10, aparte y con su aviso; la imagen de «Detective», sobre blanco y sin desbordar. */
+.mq-lab { grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line); padding-top: 6px; }
+.mq-labnote { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 12.5px; line-height: 1.45; }
+.mq-img img { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+.mq-options { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.mq-feedback { border-top: 1px solid var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.mq-feedback summary { font-weight: 600; cursor: pointer; }
+.mq-how { font-size: 14px; }
+.mq-how summary { font-weight: 700; cursor: pointer; }
+.mq-how ol { margin: 6px 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; line-height: 1.45; }
+@media (max-width: 900px) {
+  .mq-layout { grid-template-columns: minmax(0, 1fr); }
+  .mq-preview { max-height: none; }
+}
+@media (max-width: 520px) {
+  .mq-stages, .mq-two { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- F3e: la cabecera de moodle.html (T013) y la página (T016) ---------- */
 .mq-head-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-left: auto; font-size: 14px; }
 .mq-head-ctl label { display: inline-flex; align-items: center; gap: 6px; }
 .mq-head-ctl select { min-height: 34px; padding: 0 6px; font: inherit; color: var(--ink); border-radius: 8px; }

@@ -157,9 +157,9 @@
   // ---------- Tipo de ejercicio (F3d, T008; tableros 81 y 92) ----------
   // Cálculo (la F3a, sin cambios), construir la ROY o la PERT y detective. Solo se ofrecen los que ya están hechos; la
   // barra con el tipo se ve con buildPublic (publicado en T014) o, sin él, con un tipo que no es el cálculo (por URL).
-  // F3e (T010 y T011): «Probabilidad (TCL)» y «Montecarlo», ocultos hasta T017 (solo se ofrecen con xk=tcl o xk=mc).
+  // F3e (T010 y T011): «Probabilidad (TCL)» y «Montecarlo», publicados en T017.
   const KINDS = ['calc', 'roy', 'pert', 'det', 'tcl', 'mc'];
-  const kindReady = { calc: true, roy: true, pert: true, det: true, tcl: false, mc: false };
+  const kindReady = { calc: true, roy: true, pert: true, det: true, tcl: true, mc: true };
   const kindOf = (state) => (KINDS.includes(state.xk) ? state.xk : 'calc');
   // Lo que se pierde al cambiar de ejercicio: las respuestas del cálculo, la red del alumno o las marcas del detective.
   function hasWork(state) {
