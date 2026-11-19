@@ -7,6 +7,7 @@
  * textos, vista previa y moodle-page, en moodle.html) y, al marcar una etapa, su familia (FAMILIES): el enunciado (sg,
  * etapa 0) y la construcción (lab, etapas 7 a 10). moodle-page no cambia lo que hace: recibe need y ready para esperar a
  * la familia antes de la vista previa y de «Descargar»; en cpm.html (grupo mq) no los recibe y todo sigue igual.
+ * F3e (T016): la familia estocástica (st) de las etapas 11 a 17, y core/series en la base (la pestaña de las series).
  * El estado del enlace es el de cpm.html#v=moodle (urlstate: idioma y notación; v=moodle siempre), para que la
  * redirección de T017 solo cambie la página. La cabecera lleva el título, Idioma, Notación y «Volver al laboratorio».
  * La parte sin DOM (FAMILIES, familiesOf, load, hashOf, backHref) se prueba en Node; PNL.moodleApp.state() da el idioma
@@ -25,11 +26,15 @@
     // F3d (H1, P4): las etapas 7 a 10, aoacheck y roycheck (antes que detective) y la imagen de la red (net-svg, con
     // layout y aoa-layout, que en cpm.html van en la carga común).
     lab: ['js/core/aoacheck.js', 'js/core/roycheck.js', 'js/core/detective.js', 'js/views/layout.js', 'js/views/aoa-layout.js', 'js/views/net-svg.js'],
+    // F3e (T016, H10): las etapas 11 a 17 (y las series con el TCL): los tres tiempos, el TCL, la simulación, probgen y
+    // los gráficos de «Leer una simulación» (chart-svg, ctx.chart).
+    st: ['js/core/threept.js', 'js/core/tcl.js', 'js/core/sim.js', 'js/core/mc.js', 'js/core/probgen.js', 'js/views/chart-svg.js'],
   };
   /** La familia de cada etapa que no es de la base (las siete de la F3b van en la base). */
-  const FAMILY_OF = { stmt: 'sg', minDummy: 'lab', succ: 'lab', immPred: 'lab', detective: 'lab' };
+  const FAMILY_OF = { stmt: 'sg', minDummy: 'lab', succ: 'lab', immPred: 'lab', detective: 'lab',
+    tclMoments: 'st', tclPath: 'st', tclProb: 'st', tclRoute: 'st', mcRead: 'st', mcDisc: 'st', mcRep: 'st' };
   /** El global que deja el último archivo de cada familia (la familia está cargada). */
-  const READY = { sg: () => !!root.PNL.stmtgen, lab: () => !!root.PNL.detective && !!root.PNL.netSvg };
+  const READY = { sg: () => !!root.PNL.stmtgen, lab: () => !!root.PNL.detective && !!root.PNL.netSvg, st: () => !!root.PNL.probgen && !!root.PNL.chartSvg };
   /** Las familias que piden unas etapas, sin repetir y en el orden de FAMILIES. */
   const familiesOf = (stages) => Object.keys(FAMILIES).filter((f) => (stages || []).some((s) => FAMILY_OF[s] === f));
 
@@ -126,8 +131,9 @@
     mqc = MP.create($('mqView'), {
       state: () => state, lang,
       announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
-      // F3e (T013): la familia de cada etapa marcada; el título va en la cabecera de la página.
-      need, ready, heading: false,
+      // F3e (T013): la familia de cada etapa marcada; el título va en la cabecera de la página. T016: las etapas 11 a 17,
+      // las familias plegables y las series (f3e).
+      need, ready, heading: false, f3e: true,
     });
     MP.state = () => mqc.debug();
     writeHash();

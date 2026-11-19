@@ -15,3 +15,27 @@
   .mq-back-long { display: none; }
   .mq-back-short { display: inline; }
 }
+
+/* F3e (T016; tableros 100, 101, 102 y 105): pestañas, familias plegables, etapas 11 a 17, series y vista previa ampliada. */
+.mq-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.mq-tabs [role="tab"] { padding: 8px 12px; min-height: 36px; font: inherit; font-size: 14px; font-weight: 700; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--accent); cursor: pointer; }
+.mq-tabs [role="tab"][aria-selected="true"] { border-bottom-color: var(--accent); color: var(--ink); }
+.mq-tabs [role="tab"]:disabled { cursor: not-allowed; }
+.mq-panel { display: flex; flex-direction: column; gap: 8px; }
+.mq-fam { border-top: 1px solid var(--line); padding-top: 6px; }
+.mq-fam > summary { font-size: 14px; font-weight: 700; cursor: pointer; min-height: 24px; }
+.mq-fam-body { display: flex; flex-direction: column; gap: 6px; padding: 6px 0 2px; }
+.mq-fam .mq-lab { border-top: 0; padding-top: 0; }
+.mq-prob { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.mq-series .mq-check:has(input:disabled) { color: var(--muted); }
+.mq-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.mq-pvstage { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.mq-pvstage select { min-height: 30px; max-width: 260px; font: inherit; font-size: 13px; color: var(--ink); background: var(--card); border: 1px solid var(--edge); border-radius: 6px; }
+.mq-goto { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.mq-goto button.ghost { min-width: 34px; min-height: 30px; padding: 2px 8px; font-size: 13px; }
+.mq-part { margin: 6px 0 0; padding-top: 6px; border-top: 1px solid var(--line); font-size: 14px; scroll-margin-top: 8px; }
+.mq-fold summary, .mq-accepted summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.mq-mr-v { display: inline-flex; flex-direction: column; flex-wrap: nowrap; }
+.mq-accepted { border: 1px dashed var(--edge); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; line-height: 1.5; }
+.mq-accepted ul { margin: 4px 0 0; padding-left: 18px; font-variant-numeric: tabular-nums; }
+.mq-accepted .mq-acc-h { list-style: none; margin: 4px 0 0 -18px; font-weight: 700; }

@@ -4369,8 +4369,10 @@ check('F3c P6 · sin publicar (stmtPublic falso, y sin las etapas de la F3d), el
   await setCtl(p, '#selLang', 'es');
   await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'early');
   const labels = await p.$$eval('#mqView .mq-stages .mq-check', (ls) => ls.map((l) => l.textContent));
-  assert.equal(labels.length, 7);
+  // F3e (T016): en moodle.html, además, las 11 a 17 (sin marcar).
+  assert.equal(labels.length, 14);
   assert.ok(labels[0].startsWith('1 ·'));
+  assert.ok(labels[7].startsWith('11 ·'));
   const st = await mq(p);
   assert.deepEqual(st.sel.stages, ['early', 'late', 'floats', 'critAct', 'critPath', 'evEarly', 'evLate']);
   assert.equal(st.preview.stage, 'early');
@@ -7602,10 +7604,10 @@ const MQ0 = require(path.join(ROOT, 'js', 'core', 'moodle.js'));
 const IM0 = require(path.join(ROOT, 'js', 'i18n-moodle.js'));
 const NS0 = require(path.join(ROOT, 'js', 'views', 'net-svg.js'));
 const LAB = ['minDummy', 'succ', 'immPred', 'detective'];
-// Publicadas en T014: el exportador las ofrece al abrirlo.
+// Publicadas en T014: el exportador las ofrece al abrirlo. F3e (T016): en moodle.html, también las 11 a 17 (19 en total).
 async function mqLab(lang, opts) {
   const p = await mqOpen(lang, opts);
-  await p.waitForFunction((n) => document.querySelectorAll('#mqView .mq-stages .mq-check').length === n, 12);
+  await p.waitForFunction((n) => document.querySelectorAll('#mqView .mq-stages .mq-check').length === n, 19);
   return p;
 }
 // La pregunta de la vista previa, en Node: la primera semilla desde 1 que da pregunta (como moodle-page), con la imagen.
@@ -7620,7 +7622,8 @@ check('F3d T013 · sin publicar (f3dPublic falso), el exportador no ofrece las e
   const p0 = await mqOpen('en');
   await p0.evaluate(() => { PNL.moodlePage.f3dPublic = false; });
   await setCtl(p0, '#selLang', 'es');
-  await p0.waitForFunction(() => document.querySelectorAll('#mqView .mq-stages .mq-check').length === 8);
+  // F3e (T016): en moodle.html, además, las 11 a 17 (sin marcar).
+  await p0.waitForFunction(() => document.querySelectorAll('#mqView .mq-stages .mq-check').length === 15);
   assert.equal(await p0.locator('#mqView .mq-labnote').count(), 0);
   assert.equal(await p0.locator('.mq-summary').textContent(), 'Se generarán 80 preguntas en 8 categorías.');
   // El grupo mq ya trae lo que necesitan las etapas nuevas (H1): aoacheck, roycheck, detective y net-svg.
@@ -7792,7 +7795,8 @@ check('F3d T014 AC12 · taller con la red ROY: «Reto ROY» junto a Red y Matriz
 check('F3d T014 AC14 · el exportador ofrece las etapas 7 a 10 al abrirlo, marcadas, con el aviso del laboratorio', async () => {
   const page = await mqOpen('es');
   assert.equal(await page.evaluate(() => PNL.moodlePage.f3dPublic), true);
-  assert.equal(await page.locator('#mqView .mq-stages .mq-check').count(), 12);
+  // F3e (T016): en moodle.html, además, las 11 a 17 (sin marcar).
+  assert.equal(await page.locator('#mqView .mq-stages .mq-check').count(), 19);
   assert.equal(await page.locator('#mqView .mq-lab .mq-check input:checked').count(), 4);
   assert.equal(await page.locator('.mq-summary').textContent(), 'Se generarán 120 preguntas en 12 categorías.');
   assert.ok(await visible(page, '#mqView .mq-labnote'));
@@ -9360,7 +9364,9 @@ check('F3e T013 AC13 · el mismo enlace abre lo mismo en moodle.html que en cpm.
     const [ha, hb] = await Promise.all([a, b].map((p) => p.evaluate(() => [location.hash, document.documentElement.lang, document.getElementById('selNota').value])));
     assert.deepEqual(ha, hb, hash);
     const [qa, qb] = await Promise.all([a, b].map((p) => mq(p)));
-    assert.deepEqual(qa.sel, qb.sel, hash);
+    // F3e (T016): la pestaña y las series solo están en moodle.html.
+    const same = (x) => { const o = Object.assign({}, x); delete o.mode; delete o.series; return o; };
+    assert.deepEqual(same(qa.sel), same(qb.sel), hash);
     assert.equal(qa.preview.name, qb.preview.name, hash);
     assert.deepEqual(qa.preview.answers, qb.preview.answers, hash);
     assert.equal(await a.locator('.mq-summary').textContent(), await b.locator('.mq-summary').textContent());
@@ -9479,6 +9485,254 @@ check('F3e T013 AC23 · cpm.html#v=moodle sigue igual hasta T017: la vista del l
     assert.equal(res.some((r) => /moodle-app\.js|moodle\.css/.test(r)), false);
     assert.ok(res.some((r) => /core\/stmtgen\.js/.test(r)) && res.some((r) => /views\/net-svg\.js/.test(r)));
     await close(page);
+  }
+});
+
+// ---------- F3e, T016: las etapas 11 a 17 y las series en moodle.html (plan P2 y P7; tableros 100–102 y 105) ----------
+
+const CS0 = require(path.join(ROOT, 'js', 'views', 'chart-svg.js'));
+const SR0 = require(path.join(ROOT, 'js', 'core', 'series.js'));
+const QV0 = require(path.join(ROOT, 'js', 'views', 'question-view.js'));
+const chart0 = (m) => (m.kind === 'dist' ? CS0.dist(m) : CS0.indices(m));
+const F3E = MQ0.STAGES_F3E;
+// El orden de la lista del exportador: la 0 la primera y después el de STAGES_ALL.
+const MP_ORDER = ['stmt', ...MQ0.STAGES_ALL.filter((s) => s !== 'stmt')];
+const stFiles = /core\/threept\.js|core\/tcl\.js|core\/sim\.js|core\/mc\.js|core\/probgen\.js|views\/chart-svg\.js/;
+const stLoads = (page) => page.evaluate((src) => performance.getEntriesByType('resource').filter((e) => new RegExp(src).test(e.name)).length, stFiles.source);
+const MQ_FAM = { es: ['Cálculo · 0 a 6', 'Construir y detectar · 7 a 10', 'Probabilidad y Montecarlo · 11 a 17'],
+  en: ['Calculation · 0 to 6', 'Build and detect · 7 to 10', 'Probability and Monte Carlo · 11 to 17'] };
+const code = (lang, s) => IM0.tr(lang)(`stage.${s}`).split(' ')[0] + ' ·';
+// La vista previa de una etapa, en Node (como moodle-page: la primera semilla desde 1), con las imágenes de chart-svg.
+function mqPreviewSt(stage, level, lang, nota) {
+  const ctx = { lang, nota, sf: false, labels: IM0.labels(nota), svg: NS0.render, chart: chart0 };
+  for (let sd = 1; sd < 50; sd++) { const q = MQ0.question(stage, MQ0.exercise(level, sd), ctx, IM0.tr(lang)); if (q) return JSON.parse(JSON.stringify(q)); }
+  return null;
+}
+// La vista previa de una serie, en Node: la primera semilla desde 1 que da serie.
+function mqSeries0(stages, level, lang, nota) {
+  const ctx = { lang, nota, sf: false, labels: IM0.labels(nota) };
+  for (let sd = 1; sd < 200; sd++) { const b = SR0.exercise(stages, level, sd); const q = b && SR0.question(stages, b, ctx, IM0.tr(lang)); if (q) return JSON.parse(JSON.stringify(q)); }
+  return null;
+}
+// «Respuestas que acepta Moodle», como las escribe la vista previa.
+const accLines = (q, lang) => QV0.accepted(q, IM0.tr(lang), lang).map((x) => (x.head ? x.head : `${x.label == null ? I0.t(lang, 'mq.page.acceptedOption') : x.label}: ${x.value}`));
+const mqSeriesTab = async (page) => { await page.locator('#mqTabSeries').click(); await page.waitForFunction(() => PNL.moodlePage.state().sel.mode === 'series'); };
+// En la pestaña de las series: deja marcadas solo estas etapas (por su código), el nivel y el número de series.
+async function mqSeriesSelect(page, codes, level, count) {
+  const n = await page.locator('#mqView .mq-series .mq-check').count();
+  for (let i = 0; i < n; i++) {
+    const l = page.locator('#mqView .mq-series .mq-check').nth(i);
+    const box = l.locator('input');
+    if (await box.isDisabled()) continue;
+    const text = await l.textContent();
+    const on = codes.some((c) => text.startsWith(c));
+    if ((await box.isChecked()) !== on) await box.click();
+  }
+  if (level) await page.locator(`#mqView input[name="mqSeriesLevel"][value="${level}"]`).check();
+  if (count) { await page.locator('#mqSeriesCount').fill(String(count)); await page.locator('#mqSeriesCount').press('Tab'); }
+}
+const mqDownloadLong = async (page) => {
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 90000 }), page.locator('#mqDownload').click()]);
+  return { name: dl.suggestedFilename(), xml: fs.readFileSync(await dl.path(), 'utf8') };
+};
+
+check('F3e T016 · moodle.html: las etapas en tres familias plegables; las 11 a 17, al final, sin marcar y con su descripción (ES y EN); cpm.html#v=moodle, sin ellas', async () => {
+  for (const [lang, sum] of [['es', 'Se generarán 120 preguntas en 12 categorías.'], ['en', '120 questions will be generated in 12 categories.']]) {
+    const p = await mqLab(lang);
+    const fams = await p.$$eval('#mqView details.mq-fam', (ds) => ds.map((d) => ({ open: d.open, summary: d.querySelector('summary').textContent, n: d.querySelectorAll('.mq-check').length })));
+    assert.deepEqual(fams, MQ_FAM[lang].map((summary, i) => ({ open: true, summary, n: [8, 4, 7][i] })));
+    const prob = await p.$$eval('#mqView details.mq-fam:nth-of-type(3) .mq-check', (ls) => ls.map((l) => ({ text: l.querySelector('span').firstChild.textContent, hint: l.querySelector('.mq-hint').textContent, on: l.querySelector('input').checked })));
+    assert.deepEqual(prob, F3E.map((s) => ({ text: IM0.tr(lang)(`stage.${s}`), hint: I0.t(lang, `mq.page.stageHint.${s}`), on: false })));
+    assert.ok(prob.every((x) => x.hint && !x.hint.startsWith('mq.')));
+    assert.equal(await p.locator('.mq-summary').textContent(), sum);
+    await p.waitForLoadState('networkidle');
+    assert.equal(await stLoads(p), 0, 'la familia estocástica no se carga al abrir');
+    // Plegar una familia no cambia lo marcado.
+    await p.locator('#mqView details.mq-fam summary').first().click();
+    assert.equal(await p.locator('#mqView details.mq-fam').first().evaluate((d) => d.open), false);
+    assert.equal(await p.locator('.mq-summary').textContent(), sum);
+    await close(p);
+    const c = await mqCpm(lang);
+    assert.equal(await c.locator('#mqView .mq-stages .mq-check').count(), 12);
+    assert.equal(await c.locator('#mqView details.mq-fam, #mqView [role="tablist"]').count(), 0);
+    await close(c);
+  }
+});
+
+check('F3e T016 AC14 AC15 · marcar una etapa 11 a 17 carga la familia estocástica una vez; la vista previa (con «Etapa») es la del núcleo, con las respuestas que acepta Moodle; la 15, con sus dos imágenes', async () => {
+  const p = await mqLab('es');
+  await mqSelect(p, ['13 ·', '15 ·'], ['Media']);
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'tclProb');
+  await p.waitForLoadState('networkidle');
+  assert.equal(await stLoads(p), 6);
+  let st = await mq(p);
+  let q0 = mqPreviewSt('tclProb', 'medium', 'es', 'en');
+  assert.equal(st.preview.name, q0.name); assert.deepEqual(st.preview.answers, q0.answers);
+  assert.equal(await p.locator('.mq-preview .mq-hole').count(), Object.keys(q0.answers).length);
+  assert.equal(await p.locator('.mq-accepted summary').textContent(), 'Respuestas que acepta Moodle (salen del núcleo)');
+  assert.deepEqual(await p.$$eval('.mq-accepted li', (ls) => ls.map((l) => l.textContent)), accLines(q0, 'es'));
+  // El selector «Etapa» lista las marcadas; con la 15, sus dos imágenes (data:) con su texto alternativo y la tabla plegada.
+  assert.equal(await p.locator('label[for="mqPvStage"]').textContent(), 'Etapa');
+  assert.deepEqual(await p.$$eval('#mqPvStage option', (os) => os.map((o) => o.textContent)), ['13 · Probabilidad de un plazo', '15 · Leer una simulación']);
+  await p.selectOption('#mqPvStage', 'mcRead');
+  await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'mcRead');
+  st = await mq(p);
+  q0 = mqPreviewSt('mcRead', 'medium', 'es', 'en');
+  assert.equal(st.preview.name, q0.name); assert.deepEqual(st.preview.answers, q0.answers);
+  const imgs = await p.$$eval('.mq-preview img', (is) => is.map((i) => ({ src: i.getAttribute('src').slice(0, 26), alt: i.alt, w: i.naturalWidth })));
+  assert.equal(imgs.length, 2);
+  assert.ok(imgs.every((i) => i.src === 'data:image/svg+xml;base64,' && i.w > 0));
+  assert.deepEqual(imgs.map((i) => i.alt), q0.text.filter((b) => b.img).map((b) => b.img.alt));
+  assert.equal(await p.locator('.mq-preview details:not(.mq-feedback):not(.mq-accepted) summary').textContent(), 'Los gráficos como tabla');
+  assert.equal(await p.locator('.mq-preview select.mq-hole').count(), 1, 'la pregunta de interpretación, un desplegable');
+  assert.deepEqual(await p.$$eval('.mq-accepted li', (ls) => ls.map((l) => l.textContent)), accLines(q0, 'es'));
+  // La etapa elegida se queda al marcar otra; si se desmarca, la vista previa pasa a la primera marcada.
+  await p.locator('#mqView .mq-check', { hasText: '11 ·' }).locator('input').check();
+  await p.waitForFunction(() => PNL.moodlePage.state().sel.stages.includes('tclMoments'));
+  assert.equal((await mq(p)).preview.stage, 'mcRead');
+  await p.locator('#mqView .mq-check', { hasText: '15 ·' }).locator('input').uncheck();
+  await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'tclMoments');
+  assert.equal(await p.locator('#mqPvStage').inputValue(), 'tclMoments');
+  await close(p);
+});
+
+check('F3e T016 AC14 AC15 AC17 · el banco con las siete etapas en los tres niveles es el de Node con la misma semilla: categorías, imágenes de la 15 como archivos y XML bien formado (ES y EN)', async () => {
+  for (const [lang, nota, stages, levels] of [['es', 'en', F3E, ['easy', 'medium', 'hard']], ['en', 'es', ['tclRoute', 'mcRead', 'mcRep'], ['hard']]]) {
+    const p = await mqLab(lang);
+    await setCtl(p, '#selNota', nota);
+    const tr = IM0.tr(lang);
+    await mqSelect(p, stages.map((s) => code(lang, s)), levels.map((l) => tr(`level.${l}`)), 1);
+    const { name, xml } = await mqDownloadLong(p);
+    const seed = Number(/-s(\d+)\.xml$/.exec(name)[1]);
+    const bank = MQ0.generate({ lang, nota, sf: false, labels: IM0.labels(nota), stages, levels, count: 1, seed, svg: NS0.render, chart: chart0 }, tr);
+    assert.equal(bank.questions.length, stages.length * levels.length);
+    assert.equal(xml, MQ0.toXml(bank, tr), 'el XML del navegador es el de Node');
+    assert.deepEqual(require('../xml-check.js').check(xml), { ok: true });
+    for (const s of stages) for (const l of levels) assert.ok(xml.includes(`$course$/top/${tr('root')}/${tr(`stage.${s}`)}/${tr(`level.${l}`)}`), `${s} ${l}`);
+    assert.equal((xml.match(/<file name="pnl-mcread-s\d+-(dist|idx)\.svg" path="\/" encoding="base64">/g) || []).length, 2 * levels.length);
+    await close(p);
+  }
+});
+
+check('F3e T016 · «Series encadenadas»: pestañas con teclado; etapas que no admiten en gris con su motivo; nivel, número, resumen y vista previa con «Ir a la parte» (ES y EN)', async () => {
+  const TXT = {
+    es: { tabs: ['Preguntas por etapas', 'Series encadenadas'], sum: 'Se generarán 10 series en la categoría Series/0-1-3-11-12-13/Media.',
+      sum2: 'Se generarán 3 series en la categoría Series/0-1-3-11-12-13/Difícil.', none: 'Elige al menos una etapa.', goto: 'Ir a la parte', part: 'Parte 11 · Medias y varianzas' },
+    en: { tabs: ['Questions by stage', 'Chained series'], sum: '10 series will be generated in the category Series/0-1-3-11-12-13/Medium.',
+      sum2: '3 series will be generated in the category Series/0-1-3-11-12-13/Hard.', none: 'Choose at least one stage.', goto: 'Go to part', part: 'Part 11 · Means and variances' },
+  };
+  for (const lang of ['es', 'en']) {
+    const x = TXT[lang];
+    const p = await mqLab(lang);
+    await mqSelect(p, ['3 ·'], [IM0.tr(lang)('level.hard')], 4);
+    // Pestañas (WAI-ARIA): la de las etapas, elegida; las flechas cambian de pestaña y llevan el foco.
+    const tabs = () => p.$$eval('#mqView [role="tab"]', (ts) => ts.map((t) => ({ text: t.textContent, sel: t.getAttribute('aria-selected'), tab: t.tabIndex })));
+    assert.deepEqual(await tabs(), [{ text: x.tabs[0], sel: 'true', tab: 0 }, { text: x.tabs[1], sel: 'false', tab: -1 }]);
+    assert.equal(await p.locator('#mqView [role="tabpanel"]').getAttribute('aria-labelledby'), 'mqTabStages');
+    await p.locator('#mqTabStages').focus();
+    await p.keyboard.press('ArrowRight');
+    await p.waitForFunction(() => PNL.moodlePage.state().sel.mode === 'series');
+    assert.equal(await p.evaluate(() => document.activeElement.id), 'mqTabSeries');
+    assert.deepEqual((await tabs()).map((t) => t.sel), ['false', 'true']);
+    assert.equal(await p.locator('#mqView [role="tabpanel"]').getAttribute('aria-labelledby'), 'mqTabSeries');
+    // Todas las etapas; en gris (desactivadas) las que no pueden ir en una serie; marcadas, las de por defecto.
+    const boxes = await p.$$eval('#mqView .mq-series .mq-check', (ls) => ls.map((l) => ({ code: l.textContent.split(' ')[0], off: l.querySelector('input').disabled, on: l.querySelector('input').checked })));
+    const all = MQ0.STAGES_ALL.slice().sort((a, b) => MP_ORDER.indexOf(a) - MP_ORDER.indexOf(b));
+    assert.deepEqual(boxes, all.map((s) => ({ code: IM0.tr(lang)(`stage.${s}`).split(' ')[0], off: !SR0.ADMITTED.includes(s), on: ['stmt', 'early', 'floats', 'tclMoments', 'tclPath', 'tclProb'].includes(s) })));
+    assert.equal(await p.locator('#mqView .mq-series-off').textContent(), I0.t(lang, 'mq.page.sr.off'));
+    assert.equal(await p.locator('#mqView .mq-series-means').textContent(), I0.t(lang, 'mq.page.sr.means'));
+    assert.equal(await p.locator('#mqView input[name="mqSeriesLevel"]:checked').getAttribute('value'), 'medium');
+    assert.equal(await p.locator('#mqSeriesCount').inputValue(), '10');
+    assert.equal(await p.locator('.mq-summary').textContent(), x.sum);
+    // Vista previa: la serie de Node con la primera semilla; «Ir a la parte» lleva el foco al título de la parte.
+    await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'series', null, { timeout: 30000 });
+    const q0 = mqSeries0(['stmt', 'early', 'floats', 'tclMoments', 'tclPath', 'tclProb'], 'medium', lang, 'en');
+    const st = await mq(p);
+    assert.equal(st.preview.name, q0.name); assert.deepEqual(st.preview.answers, q0.answers);
+    assert.equal(await p.locator('.mq-goto').getAttribute('aria-label'), x.goto);
+    assert.deepEqual(await p.$$eval('.mq-goto button', (bs) => bs.map((b) => b.textContent)), ['0', '1', '3', '11', '12', '13']);
+    assert.equal(await p.locator('.mq-accepted').evaluate((d) => d.open), false, 'en una serie, plegadas');
+    await p.locator('.mq-goto button', { hasText: /^11$/ }).click();
+    assert.equal(await p.evaluate(() => document.activeElement.tagName + ' ' + document.activeElement.textContent), `H3 ${x.part}`);
+    assert.ok(await p.evaluate(() => { const a = document.activeElement.getBoundingClientRect(); const b = document.querySelector('.mq-preview').getBoundingClientRect(); return a.top >= b.top - 1 && a.top < b.bottom; }));
+    // Nivel y número; sin etapas, no hay nada que descargar.
+    await mqSeriesSelect(p, ['0 ·', '1 ·', '3 ·', '11 ·', '12 ·', '13 ·'], 'hard', 3);
+    assert.equal(await p.locator('.mq-summary').textContent(), x.sum2);
+    await mqSeriesSelect(p, []);
+    assert.equal(await p.locator('.mq-summary').textContent(), x.none);
+    assert.equal(await p.locator('#mqDownload').isDisabled(), true);
+    // La otra pestaña conserva su selección.
+    await p.keyboard.press('Home');
+    await p.locator('#mqTabStages').click();
+    await p.waitForFunction(() => PNL.moodlePage.state().sel.mode === 'stages');
+    const s2 = await mq(p);
+    assert.deepEqual(s2.sel.stages, ['floats']); assert.deepEqual(s2.sel.levels, ['hard']); assert.equal(s2.sel.count, 4);
+    assert.deepEqual(s2.sel.series, { stages: [], level: 'hard', count: 3 });
+    await close(p);
+  }
+});
+
+check('F3e T016 AC16 AC17 · la serie descargada es la de Node con la misma semilla: una pregunta cloze por serie en Series/<etapas>/<nivel>, XML bien formado (ES y EN)', async () => {
+  for (const [lang, nota, stages, level] of [['es', 'en', ['early', 'floats', 'tclProb'], 'easy'], ['en', 'es', ['stmt', 'critPath', 'succ', 'tclRoute'], 'hard']]) {
+    const p = await mqLab(lang);
+    await setCtl(p, '#selNota', nota);
+    await mqSeriesTab(p);
+    await mqSeriesSelect(p, stages.map((s) => code(lang, s)), level, 2);
+    const tr = IM0.tr(lang);
+    const { name, xml } = await mqDownloadLong(p);
+    const seed = Number(/-s(\d+)\.xml$/.exec(name)[1]);
+    const bank = SR0.generate({ lang, nota, sf: false, labels: IM0.labels(nota), stages, level, count: 2, seed }, tr);
+    assert.equal(bank.questions.length, 2);
+    assert.equal(xml, MQ0.toXml(bank, tr), 'el XML del navegador es el de Node');
+    assert.deepEqual(require('../xml-check.js').check(xml), { ok: true });
+    assert.equal((xml.match(/<question type="cloze">/g) || []).length, 2);
+    assert.ok(xml.includes(`<text>$course$/top/${tr('root')}/Series/${SR0.order(stages).map((s) => SR0.CODE[s]).join('-')}/${tr(`level.${level}`)}</text>`));
+    assert.ok(new RegExp(I0.t(lang, 'mq.page.done', { file: name, q: 2, seed }).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(await p.locator('.mq-status').textContent()));
+    await close(p);
+  }
+});
+
+check('F3e T016 · principio 27 (H10): moodle.html con todas sus familias (las 19 etapas, la vista previa de la 15 y la serie más larga) por debajo de 1 MB; la familia estocástica, no al abrir: al pedirla una etapa 11 a 17 o una serie con el TCL', async () => {
+  const p = await mqLab('es');
+  await p.waitForLoadState('networkidle');
+  assert.equal(await stLoads(p), 0);
+  // Las series de por defecto llevan el TCL (11 a 13): al abrir la pestaña, llega la familia.
+  await mqSeriesTab(p);
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'series', null, { timeout: 30000 });
+  await p.waitForLoadState('networkidle');
+  assert.equal(await stLoads(p), 6);
+  await mqSeriesSelect(p, SR0.ADMITTED.map((s) => code('es', s)), 'hard');
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stages.length === 14, null, { timeout: 60000 });
+  assert.equal(await stLoads(p), 6);
+  await p.locator('#mqTabStages').click();
+  for (const s of F3E) await p.locator('#mqView .mq-check', { hasText: code('es', s) }).locator('input').check();
+  await p.selectOption('#mqPvStage', 'mcRead');
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'mcRead', null, { timeout: 30000 });
+  await p.waitForLoadState('networkidle');
+  const bytes = await p.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+  console.log(`    moodle.html con todas las familias: ${(bytes / 1024).toFixed(0)} KB`);
+  assert.equal(await stLoads(p), 6, 'cada archivo, una vez');
+  assert.equal(await p.evaluate(() => performance.getEntriesByType('resource').some((e) => /vendor\/d3|\/js\/app\.js/.test(e.name))), false);
+  assert.ok(bytes > 0 && bytes <= BUDGET, `${bytes} bytes`);
+  await close(p);
+});
+
+check('F3e T016 · moodle.html con las etapas 11 a 17 y con las series: axe en claro y oscuro, ES y EN; a 360 px sin desplazamiento horizontal', async () => {
+  for (const [lang, scheme, width] of [['es', 'light', 1280], ['en', 'dark', 1280], ['es', 'dark', 360], ['en', 'light', 360]]) {
+    const p = await mqLab(lang, { scheme, width, height: width === 360 ? 800 : 720 });
+    await mqSelect(p, [code(lang, 'mcRead'), code(lang, 'tclPath')], [IM0.tr(lang)('level.medium')]);
+    await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'tclPath', null, { timeout: 30000 });
+    await p.selectOption('#mqPvStage', 'mcRead');
+    await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'mcRead', null, { timeout: 30000 });
+    await p.locator('.mq-feedback summary').click();
+    if (width === 360) assert.ok(await noHScroll(p), `${lang} ${scheme} 360: etapas`);
+    await axe(p, `F3e T016 · moodle.html, etapa 15 (${lang}, ${scheme}, ${width})`);
+    await mqSeriesTab(p);
+    await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'series', null, { timeout: 30000 });
+    await p.locator('.mq-accepted summary').click();
+    if (width === 360) assert.ok(await noHScroll(p), `${lang} ${scheme} 360: series`);
+    await axe(p, `F3e T016 · moodle.html, series (${lang}, ${scheme}, ${width})`);
+    await close(p);
   }
 });
 

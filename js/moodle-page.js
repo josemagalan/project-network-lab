@@ -24,6 +24,14 @@
  * están). La vista previa espera a la familia de su etapa y «Descargar», a las de todas las marcadas; al llegar, se
  * rehacen el resumen y la vista previa. Con hooks.heading falso, el título va en la cabecera de la página y no aquí.
  * En cpm.html (grupo mq, con todo) no hay hooks.need ni hooks.ready y nada cambia.
+ * F3e (plan P2 y P7; T016; tableros 100, 101, 102 y 105), solo en moodle.html (hooks.f3e): las etapas en tres familias
+ * plegables (0–6, 7–10 y 11–17; las 11 a 17 sin marcar al abrir y con su descripción), la vista previa con «Etapa» (la
+ * etapa elegida entre las marcadas) y las «Respuestas que acepta Moodle», y las pestañas «Preguntas por etapas» ·
+ * «Series encadenadas». En las series (core/series, en la base de moodle.html): todas las etapas, en gris las que no
+ * pueden ir en una serie; un nivel y el número de series; la vista previa de una serie (la primera semilla desde 1) con
+ * «Ir a la parte». La imagen de «Leer una simulación» la da views/chart-svg (ctx.chart), que llega con la familia
+ * estocástica. Las vistas previas se guardan (algunas tardan: la otra ruta difícil, hasta 2 s) y no se rehacen al marcar
+ * otra casilla. En cpm.html#v=moodle todo sigue como antes hasta la redirección (T017).
  */
 (function (root) {
   'use strict';
@@ -33,16 +41,41 @@
   const M = req('./core/moodle.js', 'moodle');
   const IM = req('./i18n-moodle.js', 'i18nMoodle');
   const I = req('./i18n.js', 'i18n');
+  // core/series va en la base de moodle.html (no en cpm.html): se pide al usarla.
+  const S = () => req('./core/series.js', 'series');
 
   const CHUNK_MS = 40;
+  const PREVIEW_CACHE = 40;
   const pt = (lang, k, p) => I.t(lang, `mq.page.${k}`, p);
 
-  /** Las etapas de la F3d (7 a 10), en el orden del núcleo: las que siguen a la 0 en STAGES_ALL, hasta el detective (las
-   *  11 a 17 de la F3e, detrás, llegan al formulario en T016). */
+  /** Las etapas de la F3d (7 a 10), en el orden del núcleo: las que siguen a la 0 en STAGES_ALL, hasta el detective. */
   const LAB_STAGES = M.STAGES_ALL.slice(M.STAGES_ALL.indexOf('stmt') + 1, M.STAGES_ALL.indexOf('detective') + 1);
-  /** Las etapas que ofrece el formulario, en su orden: la 0 la primera, solo si está publicada (F3c, P6); las 7 a 10
-   *  al final, solo si están publicadas (F3d, T014). */
-  const stagesOf = (pub, lab) => [...(pub ? ['stmt'] : []), ...M.STAGES, ...(lab ? LAB_STAGES : [])];
+  /** Las de la F3e (11 a 17), al final de STAGES_ALL. */
+  const F3E_STAGES = M.STAGES_F3E;
+  /** Las etapas que ofrece el formulario, en su orden: la 0 la primera, solo si está publicada (F3c, P6); las 7 a 10,
+   *  solo si están publicadas (F3d, T014); las 11 a 17 al final, solo en moodle.html (F3e, T016). */
+  const stagesOf = (pub, lab, stoch) => [...(pub ? ['stmt'] : []), ...M.STAGES, ...(lab ? LAB_STAGES : []), ...(stoch ? F3E_STAGES : [])];
+  /** Las familias de la lista (tablero 100): cálculo (0–6), construir y detectar (7–10), probabilidad y Montecarlo (11–17). */
+  const FAMILY_GROUPS = [['calc', ['stmt', ...M.STAGES]], ['lab', LAB_STAGES], ['prob', F3E_STAGES]];
+  const groupsOf = (shown) => FAMILY_GROUPS.map(([key, all]) => ({ key, stages: shown.filter((s) => all.includes(s)) })).filter((g) => g.stages.length);
+  /** Marcadas al abrir: todas menos las 11 a 17 (su familia se carga al marcar una). */
+  const DEFAULT_STAGES = M.STAGES_ALL.filter((s) => !F3E_STAGES.includes(s));
+  /** Las de una serie al abrir la pestaña (tablero 101). */
+  const SERIES_DEFAULT = ['stmt', 'early', 'floats', 'tclMoments', 'tclPath', 'tclProb'];
+  const seriesOk = (s) => S().ADMITTED.includes(s);
+  const seriesCodes = (stages) => S().order(stages).map((s) => S().CODE[s]).join('-');
+  /** La categoría de las series, sin la raíz: Series/<códigos>/<nivel> (como la del núcleo). */
+  function seriesCategory(lang, stages, level) {
+    const tr = IM.tr(lang);
+    return [tr('series.cat'), seriesCodes(stages), tr(`level.${level}`)].join('/');
+  }
+  /** El resumen de las series: { stages, level, count }. */
+  function seriesSummaryText(lang, s) {
+    if (!s.stages.length) return pt(lang, 'sr.nothing');
+    const cat = seriesCategory(lang, s.stages, s.level);
+    return s.count === 1 ? pt(lang, 'sr.summaryOne', { cat }) : pt(lang, 'sr.summary', { q: s.count, cat });
+  }
+
   /** Cuántas preguntas y categorías da una selección (contando solo las etapas que se ofrecen). */
   function summary(sel, stages) {
     const c = (stages || stagesOf(true)).filter((s) => sel.stages.has(s)).length * M.LEVELS.filter((l) => sel.levels.has(l)).length;
@@ -56,11 +89,12 @@
   }
   /** Nombre del archivo: banco-redes-AAAA-MM-DD-s<semilla>.xml (o network-bank-…). */
   const fileName = (lang, date, seed) => `${pt(lang, 'file')}-${date}-s${seed}.xml`;
-  /** Las categorías que se quedan cortas, en el idioma del banco. */
+  /** Las categorías que se quedan cortas, en el idioma del banco (una serie, con los códigos de sus etapas). */
   function missingText(lang, missing) {
     if (!missing.length) return '';
     const tr = IM.tr(lang);
-    const list = missing.map((m) => pt(lang, 'missingItem', { stage: tr(`stage.${m.stage}`), level: tr(`level.${m.level}`), made: m.made, wanted: m.wanted })).join('; ');
+    const name = (m) => (m.stage === 'series' ? `${tr('series.name')} ${seriesCodes(m.stages)}` : tr(`stage.${m.stage}`));
+    const list = missing.map((m) => pt(lang, 'missingItem', { stage: name(m), level: tr(`level.${m.level}`), made: m.made, wanted: m.wanted })).join('; ');
     return pt(lang, 'missing', { list });
   }
 
@@ -70,11 +104,21 @@
     const lang = () => hooks.lang();
     const nota = () => hooks.state().nota;
     const t = (k, p) => pt(lang(), k, p);
-    const sel = { stages: new Set(M.STAGES_ALL), sf: false, levels: new Set(['medium']), count: M.DEFAULT_COUNT };
-    const shown = () => stagesOf(api.stmtPublic, api.f3dPublic);
-    // La imagen de la red (F3d, plan P4): views/net-svg llega con el grupo mq.
+    // F3e (T016): en moodle.html, las etapas 11 a 17, las familias plegables, la vista previa ampliada y las series.
+    const f3e = !!hooks.f3e;
+    const sel = { mode: 'stages', stages: new Set(DEFAULT_STAGES), sf: false, levels: new Set(['medium']), count: M.DEFAULT_COUNT, preview: null,
+      series: { stages: new Set(SERIES_DEFAULT), level: 'medium', count: M.DEFAULT_COUNT } };
+    const openFam = {};
+    const shown = () => stagesOf(api.stmtPublic, api.f3dPublic, f3e);
+    // La imagen de la red (F3d, plan P4): views/net-svg llega con el grupo mq o con la familia lab.
     const svg = (model) => root.PNL.netSvg.render(model);
+    // F3e (T016): los gráficos de «Leer una simulación» (views/chart-svg), con la familia estocástica.
+    const chart = (model) => (model.kind === 'dist' ? root.PNL.chartSvg.dist(model) : root.PNL.chartSvg.indices(model));
     const chosen = () => shown().filter((s) => sel.stages.has(s));
+    const isSeries = () => f3e && sel.mode === 'series';
+    const seriesChosen = () => (f3e ? S().ADMITTED.filter((s) => sel.series.stages.has(s)) : []);
+    /** Las etapas de lo que se va a generar: las marcadas o las de la serie. */
+    const wanted = () => (isSeries() ? seriesChosen() : chosen());
     let run = null;          // { runner, seed, lang, nota, made, total, timer }
     let status = null;       // último estado: { key: 'done' | 'doneOne' | 'cancelled', file, q, seed, missing }
     let last = null;         // { seed, file, questions, missing } del último banco descargado
@@ -84,7 +128,7 @@
     const ready = (stages) => !hooks.ready || hooks.ready(stages);
     /** Pide las familias de las etapas marcadas y, si faltaba alguna, rehace el resumen y la vista previa al llegar. */
     function fetchFamilies() {
-      const p = hooks.need ? hooks.need(chosen()) : null;
+      const p = hooks.need ? hooks.need(wanted()) : null;
       if (p) p.then(() => refresh(), () => {});
     }
     let waitingStart = false;
@@ -96,17 +140,22 @@
     }
 
     function start() {
+      const stages = wanted();
       // F3e (T013): «Descargar» espera a las familias de las etapas marcadas (un fallo lo avisa la página).
-      if (!ready(chosen())) {
+      if (!ready(stages)) {
         if (waitingStart) return;
         waitingStart = true;
-        Promise.resolve(hooks.need(chosen())).then(() => { waitingStart = false; if (!run) start(); }, () => { waitingStart = false; });
+        Promise.resolve(hooks.need(stages)).then(() => { waitingStart = false; if (!run) start(); }, () => { waitingStart = false; });
         return;
       }
       const L = lang(); const N = nota();
       const seed = newSeed();
-      const runner = M.runner({ lang: L, nota: N, sf: sel.sf, labels: IM.labels(N), stages: chosen(), levels: [...sel.levels], count: sel.count, seed, svg }, IM.tr(L));
-      run = { runner, seed, lang: L, nota: N, made: 0, total: summary(sel, shown()).questions, timer: null };
+      const opts = { lang: L, nota: N, sf: sel.sf, labels: IM.labels(N), seed };
+      const series = isSeries();
+      const runner = series
+        ? S().runner(Object.assign(opts, { stages, level: sel.series.level, count: sel.series.count }), IM.tr(L))
+        : M.runner(Object.assign(opts, { stages, levels: [...sel.levels], count: sel.count, svg, chart }), IM.tr(L));
+      run = { runner, seed, lang: L, nota: N, made: 0, total: series ? sel.series.count : summary(sel, shown()).questions, timer: null };
       status = null;
       focusAfter = 'cancel';
       draw();
@@ -176,18 +225,22 @@
       progressText.textContent = t('progress', { made: run.made, total: run.total });
     }
 
-    let summaryEl = null; let downloadEl = null; let previewEl = null;
+    let summaryEl = null; let downloadEl = null; let previewEl = null; let pvSelectEl = null; let gotoEl = null;
+    const currentSummary = () => (isSeries()
+      ? { text: seriesSummaryText(lang(), { stages: seriesChosen(), level: sel.series.level, count: sel.series.count }), any: seriesChosen().length > 0 }
+      : (() => { const s = summary(sel, shown()); return { text: summaryText(lang(), s), any: s.categories > 0 }; })());
     /** Tras marcar una casilla o cambiar los ejemplares: el resumen, el botón y la vista previa, sin redibujar. */
     function refresh() {
-      const s = summary(sel, shown());
-      if (summaryEl) summaryEl.textContent = summaryText(lang(), s);
-      if (downloadEl) downloadEl.disabled = !s.categories;
+      const s = currentSummary();
+      if (summaryEl) summaryEl.textContent = s.text;
+      if (downloadEl) downloadEl.disabled = !s.any;
+      if (pvSelectEl) fillPvSelect();
       if (previewEl) drawPreview(previewEl);
       fetchFamilies();
     }
 
     const check = (label, on, onChange, o) => h('label', { class: 'mq-check' }, [
-      h('input', { type: 'checkbox', checked: on, disabled: !!run, onchange: (e) => onChange(e.target.checked) }),
+      h('input', { type: 'checkbox', checked: on, disabled: !!run || !!(o && o.off), onchange: (e) => onChange(e.target.checked) }),
       h('span', {}, o && o.hint ? [label, h('span', { class: 'mq-hint' }, [o.hint])] : [label]),
     ]);
     const fieldset = (legend, kids, cls) => h('fieldset', { class: `mq-group${cls ? ` ${cls}` : ''}` }, [h('legend', {}, [legend]), ...kids]);
@@ -202,78 +255,219 @@
         ]);
       }
       progressEl = null;
-      const s = summary(sel, shown());
-      summaryEl = h('p', { class: 'mq-summary' }, [summaryText(lang(), s)]);
-      downloadEl = h('button', { type: 'button', id: 'mqDownload', class: 'ghost primary', disabled: !s.categories, onclick: start }, [t('download')]);
+      const s = currentSummary();
+      summaryEl = h('p', { class: 'mq-summary' }, [s.text]);
+      downloadEl = h('button', { type: 'button', id: 'mqDownload', class: 'ghost primary', disabled: !s.any, onclick: start }, [t('download')]);
       return h('div', { class: 'mq-actions' }, [
         h('div', { class: 'mq-row' }, [summaryEl, downloadEl]),
         h('p', { class: 'mq-status', role: 'status' }, [statusText()]),
       ]);
     }
 
+    // ---------- Vista previa (semilla fija 1, plan §4; guardada: algunas tardan) ----------
+    const cache = new Map();
+    function cached(key, make) {
+      if (!cache.has(key)) {
+        if (cache.size >= PREVIEW_CACHE) cache.delete(cache.keys().next().value);
+        cache.set(key, make());
+      }
+      return cache.get(key);
+    }
+    /** La etapa de la vista previa: la elegida en «Etapa» si sigue marcada; si no, la primera marcada. */
+    const previewStage = () => { const c = chosen(); return c.includes(sel.preview) ? sel.preview : c[0]; };
+
     function previewQuestion() {
-      const st = chosen()[0];
+      const L = lang(); const N = nota(); const tr = IM.tr(L);
+      const ctx = { lang: L, nota: N, sf: sel.sf, labels: IM.labels(N), svg, chart };
+      if (isSeries()) {
+        const st = seriesChosen(); const lv = sel.series.level;
+        if (!st.length || !ready(st)) return null;
+        // La primera semilla desde 1 que da una serie (las del TCL descartan empates; la otra ruta sale en pocas tablas).
+        return cached(['series', st.join(','), lv, L, N, sel.sf].join('|'), () => {
+          for (let sd = 1; sd < 200; sd++) { const b = S().exercise(st, lv, sd); const q = b && S().question(st, b, ctx, tr); if (q) return q; }
+          return null;
+        });
+      }
+      const st = previewStage();
       const lv = M.LEVELS.find((l) => sel.levels.has(l));
       if (!st || !lv || !ready([st])) return null;
-      const ctx = { lang: lang(), nota: nota(), sf: sel.sf, labels: IM.labels(nota()), svg };
       // Semilla fija 1 (plan §4); en la 4b (o en la 0, si la tabla no admite enunciado) se prueba la siguiente.
-      for (let sd = 1; sd < 50; sd++) { const q = M.question(st, M.exercise(lv, sd), ctx, IM.tr(lang())); if (q) return q; }
-      return null;
+      return cached([st, lv, L, N, sel.sf].join('|'), () => {
+        for (let sd = 1; sd < 50; sd++) { const q = M.question(st, M.exercise(lv, sd), ctx, tr); if (q) return q; }
+        return null;
+      });
     }
 
     function drawPreview(el) {
       const q = previewQuestion();
-      if (q) QV.render(el, q, IM.tr(lang()), { holeLabel: t('hole'), feedbackLabel: t('previewFeedback') });
-      else clear(el);
+      if (q) {
+        QV.render(el, q, IM.tr(lang()), { holeLabel: t('hole'), feedbackLabel: t('previewFeedback'), lang: lang(), partId: 'mqPart',
+          accepted: f3e ? { label: t('accepted'), option: t('acceptedOption'), open: !isSeries() } : null });
+      } else clear(el);
+      if (gotoEl) drawGoto(q);
     }
 
-    function draw() {
-      const tr = IM.tr(lang());
-      drawn = { lang: lang(), nota: nota() };
-      summaryEl = null; downloadEl = null;
-      container.setAttribute('aria-label', t('title'));
-      const stageCheck = (s, o) => check(tr(`stage.${s}`), sel.stages.has(s), (on) => { if (on) sel.stages.add(s); else sel.stages.delete(s); refresh(); }, o);
-      // F3d (tablero 90): las etapas 7 a 10, aparte, con su descripción y el aviso de trabajar en el laboratorio.
-      const lab = shown().filter((s) => LAB_STAGES.includes(s));
-      const stages = fieldset(t('stagesTitle'), [
-        h('p', { class: 'mq-hint' }, [t('stagesHint')]),
-        h('div', { class: 'mq-stages' }, shown().filter((s) => !LAB_STAGES.includes(s)).map((s) => stageCheck(s))),
-        ...(lab.length ? [
-          h('div', { class: 'mq-stages mq-lab' }, lab.map((s) => stageCheck(s, { hint: t(`stageHint.${s}`) }))),
-          h('p', { class: 'mq-labnote' }, [t('labNote')]),
-        ] : []),
-        check(t('sf'), sel.sf, (on) => { sel.sf = on; refresh(); }),
-      ]);
-      const levels = fieldset(t('levelsTitle'), M.LEVELS.map((l) => check(tr(`level.${l}`), sel.levels.has(l), (on) => { if (on) sel.levels.add(l); else sel.levels.delete(l); refresh(); }, { hint: t(`levelHint.${l}`) })));
-      const count = h('input', { type: 'number', id: 'mqCount', min: 1, max: M.MAX_COUNT, step: 1, value: String(sel.count), disabled: !!run,
+    /** «Etapa» (F3e, tablero 100): las etapas marcadas; la de la vista previa, elegida. */
+    function fillPvSelect() {
+      const c = chosen();
+      clear(pvSelectEl);
+      for (const s of c) pvSelectEl.appendChild(h('option', { value: s, selected: s === previewStage() }, [IM.tr(lang())(`stage.${s}`)]));
+      pvSelectEl.disabled = !c.length;
+    }
+
+    /** «Ir a la parte» (tablero 101): un botón por parte de la serie; lleva el foco a su título. */
+    function drawGoto(q) {
+      clear(gotoEl);
+      if (!q || !q.stages) return;
+      // El nombre del grupo, también a la vista (tablero 101); para el lector de pantalla basta el del grupo.
+      gotoEl.appendChild(h('span', { class: 'mq-hint', 'aria-hidden': 'true' }, [t('sr.goTo')]));
+      q.stages.forEach((s, i) => gotoEl.appendChild(h('button', { type: 'button', class: 'ghost', onclick: () => {
+        const head = previewEl.querySelector(`#mqPart-${i}`);
+        if (!head) return;
+        head.scrollIntoView({ block: 'start' });
+        head.focus({ preventScroll: true });
+      } }, [S().CODE[s]])));
+    }
+
+    // ---------- Pestañas (F3e, tablero 101): «Preguntas por etapas» · «Series encadenadas» ----------
+    const MODES = ['stages', 'series'];
+    const tabId = (m) => (m === 'stages' ? 'mqTabStages' : 'mqTabSeries');
+    function setMode(m, focus) {
+      if (run || sel.mode === m) return;
+      sel.mode = m;
+      focusAfter = focus ? tabId(m) : null;
+      draw();
+    }
+    function tabs() {
+      const key = (e) => {
+        const i = MODES.indexOf(sel.mode);
+        const to = { ArrowRight: (i + 1) % 2, ArrowLeft: (i + 1) % 2, Home: 0, End: 1 }[e.key];
+        if (to == null) return;
+        e.preventDefault();
+        setMode(MODES[to], true);
+      };
+      return h('div', { class: 'mq-tabs', role: 'tablist', 'aria-label': t('modeLabel') }, MODES.map((m) => h('button', {
+        type: 'button', role: 'tab', id: tabId(m), 'aria-selected': String(sel.mode === m), 'aria-controls': 'mqPanel',
+        tabindex: sel.mode === m ? '0' : '-1', disabled: !!run, onclick: () => setMode(m, true), onkeydown: key,
+      }, [t(m === 'stages' ? 'modeStages' : 'modeSeries')])));
+    }
+
+    const stageCheck = (s, o) => check(IM.tr(lang())(`stage.${s}`), sel.stages.has(s), (on) => { if (on) sel.stages.add(s); else sel.stages.delete(s); refresh(); }, o);
+    const sfCheck = () => check(t('sf'), sel.sf, (on) => { sel.sf = on; refresh(); });
+
+    /** Las etapas: en cpm.html, la lista de siempre; en moodle.html, en tres familias plegables (tablero 100). */
+    function stagesFieldset() {
+      const hint = (s) => ({ hint: t(`stageHint.${s}`) });
+      if (!f3e) {
+        // F3d (tablero 90): las etapas 7 a 10, aparte, con su descripción y el aviso de trabajar en el laboratorio.
+        const lab = shown().filter((s) => LAB_STAGES.includes(s));
+        return fieldset(t('stagesTitle'), [
+          h('p', { class: 'mq-hint' }, [t('stagesHint')]),
+          h('div', { class: 'mq-stages' }, shown().filter((s) => !LAB_STAGES.includes(s)).map((s) => stageCheck(s))),
+          ...(lab.length ? [
+            h('div', { class: 'mq-stages mq-lab' }, lab.map((s) => stageCheck(s, hint(s)))),
+            h('p', { class: 'mq-labnote' }, [t('labNote')]),
+          ] : []),
+          sfCheck(),
+        ]);
+      }
+      const fams = groupsOf(shown()).map((g) => {
+        const kids = g.key === 'calc' ? [h('div', { class: 'mq-stages' }, g.stages.map((s) => stageCheck(s)))]
+          : g.key === 'lab' ? [h('div', { class: 'mq-stages mq-lab' }, g.stages.map((s) => stageCheck(s, hint(s)))), h('p', { class: 'mq-labnote' }, [t('labNote')])]
+            : [h('div', { class: 'mq-stages mq-prob' }, g.stages.map((s) => stageCheck(s, hint(s))))];
+        return h('details', { class: 'mq-fam', open: openFam[g.key] !== false, ontoggle: (e) => { openFam[g.key] = e.target.open; } }, [
+          h('summary', {}, [t(`fam.${g.key}`)]), h('div', { class: 'mq-fam-body' }, kids)]);
+      });
+      return fieldset(t('stagesTitle'), [h('p', { class: 'mq-hint' }, [t('stagesHint')]), ...fams, sfCheck()]);
+    }
+
+    function countInput(id, get, put) {
+      return h('input', { type: 'number', id, min: 1, max: M.MAX_COUNT, step: 1, value: String(get()), disabled: !!run,
         onchange: (e) => {
           const v = Math.round(Number(e.target.value));
-          sel.count = Number.isFinite(v) && e.target.value !== '' ? Math.max(1, Math.min(M.MAX_COUNT, v)) : sel.count;
-          e.target.value = String(sel.count);
+          put(Number.isFinite(v) && e.target.value !== '' ? Math.max(1, Math.min(M.MAX_COUNT, v)) : get());
+          e.target.value = String(get());
           refresh();
         } });
+    }
+
+    function stagesForm() {
+      const tr = IM.tr(lang());
+      const levels = fieldset(t('levelsTitle'), M.LEVELS.map((l) => check(tr(`level.${l}`), sel.levels.has(l), (on) => { if (on) sel.levels.add(l); else sel.levels.delete(l); refresh(); }, { hint: t(`levelHint.${l}`) })));
+      const count = countInput('mqCount', () => sel.count, (v) => { sel.count = v; });
       const size = fieldset(t('sizeTitle'), [h('label', { for: 'mqCount', class: 'mq-count' }, [t('count')]), count, h('span', { class: 'mq-hint' }, [t('countHint')])], 'mq-size');
+      return [
+        h('p', { class: 'mq-lead' }, [t('lead')]),
+        h('div', { class: 'mq-box' }, [actions()]),
+        stagesFieldset(),
+        h('div', { class: 'mq-two' }, [levels, size]),
+        how(['how1', 'how2', 'how3', 'how4']),
+      ];
+    }
+
+    /** La pestaña de las series (tablero 101). */
+    function seriesForm() {
+      const tr = IM.tr(lang());
+      const ser = sel.series;
+      const boxes = shown().map((s) => check(tr(`stage.${s}`), ser.stages.has(s), (on) => { if (on) ser.stages.add(s); else ser.stages.delete(s); refresh(); }, { off: !seriesOk(s) }));
+      const stages = fieldset(t('sr.stagesTitle'), [
+        h('div', { class: 'mq-stages mq-series' }, boxes),
+        h('p', { class: 'mq-hint mq-series-off' }, [t('sr.off')]),
+        h('p', { class: 'mq-labnote mq-series-means' }, [t('sr.means')]),
+        sfCheck(),
+      ]);
+      const level = fieldset(t('sr.levelTitle'), M.LEVELS.map((l) => h('label', { class: 'mq-check' }, [
+        h('input', { type: 'radio', name: 'mqSeriesLevel', value: l, checked: ser.level === l, disabled: !!run, onchange: () => { ser.level = l; refresh(); } }),
+        h('span', {}, [tr(`level.${l}`), h('span', { class: 'mq-hint' }, [t(`levelHint.${l}`)])]),
+      ])));
+      const count = countInput('mqSeriesCount', () => ser.count, (v) => { ser.count = v; });
+      const size = fieldset(t('sizeTitle'), [h('label', { for: 'mqSeriesCount', class: 'mq-count' }, [t('sr.count')]), count, h('span', { class: 'mq-hint' }, [t('countHint')])], 'mq-size');
+      return [
+        h('p', { class: 'mq-lead' }, [t('sr.lead')]),
+        h('div', { class: 'mq-box' }, [actions()]),
+        stages,
+        h('div', { class: 'mq-two' }, [level, size]),
+        how(['sr.how', 'how3', 'how4']),
+      ];
+    }
+
+    const how = (keys) => h('details', { class: 'mq-how' }, [
+      h('summary', {}, [t('howTitle')]),
+      h('ol', {}, keys.map((k) => h('li', {}, [t(k)]))),
+      h('p', { class: 'mq-hint' }, [t('seedNote')]),
+    ]);
+
+    function draw() {
+      drawn = { lang: lang(), nota: nota() };
+      summaryEl = null; downloadEl = null; pvSelectEl = null; gotoEl = null;
+      container.setAttribute('aria-label', t('title'));
+      const form = isSeries() ? seriesForm() : stagesForm();
       const preview = h('section', { class: 'mq-preview card', 'aria-label': t('previewTitle') });
       previewEl = preview;
+      // F3e (tableros 100 y 101): «Etapa» junto al título de la vista previa; en las series, «Ir a la parte».
+      let tools = null;
+      if (f3e && isSeries()) tools = gotoEl = h('div', { class: 'mq-goto', role: 'group', 'aria-label': t('sr.goTo') });
+      else if (f3e) {
+        pvSelectEl = h('select', { id: 'mqPvStage', onchange: (e) => { sel.preview = e.target.value; drawPreview(previewEl); fetchFamilies(); } });
+        fillPvSelect();
+        tools = h('div', { class: 'mq-pvstage' }, [h('label', { for: 'mqPvStage' }, [t('previewStage')]), pvSelectEl]);
+      }
       drawPreview(preview);
       fetchFamilies();
       clear(container);
+      const formCol = f3e
+        ? h('div', { class: 'mq-form' }, [tabs(), h('div', { id: 'mqPanel', role: 'tabpanel', class: 'mq-panel', 'aria-labelledby': tabId(sel.mode) }, form)])
+        : h('div', { class: 'mq-form' }, [hooks.heading === false ? null : h('h1', {}, [t('title')]), ...form]);
       container.appendChild(h('div', { class: 'mq-layout' }, [
-        h('div', { class: 'mq-form' }, [
-          hooks.heading === false ? null : h('h1', {}, [t('title')]),
-          h('p', { class: 'mq-lead' }, [t('lead')]),
-          h('div', { class: 'mq-box' }, [actions()]),
-          stages,
-          h('div', { class: 'mq-two' }, [levels, size]),
-          h('details', { class: 'mq-how' }, [
-            h('summary', {}, [t('howTitle')]),
-            h('ol', {}, ['how1', 'how2', 'how3', 'how4'].map((k) => h('li', {}, [t(k)]))),
-            h('p', { class: 'mq-hint' }, [t('seedNote')]),
-          ]),
-        ]),
-        h('div', { class: 'mq-side' }, [h('h2', {}, [t('previewTitle')]), h('p', { class: 'mq-hint' }, [t('previewHint')]), preview]),
+        formCol,
+        h('div', { class: 'mq-side' }, [h('div', { class: 'mq-side-head' }, [h('h2', {}, [t('previewTitle')]), tools]), h('p', { class: 'mq-hint' }, [t('previewHint')]), preview]),
       ]));
-      if (focusAfter) { const el = container.querySelector(focusAfter === 'cancel' ? '#mqCancel' : '#mqDownload'); if (el) el.focus(); focusAfter = null; }
+      if (focusAfter) {
+        const id = { cancel: 'mqCancel', download: 'mqDownload' }[focusAfter] || focusAfter;
+        const el = container.querySelector(`#${id}`);
+        if (el) el.focus();
+        focusAfter = null;
+      }
     }
 
     function render() {
@@ -287,12 +481,14 @@
       if (run) stop();
     }
 
-    const debug = () => ({ sel: { stages: chosen(), sf: sel.sf, levels: [...sel.levels], count: sel.count },
-      running: !!run, made: run ? run.made : null, total: run ? run.total : null, status: statusText(), last, preview: previewQuestion() });
+    const debug = () => ({ sel: { mode: sel.mode, stages: chosen(), sf: sel.sf, levels: [...sel.levels], count: sel.count,
+      series: { stages: seriesChosen(), level: sel.series.level, count: sel.series.count } },
+    running: !!run, made: run ? run.made : null, total: run ? run.total : null, status: statusText(), last, preview: previewQuestion() });
     return { render, leave, debug };
   }
 
-  const api = { stmtPublic: true, f3dPublic: true, LAB_STAGES, stagesOf, summary, summaryText, fileName, missingText, create, CHUNK_MS };
+  const api = { stmtPublic: true, f3dPublic: true, LAB_STAGES, F3E_STAGES, FAMILY_GROUPS, DEFAULT_STAGES, SERIES_DEFAULT, stagesOf, groupsOf,
+    seriesOk, seriesCategory, seriesSummaryText, summary, summaryText, fileName, missingText, create, CHUNK_MS };
   root.PNL = root.PNL || {};
   root.PNL.moodlePage = api;
   if (isNode) module.exports = api;

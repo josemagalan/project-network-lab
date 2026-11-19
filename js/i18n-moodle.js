@@ -332,6 +332,36 @@
       solMeans: 'Los tiempos, las holguras y los sucesos van con las medias a dos decimales; con las medias exactas también se aceptan (±0,01).',
       solTcl: 'En las partes del TCL se aceptan también z, P y el plazo calculados con μ y σ² sumadas con las medias ya redondeadas.',
     },
+    // F3e (T016; plan P2 y P7; tableros 100, 101 y 105): la página del exportador con las etapas 11 a 17 y las series.
+    page: {
+      modeLabel: 'Qué generar', modeStages: 'Preguntas por etapas', modeSeries: 'Series encadenadas',
+      fam: { calc: 'Cálculo · 0 a 6', lab: 'Construir y detectar · 7 a 10', prob: 'Probabilidad y Montecarlo · 11 a 17' },
+      stageHint: {
+        tclMoments: 'Con a, m y b: tₑ y σ² de cada actividad (±0,01).',
+        tclPath: 'Da las medias y las varianzas; el camino, opción múltiple de hasta 4 caminos, y μ y σ² del proyecto.',
+        tclProb: 'Da μ y σ²: z y P(T ≤ plazo), y la z y el plazo de una probabilidad. Valen la tabla o la exacta; para el 95 %, 1,64, 1,645 y 1,65.',
+        tclRoute: 'Da el camino crítico y su probabilidad; se piden la media, la varianza, la z y la probabilidad de una ruta sin actividades en común con él, y la de las dos (el producto).',
+        mcRead: 'Histograma, función de distribución y tornado como imágenes SVG, con texto alternativo y sus datos en una tabla plegada: un percentil, P(T ≤ plazo), un índice y una pregunta de interpretación.',
+        mcDisc: 'E[T], P(T ≤ plazo) y la criticidad de las discretas, sin pedir cada combinación (±0,001).',
+        mcRep: 'La duración del proyecto en cada réplica, P(T ≤ plazo) y la criticidad de cada actividad (k/n, ±0,001).',
+      },
+      previewStage: 'Etapa',
+      accepted: 'Respuestas que acepta Moodle (salen del núcleo)',
+      acceptedOption: 'Opción correcta',
+      sr: {
+        lead: 'Una serie es una sola pregunta cloze que lleva un mismo proyecto por las etapas que elijas, en su orden. Una parte no da los resultados de las anteriores, así que cada estudiante sigue con los suyos. Todas las series de una descarga van a la misma categoría.',
+        stagesTitle: 'Etapas de la serie',
+        off: 'En gris, las que no pueden ir en una serie: la 9 y la 10 cambian la tabla o enseñan una red con errores, y de la 15 a la 17 son de Montecarlo, con otros datos.',
+        means: 'Con una etapa del TCL (11 a 14), las etapas 1 a 6 usan como duraciones las medias tₑ (±0,01), como en el examen. Con el enunciado, este da m y una tabla debajo da a y b.',
+        levelTitle: 'Nivel',
+        count: 'Número de series',
+        summary: 'Se generarán {q} series en la categoría {cat}.',
+        summaryOne: 'Se generará 1 serie en la categoría {cat}.',
+        nothing: 'Elige al menos una etapa.',
+        goTo: 'Ir a la parte',
+        how: 'En el curso: Banco de preguntas → Importar → «Moodle XML». Las series van a la categoría Series/<etapas>/<nivel>, dentro de «Redes de proyectos»; en el cuestionario, una «pregunta aleatoria» de esa categoría da a cada estudiante una serie distinta.',
+      },
+    },
   };
   const en3 = {
     stage: {
@@ -423,6 +453,35 @@
       solNote: 'One project for every part; a part does not give the results of the previous one.',
       solMeans: 'Times, floats and events use the means to two decimals; with the exact means they are also accepted (±0.01).',
       solTcl: 'In the CLT parts, z, P and the deadline worked out with μ and σ² added from the rounded means are also accepted.',
+    },
+    page: {
+      modeLabel: 'What to generate', modeStages: 'Questions by stage', modeSeries: 'Chained series',
+      fam: { calc: 'Calculation · 0 to 6', lab: 'Build and detect · 7 to 10', prob: 'Probability and Monte Carlo · 11 to 17' },
+      stageHint: {
+        tclMoments: 'With a, m and b: tₑ and σ² of each activity (±0.01).',
+        tclPath: 'Gives the means and the variances; the path, multiple choice among up to 4 paths, and μ and σ² of the project.',
+        tclProb: 'Gives μ and σ²: z and P(T ≤ deadline), and the z and the deadline for a probability. The table or the exact value both count; for 95%, 1.64, 1.645 and 1.65.',
+        tclRoute: 'Gives the critical path and its probability; asks for the mean, the variance, the z and the probability of a route with no activities in common with it, and that of both (the product).',
+        mcRead: 'Histogram, distribution function and tornado as SVG images, with alt text and their data in a folded table: a percentile, P(T ≤ deadline), an index and an interpretation question.',
+        mcDisc: 'E[T], P(T ≤ deadline) and the criticality of the discrete activities, without asking for each combination (±0.001).',
+        mcRep: 'The project duration in each run, P(T ≤ deadline) and the criticality of each activity (k/n, ±0.001).',
+      },
+      previewStage: 'Stage',
+      accepted: 'Answers Moodle accepts (from the core)',
+      acceptedOption: 'Correct option',
+      sr: {
+        lead: 'A series is a single cloze question that takes one project through the stages you choose, in order. A part does not give the results of the previous ones, so each student carries on with their own. All the series in a download go into the same category.',
+        stagesTitle: 'Stages of the series',
+        off: 'Greyed out, those that cannot go in a series: 9 and 10 change the table or show a network with errors, and 15 to 17 are Monte Carlo, with other data.',
+        means: 'With a CLT stage (11 to 14), stages 1 to 6 use the means tₑ as durations (±0.01), as in the exam. With the statement, it gives m and a table below gives a and b.',
+        levelTitle: 'Level',
+        count: 'Number of series',
+        summary: '{q} series will be generated in the category {cat}.',
+        summaryOne: '1 series will be generated in the category {cat}.',
+        nothing: 'Choose at least one stage.',
+        goTo: 'Go to part',
+        how: 'In the course: Question bank → Import → “Moodle XML”. The series go into the category Series/<stages>/<level>, inside “Project networks”; in the quiz, a “random question” from that category gives each student a different series.',
+      },
     },
   };
   // Une los textos del bloque 3 con los de arriba, sin pisar ninguno.

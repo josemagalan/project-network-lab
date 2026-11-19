@@ -49,22 +49,25 @@ test('cada etapa de core/moodle tiene su familia: la base (F3b), el enunciado (s
   assert.deepEqual(MA.familiesOf(['detective', 'early', 'stmt', 'succ']), ['sg', 'lab']);
   assert.deepEqual(MA.familiesOf([]), []);
   assert.deepEqual(MA.familiesOf(['otra']), []);
-  // Las etapas 11 a 17 de la F3e (al final de STAGES_ALL) tendrán su familia en T016.
-  const upToF3d = M.STAGES_ALL.slice(0, M.STAGES_ALL.indexOf('detective') + 1);
-  assert.deepEqual(Object.keys(MA.FAMILY_OF).sort(), upToF3d.filter((s) => !M.STAGES.includes(s)).sort());
+  // F3e (T016): las etapas 11 a 17, la familia estocástica (st).
+  for (const s of M.STAGES_F3E) assert.deepEqual(MA.familiesOf([s]), ['st'], s);
+  assert.deepEqual(MA.familiesOf(['mcRead', 'stmt', 'tclProb', 'succ']), ['sg', 'lab', 'st']);
+  assert.deepEqual(Object.keys(MA.FAMILY_OF).sort(), M.STAGES_ALL.filter((s) => !M.STAGES.includes(s)).sort());
   for (const f of Object.values(MA.FAMILIES).flat()) assert.ok(fs.existsSync(path.join(ROOT, f)), `existe ${f}`);
 });
 
 test('la base y las familias se cargan en el orden de la página sin errores y dejan lo que piden las etapas', () => {
-  const ctx = vm.createContext({ console, URLSearchParams });
+  const ctx = vm.createContext({ console, URLSearchParams, TextEncoder, TextDecoder });
   ctx.globalThis = ctx;
   const run = (f) => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   scriptsOf(html).forEach(run);
-  for (const k of ['i18n', 'urlstate', 'moodle', 'i18nMoodle', 'dom', 'questionView', 'moodlePage', 'moodleApp']) assert.ok(ctx.PNL[k], k);
+  // F3e (T016): las series (core/series) van en la base: la pestaña «Series encadenadas» cuenta sus etapas sin esperar.
+  for (const k of ['i18n', 'urlstate', 'moodle', 'series', 'i18nMoodle', 'dom', 'questionView', 'moodlePage', 'moodleApp']) assert.ok(ctx.PNL[k], k);
   assert.equal(ctx.PNL.stmtgen, undefined);
   assert.equal(ctx.PNL.detective, undefined);
-  for (const fam of ['sg', 'lab']) MA.FAMILIES[fam].forEach(run);
-  for (const k of ['stmtgen', 'contexts', 'detective', 'aoacheck', 'roycheck', 'netSvg']) assert.ok(ctx.PNL[k], k);
+  for (const k of ['threept', 'tcl', 'sim', 'mc', 'probgen', 'chartSvg']) assert.equal(ctx.PNL[k], undefined, k);
+  for (const fam of ['sg', 'lab', 'st']) MA.FAMILIES[fam].forEach(run);
+  for (const k of ['stmtgen', 'contexts', 'detective', 'aoacheck', 'roycheck', 'netSvg', 'threept', 'tcl', 'sim', 'mc', 'probgen', 'chartSvg']) assert.ok(ctx.PNL[k], k);
   // Con la base y las familias, el núcleo da una pregunta de cada etapa (la misma que en Node).
   const IM = ctx.PNL.i18nMoodle;
   const qctx = { lang: 'es', nota: 'en', sf: false, labels: IM.labels('en'), svg: ctx.PNL.netSvg.render };
@@ -82,6 +85,15 @@ test('la base y las familias se cargan en el orden de la página sin errores y d
     if (text.includes('La red PERT de las reglas que sigue') && text.includes('<svg')) graphs.add('aoa');
   }
   assert.deepEqual([...graphs].sort(), ['aoa', 'aon']);
+  // F3e (T016): «Leer una simulación» con sus dos imágenes (chart-svg, ctx.chart) y una serie con el enunciado y el TCL.
+  const chart = (m) => (m.kind === 'dist' ? ctx.PNL.chartSvg.dist(m) : ctx.PNL.chartSvg.indices(m));
+  const mcq = ctx.PNL.moodle.question('mcRead', ctx.PNL.moodle.exercise('easy', 1), Object.assign({}, qctx, { chart }), IM.tr('es'));
+  assert.equal(mcq.files.length, 2);
+  assert.ok(mcq.files.every((f) => f.svg.startsWith('<svg')));
+  const SR = ctx.PNL.series;
+  let sq = null;
+  for (let sd = 1; sd < 50 && !sq; sd++) { const b = SR.exercise(['stmt', 'early', 'tclProb'], 'easy', sd); sq = b && SR.question(['stmt', 'early', 'tclProb'], b, qctx, IM.tr('es')); }
+  assert.equal(sq.stage, 'series');
 });
 
 test('el estado del enlace es el de cpm.html#v=moodle: idioma del enlace, de ?lang= o del navegador, y la notación', () => {
