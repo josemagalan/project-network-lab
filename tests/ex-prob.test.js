@@ -252,3 +252,46 @@ test('T010 · los textos de TCL (i18n-prob) están en los dos idiomas, con los m
   assert.equal(I.t('es', 'ex.kind.tcl'), 'Probabilidad (TCL)');
   assert.equal(I.t('en', 'ex.kind.mc'), 'Monte Carlo');
 });
+
+// ---------- F3e T021: arreglos de la revisión de nivel 2 (ronda 1) ----------
+
+test('T021 I-F2 · el camino: marcas sin el inicio o sin el fin, y un empate por dentro perdido por la varianza (semilla 2026, media)', () => {
+  const ex = PG.tcl(2026, 'medium', { route: true }).ex;
+  const sol = PG.solve('tcl', ex);
+  const base = student(ex, sol);
+  const E = (edit, k = 'path', lang = 'es') => { const a = Object.assign({}, base, edit); return XP.explain(ex, a, XP.grade(ex, a), k, lang); };
+  // Sin el inicio (G–H–I–J) o sin el fin (B–G–H–I) no son un camino; μ se explica entonces sobre el de la solución.
+  assert.equal(E({ path: ['G', 'H', 'I', 'J'] }), 'Tus marcas (G–H–I–J) no forman un camino del inicio al fin por actividades seguidas.');
+  assert.equal(E({ path: ['B', 'G', 'H', 'I'] }), 'Tus marcas (B–G–H–I) no forman un camino del inicio al fin por actividades seguidas.');
+  assert.equal(E({ path: ['G', 'H', 'I', 'J'], mu: '30' }, 'mu'), 'Has escrito 30. Con tus datos esperaba 25: μ del proyecto = 6 + 7,5 + 3,33 + 2,17 + 6 = 25.');
+  assert.equal(E({ path: ['B', 'G', 'H', 'I'], mu: '30' }, 'mu'), 'Has escrito 30. Con tus datos esperaba 25: μ del proyecto = 6 + 7,5 + 3,33 + 2,17 + 6 = 25.');
+  // Empate por dentro: con tₑ de A = 1 y de C = 5,33, B–C–D–E también suma 25; con σ² de C, D y E = 0, gana B–G–H–I–J.
+  const tie = { 'A.te': '1', 'C.te': '5,33', 'C.var': '0', 'D.var': '0', 'E.var': '0', path: ['B', 'C', 'D', 'E'] };
+  assert.equal(E(tie), 'Con tus tₑ, B–C–D–E empata con B–G–H–I–J (25), pero con tus σ² tiene menos varianza (0 frente a 2,72): con empate, el crítico es el de mayor varianza.');
+  assert.equal(E(tie, 'path', 'en'), I.t('en', 'pb.explain.pathVar', { p: 'B–C–D–E', best: 'B–G–H–I–J', len: '25', v: '0', top: '2.72' }));
+});
+
+test('T021 I-F3 · explicaciones: σ² del proyecto, la otra ruta (μ, z y P), el plazo con la z escrita y las casillas vacías (semilla 2026, media)', () => {
+  const ex = PG.tcl(2026, 'medium', { route: true }).ex;
+  const sol = PG.solve('tcl', ex);
+  const E = (a, k, lang = 'es') => XP.explain(ex, a, XP.grade(ex, a), k, lang);
+  const a3 = student(ex, sol, { pre: { 'G.var': '1' } });
+  assert.equal(E(Object.assign({}, a3, { var: '9' }), 'var'), 'Has escrito 9. Con tus datos esperaba 1,47: σ² del proyecto = 0 + 1 + 0,44 + 0,03 + 0 = 1,47.');
+  const a4 = student(ex, sol, { pre: { 'G.te': '8,5' } });
+  assert.equal(E(Object.assign({}, a4, { 'r.mu': '30' }), 'r.mu'), 'Has escrito 30. Con tus datos esperaba 24,34: μ de la otra ruta = 9,5 + 1,17 + 3 + 10,67 = 24,34.');
+  assert.equal(E(Object.assign({}, a4, { 'r.z': '3' }), 'r.z'), 'Has escrito 3. Con tus datos esperaba 1,17: z de la otra ruta = (27 − 24,34) / √5,16 = 1,17.');
+  assert.equal(E(Object.assign({}, a4, { 'r.p': '0,1' }), 'r.p'), 'Has escrito 0,1. Con tus datos esperaba 0,879: P de la otra ruta = Φ(1,17) = 0,879.');
+  assert.equal(E(Object.assign({}, a4, { 'r.p': '0,1' }), 'r.p', 'en'), 'You wrote 0.1. With your data I expected 0.879: P of the other route = Φ(1.17) = 0.879.');
+  // El plazo, con la z que escribió (0,85, no la de la tabla, 0,84).
+  assert.equal(E(Object.assign({}, a4, { zp: '0,85', Tp: '30' }), 'Tp'), 'Has escrito 30. Con tus datos esperaba 27,4: plazo para el 80 % = 26 + 0,85 · √2,72 = 27,4.');
+  // Vacías o sin número: los datos de la solución.
+  assert.equal(E(Object.assign({}, a4, { zp: '', var: '', mu: 'x', Tp: '30' }), 'Tp'), 'Has escrito 30. Con tus datos esperaba 26,39: plazo para el 80 % = 25 + 0,84 · √2,7222 = 26,39.');
+  assert.equal(E(Object.assign({}, a4, { 'r.mu': '', 'r.z': '0' }), 'r.z'), 'Has escrito 0. Con tus datos esperaba 1,17: z de la otra ruta = (27 − 24,3333) / √5,16 = 1,17.');
+});
+
+test('T021 I-F7 · el nivel con «Personalizar» se describe como el medio (un 20 % de duraciones fijas)', () => {
+  const gp = { n: [8, 9], pred: 1.5, dummies: null, critical: [1, 2], dmax: 10 };
+  assert.equal(XP.levelText(gp, 'custom', 'es'), '8–9 actividades · 1–2 caminos críticos · un 20 % de duraciones fijas (a = m = b)');
+  assert.equal(XP.levelText(gp, 'custom', 'en'), '8–9 activities · 1–2 critical paths · 20% of durations fixed (a = m = b)');
+  assert.equal(XP.levelText(gp, 'custom', 'es').split(' · ')[2], XP.levelText(gp, 'medium', 'es').split(' · ')[2]);
+});

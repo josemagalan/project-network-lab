@@ -293,7 +293,8 @@ test('T015 · TCL: la 13 y la 14 no dan μ ni σ²; z, P y el plazo valen con μ
   }
   assert.equal(found, 3);
   // Media 17 (la 13) y 357 (la 14): la z de una manera queda a más de 0,01 de la de la otra; valen las dos.
-  for (const [s, key, z, sts] of [[17, '13:z', [1.8, 1.82], ['tclProb']], [357, '14:r.z', [1.71, 1.69], ['tclRoute']]]) {
+  // Desde T021 (N-F5), detrás, la z con σ redondeada a dos decimales si es otra (en la 13, 1,81; en la 14, 1,7 y 1,68).
+  for (const [s, key, z, sts] of [[17, '13:z', [1.8, 1.82, 1.81], ['tclProb']], [357, '14:r.z', [1.71, 1.69, 1.7, 1.68], ['tclRoute']]]) {
     const q = S.question(sts, S.exercise(sts, 'medium', s), ctx(), tr);
     const c = cells(q.text)[key];
     assert.deepEqual(c.nums.map((a) => a.v), z, s);
@@ -392,4 +393,28 @@ test('T015: series en español y en inglés con los textos de i18n-moodle, sin c
   const keys = (o, pre) => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? keys(v, `${pre}${k}.`) : [`${pre}${k}`]));
   assert.deepEqual(keys(I.dict.es.mq.series, '').sort(), keys(I.dict.en.mq.series, '').sort());
   assert.equal(I.t('es', 'mq.series.part', { name: '3 · Holguras' }), 'Parte 3 · Holguras');
+});
+
+test('T021 N-F5 · TCL en una serie: la z con σ redondeada a dos decimales también vale (la 13 y la 14, de las dos maneras), con su P', () => {
+  // Fácil 808: la 13 con σ redondeada da z = 4,88 (de las dos maneras); media 505: la 14, z = −1.
+  const st = ['tclProb', 'tclRoute'];
+  const sum = (ids, f) => ids.reduce((a, id) => a + f(id), 0);
+  const nrm = (mu, v, T) => TLc.exam({ acts: [{ id: 'T', preds: [], dist: { kind: 'normal', mu, var: v } }] }, { deadline: T });
+  for (const [lv, s, key, z] of [['easy', 808, '13', 4.88], ['medium', 505, '14', -1]]) {
+    const b = S.exercise(st, lv, s);
+    const q = S.question(st, b, ctx(), tr);
+    const s3 = PG.solve('tcl', b.tcl);
+    const c = cells(q.text);
+    const T = b.tcl.deadline;
+    const ids = key === '13' ? s3.path : b.tcl.route;
+    const reads = [[r2(sum(ids, (id) => s3.acts[id].te)), r2(sum(ids, (id) => s3.acts[id].var))], [r2(sum(ids, (id) => r2(s3.acts[id].te))), r2(sum(ids, (id) => r2(s3.acts[id].var)))]];
+    for (const [mu, v] of reads) {
+      const zs = r2((T - mu) / r2(Math.sqrt(v)));
+      assert.equal(zs, z, `${lv} ${s}`);
+      assert.ok(Math.abs(zs - nrm(mu, v, T).table.z2) > 0.01, `${lv} ${s}: fuera de ±0,01 de la z con σ sin redondear`);
+      const k = key === '13' ? ['13:z', '13:p'] : ['14:r.z', '14:r.p'];
+      assert.ok(accepts(c[k[0]], zs), `${lv} ${s}: z ${zs}`);
+      assert.ok(accepts(c[k[1]], nrm(mu, r2(Math.sqrt(v)) ** 2, T).table.p4), `${lv} ${s}: P de la tabla con esa z`);
+    }
+  }
 });

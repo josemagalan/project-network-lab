@@ -339,7 +339,7 @@
       stageHint: {
         tclMoments: 'Con a, m y b: tₑ y σ² de cada actividad (±0,01).',
         tclPath: 'Da las medias y las varianzas; el camino, opción múltiple de hasta 4 caminos, y μ y σ² del proyecto.',
-        tclProb: 'Da μ y σ²: z y P(T ≤ plazo), y la z y el plazo de una probabilidad. Valen la tabla o la exacta; para el 95 %, 1,64, 1,645 y 1,65.',
+        tclProb: 'Da μ y σ²: z y P(T ≤ plazo), y la z y el plazo de una probabilidad. Valen la tabla o la exacta, y la z con σ redondeada a dos decimales; para el 95 %, 1,64, 1,645 y 1,65.',
         tclRoute: 'Da el camino crítico y su probabilidad; se piden la media, la varianza, la z y la probabilidad de una ruta sin actividades en común con él, y la de las dos (el producto).',
         mcRead: 'Histograma, función de distribución y tornado como imágenes SVG, con texto alternativo y sus datos en una tabla plegada: un percentil, P(T ≤ plazo), un índice y una pregunta de interpretación.',
         mcDisc: 'E[T], P(T ≤ plazo) y la criticidad de las discretas, sin pedir cada combinación (±0,001).',
@@ -460,7 +460,7 @@
       stageHint: {
         tclMoments: 'With a, m and b: tₑ and σ² of each activity (±0.01).',
         tclPath: 'Gives the means and the variances; the path, multiple choice among up to 4 paths, and μ and σ² of the project.',
-        tclProb: 'Gives μ and σ²: z and P(T ≤ deadline), and the z and the deadline for a probability. The table or the exact value both count; for 95%, 1.64, 1.645 and 1.65.',
+        tclProb: 'Gives μ and σ²: z and P(T ≤ deadline), and the z and the deadline for a probability. The table or the exact value both count, and so does z with σ rounded to two decimals; for 95%, 1.64, 1.645 and 1.65.',
         tclRoute: 'Gives the critical path and its probability; asks for the mean, the variance, the z and the probability of a route with no activities in common with it, and that of both (the product).',
         mcRead: 'Histogram, distribution function and tornado as SVG images, with alt text and their data in a folded table: a percentile, P(T ≤ deadline), an index and an interpretation question.',
         mcDisc: 'E[T], P(T ≤ deadline) and the criticality of the discrete activities, without asking for each combination (±0.001).',

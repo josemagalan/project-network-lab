@@ -133,42 +133,9 @@
 
   // ---------- Explicaciones (AC10) ----------
 
-  function net(ex) {
-    const pos = Object.fromEntries(ex.rows.map((r, i) => [r.id, i]));
-    const preds = Object.fromEntries(ex.rows.map((r) => [r.id, r.preds]));
-    const succs = Object.fromEntries(ex.rows.map((r) => [r.id, []]));
-    for (const r of ex.rows) for (const p of r.preds) succs[p].push(r.id);
-    return { pos, preds, succs };
-  }
-  /** Las marcas, en el orden de la tabla, como camino completo de inicio a fin (null si no lo son). */
-  function asPath(n, ids) {
-    const p = ids.filter((x) => x in n.pos).sort((x, y) => n.pos[x] - n.pos[y]);
-    if (!p.length || p.length < ids.length || n.preds[p[0]].length || n.succs[p[p.length - 1]].length) return null;
-    for (let i = 1; i < p.length; i++) if (!n.preds[p[i]].includes(p[i - 1])) return null;
-    return p;
-  }
-  /** El camino más largo con unas medias (empate: más varianza), de atrás adelante en orden topológico. */
-  function longest(ex, te, va) {
-    const n = net(ex); const best = {};
-    const deg = Object.fromEntries(ex.rows.map((r) => [r.id, r.preds.length]));
-    const topo = ex.rows.filter((r) => !r.preds.length).map((r) => r.id);
-    for (let i = 0; i < topo.length; i++) for (const x of n.succs[topo[i]]) if (--deg[x] === 0) topo.push(x);
-    for (let i = topo.length - 1; i >= 0; i--) {
-      const id = topo[i]; let b = { len: 0, v: 0, path: [] };
-      for (const s of n.succs[id]) {
-        const c = best[s];
-        if (!b.path.length || c.len > b.len + 1e-9 || (Math.abs(c.len - b.len) <= 1e-9 && c.v > b.v)) b = c;
-      }
-      best[id] = { len: b.len + te(id), v: b.v + va(id), path: [id].concat(b.path) };
-    }
-    let top = null;
-    for (const r of ex.rows) {
-      if (r.preds.length) continue;
-      const c = best[r.id];
-      if (!top || c.len > top.len + 1e-9 || (Math.abs(c.len - top.len) <= 1e-9 && c.v > top.v)) top = c;
-    }
-    return top;
-  }
+  // El camino (marcas como camino completo, el más largo con empate por varianza) lo da core/probgrade.paths (T021, I-F2).
+  /** La posición de cada actividad en la tabla (para enseñar las marcas en ese orden). */
+  const rowPos = (ex) => Object.fromEntries(ex.rows.map((r, i) => [r.id, i]));
 
   // Dónde empezó el error: se sigue from hasta una casilla incorrecta.
   function origin(g, key, seen) {
@@ -213,21 +180,22 @@
     const snap = (k) => (g.cells[k] && BAD.has(g.cells[k].status) ? val(k) : sol.acts[k.split('.')[0]][k.split('.')[1]]);
     if (c.formula === 'path') {
       const marks = PR.marks(ans.path);
-      const n = net(ex);
-      const his = asPath(n, marks);
-      const ordered = marks.slice().sort((x, y) => (n.pos[x] ?? 1e9) - (n.pos[y] ?? 1e9));
+      const n = PR.paths.graph(ex.rows);
+      const his = PR.paths.asPath(n, marks);
+      const pos = rowPos(ex);
+      const ordered = marks.slice().sort((x, y) => (pos[x] ?? 1e9) - (pos[y] ?? 1e9));
       if (c.status === 'carried') return tt(lang, 'pb.explain.pathCarried', { p: dash(his || ordered), r: dash(sol.path), origin: from });
       if (!his) return tt(lang, 'pb.explain.pathBroken', { p: dash(ordered) });
       // Con lo que escribió y con los buenos exactos: si en alguna empata con el más largo, perdió por la varianza (si no, sería
       // crítico con sus datos y probgrade lo daría por bueno con error consecuente).
-      const reads = [[te, va], [(id) => snap(`${id}.te`), (id) => snap(`${id}.var`)]].map(([T1, V1]) => ({ top: longest(ex, T1, V1),
+      const reads = [[te, va], [(id) => snap(`${id}.te`), (id) => snap(`${id}.var`)]].map(([T1, V1]) => ({ top: PR.paths.longest(n, T1, V1),
         len: his.reduce((x, id) => x + T1(id), 0), v: his.reduce((x, id) => x + V1(id), 0) }));
       const tie = reads.find((q) => Math.abs(q.top.len - q.len) <= 1e-6);
       if (tie) return tt(lang, 'pb.explain.pathVar', { p: dash(his), best: dash(tie.top.path), len: f(tie.len, 2), v: f(tie.v, 2), top: f(tie.top.v, 2) });
       const q = reads[0];
       return tt(lang, 'pb.explain.pathShort', { p: dash(his), len: f(q.len, 2), top: f(q.top.len, 2), best: dash(q.top.path) });
     }
-    const his = asPath(net(ex), PR.marks(ans.path)) || sol.path;
+    const his = PR.paths.asPath(PR.paths.graph(ex.rows), PR.marks(ans.path)) || sol.path;
     const sum = (ids, g1) => ids.map((id) => f(g1(id))).join(' + ');
     const calc = {
       mu: () => sum(his, te), pvar: () => sum(his, va),
@@ -406,7 +374,8 @@
       if (!exam) actions.push(h('button', { type: 'button', class: 'ghost primary', id: 'pbCheck', onclick: check }, [t('ex.check')]));
       if (exam && !delivered) actions.push(h('button', { type: 'button', class: 'ghost primary', id: 'pbDeliver', onclick: () => { confirmOpen = true; focusAfter = 'pbConfirmYes'; redraw(); } }, [t('ex.deliver')]));
       actions.push(h('button', { type: 'button', class: 'ghost', id: 'pbTable', 'aria-expanded': String(!!normal), 'aria-controls': normal ? 'pbNormal' : null,
-        onclick: () => { normal = normal ? null : { z: zKey && ans[zKey] ? ans[zKey] : '' }; focusAfter = normal ? 'pbNormalZ' : 'pbTable'; redraw(); } }, [t('pb.table')]));
+        // Con la z escrita ahora (escribir no repinta: ans puede ser de antes; revisión de T021, I-F4).
+        onclick: () => { const cur = answers(hooks.state()); normal = normal ? null : { z: zKey && cur[zKey] ? cur[zKey] : '' }; focusAfter = normal ? 'pbNormalZ' : 'pbTable'; redraw(); } }, [t('pb.table')]));
       if (!exam || delivered) actions.push(h('a', { class: `pb-link${delivered ? ' primary' : ''}`, id: 'pbSol', href: m6Hash(ex, s) }, [t('pb.sol')]));
       if (delivered) actions.push(h('button', { type: 'button', class: 'ghost', id: 'pbAnother2', onclick: hooks.another }, [t('ex.another')]));
       if (hooks.learn) actions.push(h('button', { type: 'button', class: 'ghost', id: 'pbLearn', onclick: () => hooks.learn() }, [t('learn.button')]));

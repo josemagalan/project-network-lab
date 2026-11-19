@@ -57,7 +57,7 @@
       cT: 'T de la combinación {k}', cp: 'p de la combinación {k}', mean: 'E[T]', acrit: 'criticidad de {a}',
       rT: 'T de la réplica {k}', rcrit: 'críticas de la réplica {k}',
     },
-    calc: { mean: 'Σ T · p de tus combinaciones', pT: 'Σ p de tus combinaciones con T ≤ {T}' },
+    calc: { mean: 'Σ T · p de tus combinaciones', pT: 'Σ p de tus combinaciones con T ≤ {T}', crit: 'Σ p de tus combinaciones en que {a} es crítica' },
     explain: {
       readPct: 'Has escrito {v}. La función de distribución llega a {q} hacia {r}: ese es el percentil {p}. Se acepta ± una clase del histograma ({w}).',
       readP: 'Has escrito {v}. La función de distribución corta la línea discontinua del plazo hacia {r}; se acepta ±0,05.',
@@ -121,7 +121,7 @@
       cT: 'T of combination {k}', cp: 'p of combination {k}', mean: 'E[T]', acrit: 'criticality of {a}',
       rT: 'T of run {k}', rcrit: 'critical activities of run {k}',
     },
-    calc: { mean: 'Σ T · p of your combinations', pT: 'Σ p of your combinations with T ≤ {T}' },
+    calc: { mean: 'Σ T · p of your combinations', pT: 'Σ p of your combinations with T ≤ {T}', crit: 'Σ p of your combinations in which {a} is critical' },
     explain: {
       readPct: 'You wrote {v}. The distribution function reaches {q} at about {r}: that is the {p}th percentile. Within ± one histogram class ({w}) is right.',
       readP: 'You wrote {v}. The distribution function crosses the dashed deadline line at about {r}; within ±0.05 is right.',

@@ -4,7 +4,8 @@
  * no lo carga. ex-mc pone el ejercicio, lo escrito, la corrección y el marco (cabecera, nota, leyenda, explicación,
  * botones); aquí, las etiquetas, las explicaciones y el cuerpo de las dos variantes.
  *   disc: los datos (las discretas sombreadas, cada valor con su probabilidad) y una fila por combinación con su T y su p;
- *         E[T], P(T ≤ plazo) y la criticidad de las discretas (con error consecuente: E[T] y P con sus combinaciones).
+ *         E[T], P(T ≤ plazo) y la criticidad de las discretas (con error consecuente: E[T] y P con sus combinaciones; la
+ *         criticidad, con sus p, desde T021).
  *   rep:  una fila por réplica con la duración sorteada de cada actividad, que se pulsa para marcarla crítica (botón con
  *         aria-pressed), y su T; las estimaciones k/n (con error consecuente: con sus T y sus marcas).
  */
@@ -46,6 +47,9 @@
       if (key === 'mean') return H.generic(ex, ans, g, key, lang, tt(lang, 'mx.calc.mean'));
       if (key === 'pT') return H.generic(ex, ans, g, key, lang, tt(lang, 'mx.calc.pT', { T: fmt(lang, ex.deadline) }));
       const id = key.split('.')[0];
+      // Con error consecuente (T021, N-F3): la suma de sus p en las combinaciones en que es crítica, si arrastra o si
+      // alguna de esas p está mal; si no, cuántas combinaciones y la suma de la solución.
+      if (c.status === 'carried' || (c.from && c.from.length)) return H.generic(ex, ans, g, key, lang, tt(lang, 'mx.calc.crit', { a: id }));
       return tt(lang, 'mx.explain.discCrit', { v, a: id, k: sol.combos.filter((x) => x.crit.includes(id)).length, n: sol.combos.length, r: p3(sol.crit[id]) });
     }
     if ((m = /^r(\d+)\.(T|crit)$/.exec(key))) {

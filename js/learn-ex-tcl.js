@@ -19,7 +19,7 @@
         ['z y plazo de una probabilidad', 'la tabla; tu μ y tu σ', 'sí'],
         ['La otra ruta y las dos', 'tus datos de la ruta; el producto', 'sí'],
       ]],
-      'Tolerancias: ±0,01 en medias, varianzas y z; en μ y σ² del proyecto, ±0,01 por actividad sumada; la probabilidad, la de la tabla (cuatro decimales) o la exacta; el plazo, ±0,05. Para el 95 % valen z = 1,64, 1,645 y 1,65, porque las tablas impresas no coinciden.',
+      'Tolerancias: ±0,01 en medias, varianzas y z; en μ y σ² del proyecto, ±0,01 por actividad sumada; la probabilidad, la de la tabla (cuatro decimales) o la exacta; el plazo, ±0,05. La z también vale si redondeas σ a dos decimales antes de dividir. Para el 95 % valen z = 1,64, 1,645 y 1,65, porque las tablas impresas no coinciden.',
       ['links', [['M5 · Tres tiempos', { v: 'unc', um: 'm5' }], ['M6 · El TCL y sus trampas', { v: 'unc', um: 'm6' }]]],
     ] },
     en: { title: 'Probability (CLT)', blocks: [
@@ -34,7 +34,7 @@
         ['z and deadline for a probability', 'the table; your μ and σ', 'yes'],
         ['The other route and both', 'your route data; the product', 'yes'],
       ]],
-      'Tolerances: ±0.01 for means, variances and z; for μ and σ² of the project, ±0.01 per activity added; the probability, the table’s (four decimals) or the exact one; the deadline, ±0.05. For 95% z = 1.64, 1.645 and 1.65 are all right, because printed tables differ.',
+      'Tolerances: ±0.01 for means, variances and z; for μ and σ² of the project, ±0.01 per activity added; the probability, the table’s (four decimals) or the exact one; the deadline, ±0.05. The z is also right if you round σ to two decimals before dividing. For 95% z = 1.64, 1.645 and 1.65 are all right, because printed tables differ.',
       ['links', [['M5 · Three times', { v: 'unc', um: 'm5' }], ['M6 · The CLT and its pitfalls', { v: 'unc', um: 'm6' }]]],
     ] },
   };

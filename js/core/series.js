@@ -285,9 +285,11 @@
         const sol = [{ p: tr('sol.tclProb', { var: n2(A.v), sd: n2(A.c.sd), T: tcl.deadline, mu: n2(A.mu), z: n2(A.c.table.z2), p: I.numText(lang, A.c.table.p4, 4), pe: I.numText(lang, A.c.exact, 4) }) },
           { p: tr('sol.tclProbQ', { pct, zp: n2(A.q.table.z2), zpe: I.numText(lang, A.q.z, 3), Tp: n2(A.q.table.deadline) }) }];
         if (tcl.prob === 0.95) sol.push({ p: tr('sol.tcl95') });
+        // z y P de las dos maneras, y con σ redondeada a dos decimales (T021, N-F5).
+        const zp = I.zpHoles(P.both.map((x) => x.c), tcl.deadline);
         return { text: [{ p: tr('series.ask.tclProb') },
-          { p: tr('ask.z', { T: tcl.deadline }), hole: hole({ nums: uniq(P.both.flatMap((x) => [{ v: x.c.table.z2, tol: M.TOL.z }])), key: 'z' }) },
-          { p: tr('ask.p', { T: tcl.deadline }), hole: hole({ nums: uniq(P.both.flatMap((x) => [{ v: x.c.table.p4, tol: M.TOL.pTable }, { v: x.c.exact, tol: M.TOL.pExact }])), key: 'p' }) },
+          { p: tr('ask.z', { T: tcl.deadline }), hole: hole({ nums: zp.z, key: 'z' }) },
+          { p: tr('ask.p', { T: tcl.deadline }), hole: hole({ nums: zp.p, key: 'p' }) },
           { p: tr('ask.zp', { pct }), hole: hole({ nums: uniq(P.both.flatMap((x) => x.zs)), key: 'zp' }) },
           { p: tr('ask.Tp'), hole: hole({ nums: uniq(P.both.flatMap((x) => x.Ts)), key: 'Tp' }) }],
         sol };
@@ -302,15 +304,19 @@
         const rA = oneNormal(d.r2(muR), d.r2(vR), { deadline: tcl.deadline });
         const rB = oneNormal(d.r2(tcl.route.reduce((s, id) => s + d.r2(d.mom[id].te), 0)), d.r2(tcl.route.reduce((s, id) => s + d.r2(d.mom[id].var), 0)), { deadline: tcl.deadline });
         const pairs = [[P.A.c, rA], [P.B.c, rB]];
+        // Con σ redondeada a dos decimales (T021, N-F5): la z y la P de la ruta y «las dos» con las dos z así.
+        const zp = I.zpHoles([rA, rB], tcl.deadline);
+        const sig = (x) => I.zpHoles([x], tcl.deadline).sig[0];
+        const sigBoth = pairs.map(([x, r]) => [sig(x), sig(r)]).filter(([a, b]) => a && b).map(([a, b]) => ({ v: a.p4 * b.p4, tol: M.TOL.pTable }));
         const kk = tcl.route.length;
         const route = tcl.route.join(SEP);
         const c = P.A.c;
         return { text: [{ p: tr('series.ask.tclRoute', { route }) },
           { p: tr('ask.rMu', { route }), hole: hole({ num: muR, tol: M.TOL.mom * kk, key: 'r.mu' }) },
           { p: tr('ask.rVar'), hole: hole({ num: vR, tol: M.TOL.mom * kk, key: 'r.var' }) },
-          { p: tr('ask.rZ', { T: tcl.deadline }), hole: hole({ nums: uniq([rA, rB].map((r) => ({ v: r.table.z2, tol: M.TOL.z }))), key: 'r.z' }) },
-          { p: tr('ask.rP', { T: tcl.deadline }), hole: hole({ nums: uniq([rA, rB].flatMap((r) => [{ v: r.table.p4, tol: M.TOL.pTable }, { v: r.exact, tol: M.TOL.pExact }])), key: 'r.p' }) },
-          { p: tr('ask.both', { T: tcl.deadline }), hole: hole({ nums: uniq(pairs.flatMap(([x, r]) => [{ v: x.table.p4 * r.table.p4, tol: M.TOL.pTable }, { v: x.exact * r.exact, tol: M.TOL.pExact }])), key: 'both' }) }],
+          { p: tr('ask.rZ', { T: tcl.deadline }), hole: hole({ nums: zp.z, key: 'r.z' }) },
+          { p: tr('ask.rP', { T: tcl.deadline }), hole: hole({ nums: zp.p, key: 'r.p' }) },
+          { p: tr('ask.both', { T: tcl.deadline }), hole: hole({ nums: uniq(pairs.flatMap(([x, r]) => [{ v: x.table.p4 * r.table.p4, tol: M.TOL.pTable }, { v: x.exact * r.exact, tol: M.TOL.pExact }]).concat(sigBoth)), key: 'both' }) }],
         sol: [{ p: tr('sol.tclRoute', { route, mu: n2(muR), var: n2(vR), sd: n2(rA.sd), T: tcl.deadline, z: n2(rA.table.z2), p: I.numText(lang, rA.table.p4, 4), pe: I.numText(lang, rA.exact, 4) }) },
           { p: tr('sol.tclBoth', { pc: I.numText(lang, c.table.p4, 4), pr: I.numText(lang, rA.table.p4, 4), both: I.numText(lang, c.table.p4 * rA.table.p4, 4) }) }] };
       },

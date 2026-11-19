@@ -1,12 +1,13 @@
 /*
- * moodle-page — vista del exportador de Moodle, cpm.html#v=moodle (spec f3b-moodle; plan §4, P2, P7; tableros 51–56).
+ * moodle-page — vista del exportador de Moodle, en su página moodle.html (js/moodle-app; spec f3b-moodle; plan §4, P2,
+ * P7; tableros 51–56).
  *
  * Formulario (etapas, holgura de seguridad, niveles y ejemplares por categoría), resumen y descarga; la generación va
  * a trozos de unos 40 ms (core/moodle.runner.step) con una barra de progreso y «Cancelar», y el banco se descarga con
  * un Blob. La semilla del banco la elige la interfaz (crypto.getRandomValues), nunca el núcleo. La vista previa es
  * una pregunta de la primera etapa y el primer nivel marcados, con semilla fija 1 (views/question-view).
  * La selección vive en la página (no en la URL) y se conserva al cambiar de idioma o de notación; un cambio de
- * idioma o de notación mientras se genera cancela la generación, y también salir de la vista (leave).
+ * idioma o de notación mientras se genera cancela la generación.
  * Marcar una casilla o cambiar los ejemplares no redibuja el formulario: solo el resumen, el botón y la vista previa,
  * para que el foco y el clic siguiente se queden donde estaban (revisión T016). El estado (descarga o cancelación) se
  * guarda como clave y parámetros y se escribe en el idioma de la página.
@@ -22,16 +23,16 @@
  * F3e (plan P2, T013): en su página propia, moodle.html (js/moodle-app), las familias de etapas (el enunciado y la
  * construcción) llegan al marcarlas: hooks.ready(etapas) dice si ya están y hooks.need(etapas) las pide (null si ya
  * están). La vista previa espera a la familia de su etapa y «Descargar», a las de todas las marcadas; al llegar, se
- * rehacen el resumen y la vista previa. Con hooks.heading falso, el título va en la cabecera de la página y no aquí.
- * En cpm.html (grupo mq, con todo) no hay hooks.need ni hooks.ready y nada cambia.
- * F3e (plan P2 y P7; T016; tableros 100, 101, 102 y 105), solo en moodle.html (hooks.f3e): las etapas en tres familias
+ * rehacen el resumen y la vista previa. El título va en la cabecera de la página.
+ * F3e (plan P2 y P7; T016; tableros 100, 101, 102 y 105): las etapas en tres familias
  * plegables (0–6, 7–10 y 11–17; las 11 a 17 sin marcar al abrir y con su descripción), la vista previa con «Etapa» (la
  * etapa elegida entre las marcadas) y las «Respuestas que acepta Moodle», y las pestañas «Preguntas por etapas» ·
  * «Series encadenadas». En las series (core/series, en la base de moodle.html): todas las etapas, en gris las que no
  * pueden ir en una serie; un nivel y el número de series; la vista previa de una serie (la primera semilla desde 1) con
  * «Ir a la parte». La imagen de «Leer una simulación» la da views/chart-svg (ctx.chart), que llega con la familia
  * estocástica. Las vistas previas se guardan (algunas tardan: la otra ruta difícil, hasta 2 s) y no se rehacen al marcar
- * otra casilla. En cpm.html#v=moodle todo sigue como antes hasta la redirección (T017).
+ * otra casilla. Desde T017, cpm.html#v=moodle lleva a moodle.html; el camino de antes (sin hooks.f3e, need ni ready)
+ * se quitó en T021 (revisión de nivel 2, N-F4).
  */
 (function (root) {
   'use strict';
@@ -104,19 +105,17 @@
     const lang = () => hooks.lang();
     const nota = () => hooks.state().nota;
     const t = (k, p) => pt(lang(), k, p);
-    // F3e (T016): en moodle.html, las etapas 11 a 17, las familias plegables, la vista previa ampliada y las series.
-    const f3e = !!hooks.f3e;
     const sel = { mode: 'stages', stages: new Set(DEFAULT_STAGES), sf: false, levels: new Set(['medium']), count: M.DEFAULT_COUNT, preview: null,
       series: { stages: new Set(SERIES_DEFAULT), level: 'medium', count: M.DEFAULT_COUNT } };
     const openFam = {};
-    const shown = () => stagesOf(api.stmtPublic, api.f3dPublic, f3e);
+    const shown = () => stagesOf(api.stmtPublic, api.f3dPublic, true);
     // La imagen de la red (F3d, plan P4): views/net-svg llega con el grupo mq o con la familia lab.
     const svg = (model) => root.PNL.netSvg.render(model);
     // F3e (T016): los gráficos de «Leer una simulación» (views/chart-svg), con la familia estocástica.
     const chart = (model) => (model.kind === 'dist' ? root.PNL.chartSvg.dist(model) : root.PNL.chartSvg.indices(model));
     const chosen = () => shown().filter((s) => sel.stages.has(s));
-    const isSeries = () => f3e && sel.mode === 'series';
-    const seriesChosen = () => (f3e ? S().ADMITTED.filter((s) => sel.series.stages.has(s)) : []);
+    const isSeries = () => sel.mode === 'series';
+    const seriesChosen = () => S().ADMITTED.filter((s) => sel.series.stages.has(s));
     /** Las etapas de lo que se va a generar: las marcadas o las de la serie. */
     const wanted = () => (isSeries() ? seriesChosen() : chosen());
     let run = null;          // { runner, seed, lang, nota, made, total, timer }
@@ -124,11 +123,11 @@
     let last = null;         // { seed, file, questions, missing } del último banco descargado
     let drawn = null;        // idioma y notación de lo dibujado (para cancelar si cambian)
     let focusAfter = null;
-    // F3e (T013): las familias de etapas de moodle.html; sin hooks (cpm.html), todo está cargado.
-    const ready = (stages) => !hooks.ready || hooks.ready(stages);
+    // F3e (T013): las familias de etapas de moodle.html.
+    const ready = (stages) => hooks.ready(stages);
     /** Pide las familias de las etapas marcadas y, si faltaba alguna, rehace el resumen y la vista previa al llegar. */
     function fetchFamilies() {
-      const p = hooks.need ? hooks.need(wanted()) : null;
+      const p = hooks.need(wanted());
       if (p) p.then(() => refresh(), () => {});
     }
     let waitingStart = false;
@@ -302,7 +301,7 @@
       const q = previewQuestion();
       if (q) {
         QV.render(el, q, IM.tr(lang()), { holeLabel: t('hole'), feedbackLabel: t('previewFeedback'), lang: lang(), partId: 'mqPart',
-          accepted: f3e ? { label: t('accepted'), option: t('acceptedOption'), open: !isSeries() } : null });
+          accepted: { label: t('accepted'), option: t('acceptedOption'), open: !isSeries() } });
       } else clear(el);
       if (gotoEl) drawGoto(q);
     }
@@ -355,22 +354,9 @@
     const stageCheck = (s, o) => check(IM.tr(lang())(`stage.${s}`), sel.stages.has(s), (on) => { if (on) sel.stages.add(s); else sel.stages.delete(s); refresh(); }, o);
     const sfCheck = () => check(t('sf'), sel.sf, (on) => { sel.sf = on; refresh(); });
 
-    /** Las etapas: en cpm.html, la lista de siempre; en moodle.html, en tres familias plegables (tablero 100). */
+    /** Las etapas, en tres familias plegables (tablero 100); las 7 a 10, con su descripción y el aviso del laboratorio. */
     function stagesFieldset() {
       const hint = (s) => ({ hint: t(`stageHint.${s}`) });
-      if (!f3e) {
-        // F3d (tablero 90): las etapas 7 a 10, aparte, con su descripción y el aviso de trabajar en el laboratorio.
-        const lab = shown().filter((s) => LAB_STAGES.includes(s));
-        return fieldset(t('stagesTitle'), [
-          h('p', { class: 'mq-hint' }, [t('stagesHint')]),
-          h('div', { class: 'mq-stages' }, shown().filter((s) => !LAB_STAGES.includes(s)).map((s) => stageCheck(s))),
-          ...(lab.length ? [
-            h('div', { class: 'mq-stages mq-lab' }, lab.map((s) => stageCheck(s, hint(s)))),
-            h('p', { class: 'mq-labnote' }, [t('labNote')]),
-          ] : []),
-          sfCheck(),
-        ]);
-      }
       const fams = groupsOf(shown()).map((g) => {
         const kids = g.key === 'calc' ? [h('div', { class: 'mq-stages' }, g.stages.map((s) => stageCheck(s)))]
           : g.key === 'lab' ? [h('div', { class: 'mq-stages mq-lab' }, g.stages.map((s) => stageCheck(s, hint(s)))), h('p', { class: 'mq-labnote' }, [t('labNote')])]
@@ -446,8 +432,8 @@
       previewEl = preview;
       // F3e (tableros 100 y 101): «Etapa» junto al título de la vista previa; en las series, «Ir a la parte».
       let tools = null;
-      if (f3e && isSeries()) tools = gotoEl = h('div', { class: 'mq-goto', role: 'group', 'aria-label': t('sr.goTo') });
-      else if (f3e) {
+      if (isSeries()) tools = gotoEl = h('div', { class: 'mq-goto', role: 'group', 'aria-label': t('sr.goTo') });
+      else {
         pvSelectEl = h('select', { id: 'mqPvStage', onchange: (e) => { sel.preview = e.target.value; drawPreview(previewEl); fetchFamilies(); } });
         fillPvSelect();
         tools = h('div', { class: 'mq-pvstage' }, [h('label', { for: 'mqPvStage' }, [t('previewStage')]), pvSelectEl]);
@@ -455,9 +441,7 @@
       drawPreview(preview);
       fetchFamilies();
       clear(container);
-      const formCol = f3e
-        ? h('div', { class: 'mq-form' }, [tabs(), h('div', { id: 'mqPanel', role: 'tabpanel', class: 'mq-panel', 'aria-labelledby': tabId(sel.mode) }, form)])
-        : h('div', { class: 'mq-form' }, [hooks.heading === false ? null : h('h1', {}, [t('title')]), ...form]);
+      const formCol = h('div', { class: 'mq-form' }, [tabs(), h('div', { id: 'mqPanel', role: 'tabpanel', class: 'mq-panel', 'aria-labelledby': tabId(sel.mode) }, form)]);
       container.appendChild(h('div', { class: 'mq-layout' }, [
         formCol,
         h('div', { class: 'mq-side' }, [h('div', { class: 'mq-side-head' }, [h('h2', {}, [t('previewTitle')]), tools]), h('p', { class: 'mq-hint' }, [t('previewHint')]), preview]),
@@ -476,15 +460,10 @@
       draw();
     }
 
-    /** Al salir de la vista: la generación en marcha se cancela (no se descarga nada desde otra vista). */
-    function leave() {
-      if (run) stop();
-    }
-
     const debug = () => ({ sel: { mode: sel.mode, stages: chosen(), sf: sel.sf, levels: [...sel.levels], count: sel.count,
       series: { stages: seriesChosen(), level: sel.series.level, count: sel.series.count } },
     running: !!run, made: run ? run.made : null, total: run ? run.total : null, status: statusText(), last, preview: previewQuestion() });
-    return { render, leave, debug };
+    return { render, debug };
   }
 
   const api = { stmtPublic: true, f3dPublic: true, LAB_STAGES, F3E_STAGES, FAMILY_GROUPS, DEFAULT_STAGES, SERIES_DEFAULT, stagesOf, groupsOf,

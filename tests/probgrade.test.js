@@ -522,3 +522,81 @@ for (const level of LEVELS) {
     }
   });
 }
+
+// ---------- F3e T021: arreglos de la revisión de nivel 2 (ronda 1) ----------
+
+test('T021 N-F3 · discretas: la criticidad con error consecuente, con las p del alumno (fácil 49, p a tres decimales)', () => {
+  const ex = PG.disc(49, 'easy').ex;
+  const sol = PG.solve('disc', ex);
+  const ans = {};
+  sol.combos.forEach((c, i) => { ans[`c${i + 1}.T`] = String(c.T); ans[`c${i + 1}.p`] = comma(c.p, 3); });
+  const p3 = sol.combos.map((c) => Number(c.p.toFixed(3)));
+  const critOf = (id, ps) => sol.combos.reduce((s, c, i) => s + (c.crit.includes(id) ? ps[i] : 0), 0);
+  ans.mean = comma(sol.combos.reduce((s, c, i) => s + c.T * p3[i], 0), 3);
+  for (const id of ex.disc) ans[`${id}.crit`] = comma(critOf(id, p3), 3);
+  const g = PGR.disc(ex, ans);
+  for (let i = 1; i <= sol.combos.length; i++) assert.equal(g.cells[`c${i}.p`].status, 'ok', `c${i}.p`);
+  assert.equal(g.cells.mean.status, 'carried');
+  for (const id of ex.disc) {
+    assert.equal(g.cells[`${id}.crit`].status, 'carried', id);
+    assert.ok(Math.abs(g.cells[`${id}.crit`].expected - critOf(id, p3)) < 1e-9, `${id}: lo esperado, con sus p`);
+    assert.deepEqual(g.cells[`${id}.crit`].uses, sol.combos.map((c, i) => (c.crit.includes(id) ? `c${i + 1}.p` : null)).filter(Boolean));
+  }
+  // Una p mal escrita no se cobra dos veces: la p es wrong y la criticidad que sale de ella, carried con from.
+  const bad = Object.assign({}, ans, { 'c1.p': '0,163' });
+  const p3b = p3.slice(); p3b[0] = 0.163;
+  for (const id of ex.disc) bad[`${id}.crit`] = comma(critOf(id, p3b), 3);
+  const gb = PGR.disc(ex, bad);
+  assert.equal(gb.cells['c1.p'].status, 'wrong');
+  for (const id of ex.disc.filter((x) => sol.combos[0].crit.includes(x))) {
+    assert.equal(gb.cells[`${id}.crit`].status, 'carried', id);
+    assert.deepEqual(gb.cells[`${id}.crit`].from, ['c1.p']);
+  }
+  // Una criticidad que no cuadra ni con la solución ni con sus p sigue siendo wrong.
+  const wrong = Object.assign({}, ans, { [`${ex.disc[0]}.crit`]: '0,5' });
+  assert.equal(PGR.disc(ex, wrong).cells[`${ex.disc[0]}.crit`].status, 'wrong');
+});
+
+test('T021 N-F5 · TCL: la z con σ redondeada a dos decimales antes de dividir también vale (fácil 30), y la de la otra ruta', () => {
+  const ex = PG.tcl(30, 'easy', {}).ex;
+  const sol = PG.solve('tcl', ex);
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const mu = r2(sol.mu); const v = r2(sol.var);
+  const zs = r2((ex.deadline - mu) / r2(Math.sqrt(v)));
+  assert.ok(Math.abs(zs - sol.z) > 0.01 && Math.abs(zs - (ex.deadline - mu) / Math.sqrt(v)) > 0.01, `la z con σ redondeada (${zs}) se sale de ±0,01`);
+  const ans = { mu: comma(mu, 2), var: comma(v, 2), z: comma(zs, 2), p: comma(T.tableP(zs).p4, 4) };
+  for (const r of ex.rows) { ans[`${r.id}.te`] = comma(sol.acts[r.id].te, 2); ans[`${r.id}.var`] = comma(sol.acts[r.id].var, 2); }
+  ans.path = sol.path.slice();
+  const g = PGR.tcl(ex, ans);
+  assert.equal(g.cells.z.status, 'ok');
+  assert.ok(['ok', 'carried'].includes(g.cells.p.status));
+  assert.equal(PGR.tcl(ex, Object.assign({}, ans, { z: comma(zs + 0.03, 2) })).cells.z.status, 'wrong');
+  // Con su μ mal (carried) también vale con su σ redondeada (y solo con ella: con σ sin redondear se sale de ±0,01).
+  const mu2 = mu - 0.5; const zs2 = r2((ex.deadline - mu2) / r2(Math.sqrt(v)));
+  assert.ok(Math.abs(zs2 - (ex.deadline - mu2) / Math.sqrt(v)) > 0.01, `${zs2}`);
+  assert.equal(PGR.tcl(ex, Object.assign({}, ans, { mu: comma(mu2, 2), z: comma(zs2, 2) })).cells.z.status, 'carried');
+  // La otra ruta: lo mismo con r.mu y r.var. (La ruta es aquí el propio camino crítico, para tener la misma σ pequeña.)
+  const rx = Object.assign({}, ex, { route: sol.path.slice() });
+  const a2 = Object.assign({}, ans, { 'r.mu': comma(mu, 2), 'r.var': comma(v, 2), 'r.z': comma(zs, 2) });
+  const gr = PGR.tcl(rx, a2);
+  assert.equal(gr.cells['r.z'].status, 'ok');
+  assert.equal(PGR.tcl(rx, Object.assign({}, a2, { 'r.mu': comma(mu2, 2), 'r.z': comma(zs2, 2) })).cells['r.z'].status, 'carried');
+  assert.equal(PGR.tcl(rx, Object.assign({}, a2, { 'r.z': comma(zs + 0.03, 2) })).cells['r.z'].status, 'wrong');
+});
+
+test('T021 I-F2 · paths: las marcas como camino completo y el más largo con empate por varianza (lo que usan las explicaciones de ex-prob)', () => {
+  const ex = PG.tcl(2026, 'medium', { route: true }).ex;
+  const sol = PG.solve('tcl', ex);
+  const n = PGR.paths.graph(ex.rows);
+  const te = (id) => sol.acts[id].te; const va = (id) => sol.acts[id].var;
+  const L = PGR.paths.longest(n, te, va);
+  assert.deepEqual(L.path, sol.path);
+  assert.ok(Math.abs(L.len - sol.mu) < 1e-9 && Math.abs(L.v - sol.var) < 1e-9);
+  assert.deepEqual(PGR.paths.asPath(n, ['J', 'B', 'H', 'G', 'I']), ['B', 'G', 'H', 'I', 'J'], 'en orden, de inicio a fin');
+  for (const m of [['G', 'H', 'I', 'J'], ['B', 'G', 'H', 'I'], ['B', 'H'], ['B', 'G', 'H', 'I', 'J', 'X'], []]) assert.equal(PGR.paths.asPath(n, m), null, m.join());
+  // Empate por dentro (B–C–D–E con tₑ de A = 1 y de C = 5,33, y sin varianza): gana el de más varianza.
+  const t2 = (id) => ({ A: 1, C: 5.33 }[id] ?? Math.round(sol.acts[id].te * 100) / 100);
+  const v2 = (id) => (['C', 'D', 'E'].includes(id) ? 0 : Math.round(sol.acts[id].var * 100) / 100);
+  assert.deepEqual(PGR.paths.longest(n, t2, v2).path, ['B', 'G', 'H', 'I', 'J']);
+  assert.deepEqual(PGR.paths.longest(n, t2, (id) => (['C', 'D', 'E'].includes(id) ? 5 : 0)).path, ['B', 'C', 'D', 'E']);
+});

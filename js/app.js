@@ -166,7 +166,8 @@
     // necesita (revisión de la F3c, F1).
     if (v === 'm0') { const st = q.get('st'); return ['m0', st === 'gen' ? 'sg' : 'st']; }
     // F3d (H1): el tipo de ejercicio; xt=1 solo pide el generador de enunciados con el cálculo.
-    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb', 'xr'] : xk === 'pert' ? ['xb', 'cr'] : xk === 'det' ? ['dt'] : xk === 'tcl' ? ['pb'] : xk === 'mc' ? ['mx', q.get('mv') ? 'mxh' : 'mxr'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
+    // F3e: Montecarlo pide mxh solo con mv=disc o mv=rep; con mv=read o sin mv, mxr (revisión de T021, I-F5).
+    if (v === 'ex') { const xk = q.get('xk') || 'calc'; return ['ex'].concat(xk === 'roy' ? ['xb', 'xr'] : xk === 'pert' ? ['xb', 'cr'] : xk === 'det' ? ['dt'] : xk === 'tcl' ? ['pb'] : xk === 'mc' ? ['mx', ['disc', 'rep'].includes(q.get('mv')) ? 'mxh' : 'mxr'] : [], xk === 'calc' && q.get('xt') === '1' ? ['sg'] : []); }
     if ((!v || v === 'route' || v === 'work') && needsCr({ graph: q.get('graph'), view: q.get('view'), m: q.get('m') })) return ['cr'];
     if (royRetoOf({ v, graph: q.get('graph'), view: q.get('view') })) return ['xb', 'xr'];
     if (v === 'unc' && q.get('um') === 'm7') return ['un', 'u7'].concat(['rep', 'conv'].includes(q.get('uy')) ? ['u7r'] : []);

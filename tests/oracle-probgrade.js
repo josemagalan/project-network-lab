@@ -229,7 +229,11 @@ function tclClassify(ex, ans0, sol0) {
   st.mu = judge(ans.mu, [[sol.mu, tol(sol.path)]], [raw, snap].map((D) => [sum(used, teOf(D)), tol(used)])); uses.mu = pathUses('te');
   st.var = judge(ans.var, [[sol.var, tol(sol.path)]], [raw, snap].map((D) => [sum(used, varOf(D)), tol(used)])); uses.var = pathUses('var');
   const zOf = (mu, v) => (v > 0 ? (ex.deadline - mu) / Math.sqrt(v) : null);
-  st.z = judge(ans.z, [[sol.z, 0.01]], [raw, snap].map((D) => [zOf(D('mu'), D('var')), 0.01])); uses.z = ['mu', 'var'];
+  // T021 (N-F5): también la z con σ redondeada a dos decimales (con la solución exacta o a dos decimales, y con sus datos).
+  const rd2 = (x) => Math.round(x * 100 + (x >= 0 ? 1e-9 : -1e-9)) / 100;
+  const zSig = (mu, v) => { const sd = v > 0 ? rd2(Math.sqrt(v)) : 0; return sd > 0 ? (ex.deadline - mu) / sd : null; };
+  const zR = (mu, v) => [[zSig(mu, v), 0.01], [zSig(rd2(mu), rd2(v)), 0.01]];
+  st.z = judge(ans.z, [[sol.z, 0.01]].concat(zR(sol.mu, sol.var)), [raw, snap].flatMap((D) => [[zOf(D('mu'), D('var')), 0.01], [zSig(D('mu'), D('var')), 0.01]])); uses.z = ['mu', 'var'];
   const pExp = (z) => (z == null ? [] : [[tableP(z).p4, 0.0005], [phi(z), 0.005]]);
   st.p = judge(ans.p, [[sol.p, 0.0005], [sol.pE, 0.005]], [raw, snap].flatMap((D) => pExp(D('z')))); uses.p = ['z'];
   st.zp = judge(ans.zp, sol.zpRights, []); uses.zp = [];
@@ -241,7 +245,7 @@ function tclClassify(ex, ans0, sol0) {
     uses['r.mu'] = rcells.map((id) => `${id}.te`);
     st['r.var'] = judge(ans['r.var'], [[R.var, tol(ex.route)]], [raw, snap].map((D) => [sum(ex.route, varOf(D)), tol(ex.route)]));
     uses['r.var'] = rcells.map((id) => `${id}.var`);
-    st['r.z'] = judge(ans['r.z'], [[R.z, 0.01]], [raw, snap].map((D) => [zOf(D('r.mu'), D('r.var')), 0.01])); uses['r.z'] = ['r.mu', 'r.var'];
+    st['r.z'] = judge(ans['r.z'], [[R.z, 0.01]].concat(zR(R.mu, R.var)), [raw, snap].flatMap((D) => [[zOf(D('r.mu'), D('r.var')), 0.01], [zSig(D('r.mu'), D('r.var')), 0.01]])); uses['r.z'] = ['r.mu', 'r.var'];
     st['r.p'] = judge(ans['r.p'], [[R.p, 0.0005], [R.pE, 0.005]], [raw, snap].flatMap((D) => pExp(D('r.z')))); uses['r.p'] = ['r.z'];
     st.both = judge(ans.both, [[R.both, 0.0005], [R.bothE, 0.005]],
       [raw, snap].flatMap((D) => [[D('p') * D('r.p'), 0.0005], [phi(D('z')) * phi(D('r.z')), 0.005]]));
@@ -297,7 +301,12 @@ function discClassify(ex, ans0, sol0) {
   const P = (D) => { let s = 0; for (let i = 1; i <= n; i++) if (D(`c${i}.T`) <= ex.deadline + EPS) s += D(`c${i}.p`); return s; };
   st.mean = judge(ans.mean, [[sol.mean, 0.001]], [raw, snap].map((D) => [E(D), 0.001])); uses.mean = ck.slice();
   st.pT = judge(ans.pT, [[sol.pT, 0.001]], [raw, snap].map((D) => [P(D), 0.001])); uses.pT = ck.slice();
-  for (const id of ex.disc) { st[`${id}.crit`] = judge(ans[`${id}.crit`], [[sol.crit[id], 0.001]], []); uses[`${id}.crit`] = []; }
+  // T021 (N-F3): la criticidad, también con las p del alumno en las combinaciones en que la actividad es crítica.
+  for (const id of ex.disc) {
+    const ks = sol.combos.map((c, i) => (c.crit.includes(id) ? `c${i + 1}.p` : null)).filter(Boolean);
+    const C = (D) => ks.reduce((s, k) => s + D(k), 0);
+    st[`${id}.crit`] = judge(ans[`${id}.crit`], [[sol.crit[id], 0.001]], [raw, snap].map((D) => [C(D), 0.001])); uses[`${id}.crit`] = ks;
+  }
   return { status: st, uses, sol };
 }
 

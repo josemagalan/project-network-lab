@@ -192,6 +192,20 @@
     return { is, best: top2 ? top2.path : null };
   }
 
+  /**
+   * Para las explicaciones de la interfaz (T021, I-F2: el camino no se recalcula fuera del núcleo): las marcas como camino
+   * completo (null si no lo son o si alguna no es una actividad) y el camino más largo con unas medias y, con empate, el
+   * de más varianza (la regla de M6, la de critical): { path, len, v }.
+   */
+  const paths = {
+    graph,
+    asPath: (net, m) => (m.length && m.every((x) => net.preds[x] !== undefined) ? asPath(net, m) : null),
+    longest(net, te, va) {
+      const best = critical(net, te, va).best;
+      return best && { path: best, len: best.reduce((s, id) => s + te(id), 0), v: best.reduce((s, id) => s + va(id), 0) };
+    },
+  };
+
   // ---------- campos ----------
 
   function tclFields(ex) {
@@ -273,9 +287,14 @@
       right: sol.var, expected: sum(used, varOf(raw)), formula: 'pvar', uses: pathUses('var') });
     // z y P, con su μ y su σ²
     const zOf = (mu, v) => (v > 0 ? (ex.deadline - mu) / Math.sqrt(v) : null);
+    // La z con σ redondeada a dos decimales antes de dividir (T021, N-F5): también vale, con la solución a dos decimales
+    // o exacta y con los datos del alumno.
+    const zSig = (mu, v) => { const s = v > 0 ? roundK(Math.sqrt(v), 2) : 0; return s > 0 ? (ex.deadline - mu) / s : null; };
+    const zRights = (mu, v) => [[zSig(mu, v), TOL.z], [zSig(roundK(mu, 2), roundK(v, 2)), TOL.z]];
     const pExp = (z) => (z == null ? [] : [[T.tableP(z).p4, TOL.pTable], [T.phi(z), TOL.pExact]]);
     const first = (xs) => (xs.length ? xs[0][0] : null);
-    B.num('z', ans.z, { rights: [[sol.z, TOL.z]], expects: both.map((D) => [zOf(D('mu'), D('var')), TOL.z]),
+    B.num('z', ans.z, { rights: [[sol.z, TOL.z]].concat(zRights(sol.mu, sol.var)),
+      expects: both.flatMap((D) => [[zOf(D('mu'), D('var')), TOL.z], [zSig(D('mu'), D('var')), TOL.z]]),
       right: sol.z, expected: zOf(raw('mu'), raw('var')), formula: 'z', uses: ['mu', 'var'] });
     B.num('p', ans.p, { rights: [[sol.p, TOL.pTable], [sol.pExact, TOL.pExact]], expects: both.flatMap((D) => pExp(D('z'))),
       right: sol.p, expected: first(pExp(raw('z'))), formula: 'p', uses: ['z'] });
@@ -292,7 +311,8 @@
         right: R.mu, expected: sum(ex.route, teOf(raw)), formula: 'rmu', uses: rcells.map((id) => `${id}.te`) });
       B.num('r.var', ans['r.var'], { rights: [[R.var, tol(ex.route)]], expects: both.map((D) => [sum(ex.route, varOf(D)), tol(ex.route)]),
         right: R.var, expected: sum(ex.route, varOf(raw)), formula: 'rvar', uses: rcells.map((id) => `${id}.var`) });
-      B.num('r.z', ans['r.z'], { rights: [[R.z, TOL.z]], expects: both.map((D) => [zOf(D('r.mu'), D('r.var')), TOL.z]),
+      B.num('r.z', ans['r.z'], { rights: [[R.z, TOL.z]].concat(zRights(R.mu, R.var)),
+        expects: both.flatMap((D) => [[zOf(D('r.mu'), D('r.var')), TOL.z], [zSig(D('r.mu'), D('r.var')), TOL.z]]),
         right: R.z, expected: zOf(raw('r.mu'), raw('r.var')), formula: 'rz', uses: ['r.mu', 'r.var'] });
       B.num('r.p', ans['r.p'], { rights: [[R.p, TOL.pTable], [R.pExact, TOL.pExact]], expects: both.flatMap((D) => pExp(D('r.z'))),
         right: R.p, expected: first(pExp(raw('r.z'))), formula: 'rp', uses: ['r.z'] });
@@ -344,7 +364,13 @@
       right: sol.mean, expected: E(raw), formula: 'discMean', uses: ck.slice() });
     B.num('pT', ans.pT, { rights: [[sol.pT, TOL.disc]], expects: [raw, snap].map((D) => [P(D), TOL.disc]),
       right: sol.pT, expected: P(raw), formula: 'discPT', uses: ck.slice() });
-    for (const id of ex.disc) B.num(`${id}.crit`, ans[`${id}.crit`], { rights: [[sol.crit[id], TOL.disc]], right: sol.crit[id], formula: 'discCrit' });
+    // La criticidad, también con las p del alumno en las combinaciones en que la actividad es crítica (T021, N-F3).
+    for (const id of ex.disc) {
+      const ks = sol.combos.map((c, i) => (c.crit.includes(id) ? `c${i + 1}.p` : null)).filter(Boolean);
+      const C = (D) => ks.reduce((s, k) => s + D(k), 0);
+      B.num(`${id}.crit`, ans[`${id}.crit`], { rights: [[sol.crit[id], TOL.disc]], expects: [raw, snap].map((D) => [C(D), TOL.disc]),
+        right: sol.crit[id], expected: C(raw), formula: 'discCrit', uses: ks });
+    }
     return B.done();
   }
 
@@ -393,7 +419,7 @@
       uses: cell.uses || [], from: cell.from || [] } };
   }
 
-  const api = { STATES, TOL, Z95, KINDS, EXPLAIN, parse, marks, fields, tcl, read, disc, rep, grade, explain };
+  const api = { STATES, TOL, Z95, KINDS, EXPLAIN, parse, marks, fields, tcl, read, disc, rep, grade, explain, paths };
   root.PNL = root.PNL || {};
   root.PNL.probgrade = api;
   if (isNode) module.exports = api;

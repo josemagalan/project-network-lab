@@ -8680,10 +8680,22 @@ check('F3e T010 H1 · la tabla de la normal (tablero 95): panel al lado, no moda
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#pbNormal').count(), 0);
   assert.equal(await activeId(page), 'pbTable', 'el foco vuelve al botón');
-  // En Examen también está.
-  const p2 = await pbLab(Object.assign({ xm: 'exam' }, s));
+  // Con la z escrita ahora (revisión de T021, I-F4): en Practicar, tras «Comprobar», la primera tecla repinta y las demás no.
+  await page.locator('#pbCheck').click();
+  await exCell(page, 'z').fill('');
+  await exCell(page, 'z').pressSequentially('1,32');
+  await page.waitForFunction(() => PNL.app.state().pa && PNL.app.state().pa.z === '1,32');
+  await page.locator('#pbTable').click();
+  await page.waitForSelector('#pbNormal');
+  assert.equal(await page.locator('#pbNormalZ').inputValue(), '1,32', 'Practicar tras «Comprobar»: la z escrita ahora');
+  await page.locator('#pbNormalClose').click();
+  // En Examen también está; escribir no repinta y la tabla se abre con la z de la casilla.
+  const p2 = await pbLab(Object.assign({ xm: 'exam', pa: { z: '1,23' } }, s));
+  await exCell(p2, 'z').fill('1,32');
+  await p2.waitForFunction(() => PNL.app.state().pa && PNL.app.state().pa.z === '1,32');
   await p2.locator('#pbTable').click();
   await p2.waitForSelector('#pbNormal');
+  assert.equal(await p2.locator('#pbNormalZ').inputValue(), '1,32', 'Examen: la z escrita ahora, no la del enlace');
   await p2.locator('#pbNormalClose').click();
   assert.equal(await p2.locator('#pbNormal').count(), 0);
   await close(p2);
@@ -9157,6 +9169,11 @@ check('F3e T011 · publicado en T017: sin xk=mc la barra ofrece Montecarlo sin c
   assert.deepEqual(await p2.locator('.ex-kind-seg').nth(1).locator('button').allInnerTexts(), ['read', 'disc', 'rep'].map((v) => mxT('en', `mx.v.${v}`)));
   assert.deepEqual([await mxCount(p2, MXF.mx), await mxCount(p2, MXF.mxr), await mxCount(p2, MXF.mxh), await mxCount(p2, MXF.pb)], [9, 0, 1, 0]);
   await close(p2);
+  // Revisión de T021 (I-F5): mv=read escrito a mano (encode no lo escribe) pide mxr y no mxh, como sin mv.
+  const p3 = await lab('v=ex&xk=mc&mv=read&sd=1&lv=easy');
+  await p3.waitForFunction(() => PNL.exMc && PNL.exMc.state && PNL.exMc.state() && PNL.exMc.state().ex, null, { timeout: 30000 });
+  assert.deepEqual([await mxCount(p3, MXF.mx), await mxCount(p3, MXF.mxr), await mxCount(p3, MXF.mxh)], [9, 2, 0], 'mv=read: mx y mxr, sin mxh');
+  await close(p3);
 });
 
 check('F3e T011 · a 1280×720 los difíciles caben sin desplazar la página (las tablas largas y las preguntas, en su caja); a 360 px, sin desplazamiento horizontal', async () => {

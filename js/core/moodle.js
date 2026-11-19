@@ -48,6 +48,7 @@
   // F3e: core/probgen y tcl (y threept, sim y mc, que piden ellos) llegan con la familia estocástica; en Node, al pedirlos.
   const PG = () => (isNode ? require('./probgen.js') : root.PNL.probgen);
   const TL = () => (isNode ? require('./tcl.js') : root.PNL.tcl);
+  const TH = () => (isNode ? require('./threept.js') : root.PNL.threept);
 
   const STAGES = ['early', 'late', 'floats', 'critAct', 'critPath', 'evEarly', 'evLate'];
   // F3e: etapa → tipo de ejercicio de core/probgen.
@@ -537,6 +538,24 @@
   const normalModel = (rows, mom, f) => ({ acts: rows.map((r) => ({ id: r.id, preds: r.preds.slice(), dist: { kind: 'normal', mu: f(mom[r.id].te), var: f(mom[r.id].var) } })) });
   /** M6 con una sola normal de media mu y varianza v: z, la tabla, la exacta y el plazo de una probabilidad. */
   const oneNormal = (mu, v, query) => TL().exam({ acts: [{ id: 'T', preds: [], dist: { kind: 'normal', mu, var: v } }] }, query);
+  /**
+   * La z del plazo y su P de la tabla con σ redondeada a dos decimales antes de dividir, como hace a mano parte del
+   * alumnado (T021, N-F5): { z2, p4 } de threept.tableP; null si σ redondeada es 0. x, una normal de oneNormal.
+   */
+  const sigmaZ = (x, deadline) => { const s = roundTo(x.sd, 2); return s > 0 ? TH().tableP((deadline - x.mu) / s) : null; };
+  /** Las respuestas de z y de P de unas normales (las de la tabla, la exacta y con σ redondeada), sin repetir. */
+  function zpHoles(xs, deadline) {
+    const sig = xs.map((x) => sigmaZ(x, deadline)).filter(Boolean);
+    return {
+      z: uniqNums(xs.map((x) => ({ v: x.table.z2, tol: TOL.z })).concat(sig.map((t) => ({ v: t.z2, tol: TOL.z })))),
+      p: uniqNums(xs.flatMap((x) => [{ v: x.table.p4, tol: TOL.pTable }, { v: x.exact, tol: TOL.pExact }]).concat(sig.map((t) => ({ v: t.p4, tol: TOL.pTable })))),
+      sig,
+    };
+  }
+  /** Respuestas sin repetir (las que Moodle escribe igual). */
+  const uniqNums = (xs) => xs.filter((x, i) => xs.findIndex((y) => clozeNum(y.v) === clozeNum(x.v)) === i);
+  /** Un hueco numérico: num si hay una sola respuesta (como antes de T021) y nums si hay varias. */
+  const numHole = (xs, key) => (xs.length === 1 ? { num: xs[0].v, tol: xs[0].tol, key } : { nums: xs, key });
 
   /** Lo común del TCL: medias y varianzas exactas y las que se dan (dos decimales), y los datos del proyecto que se dan. */
   function tclData(ex) {
@@ -602,15 +621,16 @@
       const zs = [{ v: q.table.z2, tol: TOL.z }, { v: roundTo(q.z, 3), tol: TOL.zExact }];
       const Ts = [{ v: q.table.deadline, tol: TOL.deadline }, { v: q.deadline, tol: TOL.deadline }];
       if (ex.prob === 0.95) for (const z of Z95) { zs.push({ v: z, tol: TOL.zExact }); Ts.push({ v: d.mu + z * c.sd, tol: TOL.deadline }); }
-      const uniq = (xs) => xs.filter((x, i) => xs.findIndex((y) => clozeNum(y.v) === clozeNum(x.v)) === i);
+      const uniq = uniqNums;
+      const zp = zpHoles([c], ex.deadline);
       const n = (v, dd) => numText(k.lang, v, dd);
       const sol = [{ p: k.tr('sol.tclProb', { var: n(d.v, 2), sd: n(c.sd, 2), T: ex.deadline, mu: n(d.mu, 2), z: n(c.table.z2, 2), p: n(c.table.p4, 4), pe: n(c.exact, 4) }) },
         { p: k.tr('sol.tclProbQ', { pct, zp: n(q.table.z2, 2), zpe: n(q.z, 3), Tp: n(q.table.deadline, 2) }) }];
       if (ex.prob === 0.95) sol.push({ p: k.tr('sol.tcl95') });
       return {
         text: [{ p: k.tr('stem.tclProb', { path: d.exact.path.join(PATH_SEP), mu: n(d.mu, 2), var: n(d.v, 2) }) },
-          { p: k.tr('ask.z', { T: ex.deadline }), hole: k.hole({ num: c.table.z2, tol: TOL.z, key: 'z' }) },
-          { p: k.tr('ask.p', { T: ex.deadline }), hole: k.hole({ nums: [{ v: c.table.p4, tol: TOL.pTable }, { v: c.exact, tol: TOL.pExact }], key: 'p' }) },
+          { p: k.tr('ask.z', { T: ex.deadline }), hole: k.hole(numHole(zp.z, 'z')) },
+          { p: k.tr('ask.p', { T: ex.deadline }), hole: k.hole(numHole(zp.p, 'p')) },
           { p: k.tr('ask.zp', { pct }), hole: k.hole({ nums: uniq(zs), key: 'zp' }) },
           { p: k.tr('ask.Tp'), hole: k.hole({ nums: uniq(Ts), key: 'Tp' }) }],
         sol,
@@ -622,7 +642,14 @@
       const c = d.crit;
       const muR = ex.route.reduce((s, id) => s + d.mom[id].te, 0);
       const vR = ex.route.reduce((s, id) => s + d.mom[id].var, 0);
+      // Las dos maneras de llegar a μ y σ² de la ruta, como en las series (T021, N-F1): redondeadas al final (r) o sumando
+      // los tₑ y σ² de dos decimales que da la tabla del enunciado (rB). «Las dos», con P del camino crítico (dato) y cada una.
       const r = oneNormal(d.r2(muR), d.r2(vR), { deadline: ex.deadline });
+      const rB = oneNormal(d.r2(ex.route.reduce((s, id) => s + d.r2(d.mom[id].te), 0)), d.r2(ex.route.reduce((s, id) => s + d.r2(d.mom[id].var), 0)), { deadline: ex.deadline });
+      const zp = zpHoles([r, rB], ex.deadline);
+      const pc = [c.table.p4, c.exact];
+      const bothNums = uniqNums([r, rB].flatMap((x) => [{ v: pc[0] * x.table.p4, tol: TOL.pTable }, { v: pc[1] * x.exact, tol: TOL.pExact }])
+        .concat(zp.sig.map((t) => ({ v: pc[0] * t.p4, tol: TOL.pTable }))));
       const kk = ex.route.length;
       const n = (v, dd) => numText(k.lang, v, dd);
       const route = ex.route.join(PATH_SEP);
@@ -631,9 +658,9 @@
           k.table([k.tr('col.act'), k.tr('col.preds'), 'tₑ', 'σ²'], ex.rows.map((x) => [x.id, k.preds(x), n(d.mom[x.id].te, 2), n(d.mom[x.id].var, 2)])),
           { p: k.tr('ask.rMu', { route }), hole: k.hole({ num: muR, tol: TOL.mom * kk, key: 'r.mu' }) },
           { p: k.tr('ask.rVar'), hole: k.hole({ num: vR, tol: TOL.mom * kk, key: 'r.var' }) },
-          { p: k.tr('ask.rZ', { T: ex.deadline }), hole: k.hole({ num: r.table.z2, tol: TOL.z, key: 'r.z' }) },
-          { p: k.tr('ask.rP', { T: ex.deadline }), hole: k.hole({ nums: [{ v: r.table.p4, tol: TOL.pTable }, { v: r.exact, tol: TOL.pExact }], key: 'r.p' }) },
-          { p: k.tr('ask.both', { T: ex.deadline }), hole: k.hole({ nums: [{ v: c.table.p4 * r.table.p4, tol: TOL.pTable }, { v: c.exact * r.exact, tol: TOL.pExact }], key: 'both' }) }],
+          { p: k.tr('ask.rZ', { T: ex.deadline }), hole: k.hole(numHole(zp.z, 'r.z')) },
+          { p: k.tr('ask.rP', { T: ex.deadline }), hole: k.hole(numHole(zp.p, 'r.p')) },
+          { p: k.tr('ask.both', { T: ex.deadline }), hole: k.hole(numHole(bothNums, 'both')) }],
         sol: [{ p: k.tr('sol.tclRoute', { route, mu: n(muR, 2), var: n(vR, 2), sd: n(r.sd, 2), T: ex.deadline, z: n(r.table.z2, 2), p: n(r.table.p4, 4), pe: n(r.exact, 4) }) },
           { p: k.tr('sol.tclBoth', { pc: n(c.table.p4, 4), pr: n(r.table.p4, 4), both: n(c.table.p4 * r.table.p4, 4) }) }],
       };
@@ -944,7 +971,7 @@
   const api = { STAGES, STAGES_ALL, STAGES_F3E, LEVELS, APP, FRACTIONS, MR_FRACTIONS, MIN_DISTRACTORS, MAX_DISTRACTORS, MAX_COUNT, DEFAULT_COUNT, TRIES_PER,
     TRIES_MULT, TOL, fraction, exercise, fromRows, links, question, stochExercise, runner, generate, toXml, cdata, base64, claimHolds, transitive,
     // F3e (T015): piezas que usa core/series (la familia de las series de moodle.html); no son parte del contrato.
-    _: { ASK, PATH_SEP, Z95, SEED_MAX, PATH_LIMIT, BUILD, tclData, numText, roundTo, clozeNum, stochLinks, natural } };
+    _: { ASK, PATH_SEP, Z95, SEED_MAX, PATH_LIMIT, BUILD, tclData, numText, roundTo, clozeNum, stochLinks, natural, zpHoles, uniqNums } };
   root.PNL = root.PNL || {};
   root.PNL.moodle = api;
   if (isNode) module.exports = api;

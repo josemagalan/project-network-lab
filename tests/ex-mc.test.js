@@ -156,7 +156,7 @@ test('T011 · explicaciones de «Leer»: lo que se lee en los gráficos, con su 
       }
     }
   }
-  for (const k of ['mostCruc', 'critLowCruc', 'normal', 'promise']) assert.ok(seen.has(k), k);
+  for (const k of ['mostCrit', 'mostCruc', 'critLowCruc', 'normal', 'promise']) assert.ok(seen.has(k), k);
   const norm = PG.read(2026, 'hard').ex;
   const qn = norm.questions.find((q) => q.key === 'normal');
   assert.deepEqual(XM.question(norm, qn, 'es').options, ['Optimista: da más probabilidad; olvida los caminos que se funden', 'Pesimista: da menos probabilidad', 'Casi igual']);
@@ -298,4 +298,43 @@ test('T011 · los textos de Montecarlo (i18n-mc) están en los dos idiomas, con 
     }
   }
   assert.equal(XH.label(board98().ex, 'pT', 'es'), 'P(T ≤ 23)');
+});
+
+// ---------- F3e T021: arreglos de la revisión de nivel 2 (ronda 1) ----------
+
+test('T021 N-F3 · discretas: la criticidad con error consecuente se explica con la suma de sus p (fácil 49; y con una p mal)', () => {
+  const ex = PG.disc(49, 'easy').ex; const sol = PG.solve('disc', ex);
+  const a = {};
+  sol.combos.forEach((c, i) => { a[`c${i + 1}.T`] = String(c.T); a[`c${i + 1}.p`] = c.p.toFixed(3); });
+  a['A.crit'] = '0,814';
+  const g = XM.grade(ex, a);
+  assert.equal(g.cells['A.crit'].status, 'carried');
+  assert.equal(XM.explain(ex, a, g, 'A.crit', 'es'), I.t('es', 'ex.explain.carried', { v: '0,814', e: '0,814', lab: 'criticidad de A',
+    calc: 'Σ p de tus combinaciones en que A es crítica', origin: '' }));
+  assert.equal(XM.explain(ex, a, g, 'A.crit', 'en'), I.t('en', 'ex.explain.carried', { v: '0.814', e: '0.814', lab: 'criticality of A',
+    calc: 'Σ p of your combinations in which A is critical', origin: '' }));
+  // Con la p de la combinación 1 mal (A es crítica en ella): carried desde esa p; mal con sus p, la suma con las suyas.
+  const b = Object.assign({}, a, { 'c1.p': '0,163', 'A.crit': '0,914' });
+  const gb = XM.grade(ex, b);
+  assert.equal(gb.cells['A.crit'].status, 'carried');
+  assert.equal(XM.explain(ex, b, gb, 'A.crit', 'es'), I.t('es', 'ex.explain.carried', { v: '0,914', e: '0,914', lab: 'criticidad de A',
+    calc: 'Σ p de tus combinaciones en que A es crítica', origin: I.t('es', 'ex.explain.origin', { lab: 'p de la combinación 1' }) }));
+  const w = Object.assign({}, b, { 'A.crit': '0,5' });
+  assert.equal(XM.explain(ex, w, XM.grade(ex, w), 'A.crit', 'es'), I.t('es', 'ex.explain.wrong', { v: '0,5', e: '0,914', lab: 'criticidad de A',
+    calc: 'Σ p de tus combinaciones en que A es crítica' }));
+  // Sin ninguna p mal y mal: cuántas combinaciones y la suma de la solución (tablero 97).
+  const v = Object.assign({}, a, { 'A.crit': '0,5' });
+  assert.equal(XM.explain(ex, v, XM.grade(ex, v), 'A.crit', 'es'), 'Has escrito 0,5. A es crítica en 3 de las 4 combinaciones (los empates cuentan); la suma de sus p es 0,813.');
+});
+
+test('T021 I-F1 · explicaciones de «Leer»: la más crítica (con el empate de la siguiente, B y D) y la normal frente a la simulación', () => {
+  const wrongOf = (ex, key) => { const q = ex.questions.find((x) => x.key === key); return { [`q.${key}`]: String((q.options.indexOf(q.correct) + 1) % q.options.length) }; };
+  const E = (ex, key, lang) => { const a = wrongOf(ex, key); return XM.explain(ex, a, XM.grade(ex, a), `q.${key}`, lang); };
+  const e1 = PG.read(1, 'easy').ex;
+  // Criticidad, no crucialidad (A 1,00; la de crucialidad sería 0,65); B y D empatan a 0,59: la siguiente, B (orden natural).
+  assert.equal(E(e1, 'mostCrit', 'es'), 'La respuesta es A: su barra de criticidad es la más larga (1,00); la siguiente es la de B (0,59).');
+  assert.equal(E(e1, 'mostCrit', 'en'), 'The answer is A: its criticality bar is the longest (1.00); the next one is that of B (0.59).');
+  const e2 = PG.read(2026, 'hard').ex;
+  assert.equal(E(e2, 'normal', 'es'), 'La respuesta es «Optimista: da más probabilidad; olvida los caminos que se funden»: la normal del TCL da P(T ≤ 41) = 0,84 y la simulación, 0,65. La normal solo mira el camino crítico de las medias; los caminos que se funden con él alargan el proyecto.');
+  assert.equal(E(e2, 'normal', 'en'), 'The answer is «Optimistic: higher probability; it ignores merging paths»: the CLT normal gives P(T ≤ 41) = 0.84 and the simulation 0.65. The normal only looks at the critical path of the means; the paths that merge with it make the project longer.');
 });

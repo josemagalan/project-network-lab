@@ -1314,7 +1314,8 @@ for (const lv of M.LEVELS) {
         if (stage === 'tclProb') {
           // Con los datos que enseña (μ y σ² a dos decimales), como el examen; la solución exacta queda dentro de la tolerancia.
           const mu = r2(s.mu); const v = r2(s.var); const z = (ex.deadline - mu) / Math.sqrt(v);
-          assert.equal(c.z.num, T3.tableP(z).z2);
+          // La primera respuesta es la de la tabla; desde T021 (N-F5) puede haber otra, con σ redondeada a dos decimales.
+          assert.equal('num' in c.z ? c.z.num : c.z.nums[0].v, T3.tableP(z).z2);
           assert.equal(c.p.nums[0].v, T3.tableP(z).p4);
           assert.ok(accepts(c.p, s.pExact) && accepts(c.zp, s.zp) && accepts(c.Tp, s.TpExact));
           if (ex.prob === 0.95) for (const zz of [1.64, 1.645, 1.65]) assert.ok(accepts(c.zp, zz));
@@ -1408,4 +1409,67 @@ test('F3e T014: bancos en inglés y en español con los textos de i18n-moodle, s
   const keys = (o, pre) => Object.entries(o).flatMap(([k, v]) => (v && typeof v === 'object' ? keys(v, `${pre}${k}.`) : [`${pre}${k}`]));
   assert.deepEqual(keys(I.dict.es.mq, '').sort(), keys(I.dict.en.mq, '').sort());
   for (const s of F3E) for (const lang of ['es', 'en']) assert.ok(I.dict[lang].mq.stage[s], `${lang}: ${s}`);
+});
+
+// ---------- F3e T021: arreglos de la revisión de nivel 2 (ronda 1) ----------
+
+const normal1 = (mu, v, deadline) => TLc.exam({ acts: [{ id: 'T', preds: [], dist: { kind: 'normal', mu, var: v } }] }, { deadline });
+
+test('F3e T021 N-F1 · la etapa 14 sola: z, P y «las dos» también con la suma de los tₑ y σ² de dos decimales de su tabla (media 357, fácil 878)', () => {
+  for (const [lv, sd] of [['medium', 357], ['easy', 878]]) {
+    const ex = M.stochExercise('tclRoute', lv, sd);
+    const q = M.question('tclRoute', ex, ctx(), tr);
+    const c = cells(q);
+    const te = colOf(q, 'tₑ'); const va = colOf(q, 'σ²');
+    const mu = r2(ex.route.reduce((s, id) => s + decNum(te[id]), 0)); const v = r2(ex.route.reduce((s, id) => s + decNum(va[id]), 0));
+    const rB = normal1(mu, v, ex.deadline);
+    assert.equal(rB.table.z2, 1.69, `${lv} ${sd}`);
+    assert.ok(accepts(c['r.mu'], mu) && accepts(c['r.var'], v), `${lv} ${sd}: μ y σ² de la ruta`);
+    assert.ok(accepts(c['r.z'], 1.69) && accepts(c['r.z'], 1.71), `${lv} ${sd}: z de la ruta de las dos maneras`);
+    assert.ok(accepts(c['r.p'], rB.table.p4), `${lv} ${sd}: P de la ruta con la tabla`);
+    // Las respuestas de la manera B están en el hueco tal cual (no solo dentro de la tolerancia de otra).
+    assert.ok(c['r.z'].nums.some((a) => a.v === rB.table.z2) && c['r.p'].nums.some((a) => a.v === rB.table.p4), `${lv} ${sd}: z y P de la manera B`);
+    const stem = JSON.parse(q.text[0].p.slice('stem.tclRoute'.length));
+    assert.ok(accepts(c.both, decNum(stem.p) * rB.table.p4), `${lv} ${sd}: las dos`);
+    assert.ok(!accepts(c['r.z'], 1.66) && !accepts(c['r.z'], 1.74));
+    assert.deepEqual(X.check(M.toXml({ seed: 1, questions: [q] }, tr)), { ok: true });
+  }
+});
+
+test('F3e T021 N-F2 · las tolerancias de Moodle (TOL) están fijadas: plazo ±0,05 y las cuentas a mano ±0,001, en su borde', () => {
+  assert.deepEqual(M.TOL, { mom: 0.01, z: 0.01, pTable: 0.0005, pExact: 0.005, zExact: 0.0005, deadline: 0.05, read: 0.05, hand: 0.001 });
+  const c = cells(M.question('tclProb', PG.fromExample('kl', { prob: 0.95 }), ctx(), tr));
+  const Tp = 23.83 + 1.645 * Math.sqrt(8.25);
+  assert.ok(accepts(c.Tp, Tp + 0.045) && !accepts(c.Tp, Tp + 0.12), 'plazo: ±0,05 (no ±0,01 ni ±0,1)');
+  assert.ok(accepts(c.Tp, r2(Tp) + 0.03), 'plazo a dos decimales y 0,03 más');
+  const d = cells(M.question('mcDisc', PG.fromExample('kd'), ctx(), tr));
+  assert.ok(accepts(d.mean, 23.2489) && !accepts(d.mean, 23.2495), 'E[T] = 23,248 ± 0,001');
+  assert.ok(accepts(d.pT, 0.1575) && !accepts(d.pT, 0.1595), 'P(T ≤ 20) = 0,157 ± 0,001');
+});
+
+test('F3e T021 N-F5 · la z con σ redondeada a dos decimales también vale en las etapas 13 y 14 (con su P de la tabla)', () => {
+  // Fácil 48 (la 13): σ² = 0,11 da σ = 0,33; (T − μ) / 0,33 = 4,88, lejos de la z con σ = √0,11.
+  const ex13 = M.stochExercise('tclProb', 'easy', 48);
+  const q13 = M.question('tclProb', ex13, ctx(), tr);
+  const c13 = cells(q13);
+  const stem = JSON.parse(q13.text[0].p.slice('stem.tclProb'.length));
+  const mu = decNum(stem.mu); const v = decNum(stem.var);
+  const zs = r2((ex13.deadline - mu) / r2(Math.sqrt(v)));
+  assert.equal(zs, 4.88);
+  assert.ok(accepts(c13.z, zs) && accepts(c13.z, c13.z.nums ? c13.z.nums[0].v : c13.z.num));
+  assert.ok(accepts(c13.p, T3.tableP(zs).p4));
+  assert.ok(c13.z.nums.some((a) => a.v === zs) && c13.p.nums.some((a) => a.v === T3.tableP(zs).p4), 'z y P con σ redondeada, tal cual en el hueco');
+  // Fácil 280 (la 14): la ruta con σ redondeada da z = −1.
+  const ex14 = M.stochExercise('tclRoute', 'easy', 280);
+  const q14 = M.question('tclRoute', ex14, ctx(), tr);
+  const c14 = cells(q14);
+  const te = colOf(q14, 'tₑ'); const va = colOf(q14, 'σ²');
+  const rm = r2(ex14.route.reduce((s, id) => s + decNum(te[id]), 0)); const rv = r2(ex14.route.reduce((s, id) => s + decNum(va[id]), 0));
+  const rz = r2((ex14.deadline - rm) / r2(Math.sqrt(rv)));
+  assert.equal(rz, -1);
+  assert.ok(accepts(c14['r.z'], rz) && accepts(c14['r.p'], T3.tableP(rz).p4));
+  assert.deepEqual(c14['r.p'].nums.map((a) => a.v).slice(-1), [0.1587], 'la P de la tabla con z = −1, tal cual');
+  // Klastorin: σ = √8,25 = 2,87 (2,8723); con σ redondeada, la misma z (0,41): una sola respuesta, como antes.
+  const kl = cells(M.question('tclProb', PG.fromExample('kl'), ctx(), tr));
+  assert.equal(kl.z.num, 0.41);
 });

@@ -131,9 +131,9 @@
     mqc = MP.create($('mqView'), {
       state: () => state, lang,
       announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
-      // F3e (T013): la familia de cada etapa marcada; el título va en la cabecera de la página. T016: las etapas 11 a 17,
-      // las familias plegables y las series (f3e).
-      need, ready, heading: false, f3e: true,
+      // F3e (T013): la familia de cada etapa marcada; el título va en la cabecera de la página. Desde T021, moodle-page
+      // solo tiene el camino de moodle.html (etapas 11 a 17, familias plegables y series).
+      need, ready,
     });
     MP.state = () => mqc.debug();
     writeHash();
