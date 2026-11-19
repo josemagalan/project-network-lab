@@ -285,3 +285,39 @@ for (const file of ['css/build.css', 'css/det.css']) {
     assert.deepEqual(fails, []);
   });
 }
+
+// F3e (T018): las hojas de TCL, Montecarlo, «Aprende más» de «Ejercicios» y moodle.html (prob.css, mc.css, learn-ex.css y
+// moodle.css) solo usan los tokens de styles.css; nada quita el contorno del foco; los colores de texto y de los trazos y
+// bordes que llevan información, con su contraste sobre el fondo en que salen, en los dos temas. La única excepción: el fondo
+// blanco de las imágenes de las preguntas en moodle.html, que se dibujan para Moodle sobre blanco (como en el banco).
+const F3E_SHEETS = {
+  'css/prob.css': { text: [['ok', 'card'], ['critical', 'card'], ['accent', 'card'], ['muted', 'card'], ['accent-ink', 'accent'], ['ink', 'accent-mid']], ui: [['accent', 'accent-mid'], ['accent', 'card']] },
+  'css/mc.css': { text: [['ok', 'card'], ['critical-text', 'critical-soft'], ['accent', 'card'], ['accent-ink', 'accent'], ['muted', 'card'], ['ink', 'card'], ['ink', 'warn-soft']], ui: [['ok', 'card'], ['critical', 'critical-soft'], ['accent', 'card']] },
+  'css/learn-ex.css': { text: [['accent', 'card'], ['accent-ink', 'accent']], ui: [['accent', 'card']] },
+  'css/moodle.css': { text: [['ink', 'card'], ['muted', 'card'], ['accent', 'card'], ['ink', 'accent-soft'], ['ink', 'soft'], ['muted', 'soft']], ui: [['edge', 'card']] },
+};
+for (const [file, pairs] of Object.entries(F3E_SHEETS)) {
+  test(`${file}: sin colores propios; el foco no se quita; textos con 4,5:1 y trazos con 3:1 en los dos temas`, () => {
+    const css = read(file).replace(/\/\*[\s\S]*?\*\//g, '');
+    const own = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, , body]) => /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/.test(body)).map(([, sel, body]) => `${sel.trim()} { ${body.trim()} }`);
+    assert.deepEqual(own, file === 'css/moodle.css' ? ['.mq-img img { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }'] : [], 'sin colores fuera de los tokens');
+    assert.doesNotMatch(css, /outline:\s*(none|0)\b/, 'ninguna regla quita el contorno del foco');
+    // Los tokens de los textos, trazos y bordes, de las listas medidas (--line: el borde de una tarjeta, sin información).
+    const ok = new Set([...PAIRS['css/styles.css'].ui.map(([fg]) => fg), ...PAIRS['css/styles.css'].text.map(([fg]) => fg), 'line']);
+    const used = [...css.matchAll(/(?:stroke|outline|border(?:-[a-z]+)?|(?:^|[\s;{])color):[^;]*var\(--([a-z-]+)\)/g)].map((m) => m[1]);
+    assert.ok(used.length >= 3, `${used.length} usos`);
+    assert.deepEqual([...new Set(used)].filter((tok) => !ok.has(tok)), []);
+    const fails = [];
+    for (const theme of ['light', 'dark']) {
+      const t = tokens('css/styles.css')[theme];
+      for (const [kind, min] of [['text', 4.5], ['ui', 3]]) {
+        for (const [fg, bg] of pairs[kind]) {
+          assert.ok(t[fg] && t[bg], `${theme}: --${fg} o --${bg}`);
+          const r = contrast(t[fg], t[bg]);
+          if (r < min) fails.push(`${theme} --${fg} sobre --${bg}: ${r.toFixed(2)}`);
+        }
+      }
+    }
+    assert.deepEqual(fails, []);
+  });
+}

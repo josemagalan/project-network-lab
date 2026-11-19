@@ -63,7 +63,7 @@
     const right = h('section', { class: 'card ex-answers mx-ans', id: 'mxAnswers', 'aria-label': t('ex.answers') }, [
       c.head(t('ex.answers')), c.note(),
       h('div', { class: 'mx-rgrid' }, [pic('mxIdx', pics.idx, ch.idx), h('div', { class: 'mx-vcol' }, [vals, side]),
-        h('div', { class: 'mx-group mx-qs', role: 'group', 'aria-labelledby': 'mxInterp' }, [h('span', { class: 'mx-gtitle', id: 'mxInterp' }, [t('mx.interp')])].concat(qs))]),
+        h('div', { class: 'mx-group mx-qs', role: 'group', 'aria-labelledby': 'mxInterp', tabindex: c.locked ? '0' : null }, [h('span', { class: 'mx-gtitle', id: 'mxInterp' }, [t('mx.interp')])].concat(qs))]),
       c.actions()]);
     return h('div', { class: 'ex-grid mx-grid mx-read' }, [left, right]);
   }

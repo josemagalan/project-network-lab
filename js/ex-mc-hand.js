@@ -78,7 +78,7 @@
       h('thead', {}, [h('tr', {}, [h('th', { scope: 'col' }, ['#'])].concat(ids.map((id) => h('th', { scope: 'col', class: 'd' }, [id])), [h('th', { scope: 'col' }, ['T']), h('th', { scope: 'col' }, ['p'])]))]),
       h('tbody', {}, sol.combos.map((x, i) => h('tr', { class: c.sel() && c.sel().startsWith(`c${i + 1}.`) ? 'sel' : null }, [h('th', { scope: 'row' }, [String(i + 1)])]
         .concat(ids.map((id) => h('td', { class: 'd' }, [c.num(x.vals[id])])), [h('td', {}, [c.cell(`c${i + 1}.T`)]), h('td', {}, [c.cell(`c${i + 1}.p`)])]))))]);
-    const right = h('section', { class: 'card ex-answers mx-ans', id: 'mxAnswers', 'aria-label': t('ex.answers') }, [c.head(t('ex.answers')), c.note(),
+    const right = h('section', { class: 'card ex-answers mx-ans', id: 'mxAnswers', 'aria-label': t('ex.answers') }, [c.head(t('ex.answers')),
       h('div', { class: 'mx-cols' }, [
         h('div', { class: 'mx-c1' }, [h('span', { class: 'mx-gtitle', id: 'mxCombosHead' }, [t('mx.combos', { n: sol.combos.length })]),
           h('div', { class: 'ex-table-box mx-box', tabindex: '0', role: 'region', 'aria-labelledby': 'mxCombosHead' }, [combos])]),
@@ -88,7 +88,7 @@
           h('div', { class: 'mx-group', role: 'group', 'aria-labelledby': 'mxCritHead' }, [h('span', { class: 'mx-gtitle', id: 'mxCritHead' }, [t('mx.critHead')])]
             .concat(ids.map((id) => c.field(`${id}.crit`, id)))),
           c.locked ? null : h('p', { class: 'muted small' }, [t('mx.discHelp')])]),
-        c.side()]),
+        c.side(true)]),
       c.actions()]);
     return h('div', { class: 'ex-grid mx-grid mx-disc-grid' }, [left, right]);
   }

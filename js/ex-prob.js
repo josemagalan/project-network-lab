@@ -388,7 +388,8 @@
         groups.push(group('pbGBoth', t('pb.both'), [field('both', 'P')]));
       }
 
-      const side = [];
+      // F3e (T018, AC20): la nota del Examen va arriba de la columna lateral; encima de las tres columnas, el difícil no cabía en 1280×720.
+      const side = [exam ? h('p', { class: 'muted small ex-note', id: 'pbNote' }, [delivered ? t('ex.delivered') : t('ex.examNote')]) : null];
       if (g) side.push(h('ul', { class: 'ex-legend', 'aria-label': t('ex.legend') }, ['ok', 'carried', 'wrong', 'blank', 'invalid'].map((x) => h('li', { class: `ex-chip st-${x}` }, [AT.icon(x), t(`ex.st.${x}`)]))));
       const explainBox = h('div', { class: 'ex-explain', id: 'pbExplain', 'aria-live': 'polite', hidden: true });
       side.push(explainBox);
@@ -414,7 +415,6 @@
       if (g) head.push(h('p', { class: 'ex-score', role: 'status' }, [h('strong', { id: 'pbScore' }, [scoreText(g, lg)]), ' ', h('span', { class: 'muted small', id: 'pbCount' }, [countText(g, lg)])]));
       const answersCard = h('section', { class: 'card ex-answers', id: 'pbAnswers', 'aria-label': t('ex.answers') }, [
         h('div', { class: 'ex-head' }, head),
-        exam ? h('p', { class: 'muted small ex-note', id: 'pbNote' }, [delivered ? t('ex.delivered') : t('ex.examNote')]) : null,
         h('div', { class: 'pb-cols' }, [
           h('div', { class: 'pb-c1' }, [h('div', { class: 'ex-table-box pb-table-box', tabindex: '0', role: 'region', 'aria-label': t('pb.caption') }, [table]), pathSt,
             locked ? null : h('p', { class: 'muted small' }, [t('pb.help')])]),

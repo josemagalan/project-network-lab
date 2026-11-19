@@ -340,8 +340,9 @@
           return h('div', { class: 'ex-head' }, out);
         },
         note: () => (exam ? h('p', { class: 'muted small ex-note', id: 'mxNote' }, [delivered ? t('ex.delivered') : t('ex.examNote')]) : null),
-        side: () => {
-          const out = [];
+        // F3e (T018, AC20): con withNote, la nota del Examen arriba de la columna lateral (las discretas no cabían en 1280×720).
+        side: (withNote) => {
+          const out = withNote ? [ctx.note()] : [];
           // La leyenda, con los estados que hay (tableros 96–98): así cabe en 1280×720.
           if (g) { const c = counts(g); out.push(h('ul', { class: 'ex-legend', 'aria-label': t('ex.legend') }, ['ok', 'carried', 'wrong', 'blank', 'invalid'].filter((x) => c[x])
             .map((x) => h('li', { class: `ex-chip st-${x}` }, [AT.icon(x), t(`ex.st.${x}`)])))); }

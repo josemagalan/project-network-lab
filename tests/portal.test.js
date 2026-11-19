@@ -164,8 +164,10 @@ test('F3a T017 · AC17: «Ejercicios generados» está disponible y abre «Ejerc
   assert.match(card, /class="ok" data-i18n="available"/);
   assert.doesNotMatch(card, /soonPhase3/);
   assert.equal(messages.en.practiceOpen, 'Generate an exercise');
-  // El texto describe lo que hay (sin enunciado ni modo detective, que son de la F3c y la F3d).
-  for (const lang of ['es', 'en']) assert.doesNotMatch(messages[lang].practiceDesc, /detective|enunciado|statement/i, lang);
+  // El texto describe lo que hay: desde la F3e (T018, texto aprobado), los seis tipos de «Ejercicios».
+  assert.match(messages.es.practiceDesc, /tiempos y holguras.*ROY y PERT.*detective.*TCL.*Montecarlo.*Practicar o Examen/);
+  assert.match(messages.en.practiceDesc, /times and floats.*AON and AOA.*detective.*CLT.*Monte Carlo.*Practice or Exam/);
+  assert.ok(html.includes(`<p data-i18n="practiceDesc">${messages.es.practiceDesc}</p>`), 'index.html lleva el texto en español');
   // El taller nombra la tabla al azar.
   assert.match(messages.es.workTopics, /Tabla al azar/);
   assert.match(messages.en.workTopics, /Random table/);

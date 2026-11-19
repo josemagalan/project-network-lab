@@ -9849,6 +9849,493 @@ check('F3e T017 · portada: la tarjeta del exportador nombra probabilidad, Monte
   }
 });
 
+// ---------- F3e, T018: accesibilidad, teclado, pantalla, enlaces y tamaño (AC18–AC21, AC23) ----------
+// Las vistas nuevas en el nivel difícil, cada una con algo escrito y, si toca, comprobada o entregada: claro y oscuro, ES y EN.
+// Lo que ya miraban T010–T017 (una combinación por vista) no se repite: aquí va la matriz completa.
+
+const T18 = { tcl: { sd: 50, lv: 'hard', xo: 1 }, read: { sd: 12, lv: 'hard' }, disc: { sd: 26, lv: 'hard', mv: 'disc' }, rep: { sd: 1, lv: 'hard', mv: 'rep' } };
+// Un alumno a medias: el TCL coherente con un te mal; en Montecarlo, una casilla de cada parte.
+const t18PbAns = (s) => { const { ex } = pbEx(s); return pbStudent(ex, { pre: { [`${ex.rows[1].id}.te`]: '99' } }); };
+const T18_MX = { read: { pct: '1', pT: '0.5' }, disc: { 'c1.T': '1', 'c1.p': '1/2' }, rep: { 'r1.T': '1' } };
+const t18Wait = {
+  pb: (p) => p.waitForFunction(() => PNL.exProb.state() && PNL.exProb.state().grading),
+  mx: (p) => p.waitForFunction(() => PNL.exMc.state() && PNL.exMc.state().grading, null, { timeout: 30000 }),
+};
+const t18Pb = (o, extra) => Object.assign({ lang: o.lang, nota: o.nota }, T18.tcl, extra);
+const t18Mx = (k, o, extra) => Object.assign({ lang: o.lang, nota: o.nota, pa: T18_MX[k] }, T18[k], extra);
+// [nombre, alternativa en texto (selector, filas como mínimo), abrir con las opciones (lang, scheme, nota, width)]. Raíz: #exView.
+const F3E_VIEWS = [
+  ['TCL en Practicar, comprobado, con la otra ruta', ['#pbGiven table tbody tr', 3], async (o) => {
+    const s = t18Pb(o);
+    const p = await pbLab(Object.assign({ pa: t18PbAns(s) }, s), o);
+    await p.locator('#pbCheck').click();
+    await exCell(p, 'mu').focus();
+    return p;
+  }],
+  ['TCL en Examen, sin entregar, con la tabla de la normal', ['#pbGiven table tbody tr', 3], async (o) => {
+    const s = t18Pb(o, { xm: 'exam' });
+    const p = await pbLab(Object.assign({ pa: t18PbAns(s) }, s), o);
+    await exCell(p, 'z').focus();
+    await p.locator('#pbTable').click();
+    await p.locator('#pbNormal').waitFor();
+    return p;
+  }],
+  ['TCL entregado', ['#pbGiven table tbody tr', 3], async (o) => {
+    const s = t18Pb(o, { xm: 'exam', xd: 1 });
+    const p = await pbLab(Object.assign({ pa: t18PbAns(s) }, s), o);
+    await t18Wait.pb(p);
+    await exCell(p, 'var').focus();
+    return p;
+  }],
+  ['Montecarlo, «Leer» en Practicar, comprobado, con la tabla y los datos', ['#mxAlt table tbody tr', 3], async (o) => {
+    const p = await mxLab(t18Mx('read', o), o);
+    await p.locator('#mxCheck').click();
+    for (const sel of ['#mxAlt summary', '#mxData summary']) await p.locator(sel).click();
+    await exCell(p, 'pct').focus();
+    return p;
+  }],
+  ['Montecarlo, «Leer» en Examen, sin entregar', ['#mxAlt table tbody tr', 3], (o) => mxLab(t18Mx('read', o, { xm: 'exam' }), o)],
+  ['Montecarlo, «Leer» entregado', ['#mxAlt table tbody tr', 3], async (o) => {
+    const p = await mxLab(t18Mx('read', o, { xm: 'exam', xd: 1 }), o);
+    await t18Wait.mx(p);
+    await p.locator('#mxAlt summary').click();
+    return p;
+  }],
+  ['Montecarlo, discretas en Practicar, comprobado', ['#mxData table tbody tr', 3], async (o) => {
+    const p = await mxLab(t18Mx('disc', o), o);
+    await p.locator('#mxCheck').click();
+    await exCell(p, 'c1.T').focus();
+    return p;
+  }],
+  ['Montecarlo, discretas entregado', ['#mxData table tbody tr', 3], async (o) => {
+    const p = await mxLab(t18Mx('disc', o, { xm: 'exam', xd: 1 }), o);
+    await t18Wait.mx(p);
+    return p;
+  }],
+  ['Montecarlo, réplicas en Practicar, comprobado', ['#mxReps table tbody tr', 3], async (o) => {
+    const p = await mxLab(t18Mx('rep', o), o);
+    await p.locator('#mxCheck').click();
+    await exCell(p, 'r1.T').focus();
+    return p;
+  }],
+  ['Montecarlo, réplicas entregado', ['#mxReps table tbody tr', 3], async (o) => {
+    const p = await mxLab(t18Mx('rep', o, { xm: 'exam', xd: 1 }), o);
+    await t18Wait.mx(p);
+    return p;
+  }],
+];
+// Las imágenes: cada <img> visible con su texto alternativo; si es un SVG (data:), con título y descripción dentro.
+const t18Imgs = (page, root) => page.evaluate((r) => [...document.querySelectorAll(`${r} img`)].filter((i) => i.getBoundingClientRect().width > 0)
+  .map((i) => ({ alt: (i.getAttribute('alt') || '').trim(), svg: i.src.startsWith('data:image/svg+xml;base64,') ? atob(i.src.split(',')[1]) : null }))
+  .map((i) => ({ alt: i.alt.length, titled: i.svg === null || (/<title[^>]*>[^<]+<\/title>/.test(i.svg) && /<desc[^>]*>[^<]+<\/desc>/.test(i.svg) && /role="img"/.test(i.svg)) })), root);
+async function t18Alt(page, root, label) {
+  for (const s of await t15Svgs(page, root)) {
+    assert.ok(s.hidden || (s.name && (s.role === 'img' || s.role === 'group' || s.role === 'application')), `${label}: el dibujo ${s.id} sin nombre (${JSON.stringify(s)})`);
+    assert.equal(s.unnamed, 0, `${label}: elementos del dibujo ${s.id} sin nombre`);
+  }
+  for (const i of await t18Imgs(page, root)) assert.ok(i.alt > 0 && i.titled, `${label}: imagen sin texto alternativo (${JSON.stringify(i)})`);
+}
+// Las regiones que se desplazan por dentro (tablas largas y gráficos) se alcanzan con el teclado y tienen nombre.
+const t18Regions = (page, root) => page.evaluate((r) => [...document.querySelectorAll(`${r} [role="region"]`)].filter((e) => e.getBoundingClientRect().width > 0)
+  .filter((e) => e.tabIndex !== 0 || !(e.getAttribute('aria-label') || e.getAttribute('aria-labelledby'))).map((e) => e.id || e.className), root);
+const T18_COMBOS = [['es', 'light'], ['es', 'dark'], ['en', 'light'], ['en', 'dark']];
+const t18Nota = (lang, scheme) => (scheme === 'dark' && lang === 'es' ? 'es' : 'en');
+const t18Combo = (lang, scheme) => `${lang.toUpperCase()}, ${scheme === 'light' ? 'claro' : 'oscuro'}${t18Nota(lang, scheme) === 'es' ? ', notación española' : ''}`;
+
+for (const [lang, scheme] of T18_COMBOS) {
+  check(`F3e T018 AC18 AC19 · axe sin violaciones en TCL y Montecarlo (${t18Combo(lang, scheme)}): Practicar comprobado, Examen y entregado; cada vista con su alternativa en texto, dibujos e imágenes con nombre y regiones con teclado`, async () => {
+    const nota = t18Nota(lang, scheme);
+    for (const [name, [alt, rows], openView] of F3E_VIEWS) {
+      const label = `F3e T018 · ${name} (${lang}, ${scheme})`;
+      const page = await openView({ lang, scheme, nota });
+      await axe(page, label);
+      assert.ok(await page.locator(alt).count() >= rows, `${label}: la alternativa en texto (${alt})`);
+      await t18Alt(page, '#exView', label);
+      assert.deepEqual(await t18Regions(page, '#exView'), [], `${label}: regiones sin teclado o sin nombre`);
+      // La corrección no depende solo del color: cada casilla marcada lleva su símbolo con el estado en texto, dentro o en el
+      // elemento que la describe (las marcas del camino del TCL comparten la de «Camino», pbPathSt).
+      const bare = await page.evaluate(() => [...document.querySelectorAll('#exView .ex-cell')].filter((c) => /(?:^| )st-/.test(c.className)).filter((c) => {
+        const ctl = c.querySelector('input');
+        const by = ctl && ctl.getAttribute('aria-describedby') && document.getElementById(ctl.getAttribute('aria-describedby'));
+        const m = c.querySelector('.ex-mark') || (by && (by.matches('.ex-mark') ? by : by.querySelector('.ex-mark')));
+        return !(m && m.querySelector('svg path') && m.querySelector('.sr-only') && m.querySelector('.sr-only').textContent.trim());
+      }).map((c) => c.querySelector('input') && c.querySelector('input').id));
+      assert.deepEqual(bare, [], `${label}: casillas marcadas sin símbolo`);
+      if (nota === 'es') {
+        const heads = await page.locator('#exView th').allInnerTexts();
+        assert.ok(!heads.some((x) => /\b(ES|EF|LS|LF|TF|FF)\b/.test(x)), `${label}: siglas inglesas con la notación española`);
+      }
+      await close(page);
+    }
+  });
+}
+
+check('F3e T018 AC21 · «Aprende más» de «Ejercicios»: las seis secciones con axe en claro y oscuro, ES y EN; los enlaces internos abren su vista en otro contexto del navegador', async () => {
+  const internal = new Set();
+  for (const [lang, scheme] of T18_COMBOS) {
+    const page = await open(exUrl({ sd: 2026, lv: 'medium', lang, xk: 'tcl' }), { scheme });
+    await page.locator('#pbLearn').click({ timeout: 30000 });
+    await page.locator('#learnDialog[open] #lxPanel').waitFor();
+    for (const k of LX0.KINDS) {
+      await page.locator(`#lxTab-${k}`).click();
+      await page.waitForFunction((x) => document.getElementById('lxHead') && document.getElementById(`lxTab-${x}`).getAttribute('aria-selected') === 'true', k);
+      await page.waitForFunction((t) => document.getElementById('lxHead').textContent === t, LX0.section(k, lang).title);
+      await axe(page, `F3e T018 · «Aprende más», ${k} (${lang}, ${scheme})`);
+      await t18Alt(page, '#learnDialog', `«Aprende más», ${k} (${lang})`);
+      const links = await page.$$eval('#lxPanel a', (as) => as.map((a) => ({ href: a.getAttribute('href'), text: a.textContent.trim(), target: a.target, rel: a.rel })));
+      for (const a of links) {
+        assert.ok(a.text, `${k}: enlace sin texto`);
+        if (/^https?:/.test(a.href)) assert.ok(a.target !== '_blank' || /noopener/.test(a.rel), `${k}: ${a.href} sin noopener`);
+        else internal.add(a.href.startsWith('#') ? `cpm.html${a.href}` : a.href);   // los del laboratorio, solo con «#»
+      }
+    }
+    await close(page);
+  }
+  assert.ok(internal.size >= 3, `enlaces internos: ${[...internal]}`);
+  for (const href of internal) {
+    const page = await open(href, { wait: false });
+    if (href.startsWith('moodle.html')) await mqWait(page);
+    else await page.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
+    const st = href.startsWith('moodle.html') ? null : await state(page);
+    if (st) {
+      const want = U0.decode(href.slice(href.indexOf('#'))).state;
+      for (const k of ['v', 'um', 'xk', 'lang']) assert.equal(st[k], want[k], `${href}: ${k}`);
+    }
+    await close(page);
+  }
+});
+
+// moodle.html: la vista previa de cada una de las 19 etapas (nivel difícil) y de una serie; cada idioma y tema, y cada idioma a 360 px.
+const T18_MQ = [['es', 'light', 1280], ['en', 'dark', 1280], ['es', 'dark', 360], ['en', 'light', 360]];
+const t18Unfold = (p) => p.evaluate(() => document.querySelectorAll('.mq-preview details').forEach((d) => { d.open = true; }));
+async function t18MqAll(lang, opts) {
+  const p = await mqLab(lang, opts);
+  if (opts.nota === 'es') await setCtl(p, '#selNota', 'es');
+  await mqSelect(p, MP_ORDER.map((s) => code(lang, s)), [IM0.tr(lang)('level.hard')]);
+  await p.waitForFunction((n) => PNL.moodlePage.state().sel.stages.length === n, MP_ORDER.length);
+  return p;
+}
+const t18MqStage = async (p, s) => {
+  await p.selectOption('#mqPvStage', s);
+  await p.waitForFunction((k) => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === k, s, { timeout: 60000 });
+  await t18Unfold(p);
+};
+
+for (const [lang, scheme, width] of T18_MQ) {
+  check(`F3e T018 AC18 AC23 · moodle.html, la vista previa de las 19 etapas y de una serie (${t18Combo(lang, scheme)}, ${width} px): axe, imágenes con texto alternativo${width === 360 ? ' y sin desplazamiento horizontal' : ''}`, async () => {
+    const nota = t18Nota(lang, scheme);
+    const p = await t18MqAll(lang, { scheme, nota, width, height: width === 360 ? 800 : 720 });
+    for (const s of MP_ORDER) {
+      await t18MqStage(p, s);
+      const label = `F3e T018 · moodle.html, etapa ${s} (${lang}, ${scheme}, ${width})`;
+      await axe(p, label);
+      await t18Alt(p, '.mq-preview', label);
+      assert.deepEqual(await t18Regions(p, '.mq-preview'), [], `${label}: regiones sin teclado o sin nombre`);
+      if (width === 360) assert.ok(await noHScroll(p), `${label}: desplazamiento horizontal`);
+      // Los enlaces de la pregunta se abren aparte, como en Moodle.
+      const as = await p.$$eval('.mq-preview a', (xs) => xs.map((a) => ({ target: a.target, rel: a.rel })));
+      assert.ok(as.every((a) => a.target === '_blank' && /noopener/.test(a.rel)), `${label}: enlaces ${JSON.stringify(as)}`);
+    }
+    await mqSeriesTab(p);
+    await mqSeriesSelect(p, SR0.ADMITTED.map((s) => code(lang, s)), 'hard');
+    await p.waitForFunction((n) => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'series' && PNL.moodlePage.state().preview.stages.length === n, SR0.ADMITTED.length, { timeout: 60000 });
+    await t18Unfold(p);
+    const label = `F3e T018 · moodle.html, la serie más larga (${lang}, ${scheme}, ${width})`;
+    await axe(p, label);
+    await t18Alt(p, '.mq-preview', label);
+    if (width === 360) assert.ok(await noHScroll(p), `${label}: desplazamiento horizontal`);
+    await close(p);
+  });
+}
+
+check('F3e T018 AC20 · con el teclado: el Examen del TCL entero (casillas, camino, tabla de la normal, «Entregar» y confirmar), con el foco a la vista; 100 % y el foco en la solución', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'es', xm: 'exam' };
+  const { ex } = pbEx(s);
+  const ans = pbStudent(ex);
+  const page = await pbLab(s);
+  for (const [k, v] of Object.entries(ans)) {
+    if (k === 'path') continue;
+    await exCell(page, k).focus();
+    await page.keyboard.type(pbNum('es', v));
+  }
+  for (const id of ans.path) {
+    await page.locator(`#pbPath-${id}`).focus();
+    await page.keyboard.press('Space');
+  }
+  await page.waitForFunction((n) => (PNL.app.state().pa.path || []).length === n, ans.path.length);
+  // La tabla de la normal: Intro la abre con el foco en «Buscar z»; Escape la cierra y el foco vuelve a su botón.
+  await page.locator('#pbTable').focus();
+  assert.ok(await focusVisible(page), 'foco visible en «Tabla de la normal»');
+  await page.keyboard.press('Enter');
+  await page.locator('#pbNormal').waitFor();
+  assert.equal(await activeId(page), 'pbNormalZ');
+  await page.keyboard.type(pbNum('es', ans.z));
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('pbNormal'));
+  assert.equal(await activeId(page), 'pbTable');
+  await page.locator('#pbDeliver').focus();
+  assert.ok(await focusVisible(page), 'foco visible en «Entregar»');
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'pbConfirmYes', 'la confirmación recibe el foco');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.app.state().xd === 1 && PNL.exProb.state().grading);
+  const g = PR0.tcl(ex, (await state(page)).pa);
+  assert.equal(g.score.pct, 100);
+  assert.equal(await page.locator('#pbScore').innerText(), XP0.scoreText(g, 'es'));
+  assert.equal(await activeId(page), 'pbSol', 'el foco va a la solución');
+  assert.ok(await focusVisible(page));
+  await close(page);
+});
+
+check('F3e T018 AC20 · con el teclado: el Examen de «Leer» entero (casillas, opciones con las flechas, gráficos y su tabla), con el foco a la vista; «Entregar» y la nota', async () => {
+  const s = { sd: 2026, lv: 'medium', lang: 'en', xm: 'exam' };
+  const { ex } = mxEx(s);
+  const ans = mxRead96();
+  const page = await mxLab(s);
+  // Los gráficos: regiones que se alcanzan con Tab y muestran el foco.
+  for (const id of ['mxDist', 'mxIdx']) {
+    await page.locator(`#${id}`).focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    assert.equal(await activeId(page), id);
+    assert.ok(await focusVisible(page), `foco visible en ${id}`);
+  }
+  await page.locator('#mxAlt summary').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#mxAlt').evaluate((d) => d.open), true, 'Intro abre «Ver los gráficos como tabla»');
+  for (const [k, v] of Object.entries(ans)) {
+    if (k.startsWith('q.')) {
+      const q = k.slice(2);
+      await page.locator(`#mxQ-${q}-0`).focus();
+      await page.keyboard.press('Space');
+      for (let i = 0; i < Number(v); i++) await page.keyboard.press('ArrowDown');
+      await page.waitForFunction(([key, val]) => String((PNL.app.state().pa || {})[key]) === val, [k, String(v)]);
+      assert.ok(await focusVisible(page), `foco visible en ${k}`);
+    } else {
+      await exCell(page, k).focus();
+      await page.keyboard.type(v);
+    }
+  }
+  await page.waitForFunction((n) => PNL.app.state().pa && Object.keys(PNL.app.state().pa).length === n, Object.keys(ans).length);
+  await page.locator('#mxDeliver').focus();
+  await page.keyboard.press('Enter');
+  assert.equal(await activeId(page), 'mxConfirmYes', 'la confirmación recibe el foco');
+  await page.keyboard.press('Enter');
+  await t18Wait.mx(page);
+  const g = PR0.read(ex, (await state(page)).pa);
+  assert.equal(await page.locator('#mxScore').innerText(), XM0.scoreText(g, 'en'));
+  assert.deepEqual(await mxMarks(page), mxWant(g));
+  assert.equal(await activeId(page), 'mxSol', 'el foco va a la solución');
+  await close(page);
+});
+
+check('F3e T018 AC20 · con el teclado en moodle.html: plegar una familia, marcar etapas y nivel con Espacio, cambiar la vista previa con las flechas; el foco se ve en cada control', async () => {
+  const p = await mqLab('es');
+  const fam = p.locator('#mqView details.mq-fam summary').nth(2);
+  await fam.focus();
+  assert.ok(await focusVisible(p), 'foco visible en la familia');
+  await p.keyboard.press('Enter');
+  assert.equal(await p.locator('#mqView details.mq-fam').nth(2).evaluate((d) => d.open), false, 'Intro pliega la familia');
+  await p.keyboard.press('Enter');
+  assert.equal(await p.locator('#mqView details.mq-fam').nth(2).evaluate((d) => d.open), true);
+  // Solo las etapas 11 y 15 y el nivel difícil, con Espacio.
+  await mqSelect(p, [], []);
+  // Después de usar el ratón, el foco se lleva con el teclado (Mayús+Tab y Tab) para que se vea (:focus-visible).
+  const kbFocus = async (loc) => { await loc.focus(); await p.keyboard.press('Shift+Tab'); await p.keyboard.press('Tab'); };
+  for (const label of [code('es', 'tclMoments'), code('es', 'mcRead'), 'Difícil']) {
+    const box = p.locator('#mqView .mq-check', { hasText: label }).first().locator('input');
+    await kbFocus(box);
+    assert.ok(await focusVisible(p), `foco visible en ${label}`);
+    await p.keyboard.press('Space');
+    assert.equal(await box.isChecked(), true, label);
+  }
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'tclMoments', null, { timeout: 30000 });
+  assert.deepEqual((await mq(p)).sel.levels, ['hard']);
+  await kbFocus(p.locator('#mqPvStage'));
+  assert.ok(await focusVisible(p), 'foco visible en «Etapa»');
+  await p.keyboard.press('ArrowDown');
+  await p.waitForFunction(() => PNL.moodlePage.state().preview.stage === 'mcRead', null, { timeout: 30000 });
+  assert.equal(await activeId(p), 'mqPvStage', 'el foco sigue en «Etapa»');
+  for (const id of ['mqCount', 'mqDownload', 'mqTabStages']) {
+    await kbFocus(p.locator(`#${id}`));
+    assert.ok(await focusVisible(p), `foco visible en ${id}`);
+  }
+  await close(p);
+});
+
+// AC20: el nivel difícil a 1280×720, sin desplazar la página, también en Examen y entregado (Practicar, en T010 y T011).
+check('F3e T018 AC20 · 1280×720, nivel difícil: TCL (con la otra ruta y sin ella) y las tres variantes de Montecarlo, en Examen sin entregar y entregadas, caben sin desplazar la página; «Entregar», a la vista', async () => {
+  const fit = async (page, what) => {
+    const f = await t15Fits(page);
+    return f.y === 0 && f.bottom <= 720 && f.w <= 1280 ? [] : [`${what}: ${JSON.stringify(f)}`];
+  };
+  const views = [['TCL con la otra ruta', (x) => pbLab(Object.assign({ pa: t18PbAns(Object.assign({ lang: 'es' }, T18.tcl)) }, { lang: 'es' }, T18.tcl, x)), '#pbDeliver', t18Wait.pb],
+    ['TCL', (x) => pbLab(Object.assign({ pa: t18PbAns({ sd: 3141, lv: 'hard', lang: 'en' }), sd: 3141, lv: 'hard', lang: 'en' }, x)), '#pbDeliver', t18Wait.pb]]
+    .concat(['read', 'disc', 'rep'].map((k) => [`Montecarlo ${k}`, (x) => mxLab(Object.assign(t18Mx(k, { lang: k === 'disc' ? 'en' : 'es', nota: 'en' }), x)), '#mxDeliver', t18Wait.mx]));
+  const bad = [];
+  for (const [name, openIt, deliver, graded] of views) {
+    let page = await openIt({ xm: 'exam' });
+    bad.push(...await fit(page, `${name} en Examen`));
+    const b = await page.locator(deliver).boundingBox();
+    if (!(b && b.y + b.height <= 720)) bad.push(`${name}: «Entregar» fuera de la vista (${JSON.stringify(b)})`);
+    await close(page);
+    page = await openIt({ xm: 'exam', xd: 1 });
+    await graded(page);
+    bad.push(...await fit(page, `${name} entregado`));
+    await close(page);
+  }
+  assert.deepEqual(bad, []);
+});
+
+check('F3e T018 AC20 · 360 px: ninguna vista de TCL ni de Montecarlo desplaza la página de lado (ES y EN), ni «Aprende más» en ninguna sección', async () => {
+  for (const lang of ['es', 'en']) {
+    for (const [name, , openView] of F3E_VIEWS) {
+      const page = await openView({ lang, scheme: 'light', nota: 'en', width: 360, height: 740 });
+      assert.ok(await noHScroll(page), `${name} (${lang}) a 360 px: ${await page.evaluate(() => document.documentElement.scrollWidth)} px`);
+      await close(page);
+    }
+    const page = await open(exUrl({ sd: 50, lv: 'hard', lang, xk: 'tcl', xo: 1 }), { width: 360, height: 740 });
+    await page.locator('#pbLearn').click({ timeout: 30000 });
+    await page.locator('#learnDialog[open] #lxPanel').waitFor();
+    for (const k of LX0.KINDS) {
+      await page.locator(`#lxTab-${k}`).click();
+      await page.waitForFunction((t) => document.getElementById('lxHead') && document.getElementById('lxHead').textContent === t, LX0.section(k, lang).title);
+      assert.ok(await noHScroll(page), `«Aprende más», ${k} (${lang}) a 360 px`);
+    }
+    await close(page);
+  }
+});
+
+// AC13 y AC21: el enlace, abierto en otro contexto del navegador (sin nada guardado), da la misma vista.
+check('F3e T018 AC21 · los enlaces de TCL y de Montecarlo, con lo hecho con el ratón y el teclado, abren lo mismo en otro contexto del navegador (en Practicar y entregados)', async () => {
+  // TCL: casillas con el teclado y el camino con el ratón; comprobado en los dos, las mismas marcas.
+  const s = Object.assign({ lang: 'es' }, T18.tcl);
+  const { ex } = pbEx(s);
+  let page = await pbLab(s);
+  const ans = pbStudent(ex, { pre: { [`${ex.rows[0].id}.var`]: '7' } });
+  await pbType(page, ans, 'es');
+  await page.waitForFunction((n) => (PNL.app.state().pa.path || []).length === n, ans.path.length);
+  let q = await t15Relink(page, (x) => x.waitForFunction(() => PNL.exProb && PNL.exProb.state && PNL.exProb.state() && PNL.exProb.state().ex));
+  assert.deepEqual((await state(q)).pa, (await state(page)).pa, 'TCL: las respuestas');
+  for (const x of [page, q]) await x.locator('#pbCheck').click();
+  assert.deepEqual(await pbMarks(q), await pbMarks(page), 'TCL: las marcas');
+  await close(q);
+  await page.locator('#exExam').click();
+  if (await page.locator('#exLoseYes').count()) await page.locator('#exLoseYes').click();
+  await page.waitForFunction(() => PNL.app.state().xm === 'exam' && document.getElementById('pbDeliver'));
+  if (!(await state(page)).pa) await pbType(page, ans, 'es');
+  await page.locator('#pbDeliver').click();
+  await page.locator('#pbConfirmYes').click();
+  await t18Wait.pb(page);
+  q = await t15Relink(page, async (x) => { await x.waitForFunction(() => PNL.exProb && PNL.exProb.state && PNL.exProb.state()); await t18Wait.pb(x); });
+  assert.equal(await q.locator('#pbScore').innerText(), await page.locator('#pbScore').innerText());
+  assert.deepEqual(await pbMarks(q), await pbMarks(page));
+  assert.equal(await exCell(q, 'mu').getAttribute('readonly'), 'readonly', 'bloqueado');
+  await close(q);
+  await close(page);
+  // Montecarlo: las tres variantes, en Practicar y entregadas.
+  const wait = (x) => x.waitForFunction(() => PNL.exMc && PNL.exMc.state && PNL.exMc.state() && PNL.exMc.state().ex, null, { timeout: 30000 });
+  for (const [k, s2, typeIt] of [
+    ['read', { sd: 2026, lv: 'medium', lang: 'en' }, (x) => mxType(x, mxRead96(), 'en')],
+    ['disc', { sd: 26, lv: 'hard', lang: 'es', mv: 'disc' }, async (x) => { await exCell(x, 'c1.T').fill('7'); await exCell(x, 'c1.p').focus(); await x.keyboard.type('1/4'); }],
+    ['rep', { sd: 1, lv: 'hard', lang: 'es', mv: 'rep' }, async (x) => {
+      const id = (await mxSt(x)).ex.rows[0].id;
+      await x.locator(`#mxT-1-${id}`).click();
+      await x.locator(`#mxT-2-${id}`).focus();
+      await x.keyboard.press('Space');
+      await exCell(x, 'r1.T').fill('12');
+    }]]) {
+    page = await mxLab(s2);
+    await typeIt(page);
+    await page.waitForFunction(() => PNL.app.state().pa && Object.keys(PNL.app.state().pa).length > 0);
+    q = await t15Relink(page, wait);
+    assert.deepEqual((await state(q)).pa, (await state(page)).pa, `${k}: las respuestas`);
+    if (k === 'rep') assert.deepEqual(await q.locator('#exView [aria-pressed="true"]').count(), await page.locator('#exView [aria-pressed="true"]').count(), 'rep: las críticas pulsadas');
+    for (const x of [page, q]) await x.locator('#mxCheck').click();
+    assert.deepEqual(await mxMarks(q), await mxMarks(page), `${k}: las marcas`);
+    await close(q);
+    await close(page);
+    page = await mxLab(Object.assign({ xm: 'exam' }, s2));
+    await typeIt(page);
+    await page.waitForFunction(() => PNL.app.state().pa && Object.keys(PNL.app.state().pa).length > 0);
+    await page.locator('#mxDeliver').click();
+    await page.locator('#mxConfirmYes').click();
+    await t18Wait.mx(page);
+    q = await t15Relink(page, async (x) => { await wait(x); await t18Wait.mx(x); });
+    assert.equal(await q.locator('#mxScore').innerText(), await page.locator('#mxScore').innerText(), `${k}: la nota`);
+    assert.deepEqual(await mxMarks(q), await mxMarks(page), `${k}: las marcas de la entrega`);
+    await close(q);
+    await close(page);
+  }
+});
+
+check('F3e T018 AC23 · moodle.html: el enlace (idioma y notación) abre lo mismo en otro contexto; los enlaces de cada pregunta de las etapas 11 a 17 y de una serie abren el mismo ejercicio que genera Node', async () => {
+  const p = await mqLab('en');
+  await setCtl(p, '#selNota', 'es');
+  await mqSelect(p, F3E.map((s) => code('en', s)), ['Hard'], 3);
+  await p.waitForFunction((n) => PNL.moodlePage.state().sel.stages.length === n && PNL.moodlePage.state().preview, F3E.length);
+  // La selección no va en el enlace (como desde la F3b): el «#» lleva el idioma y la notación.
+  const q = await t15Relink(p, mqWait);
+  assert.deepEqual(await q.evaluate(() => [location.hash, document.documentElement.lang, document.getElementById('selNota').value]), ['#v=moodle&lang=en&nota=es', 'en', 'es']);
+  await close(q);
+  // Los enlaces de la vista previa de cada etapa (los de la pregunta en Moodle), abiertos aparte.
+  for (const s of F3E) {
+    await t18MqStage(p, s);
+    const pv = (await mq(p)).preview;
+    const hrefs = await p.$$eval('.mq-preview a', (as) => as.map((a) => a.getAttribute('href')));
+    assert.deepEqual(hrefs, [pv.links.ex, pv.links.step].filter(Boolean), `${s}: los enlaces de la pregunta`);
+    for (const link of hrefs) {
+      const want = U0.decode(link.slice(link.indexOf('#'))).state;
+      const page = await open(link.replace(MQ0.APP, 'cpm.html'));
+      const st = await state(page);
+      for (const k of ['v', 'xk', 'mv', 'xo', 'xm', 'um', 'ue', 'lv', 'sd', 'lang', 'nota']) assert.deepEqual(st[k], want[k], `${s} ${link}: ${k}`);
+      // El ejercicio que abre es el de la pregunta: el que genera Node para su etapa, con la semilla y el nivel de la pregunta.
+      if (want.v === 'ex') assert.deepEqual([want.sd, want.lv, want.xm], [pv.seed, pv.level, 'exam'], `${s}: semilla, nivel y Examen`);
+      if (want.v === 'ex' && s.startsWith('tcl')) {
+        await page.waitForFunction(() => PNL.exProb && PNL.exProb.state && PNL.exProb.state() && PNL.exProb.state().ex);
+        assert.deepEqual((await pbSt(page)).ex, pbEx({ sd: pv.seed, lv: pv.level, xo: s === 'tclRoute' ? 1 : 0 }).ex, `${s}: el ejercicio de TCL de Node`);
+      } else if (want.v === 'ex') {
+        await page.waitForFunction(() => PNL.exMc && PNL.exMc.state && PNL.exMc.state() && PNL.exMc.state().ex, null, { timeout: 30000 });
+        const mv = { mcRead: undefined, mcDisc: 'disc', mcRep: 'rep' }[s];
+        mxSame((await mxSt(page)).ex, mxEx({ sd: pv.seed, lv: pv.level, mv }).ex, `${s}: el ejercicio de Montecarlo de Node`);
+      } else {
+        await page.waitForFunction(() => PNL.unc && PNL.app.state().v === 'unc');
+        assert.deepEqual(st.ut, want.ut, `${s}: la tabla de la solución`);
+      }
+      await close(page);
+    }
+  }
+  // Una serie con el TCL: su enlace y la selección de la pestaña.
+  await mqSeriesTab(p);
+  await mqSeriesSelect(p, ['0 ·', '3 ·', '11 ·', '13 ·'], 'hard', 4);
+  await p.waitForFunction(() => PNL.moodlePage.state().preview && PNL.moodlePage.state().preview.stage === 'series' && PNL.moodlePage.state().preview.stages.length === 4, null, { timeout: 60000 });
+  const pv = (await mq(p)).preview;
+  const exLink = pv.links.ex;
+  assert.ok(exLink, 'la serie lleva el enlace del ejercicio');
+  const want = U0.decode(exLink.slice(exLink.indexOf('#'))).state;
+  const page = await open(exLink.replace(MQ0.APP, 'cpm.html'));
+  await page.waitForFunction(() => PNL.exProb && PNL.exProb.state && PNL.exProb.state() && PNL.exProb.state().ex);
+  assert.deepEqual([want.xk, want.lang, want.nota], ['tcl', 'en', 'es']);
+  assert.deepEqual((await pbSt(page)).ex, pbEx({ sd: want.sd, lv: want.lv, xo: want.xo }).ex, 'la serie: el ejercicio de TCL de Node');
+  await close(page);
+  await close(p);
+});
+
+check('F3e T018 · principio 27: cada vista de TCL y de Montecarlo con lo hecho, entregada o comprobada, y con «Aprende más» abierto, por debajo de 1 MB', async () => {
+  for (const [name, , openView] of F3E_VIEWS) {
+    const page = await openView({ lang: 'es', scheme: 'light', nota: 'en' });
+    const btn = /TCL/.test(name) ? '#pbLearn' : '#mxLearn';
+    await page.locator(btn).click({ timeout: 30000 });
+    await page.locator('#learnDialog[open] #lxPanel').waitFor();
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+    console.log(`    ${name}, con «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${name}: ${bytes} bytes`);
+    await close(page);
+  }
+});
+
 // ---------- Principio 27: presupuesto de 1 MB ----------
 
 check('Principio 27 · cada vista carga menos de 1 MB', async () => {
