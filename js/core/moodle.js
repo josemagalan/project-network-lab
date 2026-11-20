@@ -552,8 +552,9 @@
       sig,
     };
   }
-  /** Respuestas sin repetir (las que Moodle escribe igual). */
-  const uniqNums = (xs) => xs.filter((x, i) => xs.findIndex((y) => clozeNum(y.v) === clozeNum(x.v)) === i);
+  /** Respuestas sin repetir (las que Moodle escribe igual, con la misma tolerancia: una P exacta que coincide con la de la
+   *  tabla conserva su ±0,005; revisión de T021, ronda 2, R2-F1). */
+  const uniqNums = (xs) => xs.filter((x, i) => xs.findIndex((y) => clozeNum(y.v) === clozeNum(x.v) && y.tol === x.tol) === i);
   /** Un hueco numérico: num si hay una sola respuesta (como antes de T021) y nums si hay varias. */
   const numHole = (xs, key) => (xs.length === 1 ? { num: xs[0].v, tol: xs[0].tol, key } : { nums: xs, key });
 

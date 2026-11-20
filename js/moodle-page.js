@@ -54,8 +54,8 @@
   /** Las de la F3e (11 a 17), al final de STAGES_ALL. */
   const F3E_STAGES = M.STAGES_F3E;
   /** Las etapas que ofrece el formulario, en su orden: la 0 la primera, solo si está publicada (F3c, P6); las 7 a 10,
-   *  solo si están publicadas (F3d, T014); las 11 a 17 al final, solo en moodle.html (F3e, T016). */
-  const stagesOf = (pub, lab, stoch) => [...(pub ? ['stmt'] : []), ...M.STAGES, ...(lab ? LAB_STAGES : []), ...(stoch ? F3E_STAGES : [])];
+   *  solo si están publicadas (F3d, T014); las 11 a 17 al final (F3e, T016; desde T021, siempre: solo hay moodle.html). */
+  const stagesOf = (pub, lab) => [...(pub ? ['stmt'] : []), ...M.STAGES, ...(lab ? LAB_STAGES : []), ...F3E_STAGES];
   /** Las familias de la lista (tablero 100): cálculo (0–6), construir y detectar (7–10), probabilidad y Montecarlo (11–17). */
   const FAMILY_GROUPS = [['calc', ['stmt', ...M.STAGES]], ['lab', LAB_STAGES], ['prob', F3E_STAGES]];
   const groupsOf = (shown) => FAMILY_GROUPS.map(([key, all]) => ({ key, stages: shown.filter((s) => all.includes(s)) })).filter((g) => g.stages.length);
@@ -77,9 +77,9 @@
     return s.count === 1 ? pt(lang, 'sr.summaryOne', { cat }) : pt(lang, 'sr.summary', { q: s.count, cat });
   }
 
-  /** Cuántas preguntas y categorías da una selección (contando solo las etapas que se ofrecen). */
+  /** Cuántas preguntas y categorías da una selección (contando solo las etapas que se ofrecen, stages). */
   function summary(sel, stages) {
-    const c = (stages || stagesOf(true)).filter((s) => sel.stages.has(s)).length * M.LEVELS.filter((l) => sel.levels.has(l)).length;
+    const c = stages.filter((s) => sel.stages.has(s)).length * M.LEVELS.filter((l) => sel.levels.has(l)).length;
     return { categories: c, questions: c * sel.count };
   }
   /** El resumen, con el singular cuando hay una sola categoría o una sola pregunta. */
@@ -108,7 +108,7 @@
     const sel = { mode: 'stages', stages: new Set(DEFAULT_STAGES), sf: false, levels: new Set(['medium']), count: M.DEFAULT_COUNT, preview: null,
       series: { stages: new Set(SERIES_DEFAULT), level: 'medium', count: M.DEFAULT_COUNT } };
     const openFam = {};
-    const shown = () => stagesOf(api.stmtPublic, api.f3dPublic, true);
+    const shown = () => stagesOf(api.stmtPublic, api.f3dPublic);
     // La imagen de la red (F3d, plan P4): views/net-svg llega con el grupo mq o con la familia lab.
     const svg = (model) => root.PNL.netSvg.render(model);
     // F3e (T016): los gráficos de «Leer una simulación» (views/chart-svg), con la familia estocástica.

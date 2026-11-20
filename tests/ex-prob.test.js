@@ -295,3 +295,17 @@ test('T021 I-F7 · el nivel con «Personalizar» se describe como el medio (un 2
   assert.equal(XP.levelText(gp, 'custom', 'en'), '8–9 activities · 1–2 critical paths · 20% of durations fixed (a = m = b)');
   assert.equal(XP.levelText(gp, 'custom', 'es').split(' · ')[2], XP.levelText(gp, 'medium', 'es').split(' · ')[2]);
 });
+
+test('T021 ronda 2 R2-F2 · la z que solo cuadra con σ redondeada se explica con esa σ (fácil 48, μ mal)', () => {
+  const ex = PG.tcl(48, 'easy', {}).ex;
+  const sol = PG.solve('tcl', ex);
+  const a = {};
+  for (const r of ex.rows) { a[`${r.id}.te`] = r2(sol.acts[r.id].te); a[`${r.id}.var`] = r2(sol.acts[r.id].var); }
+  Object.assign(a, { path: sol.path.slice(), mu: '15,67', var: '0,03', z: '7,82' });
+  const g = XP.grade(ex, a);
+  const origin = I.t('es', 'ex.explain.origin', { lab: 'μ del proyecto' });
+  assert.equal(XP.explain(ex, a, g, 'z', 'es'), I.t('es', 'ex.explain.carried', { v: '7,82', e: '7,82', lab: 'z del plazo', calc: '(17 − 15,67) / 0,17', origin }));
+  // Con la z de σ sin redondear, la cuenta de siempre.
+  const b = Object.assign({}, a, { z: '7,68' });
+  assert.equal(XP.explain(ex, b, XP.grade(ex, b), 'z', 'es'), I.t('es', 'ex.explain.carried', { v: '7,68', e: '7,68', lab: 'z del plazo', calc: '(17 − 15,67) / √0,03', origin }));
+});

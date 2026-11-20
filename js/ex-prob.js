@@ -197,13 +197,15 @@
     }
     const his = PR.paths.asPath(PR.paths.graph(ex.rows), PR.marks(ans.path)) || sol.path;
     const sum = (ids, g1) => ids.map((id) => f(g1(id))).join(' + ');
+    const sd = (v) => (c.sigma ? f(Math.round(Math.sqrt(v) * 100) / 100) : `√${f(v)}`);
     const calc = {
       mu: () => sum(his, te), pvar: () => sum(his, va),
-      z: () => `(${f(ex.deadline)} − ${f(val('mu'))}) / √${f(val('var'))}`,
+      // Con c.sigma, la z solo cuadra con σ redondeada a dos decimales: la cuenta, con esa σ (revisión de T021, ronda 2).
+      z: () => `(${f(ex.deadline)} − ${f(val('mu'))}) / ${sd(val('var'))}`,
       p: () => `Φ(${f(val('z'))})`,
       Tp: () => `${f(val('mu'))} + ${f(val('zp'))} · √${f(val('var'))}`,
       rmu: () => sum(ex.route, te), rvar: () => sum(ex.route, va),
-      rz: () => `(${f(ex.deadline)} − ${f(val('r.mu'))}) / √${f(val('r.var'))}`,
+      rz: () => `(${f(ex.deadline)} − ${f(val('r.mu'))}) / ${sd(val('r.var'))}`,
       rp: () => `Φ(${f(val('r.z'))})`,
       both: () => `${f(val('p'))} · ${f(val('r.p'))}`,
     }[c.formula]();

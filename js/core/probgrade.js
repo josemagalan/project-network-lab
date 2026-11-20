@@ -97,6 +97,7 @@
       st[k] = status;
       cells[k] = { status, value: o.value, right: o.right, expected: o.expected === undefined ? null : o.expected, formula: o.formula, uses,
         from: BAD.has(status) ? uses.filter((u) => BAD.has(st[u])) : [] };
+      if (o.sigma) cells[k].sigma = true;
     };
     /** Una casilla numérica: rights, expects ([valor, tolerancia]) y expected (con los datos tal como los escribió). */
     const num = (k, input, o) => {
@@ -291,11 +292,18 @@
     // o exacta y con los datos del alumno.
     const zSig = (mu, v) => { const s = v > 0 ? roundK(Math.sqrt(v), 2) : 0; return s > 0 ? (ex.deadline - mu) / s : null; };
     const zRights = (mu, v) => [[zSig(mu, v), TOL.z], [zSig(roundK(mu, 2), roundK(v, 2)), TOL.z]];
+    // Lo esperado con sus datos: la z con σ sin redondear, o la de σ redondeada si su z solo cuadra con esa (sigma: la
+    // explicación escribe entonces la cuenta con σ redondeada; revisión de T021, ronda 2, R2-F2).
+    const zExp = (input, mu, v) => {
+      const x = parse(input); const a = zOf(mu, v); const b = zSig(mu, v);
+      const near = (r) => r != null && isNum(x) && within(x, r, TOL.z);
+      return !near(a) && near(b) ? { expected: b, sigma: true } : { expected: a };
+    };
     const pExp = (z) => (z == null ? [] : [[T.tableP(z).p4, TOL.pTable], [T.phi(z), TOL.pExact]]);
     const first = (xs) => (xs.length ? xs[0][0] : null);
     B.num('z', ans.z, { rights: [[sol.z, TOL.z]].concat(zRights(sol.mu, sol.var)),
       expects: both.flatMap((D) => [[zOf(D('mu'), D('var')), TOL.z], [zSig(D('mu'), D('var')), TOL.z]]),
-      right: sol.z, expected: zOf(raw('mu'), raw('var')), formula: 'z', uses: ['mu', 'var'] });
+      right: sol.z, ...zExp(ans.z, raw('mu'), raw('var')), formula: 'z', uses: ['mu', 'var'] });
     B.num('p', ans.p, { rights: [[sol.p, TOL.pTable], [sol.pExact, TOL.pExact]], expects: both.flatMap((D) => pExp(D('z'))),
       right: sol.p, expected: first(pExp(raw('z'))), formula: 'p', uses: ['z'] });
     // la z de la probabilidad (sin error consecuente) y el plazo con su μ, su σ y su z
@@ -313,7 +321,7 @@
         right: R.var, expected: sum(ex.route, varOf(raw)), formula: 'rvar', uses: rcells.map((id) => `${id}.var`) });
       B.num('r.z', ans['r.z'], { rights: [[R.z, TOL.z]].concat(zRights(R.mu, R.var)),
         expects: both.flatMap((D) => [[zOf(D('r.mu'), D('r.var')), TOL.z], [zSig(D('r.mu'), D('r.var')), TOL.z]]),
-        right: R.z, expected: zOf(raw('r.mu'), raw('r.var')), formula: 'rz', uses: ['r.mu', 'r.var'] });
+        right: R.z, ...zExp(ans['r.z'], raw('r.mu'), raw('r.var')), formula: 'rz', uses: ['r.mu', 'r.var'] });
       B.num('r.p', ans['r.p'], { rights: [[R.p, TOL.pTable], [R.pExact, TOL.pExact]], expects: both.flatMap((D) => pExp(D('r.z'))),
         right: R.p, expected: first(pExp(raw('r.z'))), formula: 'rp', uses: ['r.z'] });
       // P(las dos): el producto (las dos rutas no comparten actividades)

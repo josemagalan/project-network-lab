@@ -100,8 +100,8 @@
   }
   /** M6 con una sola normal: z, la tabla, la exacta y el plazo de una probabilidad. */
   const oneNormal = (mu, v, query) => TL().exam({ acts: [{ id: 'T', preds: [], dist: { kind: 'normal', mu, var: v } }] }, query);
-  /** Respuestas sin repetir (las que Moodle escribe igual). */
-  const uniq = (xs) => xs.filter((x, i) => xs.findIndex((y) => I.clozeNum(y.v) === I.clozeNum(x.v)) === i);
+  /** Respuestas sin repetir (las que Moodle escribe igual, con la misma tolerancia; T021, ronda 2, R2-F1). */
+  const uniq = I.uniqNums;
 
   /** La pregunta de una serie: stages (admitidas), el proyecto de exercise o fromRows; null si el proyecto no vale. */
   function question(stages0, base, ctx, tr) {

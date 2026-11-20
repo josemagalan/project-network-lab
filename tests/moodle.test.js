@@ -1473,3 +1473,39 @@ test('F3e T021 N-F5 · la z con σ redondeada a dos decimales también vale en l
   const kl = cells(M.question('tclProb', PG.fromExample('kl'), ctx(), tr));
   assert.equal(kl.z.num, 0.41);
 });
+
+const S = require('../js/core/series.js');
+test('F3e T021 ronda 2 R2-F1 · una respuesta repetida con otra tolerancia no se quita: la P exacta (±0,005) sigue aunque coincida con la de la tabla (fácil 98, la 13)', () => {
+  const ex = M.stochExercise('tclProb', 'easy', 98);
+  const q = M.question('tclProb', ex, ctx(), tr);
+  const c = cells(q);
+  assert.ok(accepts(c.p, 0.6293) && accepts(c.p, 0.63) && accepts(c.p, 0.6331), 'la tabla, 0,63 y la P de z = 0,34');
+  assert.deepEqual(c.p.nums.map((a) => a.tol), [0.0005, 0.005]);
+  const xml = M.toXml({ seed: 1, questions: [q] }, tr);
+  assert.ok(xml.includes('{1:NUMERICAL:%100%0.6293:0.0005~%100%0.6293:0.005}'), 'el mismo hueco que en ac47eca');
+  // En las series, igual (ya pasaba antes de T021).
+  const st = ['tclProb'];
+  let hit = null;
+  for (let s = 1; s < 400 && !hit; s++) {
+    const b = S.exercise(st, 'easy', s); const sq = b && S.question(st, b, ctx(), tr);
+    if (!sq) continue;
+    const cp = (function walk(bs) { for (const x of bs) if (x.hole && x.hole.key === '13:p') return x.hole; return null; }(sq.text));
+    const vals = cp.nums.map((a) => a.v.toFixed(6));
+    if (new Set(vals).size < vals.length) hit = cp;
+  }
+  assert.ok(hit, 'hay una serie con la P de la tabla y la exacta iguales');
+  assert.ok(hit.nums.some((a) => a.tol === 0.005), 'conserva la tolerancia de la exacta');
+});
+
+test('F3e T021 ronda 2 R2-F5 · las cuentas a mano de Moodle, ±0,001 en su borde: criticidad de las discretas, P y criticidad de las réplicas', () => {
+  const d = cells(M.question('mcDisc', PG.fromExample('kd'), ctx(), tr));
+  const s = PG.solve('disc', PG.fromExample('kd'));
+  assert.ok(accepts(d['C.crit'], s.crit.C + 0.0009) && !accepts(d['C.crit'], s.crit.C + 0.002), 'criticidad de C ± 0,001');
+  let ex = null;
+  for (let sd = 1; sd < 50 && !ex; sd++) ex = M.stochExercise('mcRep', 'easy', sd);
+  const r = cells(M.question('mcRep', ex, ctx(), tr));
+  const rs = PG.solve('rep', ex);
+  assert.ok(accepts(r.pT, rs.pT + 0.0009) && !accepts(r.pT, rs.pT + 0.002), 'P de las réplicas ± 0,001');
+  const id = ex.rows[0].id;
+  assert.ok(accepts(r[`${id}.crit`], rs.crit[id] + 0.0009) && !accepts(r[`${id}.crit`], rs.crit[id] + 0.002), 'criticidad de las réplicas ± 0,001');
+});

@@ -600,3 +600,43 @@ test('T021 I-F2 · paths: las marcas como camino completo y el más largo con em
   assert.deepEqual(PGR.paths.longest(n, t2, v2).path, ['B', 'G', 'H', 'I', 'J']);
   assert.deepEqual(PGR.paths.longest(n, t2, (id) => (['C', 'D', 'E'].includes(id) ? 5 : 0)).path, ['B', 'C', 'D', 'E']);
 });
+
+test('T021 ronda 2 R2-F2 · la z que solo cuadra con σ redondeada: lo esperado es esa z (sigma), en z y en r.z (fácil 48, μ mal)', () => {
+  const ex = PG.tcl(48, 'easy', {}).ex;
+  const sol = PG.solve('tcl', ex);
+  const ans = { path: sol.path.slice(), mu: '15,67', var: '0,03', z: '7,82' };
+  for (const r of ex.rows) { ans[`${r.id}.te`] = comma(sol.acts[r.id].te, 2); ans[`${r.id}.var`] = comma(sol.acts[r.id].var, 2); }
+  const g = PGR.tcl(ex, ans);
+  assert.equal(g.cells.z.status, 'carried');
+  assert.ok(Math.abs(g.cells.z.expected - (17 - 15.67) / 0.17) < 1e-9, `${g.cells.z.expected}`);
+  assert.equal(g.cells.z.sigma, true);
+  // Con la z de σ sin redondear (7,68), lo de siempre, sin sigma.
+  const g2 = PGR.tcl(ex, Object.assign({}, ans, { z: '7,68' }));
+  assert.equal(g2.cells.z.status, 'carried');
+  assert.ok(Math.abs(g2.cells.z.expected - (17 - 15.67) / Math.sqrt(0.03)) < 1e-9);
+  assert.equal(g2.cells.z.sigma, undefined);
+  // La otra ruta (la propia ruta crítica como ruta, para tener la misma σ pequeña).
+  const rx = Object.assign({}, ex, { route: sol.path.slice() });
+  const gr = PGR.tcl(rx, Object.assign({}, ans, { 'r.mu': '15,67', 'r.var': '0,03', 'r.z': '7,82' }));
+  assert.equal(gr.cells['r.z'].status, 'carried');
+  assert.equal(gr.cells['r.z'].sigma, true);
+  assert.ok(Math.abs(gr.cells['r.z'].expected - (17 - 15.67) / 0.17) < 1e-9);
+});
+
+test('T021 ronda 2 R2-F3 · discretas: la criticidad con error consecuente también por la lectura «con los buenos exactos» (media 13, c7.p mal)', () => {
+  const ex = PG.disc(13, 'medium').ex;
+  const sol = PG.solve('disc', ex);
+  const ans = {};
+  sol.combos.forEach((c, i) => { ans[`c${i + 1}.T`] = String(c.T); ans[`c${i + 1}.p`] = comma(c.p, 3); });
+  ans['c7.p'] = '0,430';
+  // Con las p exactas de las buenas y su 0,43: D es crítica en c1, c2, c5, c6, c7 y c8.
+  const snapP = sol.combos.map((c, i) => (i === 6 ? 0.43 : c.p));
+  const raw = sol.combos.map((c, i) => (i === 6 ? 0.43 : Number(c.p.toFixed(3))));
+  const crit = (ps) => sol.combos.reduce((s, c, i) => s + (c.crit.includes('D') ? ps[i] : 0), 0);
+  assert.ok(Math.abs(crit(snapP) - crit(raw)) > 0.001, 'las dos lecturas difieren en más de ±0,001');
+  ans['D.crit'] = comma(crit(snapP), 4);
+  const g = PGR.disc(ex, ans);
+  assert.equal(g.cells['c7.p'].status, 'wrong');
+  assert.equal(g.cells['D.crit'].status, 'carried');
+  assert.deepEqual(g.cells['D.crit'].from, ['c7.p']);
+});
