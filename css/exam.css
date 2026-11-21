@@ -1,7 +1,8 @@
 /* exam.css — la hoja de examen.html, el examen imprimible (F3f, plan P2 y P6; T010; tableros 107–109): la cabecera de la
    página (como moodle.html), los controles y la vista previa en pantalla. Solo la carga examen.html, después de
-   styles.css; los colores son los de styles.css. Las reglas de papel (@page, partes que no se parten, páginas giradas)
-   llegan con T012. Las clases llevan el prefijo xm-: ex- es de «Ejercicios» en styles.css, que también se carga. */
+   styles.css; los colores son los de styles.css. Las clases llevan el prefijo xm-: ex- es de «Ejercicios» en styles.css,
+   que también se carga. T012 (plan P2; tableros 110–113): las hojas de papel, las mismas en la vista previa (a escala,
+   --xm-s) y al imprimir (@page lo pone exam-app con el papel elegido: A4 o carta, márgenes de 15 mm). */
 
 /* ---------- cabecera (como la de moodle.html) ---------- */
 .xm-head-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-left: auto; font-size: 14px; }
@@ -40,6 +41,7 @@
 .xm-sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-top: 6px; border-top: 1px solid var(--line); }
 .xm-sum .xm-warn { flex: 1 1 260px; }
 button.ghost:disabled { color: var(--muted); cursor: not-allowed; }
+button.ghost.primary:disabled { color: var(--accent-ink); opacity: 0.55; }
 
 /* Plegados: cabecera, extras y papel. */
 .xm-more { border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; }
@@ -61,11 +63,40 @@ button.ghost:disabled { color: var(--muted); cursor: not-allowed; }
 .xm-models button { min-height: 30px; padding: 3px 10px; font-size: 13px; }
 .xm-models button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .xm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.xm-preview { min-height: 240px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow-x: auto; }
+.xm-preview { min-height: 240px; padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; background: var(--soft); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow-x: auto; }
 .xm-preview > * { flex-shrink: 0; }
+.xm-preview > p { align-self: stretch; margin: 0; font-size: 14px; }
+.xm-status { margin: 0; font-size: 13px; color: var(--muted); }
+.xm-print-wait { margin: 0; font-size: 13px; }
 
-/* Los bloques del documento (exam-view). En pantalla se ven como en papel: fondo blanco y texto oscuro. */
-.xm-preview p { margin: 0; font-size: 14px; line-height: 1.45; }
+/* ---------- las hojas (exam-view.pages): blancas, con el texto oscuro, en claro y en oscuro ---------- */
+.xm-a4 { --xm-pw: 210mm; --xm-ph: 297mm; --xm-sw: 180mm; --xm-sh: 266mm; }
+.xm-letter { --xm-pw: 215.9mm; --xm-ph: 279.4mm; --xm-sw: 185.9mm; --xm-sh: 248.4mm; }
+.xm-pagebox { flex: none; width: calc(var(--xm-pw) * var(--xm-s, 1)); height: calc(var(--xm-ph) * var(--xm-s, 1)); }
+.xm-paper {
+  box-sizing: border-box; width: var(--xm-pw); height: var(--xm-ph); padding: 15mm 15mm 16mm;
+  transform: scale(var(--xm-s, 1)); transform-origin: 0 0; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --ink: #1d1d1b; --muted: #55554f; --line: #c9c7bf; --soft: #f1f0ec; --edge: #6f6d66; --card: #ffffff; --accent: #1f5f8b;
+  background: #ffffff; color: var(--ink); text-align: left; print-color-adjust: exact; -webkit-print-color-adjust: exact;
+}
+.xm-sheet { width: var(--xm-sw); height: var(--xm-sh); display: grid; grid-template-rows: minmax(0, 1fr) 18px; overflow: hidden; }
+.xm-body { position: relative; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+/* Sin márgenes entre piezas (el hueco es el gap): así el alto medido de cada pieza es el que ocupa en la hoja. */
+.xm-paper .xm-body > *, .xm-paper .xm-rot > * { margin: 0; flex-shrink: 0; }
+.xm-paper .xm-body > .xm-part { padding-top: 6px; }
+.xm-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; font-size: 10.7px; line-height: 14px; color: var(--muted); white-space: nowrap; }
+.xm-turn::after { content: " \21BB"; }
+.xm-rot { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: flex; flex-direction: column; gap: 6px; }
+.xm-rot .xm-fig { overflow: visible; }
+.xm-rot .xm-fig img { width: auto; height: auto; max-width: 100%; }
+.xm-rotnote, .xm-rotlabel { font-size: 12px !important; color: var(--muted); }
+.xm-rotnote { font-style: italic; }
+.xm-measure { position: absolute; left: -10000px; top: 0; visibility: hidden; pointer-events: none; }
+.xm-unit { display: flex; flex-direction: column; gap: 6px; }
+#exPrintOut { display: none; }
+
+/* Los bloques del documento (exam-view), dentro de las hojas. */
+.xm-paper p { margin: 0; font-size: 14px; line-height: 1.45; }
 .xm-part { display: flex; justify-content: space-between; gap: 12px; margin: 10px 0 0; padding-bottom: 3px; font-size: 16px; border-bottom: 1.5px solid currentColor; }
 .xm-part .xm-pts { font-weight: 400; font-size: 14px; }
 .xm-item, .xm-h { margin: 6px 0 0; font-size: 14px; }
@@ -77,21 +108,34 @@ button.ghost:disabled { color: var(--muted); cursor: not-allowed; }
 .xm-table td.xm-blank { min-width: 46px; height: 22px; }
 .xm-normal { font-size: 11px; }
 .xm-fig { margin: 0; max-width: 100%; overflow-x: auto; }
-.xm-fig img { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+.xm-fig img { display: block; max-width: 100%; height: auto; background: #fff; }
 .xm-alt { font-style: italic; color: var(--muted); }
 .xm-box { border: 1px solid var(--edge); border-radius: 4px; }
 .xm-quote { margin: 0; padding: 4px 12px; border-left: 3px solid var(--edge); }
 .xm-consequent { padding: 6px 10px; border: 1px dashed var(--edge); border-radius: 6px; background: var(--soft); }
 .xm-link { display: flex; gap: 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 6px; }
 .xm-qr { width: 132px; height: 132px; flex: none; background: #fff; }
-.xm-url { font-family: var(--mono); font-size: 12px !important; word-break: break-all; }
+.xm-url { font-family: var(--mono); font-size: 12px; word-break: break-all; }
 .xm-headbox { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border: 1.5px solid currentColor; border-radius: 4px; }
 .xm-headrow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 15px; }
 .xm-idrow { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 10px; font-size: 13px; }
 .xm-blankline { padding: 10px 0 2px; border-bottom: 1px solid var(--edge); }
-.xm-preview .xm-instr { font-size: 13px; color: var(--muted); }
+.xm-paper .xm-instr { font-size: 13px; color: var(--muted); }
 .xm-doctitle { margin: 0 0 4px; font-size: 18px; }
 .xm-searching { color: var(--muted); font-style: italic; }
+
+/* ---------- en papel: solo las hojas, a tamaño real; «Imprimir todos los enunciados», solo los suyos ---------- */
+@media print {
+  html, body { background: #ffffff !important; }
+  .skip, .site-head, .site-foot, main > :not(#exView), .xm-form, .xm-side > :not(.xm-preview) { display: none !important; }
+  main { max-width: none; margin: 0; padding: 0; }
+  .xm-layout, .xm-side, .xm-preview { display: block; margin: 0; padding: 0; border: 0; background: none; min-height: 0; overflow: visible; }
+  .xm-pagebox { width: auto; height: auto; break-after: page; break-inside: avoid; }
+  .xm-pagebox:last-child { break-after: auto; }
+  .xm-paper { width: auto; height: auto; padding: 0; transform: none; box-shadow: none; }
+  html.xm-print-all main { display: none !important; }
+  html.xm-print-all #exPrintOut { display: block; }
+}
 
 @media (max-width: 900px) {
   .xm-layout { grid-template-columns: minmax(0, 1fr); }

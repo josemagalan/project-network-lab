@@ -159,3 +159,58 @@ test('T018 r2 · R2-F7: en la imagen PERT del detective, ninguna etiqueta pisa u
   }
   assert.ok(images > 900, `${images} imágenes`);
 });
+
+// ---------- F3f T012: el ancho máximo del papel (maxW) ----------
+// En la página girada de carta caben 1120 px a 8 pt (letra de 13 px); con dx 95, la ROY difícil más ancha mide 1260 px
+// (13 columnas: la semilla 366 del generador difícil; 2 de cada 3000) y la PERT, 1137 (12). Con maxW, dx baja lo justo
+// (un entero) para no pasar de maxW, nunca por debajo de DX_MIN; sin maxW, nada cambia.
+
+const widthOf = (svg) => Number(/width="(\d+(?:\.\d+)?)"/.exec(svg)[1]);
+const wide = (() => { const g = G.generate(366, G.LEVELS.hard); return P.parse(g.rows, g.mode).project; })();
+const wideRoy = { graph: 'aon', project: wide, solution: C.solve(wide), roy: RC.fromTable(wide), names, title: 't', desc: 'd', dx: 95 };
+const wideBase = A.build(wide, { method: 'rules' });
+const widePert = { graph: 'aoa', base: wideBase, pert: wideBase, title: 't', desc: 'd', dx: 95 };
+
+test('F3f T012 · net-svg maxW: la ROY y la PERT más anchas del nivel difícil bajan dx lo justo para caber en 1120 px; sin maxW, igual que antes', () => {
+  assert.equal(widthOf(NS.render(wideRoy)), 1260);
+  assert.equal(widthOf(NS.render(widePert)), 1137);
+  for (const m of [wideRoy, widePert]) {
+    const fit = NS.render(Object.assign({}, m, { maxW: 1120 }));
+    const w = widthOf(fit);
+    const dx = NS.fitDx(m, 1120);
+    assert.ok(w <= 1120, `${m.graph}: ${w}`);
+    assert.ok(Number.isInteger(dx) && dx < 95 && dx >= NS.DX_MIN, `${m.graph}: dx ${dx}`);
+    assert.equal(fit, NS.render(Object.assign({}, m, { dx })));
+    assert.ok(widthOf(NS.render(Object.assign({}, m, { dx: dx + 1 }))) > 1120, `${m.graph}: dx ${dx} es el mayor que cabe`);
+    // Si ya cabe, no cambia; sin maxW, tampoco.
+    assert.equal(NS.render(Object.assign({}, m, { maxW: 1300 })), NS.render(m));
+    assert.equal(NS.fitDx(m), 95);
+  }
+  // Nunca por debajo de DX_MIN, aunque no quepa.
+  assert.equal(NS.fitDx(wideRoy, 300), NS.DX_MIN);
+  assert.equal(NS.fitDx({ graph: 'aon', project: ej6, solution: sol, roy: RC.fromTable(ej6), names, title: 't', desc: 'd' }, 300), NS.DX_MIN);
+});
+
+test('F3f T012 · net-svg maxW: con el dx ajustado, las cajas de la ROY no se tocan y las etiquetas de la PERT no se pisan ni pisan un suceso', () => {
+  for (const sd of [366, 965, 67, 87]) {
+    const g = G.generate(sd, G.LEVELS.hard);
+    const p = P.parse(g.rows, g.mode).project;
+    const roy = NS.render({ graph: 'aon', project: p, solution: C.solve(p), roy: RC.fromTable(p), names, title: 't', desc: 'd', dx: 95, maxW: 1120 });
+    const rects = [...roy.matchAll(/<rect x="([\d.]+)" y="([\d.]+)" width="(\d+)" height="(\d+)" rx/g)].map((m) => [+m[1], +m[2], +m[1] + +m[3], +m[2] + +m[4]]);
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+      const [a, b] = [rects[i], rects[j]];
+      const gapX = Math.max(b[0] - a[2], a[0] - b[2]);
+      assert.ok(gapX >= 20 || Math.max(b[1] - a[3], a[1] - b[3]) >= 20, `${sd}: dos cajas a ${gapX} px`);
+    }
+    const base = A.build(p, { method: 'rules' });
+    const pert = NS.render({ graph: 'aoa', base, pert: base, title: 't', desc: 'd', dx: 95, maxW: 1120 });
+    const [w, h] = viewBox(pert);
+    const evs = eventBoxes(pert);
+    const boxes = labelBoxes(pert);
+    for (const b of boxes) {
+      assert.ok(b.b[0] >= 0 && b.b[1] >= 0 && b.b[2] <= w && b.b[3] <= h, `${sd}: ${b.label} fuera de la imagen`);
+      assert.ok(!evs.some((e) => overlap(b.b, e)), `${sd}: ${b.label} bajo un suceso`);
+    }
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) assert.ok(!overlap(boxes[i].b, boxes[j].b), `${sd}: ${boxes[i].label} y ${boxes[j].label} se pisan`);
+  }
+});

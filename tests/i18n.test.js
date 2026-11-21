@@ -273,5 +273,6 @@ test('F3f T010: los textos del examen (i18n-exam) están en los dos idiomas, con
   for (const k of keysDeep(IE.es)) assert.deepEqual(params(get(IE.es, k)), params(get(IE.en, k)), `exam.${k}`);
   for (const lang of I.languages) assert.equal(I.dict[lang].exam, IE[lang]);
   assert.equal(I.t('es', 'exam.head.points', { n: '2,5' }), '(2,5 puntos)');
-  assert.equal(I.t('en', 'exam.page.status', { l: 'B', s: 7, u: '', p: 3, paper: 'A4' }), 'Version B · seed 7 · 3 pages on A4');
+  // T012: las páginas van aparte, con «1 page» en singular.
+  assert.equal(I.t('en', 'exam.page.status', { l: 'B', s: 7, u: '', pages: I.t('en', 'exam.page.pages', { n: 3, paper: 'A4' }) }), 'Version B · seed 7 · 3 pages on A4');
 });

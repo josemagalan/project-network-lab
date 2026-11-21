@@ -10880,6 +10880,209 @@ check('F3f T011 · lo plegado sigue abierto al rehacer la página aunque el camb
   await close(page);
 });
 
+// ---------- F3f, T012: el papel (AC13, AC14, AC25, AC26; plan P2; tableros 110–113) ----------
+
+const EX_ALL = 'stmt-roy-pert-det-times-floats-minDummy-succ-tcl-read-disc-rep';
+const PAPER_PT = { a4: [595, 842], letter: [612, 792] };
+/** Páginas y tamaño de un PDF de Chromium. */
+const pdfInfo = (buf) => { const s = buf.toString('latin1'); return { pages: (s.match(/\/Type\s*\/Page\b(?!s)/g) || []).length, box: s.match(/\/MediaBox\s*\[([^\]]*)\]/)[1].trim().split(/\s+/).map(Number).slice(2) }; };
+/** Cambia el «#» y espera a que la vista previa sea la de ese papel y ese documento, ya en hojas. */
+async function exGo(page, hash, want) {
+  await page.evaluate((h) => { location.hash = h; }, hash);
+  await page.waitForFunction((w) => { const s = PNL.examApp.state(); return s.state.pp === w.pp && s.state.dv === w.dv && s.doc && !s.pending && s.sheets > 0; }, want, { timeout: 120000 });
+}
+/** Las hojas de un contenedor tal como salen en papel (con emulateMedia print): pie, giro, piezas (con su parte, si caben en
+ *  la hoja), tablas sin cortar, dibujos (ancho natural, ancho en papel y la letra menor del SVG) y la letra menor del texto. */
+const exSheets = (page, sel = '#exPreview') => page.evaluate((root) => {
+  const box = (el) => el.getBoundingClientRect();
+  const within = (r, R) => r.top >= R.top - 0.5 && r.bottom <= R.bottom + 0.5 && r.left >= R.left - 0.5 && r.right <= R.right + 0.5;
+  return [...document.querySelectorAll(`${root} .xm-paper`)].map((p) => {
+    const body = p.querySelector('.xm-body'); const B = box(body);
+    const rot = p.classList.contains('xm-rotated');
+    const inner = rot ? body.querySelector('.xm-rot') : body; const R = box(inner);
+    const units = [...inner.children].map((u) => ({ u: u.dataset.u, part: Number(u.dataset.part || 0), note: u.dataset.note || null, inside: within(box(u), R) }));
+    const imgs = [...p.querySelectorAll('img')].map((i) => {
+      const svg = atob(i.getAttribute('src').split(',')[1]);
+      const fs = [...svg.matchAll(/font-size="([\d.]+)"/g)].map((m) => Number(m[1]));
+      return { w: Number(i.getAttribute('width')), shown: i.offsetWidth, font: fs.length ? Math.min(...fs) : null, alt: i.alt };
+    });
+    const texts = [...p.querySelectorAll('*')].filter((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())).map((e) => parseFloat(getComputedStyle(e).fontSize));
+    return { rot, foot: [...p.querySelectorAll('.xm-foot > span')].map((s) => s.textContent), rotInside: within(R, B), units,
+      scroll: [...p.querySelectorAll('.xm-scroll')].every((s) => s.scrollWidth <= s.clientWidth + 1), imgs, minText: Math.min(...texts),
+      transform: getComputedStyle(p).transform };
+  });
+}, sel);
+/** Lo que se pide a las hojas de un documento: pie con modelo, semilla, documento y «Página k de n»; nada fuera de la hoja;
+ *  tablas sin cortar; cada parte entera en su hoja o empezando una hoja nueva; lo ancho (> 829 px), solo en hojas giradas,
+ *  justo después de la hoja de su aviso; letra ≥ 8 pt en el texto y en los dibujos (letra del SVG × escala). */
+function exPaperOk(sheets, label, foot) {
+  assert.ok(sheets.length > 0, `${label}: sin hojas`);
+  const where = {};
+  sheets.forEach((s, k) => {
+    const at = `${label}, hoja ${k + 1}`;
+    assert.match(s.foot[0], foot, at);
+    assert.equal(s.foot[s.foot.length - 1], `Página ${k + 1} de ${sheets.length}`, at);
+    assert.equal(s.foot.includes('Gira la hoja para leer esta página'), s.rot, `${at}: aviso de hoja girada`);
+    assert.ok(s.rotInside, `${at}: lo girado se sale de la hoja`);
+    assert.ok(s.units.length > 0, `${at}: hoja vacía`);
+    s.units.forEach((u, i) => { assert.ok(u.inside, `${at}: la pieza ${u.u} se sale de la hoja`); if (u.part && !s.rot) (where[u.part] = where[u.part] || []).push([k, i]); });
+    assert.ok(s.scroll, `${at}: una tabla no cabe`);
+    assert.ok(s.minText >= 10.66, `${at}: letra de ${s.minText} px`);
+    for (const im of s.imgs) {
+      if (im.font) assert.ok(im.font * (im.shown / im.w) * 0.75 >= 7.995, `${at}: «${im.alt.slice(0, 40)}» a ${(im.font * (im.shown / im.w) * 0.75).toFixed(2)} pt`);
+      if (im.w > 829) assert.ok(s.rot, `${at}: dibujo de ${im.w} px sin girar`);
+    }
+    if (s.rot) assert.equal(s.imgs.length, 1, `${at}: una sola figura por hoja girada`);
+    for (const u of s.units.filter((x) => x.note)) {
+      let j = k + 1;
+      while (j < sheets.length && sheets[j].rot && !sheets[j].units.some((x) => x.u === u.note)) j++;
+      assert.ok(j < sheets.length && sheets[j].rot && sheets[j].units.some((x) => x.u === u.note), `${at}: el aviso de ${u.note} sin su hoja girada detrás`);
+      assert.ok(sheets.slice(k + 1, j).every((x) => x.rot), `${at}: entre el aviso y su hoja girada solo hay hojas giradas`);
+    }
+  });
+  for (const [part, at] of Object.entries(where)) {
+    // Una parte en varias hojas empieza la suya (o tras la cabecera o el título del documento, que no son de ninguna parte).
+    const [k, i] = at[0];
+    if (new Set(at.map((x) => x[0])).size > 1) assert.ok(sheets[k].units.slice(0, i).every((u) => !u.part), `${label}: la parte ${part} se parte sin empezar en una hoja nueva`);
+  }
+}
+
+check('F3f T012 AC13 AC25 AC26 · A4 y carta: los tres documentos de un modelo de cada nivel con todas las partes, sin nada partido ni fuera del margen, cada parte entera o en hoja nueva, lo ancho girado, letra ≥ 8 pt y una hoja por página del PDF', async () => {
+  const DOC = { s: 'Enunciado', o: 'Solución', r: 'Rúbrica' };
+  for (const lv of ['easy', 'medium', 'hard']) {
+    const page = await exOpen(`lang=es&ep=${EX_ALL}&lv=${lv}&sd=5`);
+    for (const pp of ['a4', 'letter']) {
+      for (const dv of ['s', 'o', 'r']) {
+        await exGo(page, `lang=es&ep=${EX_ALL}&lv=${lv}&sd=5&pp=${pp}&dv=${dv}`, { pp, dv });
+        const st = await exState(page);
+        assert.equal(await page.evaluate(() => document.getElementById('xmPage').textContent), EA0.pageCss(pp));
+        await page.emulateMedia({ media: 'print' });
+        const sheets = await exSheets(page);
+        exPaperOk(sheets, `${lv} ${pp} ${dv}`, new RegExp(`^Modelo A · semilla ${st.doc.meta.sdUsed} · ${DOC[dv]}$`));
+        if (dv === 's') assert.ok(sheets.some((s) => s.rot), `${lv} ${pp}: las rejillas de la ROY (más de 829 px) van en su hoja girada`);
+        const pdf = pdfInfo(await page.pdf({ preferCSSPageSize: true }));
+        assert.equal(pdf.pages, sheets.length, `${lv} ${pp} ${dv}: páginas del PDF`);
+        assert.ok(Math.abs(pdf.box[0] - PAPER_PT[pp][0]) < 2 && Math.abs(pdf.box[1] - PAPER_PT[pp][1]) < 2, `${lv} ${pp} ${dv}: ${pdf.box}`);
+        await page.emulateMedia({ media: 'screen' });
+        console.log(`    ${lv} ${pp} ${dv}: ${sheets.length} hojas (${sheets.filter((s) => s.rot).length} giradas)`);
+      }
+    }
+    await close(page);
+  }
+});
+
+check('F3f T012 AC26 · la ROY difícil más ancha (13 columnas, 1260 px con dx 95) se dibuja más junta y sale a 8 pt o más en su hoja girada, en A4 y en carta', async () => {
+  const page = await exOpen('lang=es&ep=roy-pert-det&lv=hard&sd=366&dv=o');
+  for (const pp of ['a4', 'letter']) {
+    await exGo(page, `lang=es&ep=roy-pert-det&lv=hard&sd=366&dv=o&pp=${pp}`, { pp, dv: 'o' });
+    assert.equal((await exState(page)).doc.meta.sdUsed, 366);
+    await page.emulateMedia({ media: 'print' });
+    const sheets = await exSheets(page);
+    exPaperOk(sheets, `366 ${pp}`, /^Modelo A · semilla 366 · Solución$/);
+    const roy = sheets.flatMap((s) => s.imgs).find((i) => /^Red ROY/.test(i.alt));
+    assert.ok(roy && roy.w <= 1120 && roy.w > 1000, `ROY de ${roy && roy.w} px`);
+    assert.equal(pdfInfo(await page.pdf({ preferCSSPageSize: true })).pages, sheets.length);
+    await page.emulateMedia({ media: 'screen' });
+  }
+  await close(page);
+});
+
+check('F3f T012 · «Imprimir»: imprime el documento a la vista, solo sus hojas y a tamaño real (sin la página ni la escala de la vista previa); sin documento, los botones esperan', async () => {
+  const init = () => { window.print = () => { window.__printed = (window.__printed || 0) + 1; }; };
+  const page = await exOpen('lang=es&ep=roy-times-floats&lv=medium&sd=4&dv=o', { init });
+  await page.waitForFunction(() => PNL.examApp.state().sheets > 0, null, { timeout: 60000 });
+  await page.locator('#exPrint').click();
+  assert.equal(await page.evaluate(() => window.__printed), 1);
+  await page.emulateMedia({ media: 'print' });
+  const shown = await page.evaluate(() => Object.fromEntries(['.site-head', '.site-foot', '.skip', '.xm-form', '.xm-side-head', '.xm-actions', '#exStatus', '#exPrintOut']
+    .map((s) => [s, [...document.querySelectorAll(s)].some((el) => getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0)])));
+  assert.deepEqual(shown, { '.site-head': false, '.site-foot': false, '.skip': false, '.xm-form': false, '.xm-side-head': false, '.xm-actions': false, '#exStatus': false, '#exPrintOut': false });
+  const sheets = await exSheets(page);
+  assert.ok(sheets.every((s) => s.transform === 'none'), 'sin la escala de la vista previa');
+  exPaperOk(sheets, 'imprimir', /^Modelo A · semilla \d+ · Solución$/);
+  assert.equal(pdfInfo(await page.pdf({ preferCSSPageSize: true })).pages, sheets.length);
+  await close(page);
+  const none = await exOpen('lang=es&ep=', { init });
+  assert.equal(await none.locator('#exPrint').isDisabled(), true);
+  assert.equal(await none.locator('#exPrintAll').isDisabled(), true);
+  await close(none);
+});
+
+check('F3f T012 AC14 · «Imprimir todos los enunciados»: espera a los modelos (con el progreso a la vista) y saca sus enunciados seguidos, cada uno desde una hoja nueva con su cabecera y su numeración; después, la página vuelve a ser la de antes', async () => {
+  const init = () => {
+    // Un núcleo más lento: cada modelo tarda al menos 400 ms (para ver el progreso aunque la semilla salga a la primera).
+    Object.defineProperty(window, 'PNL', { configurable: true, set(v) { this.__pnl = v; }, get() {
+      const P = this.__pnl;
+      if (P && P.exam && !P.exam.__slow) {
+        const st = P.exam.step;
+        P.exam = Object.assign({}, P.exam, { __slow: true, step: (job, n) => { job.__t0 = job.__t0 || performance.now(); return performance.now() - job.__t0 < 400 ? false : st(job, n); } });
+        this.__pnl = P;
+      }
+      return P;
+    } });
+    // Lo que dice la línea del progreso, según cambia.
+    window.__waits = [];
+    new MutationObserver(() => { const p = document.getElementById('exPrintStatus'); if (p && p.textContent && window.__waits[window.__waits.length - 1] !== p.textContent) window.__waits.push(p.textContent); })
+      .observe(document, { subtree: true, childList: true, characterData: true });
+    window.print = () => {
+    const r = document.getElementById('exPrintOut');
+    window.__snap = { cls: document.documentElement.className, papers: [...r.querySelectorAll('.xm-paper')].map((p) => ({ foot: [...p.querySelectorAll('.xm-foot > span')].map((s) => s.textContent), head: !!p.querySelector('.xm-headbox') })) };
+    window.__printed = (window.__printed || 0) + 1;
+  }; };
+  const page = await exOpen(`lang=es&ep=${EX_ALL}&lv=hard&sd=8&em=3`, { init });
+  await page.locator('#exPrintAll').click();
+  await page.waitForFunction(() => window.__printed === 1, null, { timeout: 180000 });
+  const waits = await page.evaluate(() => window.__waits);
+  assert.ok(waits.some((x) => /^Preparando los enunciados: [0-2] de 3 modelos…$/.test(x)), waits.join(' | '));
+  assert.equal(await page.locator('#exPrintStatus').textContent(), '', 'el progreso se va al imprimir');
+  const st = await exState(page);
+  const snap = await page.evaluate(() => window.__snap);
+  assert.match(snap.cls, /xm-print-all/);
+  const byModel = {};
+  for (const p of snap.papers) { const l = /^Modelo ([A-C]) · semilla (\d+) · Enunciado$/.exec(p.foot[0]); assert.ok(l, p.foot[0]); (byModel[l[1]] = byModel[l[1]] || []).push(Object.assign({ sd: Number(l[2]) }, p)); }
+  assert.deepEqual(Object.keys(byModel), ['A', 'B', 'C']);
+  assert.deepEqual(snap.papers.map((p) => /^Modelo ([A-C])/.exec(p.foot[0])[1]).join(''), ['A', 'B', 'C'].map((l) => l.repeat(byModel[l].length)).join(''), 'los modelos, seguidos');
+  ['A', 'B', 'C'].forEach((l, k) => {
+    const ps = byModel[l];
+    assert.ok(ps.every((p) => p.sd === st.models[k].sdUsed), `${l}: semilla usada`);
+    assert.deepEqual(ps.map((p) => p.head), ps.map((_, i) => i === 0), `${l}: la cabecera, en su primera hoja`);
+    assert.deepEqual(ps.map((p) => p.foot[p.foot.length - 1]), ps.map((_, i) => `Página ${i + 1} de ${ps.length}`), `${l}: numeración propia`);
+  });
+  // En papel: solo los enunciados (la vista previa no), una página del PDF por hoja.
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('main')).display), 'none');
+  exPaperOk((await exSheets(page, '#exPrintOut')).filter((s) => /^Modelo A/.test(s.foot[0])), 'todos, modelo A', /^Modelo A · semilla \d+ · Enunciado$/);
+  assert.equal(pdfInfo(await page.pdf({ preferCSSPageSize: true })).pages, snap.papers.length);
+  await page.emulateMedia({ media: 'screen' });
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  assert.deepEqual(await page.evaluate(() => [document.documentElement.classList.contains('xm-print-all'), document.getElementById('exPrintOut').childElementCount]), [false, 0]);
+  await close(page);
+});
+
+check('F3f T012 · la vista previa en hojas: blancas también en oscuro, a escala para caber en su columna (1280 y 360 px), con su línea de estado y la regla @page del papel', async () => {
+  for (const [width, scheme] of [[1280, 'light'], [360, 'dark']]) {
+    const page = await exOpen('lang=es&ep=roy-times-floats&lv=medium&sd=4&pp=letter', { scheme, width, height: width === 360 ? 800 : 720 });
+    await page.waitForFunction(() => PNL.examApp.state().sheets > 0, null, { timeout: 60000 });
+    const g = await page.evaluate(() => {
+      const pv = document.getElementById('exPreview');
+      const papers = [...pv.querySelectorAll('.xm-paper')];
+      const r = papers[0].getBoundingClientRect();
+      return { n: papers.length, pvw: pv.clientWidth, w: Math.max(...[...pv.querySelectorAll('.xm-pagebox')].map((b) => b.getBoundingClientRect().width)),
+        ratio: r.height / r.width, bg: getComputedStyle(papers[0]).backgroundColor, ink: getComputedStyle(papers[0]).color,
+        status: document.getElementById('exStatus').textContent, css: document.getElementById('xmPage').textContent };
+    });
+    const st = await exState(page);
+    assert.equal(g.status, `Modelo A · semilla 4${st.doc.meta.sdUsed !== 4 ? ` (usada: ${st.doc.meta.sdUsed})` : ''} · ${g.n} ${g.n === 1 ? 'página' : 'páginas'} en Carta`);
+    assert.equal(st.sheets, g.n);
+    assert.ok(g.w <= g.pvw, `${width}: hoja de ${g.w} px en ${g.pvw}`);
+    assert.ok(Math.abs(g.ratio - 11 / 8.5) < 0.01, `proporción ${g.ratio}`);
+    assert.equal(g.bg, 'rgb(255, 255, 255)');
+    assert.equal(g.css, '@page { size: letter; margin: 15mm; }');
+    assert.ok(await noHScroll(page));
+    await close(page);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

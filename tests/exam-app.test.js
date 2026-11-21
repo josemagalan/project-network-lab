@@ -311,3 +311,23 @@ test('F3f T011 · el documento a la vista: la cabecera del enunciado delante (co
   assert.deepEqual(EA.viewBlocks(d, 'o', st, t), [{ title: 'Solución' }, { p: 'b' }]);
   assert.deepEqual(EA.viewBlocks(d, 'r', st, t), [{ title: 'Rúbrica' }, { p: 'c' }]);
 });
+
+// ---------- T012: el papel ----------
+
+test('F3f T012 · pageCss: la regla @page del papel elegido (A4 o carta), con márgenes de 15 mm', () => {
+  assert.equal(EA.pageCss('a4'), '@page { size: A4; margin: 15mm; }');
+  assert.equal(EA.pageCss('letter'), '@page { size: letter; margin: 15mm; }');
+  assert.equal(EA.pageCss('otro'), '@page { size: A4; margin: 15mm; }');
+});
+
+test('F3f T012 · el pie de página (modelo, semilla usada y documento) y la línea de estado de la vista previa, con «1 página» en singular (ES y EN)', () => {
+  const t = (lang) => (k, p) => I.t(lang, k, p);
+  assert.equal(EA.footOf({ letter: 'A', sdUsed: 7 }, 's', t('es')), 'Modelo A · semilla 7 · Enunciado');
+  assert.equal(EA.footOf({ letter: 'B', sdUsed: 1234 }, 'r', t('en')), 'Version B · seed 1234 · Marking guide');
+  assert.equal(EA.statusOf({ letter: 'A', seed: 7, sdUsed: 7 }, 3, 'a4', t('es')), 'Modelo A · semilla 7 · 3 páginas en A4');
+  assert.equal(EA.statusOf({ letter: 'B', seed: 7926, sdUsed: 7930 }, 1, 'letter', t('es')), 'Modelo B · semilla 7926 (usada: 7930) · 1 página en Carta');
+  assert.equal(EA.statusOf({ letter: 'A', seed: 2, sdUsed: 2 }, 1, 'letter', t('en')), 'Version A · seed 2 · 1 page on Letter');
+  assert.equal(I.t('es', 'exam.page.printWait', { k: 2, n: 4 }), 'Preparando los enunciados: 2 de 4 modelos…');
+  assert.equal(I.t('en', 'exam.page.printWait', { k: 2, n: 4 }), 'Preparing the statements: 2 of 4 versions…');
+  assert.equal(I.t('es', 'exam.page.previewNote'), 'exam.page.previewNote', 'la nota de la vista previa seguida ya no hace falta');
+});

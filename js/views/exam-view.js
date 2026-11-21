@@ -10,7 +10,10 @@
  * anexos ({ annex: 'normal' } con ctx.normal, las filas de normal-table; { annex: 'grid', w, h }) y enlace ({ link }, con
  * el QR de ctx.qr), y en la página (T011) la cabecera del enunciado ({ head, id, instructions }) y el título de la
  * solución y de la rúbrica ({ title }). Lo ancho (más de 829 px) lleva la clase xm-wide: en papel va en su página girada (T012).
- * render(contenedor, bloques, ctx), ctx = { lang, t(clave, parámetros), qr(texto) → SVG, normal() → filas }.
+ * render(contenedor, bloques, ctx), ctx = { lang, t(clave, parámetros), qr(texto) → SVG, normal() → filas }: seguido.
+ * T012 (plan P2; tableros 110–113): units (los bloques como piezas para paginar), layout (las piezas en páginas, sin DOM)
+ * y pages(contenedor, bloques, ctx + { paper, foot }): el documento en hojas de papel, las mismas en la vista previa y al
+ * imprimir.
  */
 (function (root) {
   'use strict';
@@ -29,87 +32,280 @@
   /** Un número con la coma del español. */
   const num = (lang, v) => (lang === 'es' ? String(v).replace('.', ',') : String(v));
 
-  function render(container, blocks, ctx) {
-    const { h, clear } = root.PNL.dom;
+  /** El ancho y el alto de un SVG en texto (los de su primera etiqueta), o null. */
+  function svgSize(svg) {
+    const tag = /<svg\b[^>]*>/.exec(String(svg || ''));
+    const w = tag && /\swidth="([\d.]+)"/.exec(tag[0]);
+    const hh = tag && /\sheight="([\d.]+)"/.exec(tag[0]);
+    return w && hh ? [w[1], hh[1]] : null;
+  }
+
+  /**
+   * Los bloques como piezas para paginar (T012): { el, kind, type, wide, keep, part, label }. kind: 'pre' (antes de la
+   * primera parte: cabecera, título, introducción), 'part' (la marca de parte), 'in' (lo de una parte), 'tail' (enlace y
+   * anexos) o 'break' (salto). wide: va en su página girada (dibujo o rejilla de más de 829 px). keep: no se queda solo al
+   * pie de una página (el título, la marca de parte, el apartado, el encabezado y el párrafo que presenta su tabla, su
+   * recuadro, su rejilla o su dibujo). part: el número de la parte (0 fuera de ellas); label: «Parte i · título» de lo
+   * ancho. Cada pieza es un solo elemento, con data-u (su número) y data-part.
+   */
+  function units(blocks, ctx) {
+    const { h } = root.PNL.dom;
     const lang = ctx.lang === 'en' ? 'en' : 'es';
     const t = ctx.t;
     const pts = (n) => (n === 1 ? t('exam.head.point') : t('exam.head.points', { n: num(lang, n) }));
-    const img = (svg, alt, w, hh) => h('img', { src: dataUri(svg), alt, width: w, height: hh });
+    const img = (svg, alt, size) => h('img', { src: dataUri(svg), alt, width: size && size[0], height: size && size[1] });
     const fig = (child, wide) => h('p', { class: wide ? 'xm-fig xm-wide' : 'xm-fig' }, [child]);
-    const grid = (w, hh, alt) => fig(img(gridSvg(w, hh), alt, w, hh), w > WIDE);
+    const grid = (w, hh, alt) => fig(img(gridSvg(w, hh), alt, [w, hh]), w > WIDE);
     const table = (head, rows, cls) => h('div', { class: 'xm-scroll', tabindex: '0' }, [h('table', { class: cls }, [
       h('thead', {}, [h('tr', {}, head.map((x) => h('th', { scope: 'col' }, [String(x)])))]),
       h('tbody', {}, rows.map((r) => h('tr', {}, r.map((c, i) => (i === 0 ? h('th', { scope: 'row' }, [String(c)])
         : c == null ? h('td', { class: 'xm-blank' }, []) : h('td', {}, [String(c)])))))),
     ])]);
+    const group = (els) => h('div', { class: 'xm-unit' }, els);
+    const PRESENTS = ['table', 'box', 'grid', 'svg'];
+    const kindOf = (b) => (b == null ? null : ['head', 'item', 'part', 'title', 'consequent', 'annex', 'link', 'grid', 'svg', 'table', 'box', 'quote', 'page', 'h', 'p'].find((k) => k in b) || null);
     let part = 0;
+    let label = null;
+    let tail = false;
     const out = [];
-    for (const b of blocks || []) {
-      // La cabecera del enunciado (T011): asignatura, convocatoria, fecha y duración; nombre y DNI; instrucciones.
-      if ('head' in b) {
+    (blocks || []).forEach((b, bi) => {
+      const k = kindOf(b);
+      const next = kindOf((blocks || [])[bi + 1]);
+      let el = null; let kind = tail ? 'tail' : part ? 'in' : 'pre'; let keep = false; let wide = false;
+      if (k === 'head') {
+        // La cabecera del enunciado (T011): asignatura, convocatoria, fecha y duración; nombre y DNI; instrucciones.
         const hd = b.head || {};
-        const when = ['call', 'date', 'duration'].map((k) => hd[k]).filter(Boolean).join(' · ');
-        out.push(h('div', { class: 'xm-headbox' }, [
+        const when = ['call', 'date', 'duration'].map((x) => hd[x]).filter(Boolean).join(' · ');
+        el = h('div', { class: 'xm-headbox' }, [
           hd.subject || when ? h('div', { class: 'xm-headrow' }, [hd.subject ? h('strong', {}, [hd.subject]) : null, when ? h('span', {}, [when]) : null]) : null,
           b.id ? h('div', { class: 'xm-idrow' }, [h('span', { class: 'xm-blankline' }, [`${t('exam.head.name')}:`]), h('span', { class: 'xm-blankline' }, [`${t('exam.head.id')}:`])]) : null,
           h('p', { class: 'xm-instr' }, [b.instructions]),
-        ]));
-      // Los apartados también llevan su parte: van antes que las marcas de parte.
-      } else if ('item' in b) {
+        ]);
+      } else if (k === 'item') {
         // Las partes sin apartados (enunciado, redes, detective…) tienen uno solo, con el nombre de la parte.
         const key = `exam.item.${b.item}`;
         const name = t(key) !== key ? t(key) : t(`exam.part.${b.part}`);
-        out.push(h('h3', { class: 'xm-item' }, [`${name} · ${pts(b.pts)}`]));
-      } else if ('part' in b) {
+        el = h('h3', { class: 'xm-item' }, [`${name} · ${pts(b.pts)}`]);
+        keep = true;
+      } else if (k === 'part') {
         part++;
-        out.push(h('h2', { class: 'xm-part' }, [h('span', {}, [t('exam.head.partTitle', { i: part, t: b.title })]), h('span', { class: 'xm-pts' }, [pts(b.pts)])]));
-      } else if ('title' in b) {
+        tail = false;
+        label = t('exam.head.partTitle', { i: part, t: b.title });
+        el = h('h2', { class: 'xm-part' }, [h('span', {}, [label]), h('span', { class: 'xm-pts' }, [pts(b.pts)])]);
+        kind = 'part'; keep = true;
+      } else if (k === 'title') {
         // El título de la solución y de la rúbrica (las marcas de parte también llevan title: van antes).
-        out.push(h('h2', { class: 'xm-doctitle' }, [b.title]));
-      } else if ('consequent' in b) {
-        out.push(h('div', { class: 'xm-consequent' }, [h('p', {}, [b.p])]));
-      } else if ('annex' in b) {
+        el = h('h2', { class: 'xm-doctitle' }, [b.title]);
+        keep = true;
+      } else if (k === 'consequent') {
+        el = h('div', { class: 'xm-consequent' }, [h('p', {}, [b.p])]);
+      } else if (k === 'annex') {
+        kind = 'tail'; tail = true;
         if (b.annex === 'normal') {
           const rows = ctx.normal ? ctx.normal() : null;
-          if (!rows) continue;
-          const f = (v, k) => num(lang, v.toFixed(k));
-          out.push(h('h2', { class: 'xm-annex' }, [t('exam.head.normalTitle')]),
-            table(['z', ...Array.from({ length: 10 }, (_, j) => f(j / 100, 2))], rows.map((r) => [f(r.z0, 1), ...r.p.map((p) => f(p, 4))]), 'xm-table xm-normal'));
+          if (rows) {
+            const f = (v, d) => num(lang, v.toFixed(d));
+            el = group([h('h2', { class: 'xm-annex' }, [t('exam.head.normalTitle')]),
+              table(['z', ...Array.from({ length: 10 }, (_, j) => f(j / 100, 2))], rows.map((r) => [f(r.z0, 1), ...r.p.map((p) => f(p, 4))]), 'xm-table xm-normal')]);
+          }
         } else if (b.annex === 'grid') {
-          out.push(h('h2', { class: 'xm-annex' }, [t('exam.head.gridSheet')]), grid(b.w, b.h, t('exam.head.gridSheet')));
+          el = group([h('h2', { class: 'xm-annex' }, [t('exam.head.gridSheet')]), grid(b.w, b.h, t('exam.head.gridSheet'))]);
+          wide = b.w > WIDE;
         }
-      } else if ('link' in b) {
+      } else if (k === 'link') {
+        kind = 'tail'; tail = true;
         const qr = ctx.qr ? ctx.qr(b.link) : null;
-        out.push(h('div', { class: 'xm-link' }, [
+        el = h('div', { class: 'xm-link' }, [
           qr ? h('img', { class: 'xm-qr', src: dataUri(qr), alt: t('exam.view.qr', { url: b.link }) }) : null,
-          h('div', {}, [h('p', {}, [t('exam.head.link')]), h('p', { class: 'xm-url' }, [h('a', { href: b.link, target: '_blank', rel: 'noopener' }, [b.link])])]),
-        ]));
-      } else if ('grid' in b) {
-        out.push(grid(b.w, b.h, t(b.grid === 'aoa' ? 'exam.view.gridAoa' : 'exam.view.gridAon')));
-      } else if ('svg' in b) {
-        out.push(b.svg ? fig(h('img', { src: dataUri(b.svg), alt: b.alt }), !!b.wide) : h('p', { class: 'xm-alt' }, [b.alt]));
-      } else if ('table' in b) {
-        out.push(table(b.table.head, b.table.rows, b.fill ? 'xm-table xm-fill' : 'xm-table'));
-      } else if ('box' in b) {
-        const el = h('div', { class: 'xm-box' }, []);
+          // El enlace, dentro del párrafo de su frase: en la vista previa a escala es texto corrido (WCAG 2.5.8, excepción en línea).
+          h('p', {}, [h('span', {}, [t('exam.head.link')]), ' ', h('a', { class: 'xm-url', href: b.link, target: '_blank', rel: 'noopener' }, [b.link])]),
+        ]);
+      } else if (k === 'grid') {
+        el = grid(b.w, b.h, t(b.grid === 'aoa' ? 'exam.view.gridAoa' : 'exam.view.gridAon'));
+        wide = b.w > WIDE;
+      } else if (k === 'svg') {
+        el = b.svg ? fig(img(b.svg, b.alt, svgSize(b.svg)), !!b.wide) : h('p', { class: 'xm-alt' }, [b.alt]);
+        wide = !!(b.svg && b.wide);
+      } else if (k === 'table') {
+        el = table(b.table.head, b.table.rows, b.fill ? 'xm-table xm-fill' : 'xm-table');
+      } else if (k === 'box') {
+        el = h('div', { class: 'xm-box' }, []);
         el.style.height = `${b.box * BOX_LINE}px`;
-        out.push(el);
-      } else if ('quote' in b) {
-        out.push(h('blockquote', { class: 'xm-quote' }, b.quote.map((x) => h('p', {}, [x]))));
-      } else if ('page' in b) {
-        out.push(h('div', { class: 'xm-break', 'aria-hidden': 'true' }, []));
-      } else if ('h' in b) {
-        out.push(h('h3', { class: 'xm-h' }, [b.h]));
-      } else if ('p' in b) {
-        out.push(h('p', {}, [b.p]));
+      } else if (k === 'quote') {
+        el = h('blockquote', { class: 'xm-quote' }, b.quote.map((x) => h('p', {}, [x])));
+      } else if (k === 'page') {
+        el = h('div', { class: 'xm-break', 'aria-hidden': 'true' }, []);
+        kind = 'break';
+      } else if (k === 'h') {
+        el = h('h3', { class: 'xm-h' }, [b.h]);
+        keep = true;
+      } else if (k === 'p') {
+        el = h('p', {}, [b.p]);
+        keep = PRESENTS.includes(next);
       }
-    }
+      if (!el) return;
+      const inPart = kind === 'part' || kind === 'in';
+      el.setAttribute('data-u', String(out.length));
+      if (inPart) el.setAttribute('data-part', String(part));
+      out.push({ el, kind, type: k, wide, keep, part: inPart ? part : 0, label: wide && inPart ? label : null });
+    });
+    return out;
+  }
+
+  /** Los bloques seguidos, sin páginas (en Node y donde no se pagina). */
+  function render(container, blocks, ctx) {
+    const { clear } = root.PNL.dom;
+    const us = units(blocks, ctx);
     clear(container);
-    for (const el of out) container.appendChild(el);
+    for (const u of us) container.appendChild(u.el);
     return container;
   }
 
-  const api = { render, gridSvg, WIDE, BOX_LINE };
+  /**
+   * Las piezas en páginas (T012; plan P2; tableros 110–113). items: [{ h, kind, wide, keep }] con el alto medido (px);
+   * H: el alto útil de la página; o = { gap (hueco entre piezas), noteH (alto del aviso de lo girado) }.
+   * Reglas: cada parte empieza donde cabe entera y, si no cabe, en una página nueva (aunque deje hueco); una parte más
+   * alta que una página empieza en una nueva (o tras la cabecera o el título, si solo hay eso) y sigue pieza a pieza, sin
+   * dejar al pie una pieza keep sin la siguiente; lo
+   * ancho deja un aviso en su sitio y va en su página girada justo después de la página del aviso; los anexos empiezan en
+   * una página nueva (el ancho, en su página girada, sin aviso y sin cambiar el orden); un salto empieza página; nunca hay
+   * páginas vacías; una pieza más alta que la página va sola en la suya (over).
+   * Da [{ rot: false, items: [{ i } | { note: i }], over? } | { rot: true, i }].
+   */
+  function layout(items, H, o) {
+    const gap = (o && o.gap) || 0;
+    const noteH = (o && o.noteH) || 0;
+    const pages = [];
+    let cur = null; let used = 0; let later = [];
+    const empty = () => !cur || !cur.items.length;
+    const onlyPre = () => cur.items.every((x) => 'i' in x && items[x.i].kind === 'pre');
+    const close = () => { if (!empty()) pages.push(cur); cur = null; used = 0; pages.push(...later); later = []; };
+    const fits = (hh) => (empty() ? hh <= H : used + gap + hh <= H);
+    const hOf = (i) => (items[i].wide ? noteH : items[i].h);
+    const sum = (idx) => idx.reduce((s, i, k) => s + hOf(i) + (k ? gap : 0), 0);
+    const put = (entry, hh) => { if (!cur) cur = { rot: false, items: [] }; used = cur.items.length ? used + gap + hh : hh; cur.items.push(entry); };
+    const place = (i) => {
+      if (items[i].wide) { put({ note: i }, noteH); later.push({ rot: true, i }); return; }
+      if (items[i].h > H) { close(); pages.push({ rot: false, items: [{ i }], over: true }); return; }
+      put({ i }, items[i].h);
+    };
+    // Una lista de piezas en el orden dado, por cadenas de keep: la cadena que cabe en una página va junta.
+    const flow = (idx) => {
+      for (let k = 0; k < idx.length;) {
+        let e = k;
+        while (e < idx.length - 1 && items[idx[e]].keep) e++;
+        const chain = idx.slice(k, e + 1);
+        const ch = sum(chain);
+        if (ch <= H) {
+          if (!fits(ch)) close();
+          chain.forEach(place);
+        } else {
+          for (const i of chain) { if (!fits(hOf(i))) close(); place(i); }
+        }
+        k = e + 1;
+      }
+    };
+    const range = (a, b) => Array.from({ length: b - a }, (_, k) => a + k);
+    let tail = false;
+    for (let i = 0; i < items.length;) {
+      const it = items[i];
+      if (it.kind === 'break') { close(); i++; continue; }
+      if (it.kind === 'tail') {
+        if (!tail) { close(); tail = true; }
+        if (it.wide) { close(); pages.push({ rot: true, i }); } else flow([i]);
+        i++;
+        continue;
+      }
+      if (it.kind === 'part') {
+        let j = i + 1;
+        while (j < items.length && items[j].kind === 'in') j++;
+        const g = range(i, j);
+        const gh = sum(g);
+        if (fits(gh)) g.forEach(place);
+        else {
+          // Una parte que no cabe en ninguna página puede empezar tras la cabecera o el título (el principio del documento).
+          if (!empty() && !(gh > H && onlyPre())) close();
+          if (gh <= H) g.forEach(place); else flow(g);
+        }
+        i = j;
+        continue;
+      }
+      let j = i + 1;
+      while (j < items.length && (items[j].kind === 'pre' || items[j].kind === 'in')) j++;
+      flow(range(i, j));
+      i = j;
+    }
+    close();
+    return pages;
+  }
+
+  /**
+   * El documento en hojas de papel, dentro de container (T012). ctx, además: paper ('a4' | 'letter') y foot (el pie:
+   * modelo, semilla y documento). Cada hoja: .xm-pagebox > .xm-paper (.xm-rotated si va girada) > .xm-sheet > .xm-body
+   * (las piezas; en la girada, .xm-rot con el título de la parte y el dibujo) y .xm-foot (pie, «Gira la hoja…» en la
+   * girada y «Página k de n»). Se mide en una hoja de prueba fuera de la vista, con el mismo CSS, así que la vista
+   * previa y el papel son lo mismo. Da el número de hojas.
+   */
+  function pages(container, blocks, ctx) {
+    const { h, clear } = root.PNL.dom;
+    const doc = root.document;
+    const t = ctx.t;
+    const cls = ctx.paper === 'letter' ? 'xm-letter' : 'xm-a4';
+    const us = units(blocks, ctx);
+    const sheet = (rot) => {
+      const body = h('div', { class: 'xm-body' }, []);
+      const foot = h('div', { class: 'xm-foot' }, []);
+      const paper = h('div', { class: `xm-paper ${cls}${rot ? ' xm-rotated' : ''}` }, [h('div', { class: 'xm-sheet' }, [body, foot])]);
+      return { box: h('div', { class: `xm-pagebox ${cls}` }, [paper]), paper, body, foot };
+    };
+    const note = (i) => h('p', { class: 'xm-rotnote', 'data-note': String(i) }, [t(us[i].type === 'grid' ? 'exam.head.nextRot' : 'exam.head.nextRotNet')]);
+    const rotLabel = (text) => h('p', { class: 'xm-rotlabel' }, [text]);
+    // Medir: el alto y el ancho útiles, el hueco, el aviso, el título de lo girado y cada pieza.
+    const probe = sheet(false);
+    probe.box.classList.add('xm-measure');
+    probe.box.setAttribute('aria-hidden', 'true');
+    doc.body.appendChild(probe.box);
+    const H = probe.body.clientHeight;
+    const W = probe.body.clientWidth;
+    const gap = parseFloat(root.getComputedStyle(probe.body).rowGap) || 0;
+    const tmp = [h('p', { class: 'xm-rotnote' }, [t('exam.head.nextRotNet')]), rotLabel('X')].map((el) => probe.body.appendChild(el));
+    const noteH = tmp[0].getBoundingClientRect().height;
+    const labelH = tmp[1].getBoundingClientRect().height;
+    tmp.forEach((el) => probe.body.removeChild(el));
+    // Lo ancho no se mide (va en su página girada); del anexo ancho, solo su título, que va encima del dibujo.
+    const titleH = {};
+    const items = us.map((u, i) => {
+      if (u.wide && u.type === 'annex') { probe.body.appendChild(u.el); titleH[i] = u.el.firstChild.getBoundingClientRect().height + gap; }
+      if (u.kind === 'break' || u.wide) return { h: 0, kind: u.kind, wide: u.wide, keep: u.keep };
+      probe.body.appendChild(u.el);
+      return { h: u.el.getBoundingClientRect().height, kind: u.kind, wide: u.wide, keep: u.keep };
+    });
+    doc.body.removeChild(probe.box);
+    const pl = layout(items, H, { gap, noteH });
+    clear(container);
+    pl.forEach((pg, k) => {
+      const s = sheet(pg.rot);
+      if (pg.rot) {
+        const u = us[pg.i];
+        const rot = h('div', { class: 'xm-rot' }, [u.label ? rotLabel(u.label) : null, u.el]);
+        rot.style.width = `${H}px`;
+        rot.style.height = `${W}px`;
+        rot.style.transform = `translateY(${H}px) rotate(-90deg)`;
+        const im = u.el.querySelector('img');
+        if (im) im.style.maxHeight = `${Math.floor(W - (u.label ? labelH + gap : 0) - (titleH[pg.i] || 0))}px`;
+        s.body.appendChild(rot);
+      } else {
+        for (const x of pg.items) s.body.appendChild('note' in x ? note(x.note) : us[x.i].el);
+      }
+      s.foot.appendChild(h('span', {}, [ctx.foot || '']));
+      if (pg.rot) s.foot.appendChild(h('span', { class: 'xm-turn' }, [t('exam.head.rotated')]));
+      s.foot.appendChild(h('span', {}, [t('exam.head.page', { p: k + 1, n: pl.length })]));
+      container.appendChild(s.box);
+    });
+    return pl.length;
+  }
+
+  const api = { render, units, layout, pages, svgSize, gridSvg, WIDE, BOX_LINE };
   root.PNL = root.PNL || {};
   root.PNL.examView = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

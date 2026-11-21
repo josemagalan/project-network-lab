@@ -8,10 +8,15 @@
  * las pestañas del documento y los botones del modelo, «Copiar enlace» y la vista previa del documento a la vista (T011):
  * los modelos se buscan a trozos, uno tras otro (core/exam start y step, un intento cada vez), con «Buscando…» si tarda
  * más de 300 ms; los documentos se guardan por modelo, idioma, notación, puntos, extras y apartados.
+ * T012 (plan P2; tableros 110–113): la vista previa en hojas de papel (exam-view.pages), a escala para caber en su columna,
+ * con la línea de estado (modelo, semilla, páginas y papel); la regla @page del papel elegido (un <style> propio);
+ * «Imprimir» (window.print con el documento a la vista: en papel solo salen sus hojas) e «Imprimir todos los enunciados»
+ * (espera a los modelos con el progreso a la vista, pone los enunciados de todos en #exPrintOut, cada uno desde una hoja
+ * nueva, e imprime; al acabar, afterprint deja la página como estaba).
  * Estado en el «#» (P7): las claves de §3, con lista blanca; un valor que no vale vuelve al defecto y se avisa, como
  * en cpm.html. La cabecera del enunciado va siempre como texto (textContent y value), 600 caracteres como mucho.
  * La parte sin DOM (KEYS, DEFAULTS, decode, load, encode, optsOf, familiesOf, backHref, GROUPS, docCtx, searchKey,
- * viewBlocks) se prueba en Node;
+ * viewBlocks, pageCss, footOf, statusOf) se prueba en Node;
  * PNL.examApp.state() da el estado a las pruebas de navegador.
  */
 (function (root) {
@@ -186,6 +191,21 @@
     return [{ head: st.eh, id: st.ea.includes('i'), instructions: st.eh.instructions || t('exam.head.instructions') }, ...d.student];
   }
 
+  // ---------- el papel (T012) ----------
+  /** La regla @page del papel elegido: A4 o carta, con márgenes de 15 mm (plan P2). */
+  const pageCss = (pp) => `@page { size: ${pp === 'letter' ? 'letter' : 'A4'}; margin: 15mm; }`;
+  const seedText = (v) => (v == null ? '—' : v);
+  /** El pie de cada hoja: el modelo, la semilla usada y el documento. */
+  const footOf = (meta, dv, t) => `${t('exam.head.foot', { l: meta.letter, s: seedText(meta.sdUsed) })} · ${t(`exam.page.docs.${dv}`)}`;
+  /** La línea de estado de la vista previa: modelo, semilla (y la usada, si es otra), páginas y papel. */
+  function statusOf(m, n, pp, t) {
+    const paper = t(pp === 'letter' ? 'exam.page.paperLetter' : 'exam.page.paperA4');
+    return t('exam.page.status', {
+      l: m.letter, s: seedText(m.seed), u: m.sdUsed != null && m.sdUsed !== m.seed ? t('exam.page.used', { u: m.sdUsed }) : '',
+      pages: n === 1 ? t('exam.page.pagesOne', { paper }) : t('exam.page.pages', { n, paper }),
+    });
+  }
+
   // ---------- la página ----------
   function boot() {
     const I = root.PNL.i18n;
@@ -219,7 +239,12 @@
       if (warning) banner.textContent = I.t(state.lang, 'app.urlWarning');
     }
 
+    // La regla @page del papel elegido, en un <style> propio (T012).
+    const pageStyle = doc.createElement('style');
+    pageStyle.id = 'xmPage';
+    doc.head.appendChild(pageStyle);
     function renderTexts() {
+      if (pageStyle.textContent !== pageCss(state.pp)) pageStyle.textContent = pageCss(state.pp);
       doc.documentElement.lang = state.lang;
       doc.title = t('exam.page.docTitle');
       doc.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.getAttribute('data-i18n')); });
@@ -338,8 +363,13 @@
         const fail = () => announce(t('exam.page.copyFailed'));
         try { root.navigator.clipboard.writeText(root.location.href).then(done, fail); } catch { fail(); }
       } }, [t('exam.page.copy')]);
-      return [h('div', { class: 'xm-side-head' }, [tabs, models]), h('div', { class: 'xm-actions' }, [copy]),
-        h('div', { id: 'exPreview', class: 'xm-preview', role: 'tabpanel', 'aria-labelledby': `exDoc-${state.dv}`, tabindex: '0' }, [])];
+      const ok = E.check(optsOf(state)).ok;
+      const print = h('button', { type: 'button', id: 'exPrint', class: 'ghost primary', disabled: true, onclick: () => { endPrintAll(); root.print(); } }, [t('exam.page.print')]);
+      const all = h('button', { type: 'button', id: 'exPrintAll', class: 'ghost', disabled: !ok || !!printJob, onclick: startPrintAll }, [t('exam.page.printAll')]);
+      return [h('div', { class: 'xm-side-head' }, [tabs, models]), h('div', { class: 'xm-actions' }, [print, all, copy]),
+        h('p', { id: 'exPrintStatus', class: 'xm-print-wait', role: 'status' }, [printJob ? printWait() : '']),
+        h('div', { id: 'exPreview', class: 'xm-preview', role: 'tabpanel', 'aria-labelledby': `exDoc-${state.dv}`, tabindex: '0' }, []),
+        h('p', { id: 'exStatus', class: 'xm-status' }, [])];
     }
 
     function render() {
@@ -366,6 +396,8 @@
     const docs = new Map();
     let current = null;
     let pendingSince = 0;
+    let sheets = 0;
+    let printJob = null;
     const now = () => (root.performance ? root.performance.now() : Date.now());
     const viewCtx = () => ({
       lang: state.lang, t,
@@ -377,8 +409,29 @@
       clear(box);
       box.appendChild(h('p', { class: cls, role: 'status' }, [text]));
     }
+    /** Sin documento a la vista: «Imprimir» espera y no hay línea de estado. */
+    function idle() {
+      current = null; sheets = 0;
+      if ($('exPrint')) $('exPrint').disabled = true;
+      if ($('exStatus')) $('exStatus').textContent = '';
+    }
+    /** La escala de las hojas para caber en la columna (las hojas miden lo que miden en papel). */
+    function fit() {
+      const box = $('exPreview');
+      const paper = box && box.querySelector('.xm-paper');
+      if (!paper) return;
+      const s = Math.min(1, Math.max(0.2, (box.clientWidth - 24) / paper.offsetWidth));
+      box.style.setProperty('--xm-s', s.toFixed(4));
+    }
+    /** El documento k (en caché por modelo, idioma, notación, puntos, extras y apartados). */
+    function docOf(k, o) {
+      const dk = JSON.stringify([search.key, k, state.lang, state.nota, o.points, o.extras, E.check(o).items]);
+      let d = docs.get(dk);
+      if (!d) { d = E.document(search.models[k], o, docCtx(state.lang, state.nota, root.PNL)); docs.set(dk, d); }
+      return d;
+    }
     function pending() {
-      current = null;
+      idle();
       if (!pendingSince) pendingSince = now();
       const box = $('exPreview');
       clear(box);
@@ -390,13 +443,51 @@
       const model = search.models[k];
       if (!model) { pending(); return; }
       pendingSince = 0;
-      if (!model.ok) { current = null; message(t('exam.page.noProject', { n: E.TRIES_EXAM }), 'xm-warn'); return; }
-      const o = optsOf(state);
-      const dk = JSON.stringify([search.key, k, state.lang, state.nota, o.points, o.extras, E.check(o).items]);
-      let d = docs.get(dk);
-      if (!d) { d = E.document(model, o, docCtx(state.lang, state.nota, root.PNL)); docs.set(dk, d); }
+      if (!model.ok) { idle(); message(t('exam.page.noProject', { n: E.TRIES_EXAM }), 'xm-warn'); return; }
+      const d = docOf(k, optsOf(state));
       current = { k, d };
-      EV.render($('exPreview'), viewBlocks(d, state.dv, state, t), viewCtx());
+      sheets = EV.pages($('exPreview'), viewBlocks(d, state.dv, state, t), Object.assign(viewCtx(), { paper: state.pp, foot: footOf(d.meta, state.dv, t) }));
+      fit();
+      $('exPrint').disabled = false;
+      $('exStatus').textContent = statusOf(model, sheets, state.pp, t);
+    }
+
+    // ---------- «Imprimir todos los enunciados» (T012, AC14) ----------
+    const printWait = () => t('exam.page.printWait', { k: Math.min(search.models.length, state.em), n: state.em });
+    function startPrintAll() {
+      printJob = { gen: search.gen };
+      $('exPrintAll').disabled = true;
+      $('exPrintStatus').textContent = printWait();
+      printAllWhenReady();
+    }
+    function printAllWhenReady() {
+      if (!printJob) return;
+      if (printJob.gen !== search.gen) { endPrintAll(); return; }
+      if ($('exPrintStatus')) $('exPrintStatus').textContent = printWait();
+      if (search.models.some((m) => !m.ok)) { endPrintAll(); return; }
+      if (search.models.length < state.em) return;
+      const out = $('exPrintOut');
+      clear(out);
+      const o = optsOf(state);
+      for (let k = 0; k < state.em; k++) {
+        const d = docOf(k, o);
+        const tmp = h('div', {}, []);
+        EV.pages(tmp, viewBlocks(d, 's', state, t), Object.assign(viewCtx(), { paper: state.pp, foot: footOf(d.meta, 's', t) }));
+        while (tmp.firstChild) out.appendChild(tmp.firstChild);
+      }
+      printJob = null;
+      if ($('exPrintStatus')) $('exPrintStatus').textContent = '';
+      if ($('exPrintAll')) $('exPrintAll').disabled = !E.check(optsOf(state)).ok;
+      doc.documentElement.classList.add('xm-print-all');
+      root.print();
+    }
+    /** Después de imprimir (o si se cancela): la página vuelve a ser la de antes. */
+    function endPrintAll() {
+      printJob = null;
+      doc.documentElement.classList.remove('xm-print-all');
+      clear($('exPrintOut'));
+      if ($('exPrintStatus')) $('exPrintStatus').textContent = '';
+      if ($('exPrintAll')) $('exPrintAll').disabled = !E.check(optsOf(state)).ok;
     }
     function pump() {
       if (search.running) return;
@@ -418,6 +509,7 @@
           search.job = null;
           search.models.push(m);
           if (k === state.mi || !m.ok) draw();
+          printAllWhenReady();
         }
         root.setTimeout(tick, 0);
       };
@@ -425,7 +517,7 @@
     }
     function preview() {
       const o = optsOf(state);
-      if (!E.check(o).ok) { current = null; pendingSince = 0; clear($('exPreview')); return; }
+      if (!E.check(o).ok) { idle(); pendingSince = 0; clear($('exPreview')); if (printJob) endPrintAll(); return; }
       // Las familias de las partes marcadas, antes de buscar.
       const p = loader.need(familiesOf(state.ep));
       if (p) { pending(); p.then(() => { if (loader.ready(familiesOf(state.ep))) preview(); }, () => {}); return; }
@@ -434,6 +526,7 @@
         search.gen++;
         Object.assign(search, { key, o, models: [], job: null });
         docs.clear();
+        if (printJob) endPrintAll();
       }
       draw();
       pump();
@@ -442,6 +535,8 @@
     read();
     writeHash();
     render();
+    root.addEventListener('afterprint', () => { if (doc.documentElement.classList.contains('xm-print-all')) endPrintAll(); });
+    root.addEventListener('resize', fit);
     $('selLang').addEventListener('change', (e) => set({ lang: e.target.value }));
     $('selNota').addEventListener('change', (e) => set({ nota: e.target.value }));
     root.addEventListener('hashchange', () => {
@@ -453,11 +548,11 @@
     api.state = () => ({
       state: clone(state), hash: root.location.hash, opts: optsOf(state), families: familiesOf(state.ep), ready: loader.ready(familiesOf(state.ep)),
       models: search.models.map((m) => ({ letter: m.letter, ok: m.ok, sdUsed: m.sdUsed, tries: m.tries })), searches: search.searches,
-      pending: !current, doc: current && { k: current.k, meta: current.d.meta, values: current.d.values, points: current.d.points },
+      pending: !current, doc: current && { k: current.k, meta: current.d.meta, values: current.d.values, points: current.d.points }, sheets: current ? sheets : 0,
     });
   }
 
-  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, decode, load, encode, optsOf, familiesOf, backHref, docCtx, searchKey, viewBlocks };
+  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, decode, load, encode, optsOf, familiesOf, backHref, docCtx, searchKey, viewBlocks, pageCss, footOf, statusOf };
   root.PNL = root.PNL || {};
   root.PNL.examApp = api;
   if (isNode) module.exports = api;

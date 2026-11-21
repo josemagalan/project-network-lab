@@ -26,7 +26,8 @@
  *   mindummy y el detective con detective.seed. El ejemplo de error consecuente de la rúbrica es una hoja del alumno con
  *   un error sembrado que se completa con las fórmulas de grade o probgrade (lo que arrastra). Ninguna parte enseña lo
  *   que pide una anterior; con «Construir la PERT» o con el enunciado, los sucesos y los sucesores se responden sobre la
- *   red del alumno. Las redes se dibujan con dx = 95 (papel) y wide si pasan de 829 px (P2). Enlace del alumno: P3 y H3.
+ *   red del alumno. Las redes se dibujan con dx = 95 (papel), sin pasar de 1120 px (maxW, T012), y wide si pasan de 829 px
+ *   (P2). Enlace del alumno: P3 y H3.
  *   Los textos nuevos llegan con tr('exam.…') (i18n-exam, T010–T011); los demás, los de i18n-moodle.
  * La búsqueda va a trozos (start, step, result), como probgen. ctx = { lang, nota, labels, tr }, como core/moodle (lo usa
  * series.question). Sin DOM ni azar.
@@ -293,6 +294,7 @@
   const APP = 'https://josemagalan.github.io/project-network-lab/cpm.html';
   const PAPER_DX = 95;                 // dibujo compacto de las redes en papel (T001)
   const WIDE = 829;                    // ancho (px) por encima del cual una red va en su página girada (P2)
+  const PAPER_MAX = 1120;              // ancho máximo de una red: 8 pt en la página girada de carta (T012; net-svg baja dx lo justo)
   const GRID = { aon: { easy: [880, 420], medium: [880, 420], hard: [1080, 480] }, aoa: { easy: [680, 360], medium: [680, 360], hard: [960, 420] } };
   const SEP = ' – ';
   const M = () => req('./moodle.js', 'moodle');
@@ -483,7 +485,7 @@
     P.roy = () => {
       const roy = RC().fromTable(project);
       const alt = tr('exam.alt.roy', { n: roy.nodes.length, m: roy.arcs.length });
-      const m = { graph: 'aon', project, solution: sol.cpm, roy, names, title: tr('exam.part.roy'), desc: alt, dx: PAPER_DX };
+      const m = { graph: 'aon', project, solution: sol.cpm, roy, names, title: tr('exam.part.roy'), desc: alt, dx: PAPER_DX, maxW: PAPER_MAX };
       const name = (id) => (id === '_S' ? names.start : id === '_E' ? names.end : id);
       const ids = acts.concat(['_E']);
       return { s: [{ p: tr('exam.ask.roy') }, { grid: 'aon', w: GRID.aon[level][0], h: GRID.aon[level][1] }],
@@ -495,7 +497,7 @@
       const k = base.info && Number.isInteger(base.info.dummies) ? base.info.dummies : min.value;
       const pn = min.net;
       const alt = tr('exam.alt.pert', { n: pn.events.length, m: pn.arcs.length, k: pn.dummies.length });
-      const m = { graph: 'aoa', base: pn, pert: pn, title: tr('exam.part.pert'), desc: alt, dx: PAPER_DX };
+      const m = { graph: 'aoa', base: pn, pert: pn, title: tr('exam.part.pert'), desc: alt, dx: PAPER_DX, maxW: PAPER_MAX };
       const rows = [...pn.arcs.map((a) => ({ label: a.act, from: a.from, to: a.to, dummy: false })), ...pn.dummies.map((d, i) => ({ label: d.name || `f${i + 1}`, from: d.from, to: d.to, dummy: true }))]
         .sort((x, y) => x.from - y.from || x.to - y.to || natural(x.label, y.label));
       return { s: [{ p: tr('exam.ask.pert') }, { grid: 'aoa', w: GRID.aoa[level][0], h: GRID.aoa[level][1] }],
@@ -518,7 +520,7 @@
       if (dt.graph === 'aon') {
         const R0 = seeded.shown.roy;
         const alt = tr('exam.alt.det', { n: R0.nodes.length, m: R0.arcs.length });
-        s.push(svgBlock({ graph: 'aon', project: dp, solution: C().solve(dp), roy: R0, names, title: tr('exam.part.det'), desc: alt, dx: PAPER_DX }, alt),
+        s.push(svgBlock({ graph: 'aon', project: dp, solution: C().solve(dp), roy: R0, names, title: tr('exam.part.det'), desc: alt, dx: PAPER_DX, maxW: PAPER_MAX }, alt),
           table([tr('col.node'), tr('col.netPreds')], dacts.concat(['_E']).map((id) => {
             const ps = R0.arcs.filter((e) => e.to === id).map((e) => e.from).sort((a, b) => (a === '_S' ? -1 : b === '_S' ? 1 : natural(a, b)));
             return [name(id), ps.length ? ps.map(name).join(', ') : tr('none')];
@@ -526,7 +528,7 @@
       } else {
         const Pn = seeded.shown.pert;
         const alt = tr('exam.alt.detAoa', { n: Pn.events.length, m: Pn.arcs.length, k: Pn.dummies.length });
-        s.push(svgBlock({ graph: 'aoa', base: A().build(dp, { method: 'rules' }), pert: Pn, title: tr('exam.part.det'), desc: alt, dx: PAPER_DX }, alt));
+        s.push(svgBlock({ graph: 'aoa', base: A().build(dp, { method: 'rules' }), pert: Pn, title: tr('exam.part.det'), desc: alt, dx: PAPER_DX, maxW: PAPER_MAX }, alt));
         const rows = [...Pn.arcs.map((a) => ({ label: a.act, from: a.from, to: a.to, dummy: false })), ...Pn.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, dummy: true }))]
           .sort((x, y) => x.from - y.from || x.to - y.to || natural(x.label, y.label));
         s.push(table([tr('col.arc'), tr('col.from'), tr('col.to')], rows.map((a) => [a.dummy ? tr('dummy', { name: a.label }) : a.label, a.from, a.to])));
@@ -869,7 +871,7 @@
   }
 
   const api = { PARTS, ITEMS, LEVELS, MAX_MODELS, TRIES_EXAM, MODEL_STEP, SEED_MAX, EXAMPLES, partsOf, check, stagesOf,
-    modelSeed, start, step, result, project, models, APP, PAPER_DX, WIDE, GRID, points, itemPoints, document };
+    modelSeed, start, step, result, project, models, APP, PAPER_DX, PAPER_MAX, WIDE, GRID, points, itemPoints, document };
   root.PNL = root.PNL || {};
   root.PNL.exam = api;
   if (isNode) module.exports = api;

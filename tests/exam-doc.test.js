@@ -659,3 +659,20 @@ test('exam-doc · la misma salida en otro proceso (AC1)', () => {
     + 'process.stdout.write(JSON.stringify(E.document(Object.assign({letter:"A"},E.project(o,0,ctx)),o,ctx)));';
   assert.equal(execFileSync(process.execPath, ['-e', code], { maxBuffer: 64 * 1024 * 1024 }).toString(), here);
 });
+
+test('F3f T012 · dibujos de papel: las redes llevan maxW 1120 (8 pt en la página girada de carta); la ROY difícil más ancha (1260 px con dx 95) cabe', () => {
+  assert.equal(E.PAPER_MAX, 1120);
+  const cs = ctxOf('es', 'en', { svg: (mm) => NS.render(mm) });
+  const width = (s) => Number(/width="(\d+(?:\.\d+)?)"/.exec(s)[1]);
+  const o = opts({ level: 'hard', seed: 366, parts: ['roy', 'pert', 'det'] });
+  const { m, d } = make(o, cs);
+  assert.equal(m.sdUsed, 366);
+  const all = [...svgs(d.student), ...svgs(d.solution)];
+  assert.ok(all.length >= 3);
+  for (const b of all) {
+    assert.equal(b.model.maxW, 1120, b.model.graph);
+    assert.equal(b.model.dx, 95);
+    assert.ok(width(b.svg) <= 1120, `${b.model.graph}: ${width(b.svg)}`);
+  }
+  assert.ok(svgs(partOf(d.solution, 'roy')).every((b) => width(NS.render(Object.assign({}, b.model, { maxW: undefined }))) === 1260));
+});

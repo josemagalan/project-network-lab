@@ -5,7 +5,8 @@
  * Bloque 1 de P8 (T010): la página (page), la cabecera y el pie del papel (head), los nombres de las partes y de los
  * apartados (part, item: son las etiquetas de los controles) y las alternativas de la vista (view).
  * Bloques 2 y 3 (T011): los enunciados de las partes (data, ask, alt…), la solución (sol, det, col, cell) y la rúbrica
- * (rub). Las explicaciones de los errores del detective (exam.det.<tipo>) son las de i18n-det (det.exp), como «Ejercicios».
+ * (rub). T012: la línea de estado con «1 página» en singular (status, pages, pagesOne) y el progreso de «Imprimir todos
+ * los enunciados» (printWait); sale la nota de la vista previa seguida (previewNote), que ya va en hojas. Las explicaciones de los errores del detective (exam.det.<tipo>) son las de i18n-det (det.exp), como «Ejercicios».
  */
 (function (root) {
   'use strict';
@@ -34,9 +35,9 @@
       docs: { label: 'Documento', s: 'Enunciado', o: 'Solución', r: 'Rúbrica' }, modelsLabel: 'Modelo a la vista', model: 'Modelo {l}',
       print: 'Imprimir', printAll: 'Imprimir todos los enunciados', copy: 'Copiar enlace',
       copied: 'Enlace copiado.', copyFailed: 'No se pudo copiar: copia el enlace de la barra de direcciones.',
-      status: 'Modelo {l} · semilla {s}{u} · {p} páginas en {paper}', used: ' (usada: {u})',
+      status: 'Modelo {l} · semilla {s}{u} · {pages}', used: ' (usada: {u})', pages: '{n} páginas en {paper}', pagesOne: '1 página en {paper}',
+      printWait: 'Preparando los enunciados: {k} de {n} modelos…',
       searching: 'Buscando un proyecto que valga para todas las partes…',
-      previewNote: 'Vista previa en pantalla: al imprimir, cada parte empieza donde cabe entera y las redes anchas van en su página girada.',
       noProject: 'Con esta semilla no sale ningún proyecto que valga para todas las partes en {n} intentos. Prueba con otra semilla o quita alguna parte.',
     },
     head: {
@@ -162,9 +163,9 @@
       docs: { label: 'Document', s: 'Statement', o: 'Solution', r: 'Marking guide' }, modelsLabel: 'Version on screen', model: 'Version {l}',
       print: 'Print', printAll: 'Print all statements', copy: 'Copy link',
       copied: 'Link copied.', copyFailed: 'Could not copy: copy the link from the address bar.',
-      status: 'Version {l} · seed {s}{u} · {p} pages on {paper}', used: ' (used: {u})',
+      status: 'Version {l} · seed {s}{u} · {pages}', used: ' (used: {u})', pages: '{n} pages on {paper}', pagesOne: '1 page on {paper}',
+      printWait: 'Preparing the statements: {k} of {n} versions…',
       searching: 'Looking for a project that works for every part…',
-      previewNote: 'On-screen preview: when printed, each part starts where it fits whole and wide networks go on their own rotated page.',
       noProject: 'No project works for every part within {n} tries from this seed. Try another seed or remove a part.',
     },
     head: {

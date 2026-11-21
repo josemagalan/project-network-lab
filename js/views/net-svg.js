@@ -8,7 +8,9 @@
  *   render({ graph: 'aon', project, solution, roy, names: { start, end }, title, desc })
  *   render({ graph: 'aoa', base, pert, title, desc })        base: la red de las reglas; pert: la que se enseña
  * F3f (P2, T001): dx opcional en los dos, la separación entre columnas (110 px por defecto, como hasta ahora; el examen en
- * papel usa 95, el dibujo compacto).
+ * papel usa 95, el dibujo compacto). T012: maxW opcional, el ancho máximo del dibujo: si con dx pasaría de maxW, dx baja lo
+ * justo (el mayor entero que cabe), nunca por debajo de DX_MIN (el examen pide 1120 px, 8 pt en la página girada de carta).
+ * fitDx(m, maxW) da el dx con el que se dibuja.
  */
 (function (root) {
   'use strict';
@@ -21,6 +23,15 @@
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const f1 = (v) => (Math.round(v * 10) / 10).toString();
   const DX = 110; const DY = 64; const PAD = 30; const BW = 26; const BH = 14; const R = 15;
+  const DX_MIN = 75;
+  // Ancho del dibujo sin las columnas: ROY, márgenes, una caja y 8 px; PERT, márgenes, un suceso y 2 px.
+  const FIXED = { aon: PAD * 2 + 2 * BW + 8, aoa: PAD * 2 + 2 * R + 2 };
+  /** El dx con el que se dibuja una red de cols columnas: m.dx (o DX) o, si pasaría de maxW, el mayor entero que cabe (≥ DX_MIN). */
+  function dxOf(m, cols, maxW) {
+    const dx = m.dx || DX;
+    if (!maxW || cols < 2 || FIXED[m.graph === 'aoa' ? 'aoa' : 'aon'] + (cols - 1) * dx <= maxW) return dx;
+    return Math.max(DX_MIN, Math.floor((maxW - FIXED[m.graph === 'aoa' ? 'aoa' : 'aon']) / (cols - 1)));
+  }
 
   const head = (w, h, title, desc) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-labelledby="t d">`
     + `<title id="t">${esc(title)}</title><desc id="d">${esc(desc)}</desc>`
@@ -40,7 +51,7 @@
   function roy(m) {
     const lay = L.layout(m.solution, m.project);
     const minRow = Math.min(...Object.values(lay.nodes).map((n) => n.row), ...Object.values(lay.bends).flat().map((n) => n.row));
-    const DXm = m.dx || DX;
+    const DXm = dxOf(m, lay.cols, m.maxW);
     const xy = (n) => [PAD + BW + 4 + n.col * DXm, PAD + BH + 2 + (n.row - minRow) * DY];
     const w = PAD * 2 + 2 * BW + 8 + (lay.cols - 1) * DXm; const h = PAD * 2 + 2 * BH + 4 + (lay.rows - 1) * DY;
     const key = (id) => (id === '_S' ? T.START : id === '_E' ? T.END : id);
@@ -66,7 +77,7 @@
   function pert(m) {
     const lay = AL.layout(m.base);
     const minRow = Math.min(...Object.values(lay.pos).map((n) => n.row), ...Object.values(lay.bends).flat().map((n) => n.row));
-    const DXm = m.dx || DX;
+    const DXm = dxOf(m, lay.cols, m.maxW);
     const xy = (n) => [PAD + R + 1 + n.col * DXm, PAD + R + 1 + (n.row - minRow) * DY];
     const w = PAD * 2 + 2 * R + 2 + (lay.cols - 1) * DXm; const h = PAD * 2 + 2 * R + 2 + (lay.rows - 1) * DY;
     const same = (label, from, to) => [...m.base.arcs.map((a) => [a.act, a.from, a.to]), ...m.base.dummies.map((d) => [d.name, d.from, d.to])]
@@ -130,8 +141,9 @@
   }
 
   const render = (m) => (m.graph === 'aoa' ? pert(m) : roy(m));
+  const fitDx = (m, maxW) => dxOf(m, m.graph === 'aoa' ? AL.layout(m.base).cols : L.layout(m.solution, m.project).cols, maxW);
 
-  const api = { render };
+  const api = { render, fitDx, DX_MIN };
   root.PNL = root.PNL || {};
   root.PNL.netSvg = api;
   if (isNode) module.exports = api;
