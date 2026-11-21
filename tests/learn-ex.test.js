@@ -99,3 +99,23 @@ test('F3e T017 · el enlace al exportador abre moodle.html (no cpm.html#v=moodle
   const MA = require('../js/moodle-app.js');
   assert.equal(LX.moodleHref({ lang: 'en', nota: 'es' }), `moodle.html${MA.hashOf(MA.stateFrom('#lang=en&nota=es', '', 'es'))}`);
 });
+
+// F3f (T016, P5; AC20): el examen imprimible, en su página, con el idioma y la notación del laboratorio; es el mismo «#»
+// que escribe examen.html (exam-app.encode), así que la página lo abre sin avisos y sin reescribirlo.
+test('F3f T016 · AC20: el enlace al examen imprimible abre examen.html con el idioma y la notación del laboratorio, sin avisos', () => {
+  assert.equal(LX.examHref({ lang: 'en', nota: 'es' }), 'examen.html#lang=en&nota=es');
+  assert.equal(LX.examHref({ lang: 'es', nota: 'en' }), 'examen.html#lang=es&nota=en');
+  assert.equal(LX.examHref({ lang: 'xx', nota: 'en' }), 'examen.html#lang=es&nota=en', 'otro idioma, el español');
+  const EA = require('../js/exam-app.js');
+  for (const [lang, nota] of [['es', 'en'], ['en', 'es'], ['es', 'es'], ['en', 'en']]) {
+    const href = LX.examHref({ lang, nota });
+    const { state, warning } = EA.load(href.slice(href.indexOf('#')), '', 'es-ES');
+    assert.equal(warning, undefined, href);
+    assert.deepEqual([state.lang, state.nota], [lang, nota]);
+    assert.equal(`examen.html${EA.encode(state)}`, href, 'el «#» canónico de examen.html');
+  }
+  // Su párrafo, en los dos idiomas, junto al de Moodle; el enlace dice «examen imprimible», como la tarjeta de la portada.
+  for (const l of ['es', 'en']) for (const k of ['exam', 'examLink']) assert.ok(typeof LX.TX[l][k] === 'string' && LX.TX[l][k].trim(), `${l}.${k}`);
+  assert.match(LX.TX.es.examLink, /examen imprimible/);
+  assert.match(LX.TX.en.examLink, /printable exam/);
+});

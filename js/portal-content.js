@@ -62,6 +62,9 @@
       moodleEyebrow: 'Profesorado', moodleTitle: 'Banco de Moodle',
       moodleDesc: 'Preguntas por etapas en Moodle XML: del enunciado a la tabla, tiempos, holguras, caminos críticos, sucesos, construcción de redes, probabilidad con el TCL y Montecarlo, en tres niveles, y series encadenadas que recorren un proyecto entero. Cada pregunta enlaza con su ejercicio y con la solución en el laboratorio.',
       moodleTopics: 'Moodle XML · Cloze · Por etapas · Series', moodleOpen: 'Para profesorado: bancos de preguntas para Moodle',
+      examEyebrow: 'Profesorado', examTitle: 'Examen imprimible',
+      examDesc: 'Un examen en papel sobre un solo proyecto: de la tabla a las redes ROY y PERT, tiempos, holguras, detective, probabilidad con el TCL y Montecarlo. Con el enunciado del alumno, la solución completa y la rúbrica con el error consecuente, en varios modelos, y un QR para repasarlo en el laboratorio.',
+      examTopics: 'Enunciado · Solución · Rúbrica · A4 o carta', examOpen: 'Para profesorado: examen imprimible con solución y rúbrica',
       learnEyebrow: 'En clase o por tu cuenta', learnTitle: 'Aprende haciendo.',
       learnLead: 'Todos los módulos comparten la misma forma de trabajar. Elige un ejemplo y sigue cada decisión del cálculo.',
       featStepTitle: 'Sigue cada paso', featStepDesc: 'Cada valor aparece con su explicación, su fórmula y la línea del pseudocódigo que lo calcula.',
@@ -140,6 +143,9 @@
       moodleEyebrow: 'For teachers', moodleTitle: 'Moodle question bank',
       moodleDesc: 'Stage-by-stage questions in Moodle XML: from statement to table, times, floats, critical paths, events, building networks, probability with the CLT and Monte Carlo, at three levels, and chained series that walk through a whole project. Each question links to its exercise and to the solution in the lab.',
       moodleTopics: 'Moodle XML · Cloze · By stage · Series', moodleOpen: 'For teachers: question banks for Moodle',
+      examEyebrow: 'For teachers', examTitle: 'Printable exam',
+      examDesc: 'A paper exam on a single project: from the table to the AON and AOA networks, times, floats, detective, probability with the CLT and Monte Carlo. With the student’s statement, the full solution and the marking guide with carried errors, in several versions, and a QR code to review it in the lab.',
+      examTopics: 'Statement · Solution · Marking guide · A4 or Letter', examOpen: 'For teachers: printable exam with solution and marking guide',
       learnEyebrow: 'In class or on your own', learnTitle: 'Learn by doing.',
       learnLead: 'Every module works the same way. Pick an example and follow each decision of the calculation.',
       featStepTitle: 'Follow every step', featStepDesc: 'Each value appears with its explanation, its formula and the line of pseudocode that computes it.',
@@ -181,14 +187,15 @@
   // semilla: la elige la interfaz al abrir.
   const TARGETS = {
     m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
-    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', m7: 'v=unc&um=m7', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle',
+    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', m7: 'v=unc&um=m7', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle', exam: '',
   };
+  // F3e (T017, P2) y F3f (T016, P5): el exportador y el examen imprimible tienen su página; examen.html solo necesita el idioma.
+  const PAGES = { moodle: 'moodle.html', exam: 'examen.html' };
 
   function labHref(target, lang) {
     if (!Object.prototype.hasOwnProperty.call(TARGETS, target)) throw new Error('unknown target: ' + target);
     if (!LANGS.includes(lang)) throw new Error('unknown language: ' + lang);
-    // F3e (T017, P2): el exportador está en su página, moodle.html.
-    return `${target === 'moodle' ? 'moodle' : 'cpm'}.html#${TARGETS[target]}&lang=${lang}`;
+    return `${PAGES[target] || 'cpm.html'}#${[TARGETS[target], `lang=${lang}`].filter(Boolean).join('&')}`;
   }
 
   // Contador de la portada (constitución v2.1.0): GoatCounter cuenta las vistas de la ruta de la portada (index.html

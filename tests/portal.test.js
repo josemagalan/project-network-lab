@@ -69,7 +69,8 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
 test('ocho módulos, todos disponibles; ids únicos y anclas que existen', () => {
   assert.equal((html.match(/class="module-card tone-/g) || []).length, 8);
   for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 11, 'M0–M7, el taller, los ejercicios generados y el banco de Moodle');
+  // F3f (T016): y el examen imprimible.
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 12, 'M0–M7, el taller, los ejercicios generados, el banco de Moodle y el examen imprimible');
   assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 0, 'la fase 2 ya no tiene nada en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
@@ -188,6 +189,46 @@ test('F3a T017 · AC17: «Ejercicios generados» está disponible y abre «Ejerc
   assert.equal(messages.es.moodleTopics, 'Moodle XML · Cloze · Por etapas · Series');
   assert.equal(messages.en.moodleTopics, 'Moodle XML · Cloze · By stage · Series');
   // Los demás enlaces siguen yendo al laboratorio.
+  for (const k of ['m0', 'm7', 'work', 'ex']) assert.match(labHref(k, 'es'), /^cpm\.html#/, k);
+});
+
+// F3f (T016, P5; AC20): la tarjeta del examen imprimible, la última de «Para todos los módulos», abre examen.html con
+// el idioma de la portada; examen.html lee ese «#» sin avisos y pone lo demás por defecto (exam-app.load).
+test('F3f T016 · AC20: «Examen imprimible» está disponible y abre examen.html en el idioma elegido, sin avisos', () => {
+  const EA = require('../js/exam-app.js');
+  for (const lang of ['es', 'en']) {
+    const href = labHref('exam', lang);
+    assert.equal(href, `examen.html#lang=${lang}`);
+    // El idioma del enlace manda sobre el del navegador.
+    const { state, warning } = EA.load(`#${href.split('#')[1]}`, '', lang === 'es' ? 'en-US' : 'es-ES');
+    assert.equal(warning, undefined, lang);
+    assert.equal(state.lang, lang);
+    assert.deepEqual(Object.assign({}, state, { lang: EA.DEFAULTS.lang }), EA.DEFAULTS, 'lo demás, por defecto');
+  }
+  const mStart = html.indexOf('data-i18n="moodleEyebrow"');
+  const start = html.indexOf('data-i18n="examEyebrow"');
+  assert.ok(mStart > 0 && start > mStart, 'después del banco de Moodle');
+  const section = html.slice(html.indexOf('id="workshop"'), html.indexOf('</section>', html.indexOf('id="workshop"')));
+  assert.ok(section.includes('data-i18n="examEyebrow"'), 'en «Para todos los módulos»');
+  assert.equal(section.lastIndexOf('<article class="module-card">'), section.indexOf('<article class="module-card">', section.indexOf('data-i18n="moodleEyebrow"')), 'la última tarjeta');
+  const card = html.slice(start, html.indexOf('</article>', start));
+  assert.match(card, /<h3 data-i18n="examTitle">Examen imprimible<\/h3>/);
+  assert.match(card, /<a class="button" href="examen\.html#lang=es" data-lab="exam"><span data-i18n="examOpen">/);
+  assert.match(card, /class="ok" data-i18n="available"/);
+  // El título es el de la página (i18n-exam, aprobado en T010).
+  const I = require('../js/i18n.js');
+  require('../js/i18n-exam.js'); // fusiona dict.es.exam y dict.en.exam
+  assert.equal(messages.es.examTitle, I.t('es', 'exam.page.title'));
+  assert.equal(messages.en.examTitle, I.t('en', 'exam.page.title'));
+  assert.equal(messages.es.examEyebrow, messages.es.moodleEyebrow);
+  assert.equal(messages.en.examEyebrow, messages.en.moodleEyebrow);
+  // Dice lo que hay: los tres documentos, el papel y el QR.
+  assert.match(messages.es.examDesc, /enunciado.*solución.*rúbrica/);
+  assert.match(messages.en.examDesc, /statement.*solution.*marking guide/);
+  assert.match(messages.es.examDesc, /QR/); assert.match(messages.en.examDesc, /QR/);
+  for (const k of ['examDesc', 'examTopics', 'examOpen']) assert.ok(html.includes(`data-i18n="${k}">${messages.es[k]}<`), `index.html lleva ${k} en español`);
+  // Los demás enlaces siguen yendo a su página.
+  assert.match(labHref('moodle', 'es'), /^moodle\.html#/);
   for (const k of ['m0', 'm7', 'work', 'ex']) assert.match(labHref(k, 'es'), /^cpm\.html#/, k);
 });
 

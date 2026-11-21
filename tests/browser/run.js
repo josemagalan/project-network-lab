@@ -3629,8 +3629,8 @@ check('F3a AC7 · «Aprende más» de «Ejercicios» abre su tema en el idioma d
     assert.equal(await page.locator('#learnTitle').innerText(), LX0.TX[lang].title);
     assert.equal(await page.locator('#lxTab-calc').getAttribute('aria-selected'), 'true');
     const ps = await page.locator('#lxPanel > p').allInnerTexts();
-    // F3b (T012): el tema termina con el párrafo del banco de Moodle y su enlace.
-    assert.deepEqual(ps, [...LX0.section('calc', lang).blocks, `${LX0.TX[lang].moodle} ${LX0.TX[lang].moodleLink}.`]);
+    // F3b (T012): el tema termina con el párrafo del banco de Moodle y su enlace; F3f (T016): y el del examen imprimible.
+    assert.deepEqual(ps, [...LX0.section('calc', lang).blocks, `${LX0.TX[lang].moodle} ${LX0.TX[lang].moodleLink}.`, `${LX0.TX[lang].exam} ${LX0.TX[lang].examLink}.`]);
     await page.locator('#btnLearnClose').click();
     assert.equal(await page.locator('#learnDialog[open]').count(), 0);
     assert.equal(await activeId(page), 'exLearn', 'el foco vuelve al botón');
@@ -9231,7 +9231,7 @@ check('F3e T012 AC22 · «Aprende más» en cada tipo de «Ejercicios»: se abre
     assert.equal(await page.locator('#lxHead').innerText(), LX0.section(k, lang).title);
     const sec = LX0.section(k, lang);
     assert.deepEqual(await page.locator('#lxPanel > p').allInnerTexts(), sec.blocks.filter((b) => typeof b === 'string')
-      .concat(sec.blocks.filter((b) => Array.isArray(b) && b[0] === 'links').map((b) => b[1].map((x) => x[0]).join(' · ')), [`${LX0.TX[lang].moodle} ${LX0.TX[lang].moodleLink}.`]), k);
+      .concat(sec.blocks.filter((b) => Array.isArray(b) && b[0] === 'links').map((b) => b[1].map((x) => x[0]).join(' · ')), [`${LX0.TX[lang].moodle} ${LX0.TX[lang].moodleLink}.`, `${LX0.TX[lang].exam} ${LX0.TX[lang].examLink}.`]), k);
     assert.deepEqual(await lxFiles(page), ['learn-ex.css', 'learn-ex.js', `learn-ex-${k}.js`].sort(), `${k}: solo su sección`);
     assert.equal(await page.evaluate(() => performance.getEntriesByType('resource').some((e) => /\/js\/learn\.js/.test(e.name))), false, `${k}: sin learn.js`);
     await page.locator('#btnLearnClose').click();
@@ -10011,9 +10011,13 @@ check('F3e T018 AC21 · «Aprende más» de «Ejercicios»: las seis secciones c
   assert.ok(internal.size >= 3, `enlaces internos: ${[...internal]}`);
   for (const href of internal) {
     const page = await open(href, { wait: false });
+    // F3f (T016): y el examen imprimible, en examen.html, con el idioma y la notación del enlace.
     if (href.startsWith('moodle.html')) await mqWait(page);
-    else await page.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
-    const st = href.startsWith('moodle.html') ? null : await state(page);
+    else if (href.startsWith('examen.html')) {
+      await exWait(page);
+      assert.equal((await exState(page)).hash, href.slice(href.indexOf('#')), href);
+    } else await page.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
+    const st = /^(moodle|examen)\.html/.test(href) ? null : await state(page);
     if (st) {
       const want = U0.decode(href.slice(href.indexOf('#'))).state;
       for (const k of ['v', 'um', 'xk', 'lang']) assert.equal(st[k], want[k], `${href}: ${k}`);
@@ -10424,7 +10428,7 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   }
 });
 
-// ---------- F3f, T010: examen.html, la página del examen imprimible (plan P6 y P7; oculta hasta T016; tableros 107–109) ----------
+// ---------- F3f, T010: examen.html, la página del examen imprimible (plan P6 y P7; oculta hasta su publicación en T016; tableros 107–109) ----------
 
 const exWait = (page) => page.waitForFunction(() => window.PNL && PNL.examApp && PNL.examApp.state && document.querySelector('#exView .xm-parts'));
 const exOpen = async (hash, opts) => { const p = await open(`examen.html${hash ? `#${hash}` : ''}`, opts); await exWait(p); return p; };
@@ -11359,6 +11363,90 @@ check('F3f T015 AC17 · principio 27: examen.html con todas las familias a la ve
   console.log(`    examen.html con todas las familias (también xe y xs): ${(r.bytes / 1024).toFixed(0)} KB`);
   assert.ok(r.bytes <= BUDGET, `${r.bytes} bytes`);
   await close(p);
+});
+
+// ---------- F3f, T016: publicación (P5; AC20): la tarjeta de la portada y «Aprende más» de «Ejercicios» ----------
+// Aquí examen.html no se abre por su ruta: se llega desde sus dos entradas, como un visitante, y se elige el idioma con
+// los botones de la portada o con el del laboratorio.
+
+check('F3f T016 AC20 · la tarjeta «Examen imprimible» de la portada está disponible y abre examen.html en el idioma elegido, sin avisos', async () => {
+  const noJs = await open('index.html', { js: false });
+  assert.equal(await noJs.locator('a[data-lab="exam"]').getAttribute('href'), 'examen.html#lang=es');
+  await close(noJs);
+  // El idioma del sistema es el otro: manda el que se elige en la portada.
+  for (const [lang, locale, re] of [['es', 'en-US', /^Profesorado\s+Examen imprimible\s[\s\S]*Disponible$/i], ['en', 'es-ES', /^For teachers\s+Printable exam\s[\s\S]*Available$/i]]) {
+    const home = await open('index.html', { locale });
+    await home.locator(`[data-lang="${lang}"]`).click();
+    const card = home.locator('article.module-card').filter({ has: home.locator('a[data-lab="exam"]') });
+    assert.match((await card.innerText()).trim(), re);
+    const link = card.locator('a[data-lab="exam"]');
+    assert.equal(await link.getAttribute('href'), `examen.html#lang=${lang}`);
+    await link.click();
+    await home.waitForURL(/\/examen\.html#/); await exWait(home);
+    const s = await exState(home);
+    assert.equal(s.state.lang, lang);
+    assert.equal(s.hash, `#lang=${lang}&nota=en`, 'el «#» canónico, con lo demás por defecto');
+    assert.equal(await home.locator('#urlWarning').isVisible(), false, 'sin avisos');
+    const hd = await exHead(home);
+    assert.deepEqual([hd.h1, hd.lang], [EX_HEAD[lang].h1, lang]);
+    await close(home);
+  }
+});
+
+check('F3f T016 AC20 · «Aprende más» de «Ejercicios» abre examen.html con el idioma y la notación del laboratorio', async () => {
+  for (const [lang, nota, re] of [['es', 'en', /^Para un examen en papel, .*\. Para profesorado: examen imprimible\.$/], ['en', 'es', /^For a paper exam, .*\. For teachers: printable exam\.$/]]) {
+    const page = await exLab({ sd: 14844, lang, nota });
+    await page.locator('#exLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
+    const p = page.locator('.lx-exam');
+    assert.match((await p.innerText()).trim(), re);
+    // Justo después del párrafo de Moodle.
+    assert.equal(await page.evaluate(() => document.querySelector('.lx-moodle').nextElementSibling.className), 'lx-exam');
+    const link = page.locator('#exLearnExam');
+    assert.equal(await link.getAttribute('href'), `examen.html#lang=${lang}&nota=${nota}`);
+    await link.click();
+    await page.waitForURL(/\/examen\.html#/); await exWait(page);
+    assert.equal(await page.evaluate(() => location.hash), `#lang=${lang}&nota=${nota}`);
+    assert.equal(await page.locator('#urlWarning').isVisible(), false, 'sin avisos');
+    const hd = await exHead(page);
+    assert.deepEqual([hd.h1, hd.lang, hd.notaVal], [EX_HEAD[lang].h1, lang, nota]);
+    // Y «Volver al laboratorio» lleva al laboratorio con los mismos.
+    assert.equal(hd.back, `cpm.html#lang=${lang}&nota=${nota}`);
+    await close(page);
+  }
+});
+
+check('F3f T016 AC15 AC16 AC17 · la portada con la tarjeta nueva y «Aprende más» con su enlace: axe en claro y oscuro, 1280 y 360 px, sin desbordar, por debajo de 1 MB', async () => {
+  const kb = async (page) => {
+    await page.waitForLoadState('networkidle');
+    return page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+  };
+  for (const [scheme, width, lang] of [['light', 1280, 'es'], ['dark', 360, 'en'], ['dark', 1280, 'es'], ['light', 360, 'en']]) {
+    const home = await open(`index.html?lang=${lang}`, { scheme, width, height: 800 });
+    assert.ok(await noHScroll(home), `portada a ${width} px`);
+    const card = home.locator('article.module-card').filter({ has: home.locator('a[data-lab="exam"]') });
+    await card.scrollIntoViewIfNeeded();
+    // El botón no se sale de su tarjeta.
+    const [cb, lb] = [await card.boundingBox(), await card.locator('a[data-lab="exam"]').boundingBox()];
+    assert.ok(lb.x >= cb.x && lb.x + lb.width <= cb.x + cb.width + 0.5, `botón dentro de la tarjeta a ${width} px`);
+    await axe(home, `F3f T016 · portada con «Examen imprimible» (${lang}, ${scheme}, ${width} px)`);
+    await shot(home, `f3f-t016-portada-${lang}-${scheme}-${width}`);
+    const bytes = await kb(home);
+    console.log(`    portada (${lang}, ${width} px): ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `portada: ${bytes} bytes`);
+    await close(home);
+    const page = await exLab({ sd: 14844, lang }, { scheme, width, height: 800 });
+    await page.locator('#exLearn').click();
+    await page.locator('#learnDialog[open]').waitFor();
+    await page.locator('#exLearnExam').scrollIntoViewIfNeeded();
+    assert.ok(await noHScroll(page), `«Aprende más» a ${width} px`);
+    await axe(page, `F3f T016 · «Aprende más» de «Ejercicios» con el enlace al examen (${lang}, ${scheme}, ${width} px)`);
+    await shot(page, `f3f-t016-aprende-${lang}-${scheme}-${width}`);
+    const b2 = await kb(page);
+    console.log(`    «Ejercicios» con «Aprende más» (${lang}, ${width} px): ${(b2 / 1024).toFixed(0)} KB`);
+    assert.ok(b2 > 0 && b2 <= BUDGET, `«Aprende más»: ${b2} bytes`);
+    await close(page);
+  }
 });
 
 // ---------- Ejecución ----------

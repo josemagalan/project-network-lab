@@ -5,9 +5,9 @@
  *
  * open(k, c) pinta el diálogo de app.js (c: { need, lang, nota, dlg, body, title }): las pestañas de los seis tipos a la
  * izquierda (role="tablist", flechas arriba y abajo, Inicio y Fin) y, a la derecha, la sección del tipo, el párrafo del
- * banco de Moodle (F3b, T012) y las referencias. Cambiar de pestaña carga su sección (c.need) y repinta.
+ * banco de Moodle (F3b, T012), el del examen imprimible (F3f, T016) y las referencias. Cambiar de pestaña carga su sección (c.need) y repinta.
  * Cada sección: { es, en } con { title, blocks }; un bloque es un párrafo (texto), ['h', título], ['table', cabecera,
- * filas] o ['links', [[texto, estado de la URL]]]. Los textos de aquí (título, Moodle) salen de i18n.js para no
+  * filas] o ['links', [[texto, estado de la URL]]]. Los textos de aquí (título, Moodle) salen de i18n.js para no
  * engordar la carga común. Nunca innerHTML: todo con PNL.dom.
  */
 (function (root) {
@@ -20,9 +20,11 @@
   const TX = {
     es: { title: 'Aprende más · Ejercicios', tabs: 'Tipos de ejercicio', refs: 'Referencias', review: 'Para repasarlo',
       moodle: 'Para un examen con nota, usa Moodle: el laboratorio genera bancos de preguntas por etapas con estos mismos niveles.', moodleLink: 'Para profesorado: bancos de preguntas para Moodle',
+      exam: 'Para un examen en papel, el laboratorio prepara el enunciado, la solución y la rúbrica de un examen sobre un solo proyecto, con estos mismos tipos.', examLink: 'Para profesorado: examen imprimible',
       kinds: { calc: 'Cálculo', roy: 'Construir la ROY', pert: 'Construir la PERT', det: 'Detective', tcl: 'Probabilidad (TCL)', mc: 'Montecarlo' } },
     en: { title: 'Learn more · Exercises', tabs: 'Exercise types', refs: 'References', review: 'To review it',
       moodle: 'For a graded exam, use Moodle: the lab generates question banks in stages with these same levels.', moodleLink: 'For teachers: question banks for Moodle',
+      exam: 'For a paper exam, the lab prepares the statement, the solution and the marking guide of an exam on a single project, with these same types.', examLink: 'For teachers: printable exam',
       kinds: { calc: 'Calculation', roy: 'Build the AON', pert: 'Build the AOA', det: 'Detective', tcl: 'Probability (CLT)', mc: 'Monte Carlo' } },
   };
   const REFS = [
@@ -36,6 +38,8 @@
   const hashOf = (st, c) => U.encode(Object.assign(U.defaults(), st, { lang: lang(c.lang), nota: c.nota }));
   // F3e (T017, P2): el exportador está en su página, moodle.html, con el mismo «#» que escribe ella.
   const moodleHref = (c) => `moodle.html${hashOf({ v: 'moodle' }, c)}`;
+  // F3f (T016, P5): el examen imprimible, en examen.html, con el «#» canónico de esa página (exam-app.encode: idioma y notación).
+  const examHref = (c) => `examen.html#lang=${lang(c.lang)}&nota=${c.nota === 'es' ? 'es' : 'en'}`;
 
   /** La sección de un tipo como bloques (para las pruebas y para pintarla). */
   const section = (k, l) => (s[k] ? s[k][lang(l)] : null);
@@ -73,6 +77,7 @@
       }
     }
     out.push(h('p', { class: 'lx-moodle' }, [tx.moodle, ' ', h('a', { id: 'exLearnMoodle', href: moodleHref(c), onclick: close }, [tx.moodleLink]), '.']));
+    out.push(h('p', { class: 'lx-exam' }, [tx.exam, ' ', h('a', { id: 'exLearnExam', href: examHref(c), onclick: close }, [tx.examLink]), '.']));
     out.push(h('h4', {}, [tx.refs]), h('ul', {}, REFS.map((r) => h('li', {}, [r]))));
     body.appendChild(h('div', { class: 'lx' }, [h('div', { class: 'lx-tabs', role: 'tablist', 'aria-orientation': 'vertical', 'aria-label': tx.tabs }, tabs),
       h('div', { class: 'lx-panel', id: 'lxPanel', role: 'tabpanel', 'aria-labelledby': `lxTab-${k}`, tabindex: '0' }, out)]));
@@ -83,7 +88,7 @@
     if (!c.dlg.open) { if (typeof c.dlg.showModal === 'function') c.dlg.showModal(); else c.dlg.setAttribute('open', ''); }
   }
 
-  const api = { KINDS, TX, REFS, s, section, open, moodleHref };
+  const api = { KINDS, TX, REFS, s, section, open, moodleHref, examHref };
   root.PNL = root.PNL || {};
   root.PNL.learnEx = api;
   if (isNode) module.exports = api;

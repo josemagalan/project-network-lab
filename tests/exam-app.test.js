@@ -211,11 +211,16 @@ test('F3f T010 · los textos de la cabecera de la página están en los dos idio
   assert.equal(I.t('en', 'exam.page.title'), 'Printable exam');
 });
 
-test('F3f T010 · examen.html está oculta: ni la portada, ni el laboratorio, ni «Aprende más» la enlazan (plan §0)', () => {
+// F3f T010: examen.html nació oculta (plan §0). Desde la publicación (T016, P5) la enlazan solo sus dos entradas: la
+// tarjeta de la portada (index.html y portal-content) y «Aprende más» de «Ejercicios» (learn-ex).
+test('F3f T010 y T016 · examen.html solo la enlazan la portada y «Aprende más» de «Ejercicios» (plan §0 y P5)', () => {
+  const ENTRIES = ['index.html', 'js/portal-content.js', 'js/learn-ex.js'];
   const files = ['index.html', 'cpm.html', 'moodle.html', ...fs.readdirSync(path.join(ROOT, 'js')).filter((f) => f.endsWith('.js')).map((f) => `js/${f}`)];
   for (const f of files) {
     // Un enlace es la ruta entre comillas (href o una cadena del código); los comentarios pueden nombrarla.
-    assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), 'utf8'), /["'`]examen\.html/, f);
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    if (ENTRIES.includes(f)) assert.match(src, /["'`]examen\.html/, f);
+    else assert.doesNotMatch(src, /["'`]examen\.html/, f);
   }
 });
 
