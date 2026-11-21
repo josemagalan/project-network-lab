@@ -7,6 +7,8 @@
  * blanco): es una imagen dentro de una pregunta. Determinista y con todo el texto escapado.
  *   render({ graph: 'aon', project, solution, roy, names: { start, end }, title, desc })
  *   render({ graph: 'aoa', base, pert, title, desc })        base: la red de las reglas; pert: la que se enseña
+ * F3f (P2, T001): dx opcional en los dos, la separación entre columnas (110 px por defecto, como hasta ahora; el examen en
+ * papel usa 95, el dibujo compacto).
  */
 (function (root) {
   'use strict';
@@ -38,8 +40,9 @@
   function roy(m) {
     const lay = L.layout(m.solution, m.project);
     const minRow = Math.min(...Object.values(lay.nodes).map((n) => n.row), ...Object.values(lay.bends).flat().map((n) => n.row));
-    const xy = (n) => [PAD + BW + 4 + n.col * DX, PAD + BH + 2 + (n.row - minRow) * DY];
-    const w = PAD * 2 + 2 * BW + 8 + (lay.cols - 1) * DX; const h = PAD * 2 + 2 * BH + 4 + (lay.rows - 1) * DY;
+    const DXm = m.dx || DX;
+    const xy = (n) => [PAD + BW + 4 + n.col * DXm, PAD + BH + 2 + (n.row - minRow) * DY];
+    const w = PAD * 2 + 2 * BW + 8 + (lay.cols - 1) * DXm; const h = PAD * 2 + 2 * BH + 4 + (lay.rows - 1) * DY;
     const key = (id) => (id === '_S' ? T.START : id === '_E' ? T.END : id);
     const name = (id) => (id === '_S' ? m.names.start : id === '_E' ? m.names.end : id);
     let s = head(w, h, m.title, m.desc);
@@ -63,8 +66,9 @@
   function pert(m) {
     const lay = AL.layout(m.base);
     const minRow = Math.min(...Object.values(lay.pos).map((n) => n.row), ...Object.values(lay.bends).flat().map((n) => n.row));
-    const xy = (n) => [PAD + R + 1 + n.col * DX, PAD + R + 1 + (n.row - minRow) * DY];
-    const w = PAD * 2 + 2 * R + 2 + (lay.cols - 1) * DX; const h = PAD * 2 + 2 * R + 2 + (lay.rows - 1) * DY;
+    const DXm = m.dx || DX;
+    const xy = (n) => [PAD + R + 1 + n.col * DXm, PAD + R + 1 + (n.row - minRow) * DY];
+    const w = PAD * 2 + 2 * R + 2 + (lay.cols - 1) * DXm; const h = PAD * 2 + 2 * R + 2 + (lay.rows - 1) * DY;
     const same = (label, from, to) => [...m.base.arcs.map((a) => [a.act, a.from, a.to]), ...m.base.dummies.map((d) => [d.name, d.from, d.to])]
       .some(([l, f, t]) => l === label && f === from && t === to);
     const shown = new Set(m.pert.events.map((e) => e.n));
