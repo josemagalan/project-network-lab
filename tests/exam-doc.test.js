@@ -504,6 +504,46 @@ test('exam-doc · la rúbrica trae un ejemplo de error consecuente del propio mo
   }
 });
 
+// ---------- hallazgos de los bocetos de T009 ----------
+
+// Los parámetros que necesita cada explicación del detective (los de «Ejercicios», ex-det).
+const DET_PARAMS = { royMissing: ['from', 'to'], royFalse: ['from', 'to'], royInverted: ['from', 'to'], royCycle: ['from', 'to'],
+  pertFalseDummy: ['name', 'from', 'to'], pertMissingDummy: ['dummy', 'from', 'to'], pertInvertedDummy: ['dummy', 'from', 'to'],
+  pertParallel: ['act', 'twin', 'from', 'to', 'dummy'], calcES: ['lab', 'wrong', 'right', 'f'], calcLF: ['lab', 'wrong', 'right', 'f'],
+  calcFloat: ['lab', 'wrong', 'right', 'lf', 'es'], calcCritOn: ['x', 'tf'], calcCritOff: ['x', 'tf'], calcTE: ['lab', 'wrong', 'right'],
+  calcTL: ['lab', 'wrong', 'right'], calcSlack: ['lab', 'wrong', 'right', 'tl', 'te'] };
+test('exam-doc · la solución del detective explica cada error con los datos de la red, como «Ejercicios» (bocetos de T009)', () => {
+  const seen = new Set();
+  for (const [parts, seed, level] of [[['roy', 'det'], 12, 'medium'], [['pert', 'det'], 12, 'medium'], [['det'], 3, 'hard'], [['roy', 'det'], 7, 'hard'], [['pert', 'det'], 31, 'easy'], [['det'], 44, 'medium'], [['det'], 5, 'easy'], [['det'], 46, 'easy']]) {
+    const { m, d } = make(opts({ level, seed, parts }));
+    const ps = partOf(d.solution, 'det').filter((b) => kind(b) === 'p').map((b) => b.p);
+    assert.equal(ps.length, m.det.errors.length);
+    m.det.errors.forEach((e, i) => {
+      const text = JSON.parse(ps[i].slice(ps[i].indexOf('{'))).text;
+      const inner = /^⟦exam\.det\.(\w+)⟧/.exec(text);
+      assert.ok(inner, ps[i]);
+      const key = inner[1]; const params = text.includes('{') ? JSON.parse(text.slice(text.indexOf('{'))) : {};
+      const want = e.type === 'calcCrit' ? (e.wrong ? 'calcCritOn' : 'calcCritOff') : e.type;
+      assert.equal(key, want);
+      seen.add(key);
+      for (const k of DET_PARAMS[key]) assert.ok(params[k] != null && params[k] !== '', `${key}: falta ${k} en ${JSON.stringify(params)}`);
+      if (key.startsWith('roy')) for (const k of ['from', 'to']) assert.ok(!/^_[SE]$/.test(params[k]), 'Inicio y Fin con su nombre');
+    });
+  }
+  assert.ok(seen.size >= 4, [...seen].join());
+  assert.ok(seen.has('calcCritOn') && seen.has('calcCritOff'), [...seen].join());
+});
+
+test('exam-doc · el ejemplo de error consecuente arrastra pocas casillas y las nombra con la notación (bocetos de T009)', () => {
+  for (const [level, seed, parts] of [['medium', 2026, ['roy', 'det', 'times', 'floats', 'tcl', 'rep']], ['hard', 11, ['times', 'floats']], ['medium', 4, ['times', 'floats']]]) {
+    const { d } = make(opts({ level, seed, parts }));
+    const b = d.rubric.find((x) => kind(x) === 'consequent' && x.consequent.kind === 'calc');
+    assert.ok(b.consequent.carried.length <= 15, `${level} ${seed}: ${b.consequent.carried.length}`);
+    assert.ok(!/[A-Z]\.(ES|EF|LS|LF|TF|FF|IF|SF|crit)\b/.test(b.p), b.p);
+    assert.ok(b.p.includes('⟦exam.cell.act⟧'), b.p);
+  }
+});
+
 // ---------- anexos, enlace y QR (AC10, AC11; P3, H3) ----------
 
 test('exam-doc · anexos: la tabla de la normal solo con el TCL y marcada; las hojas para dibujar y el enlace, si se marcan', () => {

@@ -419,6 +419,46 @@
     const T = () => sol.cpm.times; const F = () => sol.cpm.floats;
     let tv = null; const TV = () => (tv = tv || tclValues(model.tcl));
     let calcExample = false;
+    // La explicación de un error del detective con los datos de la red, como «Ejercicios» (ex-det; bocetos de T009).
+    function detText(e, dp, seeded) {
+      const x = D().explain(e).params;
+      const nm = (id) => (id === '_S' ? names.start : id === '_E' ? names.end : id);
+      const who = String(e.element).split('.')[0];
+      const lab = () => { const [w, f] = String(e.element).split('.'); return /^e\d+$/.test(w) ? tr('exam.det.labEv', { f: L[f], n: w.slice(1) }) : tr('exam.det.lab', { f: L[f], a: w }); };
+      const val = () => ({ lab: lab(), wrong: 'wrong' in x ? n2(x.wrong) : '', right: 'right' in x ? n2(x.right) : '' });
+      switch (e.type) {
+        case 'royMissing': case 'royFalse': case 'royInverted': case 'royCycle': return { key: e.type, params: { from: nm(x.from), to: nm(x.to) } };
+        case 'pertFalseDummy': { const d = seeded.shown.pert.dummies.find((q) => q.from === x.from && q.to === x.to); return { key: e.type, params: { name: d ? d.name : '', from: x.from, to: x.to } }; }
+        case 'pertMissingDummy': case 'pertInvertedDummy': return { key: e.type, params: { dummy: x.dummy, from: x.from, to: x.to } };
+        case 'pertParallel': return { key: e.type, params: { act: x.act, twin: x.twin, from: x.from, to: x.to, dummy: x.dummy } };
+        case 'calcES': return { key: e.type, params: Object.assign({ f: L.EF }, val()) };
+        case 'calcLF': return { key: e.type, params: Object.assign({ f: L.LS }, val()) };
+        case 'calcFloat': return { key: e.type, params: Object.assign({ lf: L.LF, es: L.ES }, val()) };
+        case 'calcCrit': return { key: e.wrong ? 'calcCritOn' : 'calcCritOff', params: { x: who, tf: n2(C().solve(dp).floats[who].TF) } };
+        case 'calcSlack': return { key: e.type, params: Object.assign({ tl: L.TL, te: L.TE }, val()) };
+        default: return { key: e.type, params: val() };
+      }
+    }
+    // El nombre de una casilla de una hoja (para el ejemplo de error consecuente), con la notación elegida.
+    function cellName(kind, k) {
+      const [w, f] = k.split('.');
+      if (kind === 'calc') {
+        if (k === 'dur') return tr('exam.cell.dur');
+        if (f === 'crit') return tr('exam.cell.crit', { a: w });
+        if (/^e\d+$/.test(w)) return tr('exam.cell.ev', { f: L[f], n: w.slice(1) });
+        return tr('exam.cell.act', { f: L[f] || f, a: w });
+      }
+      if (kind === 'tcl') {
+        if (w === 'r') return tr('exam.cell.route', { f: { mu: 'μ', var: 'σ²', z: 'z', p: 'P' }[f] });
+        if (f) return tr('exam.cell.act', { f: f === 'te' ? 'tₑ' : 'σ²', a: w });
+        return { mu: 'μ', var: 'σ²', z: 'z', p: 'P', zp: 'z', Tp: tr('exam.cell.Tp'), path: tr('exam.cell.path'), both: tr('exam.cell.both') }[k] || k;
+      }
+      if (k === 'mean') return 'E[T]';
+      if (k === 'pT') return tr('exam.cell.pT');
+      if (/^c\d+$/.test(w)) return tr('exam.cell.combo', { f: f === 'T' ? 'T' : 'P', i: w.slice(1) });
+      if (/^r\d+$/.test(w)) return f === 'T' ? tr('exam.cell.run', { i: w.slice(1) }) : tr('exam.cell.runCrit', { i: w.slice(1) });
+      return tr('exam.cell.critIdx', { a: w });
+    }
     const P = {};
 
     P.stmt = () => {
@@ -496,7 +536,7 @@
         else s.push({ p: tr('valuesTitle') }, table([tr('col.event'), L.TE, L.TL, tr('col.slack')], seeded.shown.pert.events.map((e) => [e.n, vals.events[e.n].TE, vals.events[e.n].TL, vals.events[e.n].slack])), { p: tr('critMarked', { acts: dacts.filter((id) => vals.crit[id]).join(', ') || tr('none') }) });
       }
       s.push({ box: 4 });
-      const o2 = seeded.errors.map((e, i) => { const x = D().explain(e); return { p: tr('exam.sol.detErr', { i: i + 1, text: tr(`exam.${x.key}`, Object.assign({}, x.params, { f: x.params.f || '' })) }) }; });
+      const o2 = seeded.errors.map((e, i) => { const x = detText(e, dp, seeded); return { p: tr('exam.sol.detErr', { i: i + 1, text: tr(`exam.det.${x.key}`, x.params) }) }; });
       return { s, o: o2, r: { det: [{ p: tr('exam.rub.det', { n: seeded.errors.length }) }] }, v: { errors: seeded.errors.map((e) => ({ type: e.type, element: e.element })) } };
     };
     P.times = () => {
@@ -717,22 +757,23 @@
         const cl = GRD().grade(gs, sheet, ask).cells;
         return { a, sown, sheet, wrong: Number(sheet.act[a].EF), carried: Object.keys(cl).filter((k) => cl[k].state === 'carried'), ok: !cl[sown] || cl[sown].state === 'wrong' };
       };
-      // El ejemplo más corto que arrastre al menos tres casillas (si no hay, el que más arrastre): las actividades con
-      // posteriores, primero las no críticas; δ = 1 y 2.
+      // El ejemplo: de 3 a 15 casillas arrastradas, mejor si el error pasa a las posteriores; si no, el más corto de al
+      // menos 3; si no, el que más arrastre. Primero las actividades no críticas; δ de 1 a 5 o su holgura total.
       const crit = new Set(gs.cpm.critical);
-      const cands = acts.filter((id) => gs.project.succs[id].length).sort((x, y) => Number(crit.has(x)) - Number(crit.has(y)));
+      const cands = acts.slice().sort((x, y) => Number(crit.has(x)) - Number(crit.has(y)));
+      const tier = (t) => { const n = t.carried.length; const mid = n >= 3 && n <= 15; return [mid && gs.project.succs[t.a].length ? 0 : mid ? 1 : n >= 3 ? 2 : 3, n >= 3 ? n : -n]; };
       let best = null;
-      for (const a of cands) for (const delta of [1, 2]) {
+      for (const a of cands) for (const delta of [...new Set([1, 2, 3, 4, 5, r2(gs.cpm.floats[a].TF)])].filter((x) => x > 0)) {
         const t = tryOne(a, delta);
         if (!t.ok || !t.carried.length) continue;
-        const score = (x) => (x.carried.length >= 3 ? x.carried.length : 1000 - x.carried.length);
-        if (!best || score(t) < score(best)) best = t;
+        const [k1, k2] = tier(t);
+        if (!best || k1 < best.k1 || (k1 === best.k1 && k2 < best.k2)) best = Object.assign(t, { k1, k2 });
       }
       if (!best) return null;
       const { sown, sheet, carried } = best;
       const a = best.a; const wrong = best.wrong;
       return { consequent: { kind: 'calc', ask, answers: sheet, sown, carried },
-        p: tr('exam.rub.example', { cell: sown, wrong: I.numText(lang, wrong, 2), right: I.numText(lang, gs.cpm.times[a].EF, 2), list: carried.join(', ') }) };
+        p: tr('exam.rub.example', { cell: cellName('calc', sown), wrong: I.numText(lang, wrong, 2), right: I.numText(lang, gs.cpm.times[a].EF, 2), list: carried.map((k) => cellName('calc', k)).join(', ') }) };
     }
     function probExampleOf(kind) {
       const X = model[kind];
@@ -775,7 +816,7 @@
       const cells = settle((x) => PGR().grade(kind, X, x).cells, ans, sown, fields, fmt);
       const carried = fields.filter((f) => cells[f] && cells[f].status === 'carried');
       if (!carried.length || cells[sown].status !== 'wrong') return null;
-      return { consequent: { kind, answers: ans, sown, carried }, p: tr('exam.rub.example', { cell: sown, wrong: wrongTxt, right: fmt(right[sown]), list: carried.join(', ') }) };
+      return { consequent: { kind, answers: ans, sown, carried }, p: tr('exam.rub.example', { cell: cellName(kind, sown), wrong: wrongTxt, right: fmt(right[sown]), list: carried.map((k) => cellName(kind, k)).join(', ') }) };
     }
 
     // ---------- montaje ----------
