@@ -8,7 +8,8 @@
  * ({ table, fill }: las celdas null, en blanco para rellenar), dibujo ({ svg, alt, wide }), recuadro para las cuentas
  * ({ box }: líneas de BOX_LINE px), rejilla ({ grid: 'aon'|'aoa', w, h }, del tamaño fijo de H2), salto ({ page }),
  * anexos ({ annex: 'normal' } con ctx.normal, las filas de normal-table; { annex: 'grid', w, h }) y enlace ({ link }, con
- * el QR de ctx.qr). Lo ancho (más de 829 px) lleva la clase xm-wide: en papel va en su página girada (T012).
+ * el QR de ctx.qr), y en la página (T011) la cabecera del enunciado ({ head, id, instructions }) y el título de la
+ * solución y de la rúbrica ({ title }). Lo ancho (más de 829 px) lleva la clase xm-wide: en papel va en su página girada (T012).
  * render(contenedor, bloques, ctx), ctx = { lang, t(clave, parámetros), qr(texto) → SVG, normal() → filas }.
  */
 (function (root) {
@@ -44,13 +45,27 @@
     let part = 0;
     const out = [];
     for (const b of blocks || []) {
+      // La cabecera del enunciado (T011): asignatura, convocatoria, fecha y duración; nombre y DNI; instrucciones.
+      if ('head' in b) {
+        const hd = b.head || {};
+        const when = ['call', 'date', 'duration'].map((k) => hd[k]).filter(Boolean).join(' · ');
+        out.push(h('div', { class: 'xm-headbox' }, [
+          hd.subject || when ? h('div', { class: 'xm-headrow' }, [hd.subject ? h('strong', {}, [hd.subject]) : null, when ? h('span', {}, [when]) : null]) : null,
+          b.id ? h('div', { class: 'xm-idrow' }, [h('span', { class: 'xm-blankline' }, [`${t('exam.head.name')}:`]), h('span', { class: 'xm-blankline' }, [`${t('exam.head.id')}:`])]) : null,
+          h('p', { class: 'xm-instr' }, [b.instructions]),
+        ]));
       // Los apartados también llevan su parte: van antes que las marcas de parte.
-      if ('item' in b) {
-        const name = b.item === b.part ? t(`exam.part.${b.part}`) : t(`exam.item.${b.item}`);
+      } else if ('item' in b) {
+        // Las partes sin apartados (enunciado, redes, detective…) tienen uno solo, con el nombre de la parte.
+        const key = `exam.item.${b.item}`;
+        const name = t(key) !== key ? t(key) : t(`exam.part.${b.part}`);
         out.push(h('h3', { class: 'xm-item' }, [`${name} · ${pts(b.pts)}`]));
       } else if ('part' in b) {
         part++;
         out.push(h('h2', { class: 'xm-part' }, [h('span', {}, [t('exam.head.partTitle', { i: part, t: b.title })]), h('span', { class: 'xm-pts' }, [pts(b.pts)])]));
+      } else if ('title' in b) {
+        // El título de la solución y de la rúbrica (las marcas de parte también llevan title: van antes).
+        out.push(h('h2', { class: 'xm-doctitle' }, [b.title]));
       } else if ('consequent' in b) {
         out.push(h('div', { class: 'xm-consequent' }, [h('p', {}, [b.p])]));
       } else if ('annex' in b) {

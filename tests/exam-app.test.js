@@ -218,3 +218,96 @@ test('F3f T010 · examen.html está oculta: ni la portada, ni el laboratorio, ni
     assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), 'utf8'), /["'`]examen\.html/, f);
   }
 });
+
+// ---------- F3f T011: los documentos en la página (AC1–AC8, AC19, AC21–AC23; bloques 2 y 3 de textos) ----------
+
+const NS = require('../js/views/net-svg.js');
+const CS = require('../js/views/chart-svg.js');
+require('../js/i18n-det.js');
+
+const docCtx = (lang, nota) => EA.docCtx(lang, nota, { netSvg: NS, chartSvg: CS });
+const COMBOS = [
+  ['easy', ['stmt', 'roy', 'det', 'times', 'floats', 'minDummy', 'succ', 'tcl', 'read', 'disc', 'rep']],
+  ['medium', ['roy', 'det', 'times', 'floats', 'tcl', 'rep']],
+  ['hard', ['pert', 'det', 'times', 'floats', 'succ', 'tcl', 'read']],
+  ['easy', ['det', 'disc']],
+  ['medium', ['stmt', 'det', 'minDummy']],
+  ['easy', ['roy', 'pert', 'det', 'tcl']],
+];
+const texts = (d) => JSON.stringify([d.student, d.solution, d.rubric], (k, v) => (k === 'svg' || k === 'model' ? undefined : v));
+
+test('F3f T011 · docCtx: los textos de core/exam salen de i18n-exam (exam.…), los del detective de i18n-det (det.exp.…) y los demás de i18n-moodle', () => {
+  const c = docCtx('es', 'es');
+  assert.equal(c.lang, 'es'); assert.equal(c.nota, 'es');
+  assert.deepEqual(c.labels, IM.labels('es'));
+  assert.equal(c.tr('exam.part.times'), 'Tiempos');
+  assert.equal(c.tr('exam.det.calcES', { lab: 'X', f: 'EF', wrong: 1, right: 2 }), I.t('es', 'det.exp.calcES', { lab: 'X', f: 'EF', wrong: 1, right: 2 }));
+  assert.equal(c.tr('exam.det.lab', { f: 'EF', a: 'B' }), 'El EF de B');
+  assert.equal(c.tr('exam.det.labEv', { f: 'TE', n: 3 }), 'El TE del suceso 3');
+  assert.equal(c.tr('col.act'), I.t('es', 'mq.col.act'));
+  assert.equal(typeof c.svg, 'function'); assert.equal(typeof c.chart, 'function');
+  // Los dibujos son los de net-svg y chart-svg (histograma con dist, tornado con indices).
+  const fake = EA.docCtx('es', 'en', { netSvg: { render: (m) => `net ${m.id}` }, chartSvg: { dist: (m) => `dist ${m.id}`, indices: (m) => `idx ${m.id}` } });
+  assert.deepEqual([fake.svg({ id: 1 }), fake.chart({ kind: 'dist', id: 2 }), fake.chart({ kind: 'indices', id: 3 })], ['net 1', 'dist 2', 'idx 3']);
+  // Sin las familias de las redes y los gráficos, sin dibujos (la vista previa pone su texto alternativo).
+  const bare = EA.docCtx('en', 'en', {});
+  assert.equal(bare.svg, null); assert.equal(bare.chart, null);
+});
+
+test('F3f T011 · bloques 2 y 3: cada texto que pide core/exam está en i18n-exam o en i18n-det, en los dos idiomas', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'js', 'core', 'exam.js'), 'utf8');
+  const keys = [...new Set([...src.matchAll(/tr\('(exam\.[a-zA-Z.]+)'/g)].map((m) => m[1]))];
+  assert.ok(keys.length > 60, String(keys.length));
+  for (const lang of I.languages) {
+    const c = docCtx(lang, 'en');
+    for (const k of keys) {
+      if (k.startsWith('exam.det.') && !['exam.det.lab', 'exam.det.labEv'].includes(k)) continue;
+      assert.notEqual(I.t(lang, k), k, `${lang} ${k}`);
+    }
+    for (const k of ['calcCritOn', 'calcCritOff', 'royMissing', 'pertFalseDummy']) assert.notEqual(c.tr(`exam.det.${k}`), `exam.det.${k}`, `${lang} ${k}`);
+  }
+});
+
+test('F3f T011 · los tres documentos, en ES y EN y con las dos notaciones, sin claves sueltas, parámetros sin rellenar, undefined ni NaN; «1 error» en singular', () => {
+  for (const [level, parts] of COMBOS) {
+    for (const [lang, nota] of [['es', 'en'], ['en', 'es']]) {
+      const o = EA.optsOf(EA.load(`#ep=${parts.join('-')}&lv=${level}&sd=3`, '', lang).state);
+      const c = docCtx(lang, nota);
+      const m = E.project(o, 0, c);
+      assert.equal(m.ok, true, `${level} ${parts}`);
+      const d = E.document(Object.assign({ letter: 'A' }, m), o, c);
+      assert.equal(d.ok, true);
+      const s = texts(d);
+      const where = `${lang} ${level} ${parts.join('-')}`;
+      assert.doesNotMatch(s, /"(exam|mq|det)\.[a-zA-Z]+\.[a-zA-Z.]+|"(exam|mq|det)\.[a-zA-Z]+"/, where);
+      assert.doesNotMatch(s, /\{[a-zA-Z]+\}/, where);
+      assert.doesNotMatch(s, /undefined|NaN|\[object Object\]/, where);
+      assert.doesNotMatch(s, /tiene 1 errores|has 1 errors/, where);
+    }
+  }
+  // En fácil, el detective siembra un solo error.
+  const o = EA.optsOf(EA.load('#ep=det&lv=easy', '', 'es').state);
+  const d = E.document(Object.assign({ letter: 'A' }, E.project(o, 0, docCtx('es', 'en'))), o, docCtx('es', 'en'));
+  assert.ok(d.student.some((b) => b.p === 'La red ROY de este proyecto tiene 1 error. Márcalo en la red y explica en qué consiste.'), JSON.stringify(d.student[0]));
+});
+
+test('F3f T011 · searchKey: la búsqueda solo depende de las partes, los apartados, el nivel, la semilla, el ejemplo y la red del detective', () => {
+  const base = EA.load('#ep=times-floats-tcl', '', 'es').state;
+  const k0 = EA.searchKey(EA.optsOf(base));
+  for (const patch of [{ pt: { tcl: 3 } }, { ea: 'q' }, { pp: 'letter' }, { dv: 'r' }, { em: 4, mi: 2 }, { lang: 'en' }, { nota: 'es' }, { eh: Object.assign({}, base.eh, { subject: 'OGP' }) }, { eq: ['tcl.deadline', 'floats.sf'] }]) {
+    assert.equal(EA.searchKey(EA.optsOf(Object.assign({}, base, patch))), k0, JSON.stringify(patch));
+  }
+  for (const patch of [{ ep: ['times', 'floats'] }, { eq: ['times.events'] }, { lv: 'hard' }, { sd: 2 }, { ee: 'kl' }, { ed: 'aoa' }]) {
+    assert.notEqual(EA.searchKey(EA.optsOf(Object.assign({}, base, patch))), k0, JSON.stringify(patch));
+  }
+});
+
+test('F3f T011 · el documento a la vista: la cabecera del enunciado delante (con las instrucciones por defecto si están vacías) y el título delante de la solución y de la rúbrica', () => {
+  const st = EA.load('#ep=times&ea=nq', '', 'es').state;
+  const d = { student: [{ p: 'a' }], solution: [{ p: 'b' }], rubric: [{ p: 'c' }] };
+  const t = (k) => I.t('es', k);
+  assert.deepEqual(EA.viewBlocks(d, 's', st, t)[0], { head: st.eh, id: false, instructions: t('exam.head.instructions') });
+  assert.deepEqual(EA.viewBlocks(d, 's', Object.assign({}, st, { ea: 'i', eh: Object.assign({}, st.eh, { instructions: 'Sin apuntes' }) }), t)[0], { head: Object.assign({}, st.eh, { instructions: 'Sin apuntes' }), id: true, instructions: 'Sin apuntes' });
+  assert.deepEqual(EA.viewBlocks(d, 'o', st, t), [{ title: 'Solución' }, { p: 'b' }]);
+  assert.deepEqual(EA.viewBlocks(d, 'r', st, t), [{ title: 'Rúbrica' }, { p: 'c' }]);
+});

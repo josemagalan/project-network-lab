@@ -61,15 +61,16 @@ test('F3f T010 · párrafos, encabezados, citas y saltos; el texto entra como te
 });
 
 test('F3f T010 · marcas de parte numeradas con sus puntos y apartados de la rúbrica con los suyos (ES y EN, coma decimal)', () => {
-  const blocks = [{ part: 'times', title: 'Tiempos', pts: 2.5 }, { item: 'events', part: 'times', pts: 1.25 }, { part: 'minDummy', title: 'Mínimo de ficticias', pts: 1 }, { item: 'minDummy', part: 'minDummy', pts: 1 }];
+  const blocks = [{ part: 'times', title: 'Tiempos', pts: 2.5 }, { item: 'times', part: 'times', pts: 1.25 }, { item: 'events', part: 'times', pts: 1.25 }, { part: 'minDummy', title: 'Mínimo de ficticias', pts: 1 }, { item: 'minDummy', part: 'minDummy', pts: 1 }];
   const es = draw(blocks, 'es');
   const h2 = byTag(es, 'h2');
   assert.deepEqual(h2.map((x) => x.textContent), ['Parte 1 · Tiempos(2,5 puntos)', 'Parte 2 · Mínimo de ficticias(1 punto)']);
   assert.ok(h2.every((x) => x.className === 'xm-part'));
-  assert.deepEqual(byTag(es, 'h3').map((x) => x.textContent), ['Tiempos de los sucesos · (1,25 puntos)', 'Mínimo de ficticias · (1 punto)']);
+  // «Tiempos» tiene un apartado del mismo nombre que la parte (los tiempos de las actividades); «Mínimo de ficticias», ninguno.
+  assert.deepEqual(byTag(es, 'h3').map((x) => x.textContent), ['Tiempos de las actividades · (1,25 puntos)', 'Tiempos de los sucesos · (1,25 puntos)', 'Mínimo de ficticias · (1 punto)']);
   const en = draw(blocks, 'en');
   assert.equal(byTag(en, 'h2')[0].textContent, 'Part 1 · Tiempos(2.5 points)');
-  assert.equal(byTag(en, 'h3')[0].textContent, 'Event times · (1.25 points)');
+  assert.equal(byTag(en, 'h3')[1].textContent, 'Event times · (1.25 points)');
 });
 
 test('F3f T010 · tablas con encabezados de columna y de fila; las celdas para rellenar, vacías', () => {
@@ -150,4 +151,21 @@ test('F3f T010 · anexos: la tabla de la normal (si está su familia) y la hoja 
 test('F3f T010 · un bloque desconocido no se pinta y no rompe el resto', () => {
   const box = draw([{ nada: 1 }, { p: 'Sigue' }]);
   assert.deepEqual(box.children.map((c) => c.textContent), ['Sigue']);
+});
+
+test('F3f T011 · la cabecera del enunciado (asignatura, convocatoria, fecha, duración, nombre y DNI, instrucciones) y el título de la solución y de la rúbrica, como texto', () => {
+  const head = { subject: '<b>OGP</b>', call: 'Ordinaria', date: '19/01/2027', duration: '2 h', instructions: '' };
+  const box = draw([{ head, id: true, instructions: 'Responde aquí.' }, { title: 'Solución' }]);
+  const [hd, title] = box.children;
+  assert.equal(hd.className, 'xm-headbox');
+  assert.equal(byTag(hd, 'strong')[0].textContent, '<b>OGP</b>');
+  assert.ok(byTag(hd, 'span').some((s) => s.textContent === 'Ordinaria · 19/01/2027 · 2 h'));
+  assert.deepEqual(all(hd, (n) => n.className === 'xm-blankline').map((n) => n.textContent), ['Nombre y apellidos:', 'DNI:']);
+  assert.ok(byTag(hd, 'p').some((p) => p.textContent === 'Responde aquí.'));
+  assert.equal(title.tag, 'h2'); assert.equal(title.className, 'xm-doctitle'); assert.equal(title.textContent, 'Solución');
+  // Sin casillas de nombre ni datos de la asignatura: solo las instrucciones.
+  const bare = draw([{ head: { subject: '', call: '', date: '', duration: '', instructions: '' }, id: false, instructions: 'Solo esto.' }]);
+  assert.equal(all(bare, (n) => n.className === 'xm-blankline').length, 0);
+  assert.equal(byTag(bare, 'strong').length, 0);
+  assert.equal(bare.children[0].textContent, 'Solo esto.');
 });

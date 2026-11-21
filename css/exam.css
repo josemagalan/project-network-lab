@@ -85,6 +85,13 @@ button.ghost:disabled { color: var(--muted); cursor: not-allowed; }
 .xm-link { display: flex; gap: 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 6px; }
 .xm-qr { width: 132px; height: 132px; flex: none; background: #fff; }
 .xm-url { font-family: var(--mono); font-size: 12px !important; word-break: break-all; }
+.xm-headbox { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px; border: 1.5px solid currentColor; border-radius: 4px; }
+.xm-headrow { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 15px; }
+.xm-idrow { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 10px; font-size: 13px; }
+.xm-blankline { padding: 10px 0 2px; border-bottom: 1px solid var(--edge); }
+.xm-preview .xm-instr { font-size: 13px; color: var(--muted); }
+.xm-doctitle { margin: 0 0 4px; font-size: 18px; }
+.xm-searching { color: var(--muted); font-style: italic; }
 
 @media (max-width: 900px) {
   .xm-layout { grid-template-columns: minmax(0, 1fr); }
@@ -99,6 +106,7 @@ button.ghost:disabled { color: var(--muted); cursor: not-allowed; }
   .xm-back-short { display: inline; }
 }
 @media (max-width: 560px) {
+  .xm-idrow { grid-template-columns: minmax(0, 1fr); }
   main { padding: 12px; }
   .xm-prow { grid-template-columns: minmax(0, 1fr) 64px; }
   .xm-prow .xm-items { grid-column: 1 / -1; order: 3; }

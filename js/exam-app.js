@@ -5,10 +5,13 @@
  * familias (family-load). A la izquierda, nivel, semilla y modelos; la tabla «Partes, apartados y puntos» por grupos
  * (cada parte con su casilla, sus apartados y sus puntos; el total o el aviso y «Volver a la propuesta»); el aviso del
  * detective aparte y la red del detective sin construcción; plegados, la cabecera, los extras y el papel. A la derecha,
- * las pestañas del documento y los botones del modelo, «Copiar enlace» y la vista previa (sus documentos, en T011).
+ * las pestañas del documento y los botones del modelo, «Copiar enlace» y la vista previa del documento a la vista (T011):
+ * los modelos se buscan a trozos, uno tras otro (core/exam start y step, un intento cada vez), con «Buscando…» si tarda
+ * más de 300 ms; los documentos se guardan por modelo, idioma, notación, puntos, extras y apartados.
  * Estado en el «#» (P7): las claves de §3, con lista blanca; un valor que no vale vuelve al defecto y se avisa, como
  * en cpm.html. La cabecera del enunciado va siempre como texto (textContent y value), 600 caracteres como mucho.
- * La parte sin DOM (KEYS, DEFAULTS, decode, load, encode, optsOf, familiesOf, backHref, GROUPS) se prueba en Node;
+ * La parte sin DOM (KEYS, DEFAULTS, decode, load, encode, optsOf, familiesOf, backHref, GROUPS, docCtx, searchKey,
+ * viewBlocks) se prueba en Node;
  * PNL.examApp.state() da el estado a las pruebas de navegador.
  */
 (function (root) {
@@ -159,10 +162,35 @@
   /** «Volver al laboratorio»: cpm.html con el mismo idioma y la misma notación. */
   const backHref = (s) => `cpm.html#lang=${s.lang}&nota=${s.nota}`;
 
+  // ---------- los documentos (T011) ----------
+  /** El ctx de core/exam: textos exam.… de i18n-exam, exam.det.<tipo> de i18n-det (det.exp) y los demás de i18n-moodle; dibujos
+   *  de las redes y de los gráficos si sus familias están (P = PNL). */
+  function docCtx(lang, nota, P) {
+    const I = isNode ? require('./i18n.js') : root.PNL.i18n;
+    const IM = isNode ? require('./i18n-moodle.js') : root.PNL.i18nMoodle;
+    const det = (k) => k.startsWith('exam.det.') && k !== 'exam.det.lab' && k !== 'exam.det.labEv';
+    const tr = (k, p) => (det(k) ? I.t(lang, `det.exp.${k.slice(9)}`, p) : k.startsWith('exam.') ? I.t(lang, k, p) : I.t(lang, `mq.${k}`, p));
+    const NS = P && P.netSvg; const CS = P && P.chartSvg;
+    return { lang, nota, labels: IM.labels(nota), tr, svg: NS ? (m) => NS.render(m) : null, chart: CS ? (m) => (m.kind === 'dist' ? CS.dist(m) : CS.indices(m)) : null };
+  }
+  /** Lo que decide la búsqueda de los modelos: las partes, las etapas de las series, el nivel, la semilla, el ejemplo y la red
+   *  del detective (los puntos, los extras, la cabecera, el papel, el idioma y lo que está a la vista, no). */
+  function searchKey(o) {
+    const c = E.check(o);
+    return JSON.stringify({ parts: c.parts, stages: c.ok ? E.stagesOf(c) : null, level: o.level, seed: o.seed, example: o.example || null, det: o.det });
+  }
+  /** Los bloques del documento a la vista: el enunciado con su cabecera delante; la solución y la rúbrica con su título. */
+  function viewBlocks(d, dv, st, t) {
+    if (dv === 'o') return [{ title: t('exam.head.solTitle') }, ...d.solution];
+    if (dv === 'r') return [{ title: t('exam.head.rubTitle') }, ...d.rubric];
+    return [{ head: st.eh, id: st.ea.includes('i'), instructions: st.eh.instructions || t('exam.head.instructions') }, ...d.student];
+  }
+
   // ---------- la página ----------
   function boot() {
     const I = root.PNL.i18n;
     const { h, clear } = root.PNL.dom;
+    const EV = root.PNL.examView;
     const doc = root.document;
     const $ = (id) => doc.getElementById(id);
     let state = null;
@@ -316,6 +344,9 @@
 
     function render() {
       const focused = doc.activeElement && doc.activeElement.id;
+      // Lo plegado se lee del DOM: el evento toggle llega más tarde que un cambio hecho justo después de abrirlo (CI 149).
+      const more = doc.querySelector('.xm-more');
+      if (more) moreOpen = more.open;
       renderTexts();
       const view = $('exView');
       clear(view);
@@ -323,11 +354,89 @@
         h('div', { class: 'xm-form' }, form()),
         h('section', { class: 'xm-side', 'aria-label': t(`exam.page.docs.${state.dv}`) }, side()),
       ]));
-      // Las familias de las partes marcadas se piden en cuanto se marcan (la vista previa las usa en T011).
-      const fams = familiesOf(state.ep);
-      const p = loader.need(fams);
-      if (p) p.catch(() => {});
+      preview();
       if (focused && $(focused)) $(focused).focus();
+    }
+
+    // ---------- la vista previa (T011): modelos a trozos y documentos en caché ----------
+    // Los modelos se buscan uno tras otro (el B evita la tabla del A…), un intento cada vez: la página recupera el control
+    // entre intentos (como el exportador de la F3b: un intento difícil puede pasar de 40 ms; decisión de T011).
+    const LETTERS = 'ABCDEFGH';
+    const search = { key: null, o: null, models: [], job: null, gen: 0, running: false, searches: 0 };
+    const docs = new Map();
+    let current = null;
+    let pendingSince = 0;
+    const now = () => (root.performance ? root.performance.now() : Date.now());
+    const viewCtx = () => ({
+      lang: state.lang, t,
+      qr: (text) => { try { return root.PNL.qr.svg(root.PNL.qr.encode(text, { ecc: 'M' }), { title: 'QR' }); } catch { return null; } },
+      normal: root.PNL.normalTable ? () => root.PNL.normalTable.rows() : null,
+    });
+    function message(text, cls) {
+      const box = $('exPreview');
+      clear(box);
+      box.appendChild(h('p', { class: cls, role: 'status' }, [text]));
+    }
+    function pending() {
+      current = null;
+      if (!pendingSince) pendingSince = now();
+      const box = $('exPreview');
+      clear(box);
+      const show = () => { if (pendingSince && $('exPreview') === box && !box.firstChild) message(t('exam.page.searching'), 'xm-searching'); };
+      if (now() - pendingSince >= 300) show(); else root.setTimeout(show, 300 - (now() - pendingSince));
+    }
+    function draw() {
+      const k = state.mi;
+      const model = search.models[k];
+      if (!model) { pending(); return; }
+      pendingSince = 0;
+      if (!model.ok) { current = null; message(t('exam.page.noProject', { n: E.TRIES_EXAM }), 'xm-warn'); return; }
+      const o = optsOf(state);
+      const dk = JSON.stringify([search.key, k, state.lang, state.nota, o.points, o.extras, E.check(o).items]);
+      let d = docs.get(dk);
+      if (!d) { d = E.document(model, o, docCtx(state.lang, state.nota, root.PNL)); docs.set(dk, d); }
+      current = { k, d };
+      EV.render($('exPreview'), viewBlocks(d, state.dv, state, t), viewCtx());
+    }
+    function pump() {
+      if (search.running) return;
+      search.running = true;
+      const gen = search.gen;
+      const tick = () => {
+        if (gen !== search.gen) { search.running = false; pump(); return; }
+        const fail = search.models.some((m) => !m.ok);
+        if (search.models.length >= state.em || fail) { search.running = false; return; }
+        const k = search.models.length;
+        if (!search.job) {
+          search.job = E.start(search.o, k, docCtx(state.lang, state.nota, root.PNL), search.models.map((m) => JSON.stringify(m.base.rows)));
+          search.searches++;
+        }
+        const t0 = now();
+        while (!E.step(search.job, 1) && now() - t0 < 40);
+        if (search.job.done) {
+          const m = Object.assign({ letter: LETTERS[k] }, E.result(search.job));
+          search.job = null;
+          search.models.push(m);
+          if (k === state.mi || !m.ok) draw();
+        }
+        root.setTimeout(tick, 0);
+      };
+      root.setTimeout(tick, 0);
+    }
+    function preview() {
+      const o = optsOf(state);
+      if (!E.check(o).ok) { current = null; pendingSince = 0; clear($('exPreview')); return; }
+      // Las familias de las partes marcadas, antes de buscar.
+      const p = loader.need(familiesOf(state.ep));
+      if (p) { pending(); p.then(() => { if (loader.ready(familiesOf(state.ep))) preview(); }, () => {}); return; }
+      const key = searchKey(o);
+      if (key !== search.key) {
+        search.gen++;
+        Object.assign(search, { key, o, models: [], job: null });
+        docs.clear();
+      }
+      draw();
+      pump();
     }
 
     read();
@@ -341,10 +450,14 @@
       writeHash();
       render();
     });
-    api.state = () => ({ state: clone(state), hash: root.location.hash, opts: optsOf(state), families: familiesOf(state.ep), ready: loader.ready(familiesOf(state.ep)) });
+    api.state = () => ({
+      state: clone(state), hash: root.location.hash, opts: optsOf(state), families: familiesOf(state.ep), ready: loader.ready(familiesOf(state.ep)),
+      models: search.models.map((m) => ({ letter: m.letter, ok: m.ok, sdUsed: m.sdUsed, tries: m.tries })), searches: search.searches,
+      pending: !current, doc: current && { k: current.k, meta: current.d.meta, values: current.d.values, points: current.d.points },
+    });
   }
 
-  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, decode, load, encode, optsOf, familiesOf, backHref };
+  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, decode, load, encode, optsOf, familiesOf, backHref, docCtx, searchKey, viewBlocks };
   root.PNL = root.PNL || {};
   root.PNL.examApp = api;
   if (isNode) module.exports = api;

@@ -10718,6 +10718,168 @@ check('F3f T010 · principio 27: examen.html con todas sus familias por debajo d
   await close(p);
 });
 
+// ---------- F3f, T011: los tres documentos en examen.html (AC1–AC8, AC19, AC21–AC23; tableros 107, 108, 110–112) ----------
+
+const E0 = require('../../js/core/exam.js');
+const EA0 = require('../../js/exam-app.js');
+require('../../js/i18n-exam.js'); require('../../js/i18n-det.js');
+const NSx = require('../../js/views/net-svg.js');
+const CSx = require('../../js/views/chart-svg.js');
+/** Los documentos de Node para el estado de un «#» (los mismos modelos que la página). */
+function exNode(hash, lang, nota) {
+  const st = EA0.load(hash, '', lang).state;
+  const o = EA0.optsOf(st);
+  const c = EA0.docCtx(lang, nota, { netSvg: NSx, chartSvg: CSx });
+  return E0.models(o, c).map((m) => { const d = E0.document(m, o, c); return { letter: m.letter, sdUsed: m.sdUsed, values: d.values, points: d.points, meta: d.meta }; });
+}
+const exDoc = (page) => page.waitForFunction(() => PNL.examApp.state().doc && !PNL.examApp.state().pending, null, { timeout: 60000 }).then(() => page.evaluate(() => PNL.examApp.state()));
+const exPreview = (page) => page.evaluate(() => ({
+  h2: [...document.querySelectorAll('#exPreview h2')].map((x) => x.textContent),
+  h3: [...document.querySelectorAll('#exPreview h3')].map((x) => x.textContent),
+  imgs: [...document.querySelectorAll('#exPreview img')].map((x) => x.alt),
+  text: document.getElementById('exPreview').innerText,
+}));
+
+check('F3f T011 AC2 · la vista previa del enunciado, la solución y la rúbrica del modelo A: las cifras son las de Node (ES)', async () => {
+  const hash = 'lang=es&nota=en&lv=medium&sd=7';
+  const page = await exOpen(hash);
+  let st = await exDoc(page);
+  const node = exNode(`#${hash}`, 'es', 'en');
+  assert.deepEqual(st.doc.values, JSON.parse(JSON.stringify(node[0].values)));
+  assert.deepEqual(st.doc.points, JSON.parse(JSON.stringify(node[0].points)));
+  assert.equal(st.doc.meta.sdUsed, node[0].sdUsed);
+  let pv = await exPreview(page);
+  // Enunciado: la cabecera, los datos y las partes con sus puntos.
+  assert.equal(await page.locator('#exPreview .xm-headbox').count(), 1);
+  assert.deepEqual(pv.h2, ['Parte 1 · Tiempos(4 puntos)', 'Parte 2 · Holguras y caminos críticos(6 puntos)', 'Hoja para dibujar']);
+  assert.match(pv.text, /Un proyecto tiene las actividades, las duraciones \(en días\) y las precedencias de esta tabla\./);
+  assert.ok(await page.locator('#exPreview td.xm-blank').count() > 10, 'tablas para rellenar');
+  // Solución.
+  await page.locator('#exDoc-o').click();
+  st = await exDoc(page);
+  pv = await exPreview(page);
+  assert.equal(pv.h2[0], 'Solución');
+  assert.match(pv.text, new RegExp(`Solución del modelo A \\(semilla ${node[0].sdUsed}\\)`));
+  assert.equal(await page.locator('#exPreview td.xm-blank').count(), 0, 'la solución no deja huecos');
+  // Rúbrica: cada apartado con sus puntos y el ejemplo de error consecuente.
+  await page.locator('#exDoc-r').click();
+  st = await exDoc(page);
+  pv = await exPreview(page);
+  assert.equal(pv.h2[0], 'Rúbrica');
+  assert.deepEqual(pv.h3, ['Tiempos de las actividades · (2 puntos)', 'Tiempos de los sucesos · (2 puntos)', 'Holguras · (2 puntos)', 'Holgura de seguridad · (2 puntos)', 'Actividades y caminos críticos · (2 puntos)']);
+  assert.equal(await page.locator('#exPreview .xm-consequent').count(), 1);
+  await close(page);
+});
+
+check('F3f T011 AC8 · varios modelos (EN, notación española): cada uno con su proyecto y las cifras de Node; el B, con su letra y su semilla', async () => {
+  const hash = 'lang=en&nota=es&ep=roy-det-times-floats-tcl-rep&lv=easy&sd=11&em=2&mi=1&dv=o';
+  const page = await exOpen(hash, { locale: 'en-GB' });
+  const st = await exDoc(page);
+  const node = exNode(`#${hash}`, 'en', 'es');
+  assert.equal(st.models.length, 2);
+  assert.deepEqual(st.models.map((m) => m.sdUsed), node.map((m) => m.sdUsed));
+  assert.notEqual(st.models[0].sdUsed, st.models[1].sdUsed);
+  assert.equal(st.doc.meta.letter, 'B');
+  assert.deepEqual(st.doc.values, JSON.parse(JSON.stringify(node[1].values)));
+  const pv = await exPreview(page);
+  assert.match(pv.text, new RegExp(`Solution of version B \\(seed ${node[1].sdUsed}\\)`));
+  assert.ok(pv.imgs.some((a) => /^AON network of the project/.test(a)), pv.imgs.join(' | '));
+  // El modelo A, con un clic: sin buscar otra vez.
+  await page.locator('#exModel-0').click();
+  const a = await exDoc(page);
+  assert.equal(a.doc.meta.letter, 'A');
+  assert.deepEqual(a.doc.values, JSON.parse(JSON.stringify(node[0].values)));
+  assert.equal(a.searches, st.searches, 'los modelos ya buscados no se buscan otra vez');
+  await close(page);
+});
+
+check('F3f T011 AC6 AC7 AC23 · puntos propios y apartados quitados: la rúbrica y el enunciado cambian con ellos', async () => {
+  const page = await exOpen('lang=es&ep=times-floats-tcl&lv=easy&dv=r');
+  await exDoc(page);
+  await page.fill('#exPts-tcl', '3'); await page.press('#exPts-tcl', 'Enter');
+  let st = await exDoc(page);
+  assert.equal(st.doc.points.tcl.pts, 3);
+  let pv = await exPreview(page);
+  assert.ok(pv.h2.includes('Parte 3 · Probabilidad (TCL)(3 puntos)'), pv.h2.join(' | '));
+  const tclItems = Object.values(st.doc.points.tcl.items);
+  assert.equal(tclItems.reduce((s, x) => s + x, 0), 3);
+  // Quitar «Plazo de una probabilidad»: fuera de la rúbrica y del enunciado.
+  await page.locator('#exItem-tcl-deadline').uncheck();
+  st = await exDoc(page);
+  pv = await exPreview(page);
+  assert.equal(pv.h3.some((x) => x.startsWith('Plazo de una probabilidad')), false);
+  assert.deepEqual(Object.keys(st.doc.points.tcl.items), ['moments', 'path', 'project', 'prob']);
+  await page.locator('#exDoc-s').click();
+  await exDoc(page);
+  assert.equal(st.searches, (await exState(page)).searches, 'puntos y apartados de una parte sin series no buscan otra vez');
+  await close(page);
+});
+
+check('F3f T011 AC19 · difícil con todas las partes y 4 modelos: la página atiende mientras busca, avisa «Buscando…» y acaba con los cuatro', async () => {
+  // Con el modelo D a la vista, la vista previa espera a que estén los cuatro (uno tras otro).
+  const page = await exOpen('lang=es&ep=stmt-roy-det-times-floats-minDummy-succ-tcl-read-disc-rep&lv=hard&em=4&mi=3', { init: () => {
+    window.__long = []; new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__long.push(e.duration); }).observe({ type: 'longtask', buffered: true });
+  } });
+  await page.waitForFunction(() => /Buscando un proyecto que valga para todas las partes…/.test(document.getElementById('exPreview').textContent), null, { timeout: 30000 });
+  // Mientras busca, un clic en otra pestaña se atiende enseguida.
+  const t0 = Date.now();
+  await page.locator('#exDoc-r').click();
+  await page.waitForFunction(() => document.getElementById('exDoc-r').getAttribute('aria-selected') === 'true');
+  assert.ok(Date.now() - t0 < 2500, `${Date.now() - t0} ms`);
+  const st = await exDoc(page);
+  assert.equal(st.doc.meta.letter, 'D');
+  assert.equal(st.models.length, 4);
+  assert.ok(st.models.every((m) => m.ok));
+  const long = await page.evaluate(() => window.__long);
+  console.log(`    tareas largas: ${long.length}, la mayor ${Math.round(Math.max(0, ...long))} ms`);
+  assert.ok(Math.max(0, ...long) < 1500, `la tarea más larga, ${Math.max(...long)} ms`);
+  await close(page);
+});
+
+check('F3f T011 · sin partes, sin vista previa; si ninguna semilla vale en 2000 intentos, se dice (ES y EN)', async () => {
+  const page = await exOpen('lang=es&ep=');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('#exPreview').evaluate((el) => el.childElementCount), 0);
+  await close(page);
+  for (const [lang, re] of [['es', /^Con esta semilla no sale ningún proyecto que valga para todas las partes en 2000 intentos\. Prueba con otra semilla o quita alguna parte\.$/],
+    ['en', /^No project works for every part within 2000 tries from this seed\. Try another seed or remove a part\.$/]]) {
+    // Un núcleo que no encuentra nada (la búsqueda lo dice con reason: 'tries').
+    const p = await exOpen(`lang=${lang}`, { init: () => { Object.defineProperty(window, 'PNL', { configurable: true, set(v) { this.__pnl = v; }, get() { const P = this.__pnl; if (P && P.exam && !P.exam.__fake) { const s = P.exam.start; P.exam = Object.assign({}, P.exam, { __fake: true, start: (o, k, c, a) => { const j = s(o, k, c, a); j.valid = () => null; return j; } }); this.__pnl = P; } return P; } }); } });
+    await p.waitForFunction((r) => new RegExp(r).test(document.getElementById('exPreview').textContent), re.source, { timeout: 120000 });
+    await close(p);
+  }
+});
+
+check('F3f T011 · axe con los documentos a la vista (enunciado con tablas, solución con redes y gráficos, rúbrica), claro y oscuro, ES y EN; a 360 px sin desplazamiento horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    for (const dv of ['s', 'o', 'r']) {
+      const page = await exOpen(`lang=${lang}&ep=stmt-roy-det-times-floats-tcl-read&lv=easy&dv=${dv}`, { scheme });
+      await exDoc(page);
+      await axe(page, `F3f T011 · examen.html, documento ${dv} (${lang}, ${scheme})`);
+      await close(page);
+    }
+    const m = await exOpen(`lang=${lang}&ep=roy-det-times-tcl-rep&lv=hard&dv=o`, { scheme, width: 360, height: 800 });
+    await exDoc(m);
+    assert.ok(await noHScroll(m));
+    await close(m);
+  }
+});
+
+check('F3f T011 · lo plegado sigue abierto al rehacer la página aunque el cambio llegue antes que el evento toggle (CI 149)', async () => {
+  const page = await exOpen('lang=es');
+  const open = await page.evaluate(() => {
+    const d = document.querySelector('.xm-more');
+    d.open = true;
+    const i = document.getElementById('exHead-subject');
+    i.value = 'OGP';
+    i.dispatchEvent(new Event('change'));
+    return document.querySelector('.xm-more').open;
+  });
+  assert.equal(open, true);
+  assert.equal(await page.locator('#exHead-call').isVisible(), true);
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

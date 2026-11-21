@@ -508,7 +508,8 @@
       const dp = dt.own ? PR.parse(dt.rows, 'pred').project : project;
       const seeded = D().seed(dp, { graph: dt.graph, kind: dt.kind, level, sd: dt.sd });
       const dacts = dp.activities.map((a) => a.id);
-      const s = [{ p: tr(dt.graph === 'aon' ? 'exam.ask.detAon' : 'exam.ask.detAoa', { n: seeded.errors.length }) }];
+      const one = seeded.errors.length === 1 ? 'One' : '';
+      const s = [{ p: tr(dt.graph === 'aon' ? `exam.ask.detAon${one}` : `exam.ask.detAoa${one}`, { n: seeded.errors.length }) }];
       if (dt.own) {
         const dur = Object.fromEntries(dp.activities.map((a) => [a.id, a.d]));
         s.push({ p: tr('exam.detOwn') }, table([tr('col.act'), tr('col.dur'), tr('col.preds')], dacts.map((id) => [id, dur[id], none(dp.preds[id])])));
