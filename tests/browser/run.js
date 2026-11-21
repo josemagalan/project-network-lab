@@ -10662,8 +10662,9 @@ check('F3f T010 · teclado: Tab llega a los controles en orden; las pestañas de
   // Tab desde el principio de la página: saltar al contenido, idioma, notación, volver y los controles.
   const k = await exOpen('lang=es');
   const order = [];
-  for (let i = 0; i < 9; i++) { await k.keyboard.press('Tab'); order.push(await k.evaluate(() => document.activeElement.id || document.activeElement.className)); }
-  assert.deepEqual(order, ['skip', 'selLang', 'selNota', 'backLink', 'exLevel', 'exSeed', 'exModels', 'exPart-stmt', 'exPart-times']);
+  // T013: el proyecto, detrás de los modelos.
+  for (let i = 0; i < 10; i++) { await k.keyboard.press('Tab'); order.push(await k.evaluate(() => document.activeElement.id || document.activeElement.className)); }
+  assert.deepEqual(order, ['skip', 'selLang', 'selNota', 'backLink', 'exLevel', 'exSeed', 'exModels', 'exProject', 'exPart-stmt', 'exPart-times']);
   // Una casilla cambiada con el teclado conserva el foco tras rehacer la página.
   await k.keyboard.press('Space');
   assert.equal(await k.evaluate(() => document.activeElement.id), 'exPart-times');
@@ -11081,6 +11082,126 @@ check('F3f T012 · la vista previa en hojas: blancas también en oscuro, a escal
     assert.ok(await noHScroll(page));
     await close(page);
   }
+});
+
+// ---------- F3f, T013: los extras (AC10–AC12, AC24; plan §0, P3, H3, H4) ----------
+
+const QR0 = require('../../js/core/qr.js');
+/** Los modelos de Node para un «#» (con su proyecto: base, tcl, rep…). */
+const exNodeModels = (hash, lang = 'es', nota = 'en') => { const o = EA0.optsOf(EA0.load(hash, '', lang).state); return E0.models(o, EA0.docCtx(lang, nota, { netSvg: NSx, chartSvg: CSx })); };
+const exReady = (page) => page.waitForFunction(() => PNL.examApp.state().sheets > 0, null, { timeout: 120000 });
+
+check('F3f T013 AC10 AC12 · los anexos solo cuando tocan; el QR del enunciado es el de su enlace (core/qr, versión 7 como mucho, módulo de 0,5 mm o más en papel)', async () => {
+  for (const [hash, want] of [
+    ['ep=times-floats-tcl&lv=medium&sd=3', { normal: true, grid: true, link: true }],
+    ['ep=times-floats&lv=medium&sd=3', { normal: false, grid: true, link: true }],
+    ['ep=times-floats-tcl&lv=medium&sd=3&ea=i', { normal: false, grid: false, link: false }],
+    ['ep=times-floats-tcl&lv=hard&sd=3&ea=nq', { normal: true, grid: false, link: true }],
+  ]) {
+    const page = await exOpen(`lang=es&${hash}`);
+    await exReady(page);
+    const got = await page.evaluate(() => {
+      const h2 = [...document.querySelectorAll('#exPreview h2')].map((x) => x.textContent);
+      return { normal: h2.some((x) => /^Tabla de la distribución normal estándar/.test(x)), grid: h2.includes('Hoja para dibujar'), link: !!document.querySelector('#exPreview .xm-link') };
+    });
+    assert.deepEqual(got, want, hash);
+    if (want.link) {
+      const st = await exState(page);
+      const q = await page.evaluate(() => { const i = document.querySelector('#exPreview .xm-qr'); return { svg: atob(i.getAttribute('src').split(',')[1]), href: document.querySelector('#exPreview .xm-link a').getAttribute('href') }; });
+      assert.ok(st.doc.link && q.href === st.doc.link, `${hash}: ${q.href}`);
+      const enc = QR0.encode(st.doc.link, { ecc: 'M' });
+      assert.equal(q.svg, QR0.svg(enc, { title: 'QR' }), `${hash}: el QR es el del enlace`);
+      assert.ok(enc.version <= 7, `${hash}: versión ${enc.version}`);
+      await page.emulateMedia({ media: 'print' });
+      const w = await page.evaluate(() => document.querySelector('#exPreview .xm-qr').offsetWidth);
+      const mm = (w / (enc.size + 8)) * (25.4 / 96);
+      assert.ok(mm >= 0.5, `${hash}: módulo de ${mm.toFixed(2)} mm`);
+    }
+    await close(page);
+  }
+});
+
+check('F3f T013 AC11 · el enlace del alumno abre en el laboratorio el mismo proyecto, sin la solución a la vista (cálculo, TCL, Montecarlo y un ejemplo de los apuntes)', async () => {
+  const rows = (rs) => rs.map((r) => [r.id, String(r.duration)]);
+  for (const [hash, kind] of [['ep=times-floats&lv=medium&sd=7', 'calc'], ['ep=times-floats-tcl&lv=easy&sd=5', 'tcl'], ['ep=times-rep&lv=medium&sd=9', 'mc'], ['ep=times-floats-tcl&ee=kl', 'kl']]) {
+    const page = await exOpen(`lang=es&${hash}`);
+    await exReady(page);
+    const st = await exState(page);
+    const m = exNodeModels(`#lang=es&${hash}`)[0];
+    const url = new URL(st.doc.link);
+    assert.equal(url.origin + url.pathname, 'https://josemagalan.github.io/project-network-lab/cpm.html');
+    await close(page);
+    const lab = await open(`cpm.html${url.hash}`);
+    if (kind === 'calc') {
+      await lab.waitForFunction(() => PNL.ex.state && PNL.ex.state().rows, null, { timeout: 60000 });
+      const s = await lab.evaluate(() => PNL.ex.state());
+      assert.deepEqual(rows(s.rows), rows(m.base.rows), 'la misma tabla');
+      assert.ok(!s.grading && !s.marks, 'sin la solución');
+    } else if (kind === 'tcl') {
+      await lab.waitForFunction(() => PNL.exProb && PNL.exProb.state && PNL.exProb.state().ex, null, { timeout: 60000 });
+      const s = await lab.evaluate(() => PNL.exProb.state());
+      assert.equal(s.used, m.sdUsed);
+      assert.deepEqual(s.ex.rows.map((r) => [r.id, r.a, r.m, r.b]), m.tcl.rows.map((r) => [r.id, r.a, r.m, r.b]), 'las mismas a, m y b');
+      assert.ok(!s.grading, 'sin la solución');
+    } else if (kind === 'mc') {
+      await lab.waitForFunction(() => PNL.exMc && PNL.exMc.state && PNL.exMc.state().ex, null, { timeout: 60000 });
+      const s = await lab.evaluate(() => PNL.exMc.state());
+      assert.deepEqual([s.kind, s.used], ['rep', m.sdUsed]);
+      assert.ok(!s.grading, 'sin la solución');
+    } else {
+      await lab.waitForFunction(() => PNL.unc && PNL.unc.state && PNL.unc.state() && PNL.unc.state().acts, null, { timeout: 60000 });
+      const s = await lab.evaluate(() => ({ ue: PNL.app.state().ue, um: PNL.app.state().um, acts: PNL.unc.state().acts.map((a) => a.id) }));
+      assert.deepEqual([s.ue, s.um], ['kl', 'm6']);
+      assert.deepEqual(s.acts, m.tcl.rows.map((r) => r.id));
+    }
+    await close(lab);
+  }
+});
+
+check('F3f T013 AC24 · «Proyecto»: un ejemplo de los apuntes como modelo A, con sus cifras (las de Node) y su nombre; las partes que no permite no se pueden marcar; carga sus archivos solo al elegirlo', async () => {
+  const page = await exOpen('lang=es&ep=stmt-times-floats-tcl&lv=medium&sd=3&em=2&dv=o');
+  await exReady(page);
+  const res = () => exRes(page);
+  assert.equal((await res()).some((r) => /examples\.js|stochex\.js|statements\.js/.test(r)), false, 'sin los ejemplos al abrir');
+  assert.deepEqual(await page.locator('#exProject option').allTextContents(), ['Tabla generada con la semilla', 'Nave almacén (Ejercicio 1)', 'Ejercicio 2', 'Ejercicio 3', 'Proyecto industrial (Ejercicio 4)', 'Mecánicas del Sureste (Ejercicio 6)', 'Ejercicio 7',
+    'Proyecto informático de 6 tareas (Klastorin)', 'Reliable Construction Co. con tres tiempos (Hillier y Lieberman)', 'Cuatro tareas con tiempos discretos (Klastorin)']);
+  await page.selectOption('#exProject', 'kl');
+  await page.waitForFunction(() => PNL.examApp.state().state.ee === 'kl' && PNL.examApp.state().doc && PNL.examApp.state().doc.meta.example === 'kl', null, { timeout: 60000 });
+  let st = await exState(page);
+  // «Del enunciado a la tabla» no la permite Klastorin: sale de las partes y no se puede marcar; tampoco «Leer» ni las discretas.
+  assert.deepEqual(st.state.ep, ['times', 'floats', 'tcl']);
+  assert.match(st.hash, /&ee=kl/);
+  for (const p of ['stmt', 'read', 'disc']) assert.equal(await page.locator(`#exPart-${p}`).isDisabled(), true, p);
+  for (const p of ['roy', 'pert', 'det', 'times', 'rep']) assert.equal(await page.locator(`#exPart-${p}`).isDisabled(), false, p);
+  assert.equal(await page.locator('#exItem-tcl-route').isDisabled(), true, 'sin la otra ruta');
+  assert.match(await page.locator('#exExampleNote').textContent(), /^Con un ejemplo de los apuntes, el modelo A es ese ejemplo/);
+  const node = exNodeModels('#lang=es&ep=times-floats-tcl&lv=medium&sd=3&em=2&ee=kl');
+  const dA = E0.document(node[0], EA0.optsOf(EA0.load('#lang=es&ep=times-floats-tcl&lv=medium&sd=3&em=2&ee=kl', '', 'es').state), EA0.docCtx('es', 'en', { netSvg: NSx, chartSvg: CSx }));
+  assert.deepEqual(st.doc.values, JSON.parse(JSON.stringify(dA.values)));
+  const pv = await exPreview(page);
+  assert.match(pv.text, /Solución del modelo A: Proyecto informático de 6 tareas \(Klastorin\)\./);
+  assert.match(await page.locator('#exPreview .xm-foot > span').first().textContent(), /^Modelo A · Proyecto informático de 6 tareas \(Klastorin\) · Solución$/);
+  assert.match(await page.locator('#exStatus').textContent(), /^Modelo A · Proyecto informático de 6 tareas \(Klastorin\) · \d+ páginas? en A4$/);
+  assert.ok((await res()).some((r) => /examples\.js$/.test(r)) && (await res()).some((r) => /stochex\.js$/.test(r)));
+  // El modelo B es una tabla generada, con su semilla.
+  await page.locator('#exModel-1').click();
+  await page.waitForFunction(() => PNL.examApp.state().doc && PNL.examApp.state().doc.meta.letter === 'B', null, { timeout: 60000 });
+  st = await exState(page);
+  assert.equal(st.doc.meta.example, null);
+  assert.equal(st.doc.meta.sdUsed, node[1].sdUsed);
+  // Con el Ejercicio 6 y el enunciado: el de los apuntes (statements, al elegirlo), en el modelo A.
+  await page.locator('#exModel-0').click();
+  await page.selectOption('#exProject', 'ej6');
+  await page.locator('#exPart-stmt').check();
+  await page.waitForFunction(() => { const s = PNL.examApp.state(); return s.state.ee === 'ej6' && s.state.ep.includes('stmt') && s.doc && s.doc.meta.example === 'ej6'; }, null, { timeout: 60000 });
+  assert.ok((await res()).some((r) => /statements\.js$/.test(r)), 'statements.js');
+  // Volver a la tabla generada: sin aviso y con todas las partes.
+  await page.selectOption('#exProject', '');
+  await page.waitForFunction(() => PNL.examApp.state().state.ee === '');
+  assert.equal(await page.locator('#exExampleNote').count(), 0);
+  assert.equal(await page.locator('#exPart-read').isDisabled(), false);
+  await axe(page, 'F3f T013 · examen.html con el selector de proyecto');
+  await close(page);
 });
 
 // ---------- Ejecución ----------

@@ -18,7 +18,12 @@ test('F3f T010 · las familias de moodle.html no cambian (sg, lab, st) y examen.
   assert.deepEqual(FL.FAMILIES.st, ['js/core/threept.js', 'js/core/tcl.js', 'js/core/sim.js', 'js/core/mc.js', 'js/core/probgen.js', 'js/views/chart-svg.js']);
   assert.deepEqual(FL.FAMILIES.pr, ['js/core/probgrade.js', 'js/views/normal-table.js', 'js/i18n-prob.js', 'js/i18n-mc.js']);
   assert.deepEqual(FL.FAMILIES.dt, ['js/i18n-det.js']);
-  assert.deepEqual(Object.keys(FL.FAMILIES), ['sg', 'lab', 'st', 'pr', 'dt']);
+  // T013: los ejemplos citados (examples y stochex) y los enunciados de los apuntes (statements, después de examples).
+  assert.deepEqual(FL.FAMILIES.xe, ['js/core/examples.js', 'js/core/stochex.js']);
+  assert.deepEqual(FL.FAMILIES.xs, ['js/core/statements.js']);
+  assert.deepEqual(Object.keys(FL.FAMILIES), ['sg', 'lab', 'st', 'pr', 'dt', 'xe', 'xs']);
+  assert.equal(FL.READY.xe({ examples: {}, stochex: {} }), true); assert.equal(FL.READY.xe({ examples: {} }), false);
+  assert.equal(FL.READY.xs({ statements: {} }), true); assert.equal(FL.READY.xs({}), false);
   for (const f of Object.values(FL.FAMILIES).flat()) assert.ok(fs.existsSync(path.join(ROOT, f)), `existe ${f}`);
   assert.deepEqual(Object.keys(FL.READY), Object.keys(FL.FAMILIES));
 });

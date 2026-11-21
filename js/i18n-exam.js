@@ -6,7 +6,9 @@
  * apartados (part, item: son las etiquetas de los controles) y las alternativas de la vista (view).
  * Bloques 2 y 3 (T011): los enunciados de las partes (data, ask, alt…), la solución (sol, det, col, cell) y la rúbrica
  * (rub). T012: la línea de estado con «1 página» en singular (status, pages, pagesOne) y el progreso de «Imprimir todos
- * los enunciados» (printWait); sale la nota de la vista previa seguida (previewNote), que ya va en hojas. Las explicaciones de los errores del detective (exam.det.<tipo>) son las de i18n-det (det.exp), como «Ejercicios».
+ * los enunciados» (printWait); sale la nota de la vista previa seguida (previewNote), que ya va en hojas. T013: el
+ * selector de proyecto (page.project, projectGen, exampleNote), el nombre del ejemplo en el estado, el pie y la solución
+ * (statusEx, footEx, sol.introEx) y los nombres de los ejemplos (ex, los títulos de core/examples y core/stochex). Las explicaciones de los errores del detective (exam.det.<tipo>) son las de i18n-det (det.exp), como «Ejercicios».
  */
 (function (root) {
   'use strict';
@@ -37,17 +39,25 @@
       copied: 'Enlace copiado.', copyFailed: 'No se pudo copiar: copia el enlace de la barra de direcciones.',
       status: 'Modelo {l} · semilla {s}{u} · {pages}', used: ' (usada: {u})', pages: '{n} páginas en {paper}', pagesOne: '1 página en {paper}',
       printWait: 'Preparando los enunciados: {k} de {n} modelos…',
+      project: 'Proyecto', projectGen: 'Tabla generada con la semilla',
+      exampleNote: 'Con un ejemplo de los apuntes, el modelo A es ese ejemplo y los demás, tablas generadas. Solo se pueden marcar las partes que permiten sus datos.',
+      statusEx: 'Modelo {l} · {name} · {pages}',
       searching: 'Buscando un proyecto que valga para todas las partes…',
       noProject: 'Con esta semilla no sale ningún proyecto que valga para todas las partes en {n} intentos. Prueba con otra semilla o quita alguna parte.',
     },
     head: {
-      name: 'Nombre y apellidos', id: 'DNI', page: 'Página {p} de {n}', foot: 'Modelo {l} · semilla {s}',
+      name: 'Nombre y apellidos', id: 'DNI', page: 'Página {p} de {n}', foot: 'Modelo {l} · semilla {s}', footEx: 'Modelo {l} · {name}',
       instructions: 'Responde en el propio examen y justifica los resultados. Puedes usar calculadora.',
       points: '({n} puntos)', point: '(1 punto)', partTitle: 'Parte {i} · {t}',
       link: 'Después del examen, repasa este mismo proyecto en el laboratorio, con la solución paso a paso:',
       gridSheet: 'Hoja para dibujar', normalTitle: 'Tabla de la distribución normal estándar: Φ(z) = P(Z ≤ z)',
       solTitle: 'Solución', rubTitle: 'Rúbrica', rotated: 'Gira la hoja para leer esta página',
       nextRot: 'Dibuja en la rejilla de la página girada que sigue a esta.', nextRotNet: 'La red, en la página girada que sigue a esta.',
+    },
+    // T013: los ejemplos citados como proyecto del modelo A (sus títulos de core/examples y core/stochex).
+    ex: {
+      ej1: 'Nave almacén (Ejercicio 1)', ej2: 'Ejercicio 2', ej3: 'Ejercicio 3', ej4: 'Proyecto industrial (Ejercicio 4)', ej6: 'Mecánicas del Sureste (Ejercicio 6)', ej7: 'Ejercicio 7',
+      kl: 'Proyecto informático de 6 tareas (Klastorin)', hl: 'Reliable Construction Co. con tres tiempos (Hillier y Lieberman)', kd: 'Cuatro tareas con tiempos discretos (Klastorin)',
     },
     part: {
       stmt: 'Del enunciado a la tabla', roy: 'Construir la red ROY', pert: 'Construir la red PERT', det: 'Detective', times: 'Tiempos',
@@ -105,6 +115,7 @@
     },
     sol: {
       intro: 'Solución del modelo {letter} (semilla {sd}). Todas las cifras salen del mismo núcleo que el laboratorio.',
+      introEx: 'Solución del modelo {letter}: {name}. Todas las cifras salen del mismo núcleo que el laboratorio.',
       means: 'Los tiempos y las holguras se calculan con las medias tₑ de dos decimales.',
       refNet: 'Con la red PERT de referencia (la de las reglas de los conjuntos). Si el alumno numeró los sucesos de otra manera, se corrige con su red.',
       detErr: 'Error {i}: {text}', mcq: '{q} {a}.',
@@ -165,17 +176,25 @@
       copied: 'Link copied.', copyFailed: 'Could not copy: copy the link from the address bar.',
       status: 'Version {l} · seed {s}{u} · {pages}', used: ' (used: {u})', pages: '{n} pages on {paper}', pagesOne: '1 page on {paper}',
       printWait: 'Preparing the statements: {k} of {n} versions…',
+      project: 'Project', projectGen: 'Table generated from the seed',
+      exampleNote: 'With a course example, version A is that example and the other versions are generated tables. Only the parts its data allow can be ticked.',
+      statusEx: 'Version {l} · {name} · {pages}',
       searching: 'Looking for a project that works for every part…',
       noProject: 'No project works for every part within {n} tries from this seed. Try another seed or remove a part.',
     },
     head: {
-      name: 'Full name', id: 'ID', page: 'Page {p} of {n}', foot: 'Version {l} · seed {s}',
+      name: 'Full name', id: 'ID', page: 'Page {p} of {n}', foot: 'Version {l} · seed {s}', footEx: 'Version {l} · {name}',
       instructions: 'Answer on the exam itself and show your working. You may use a calculator.',
       points: '({n} points)', point: '(1 point)', partTitle: 'Part {i} · {t}',
       link: 'After the exam, review this same project in the lab, with the step-by-step solution:',
       gridSheet: 'Drawing sheet', normalTitle: 'Standard normal distribution table: Φ(z) = P(Z ≤ z)',
       solTitle: 'Solution', rubTitle: 'Marking guide', rotated: 'Turn the sheet to read this page',
       nextRot: 'Draw on the grid of the rotated page after this one.', nextRotNet: 'The network is on the rotated page after this one.',
+    },
+    // T013: the cited examples as version A's project (their titles in core/examples and core/stochex).
+    ex: {
+      ej1: 'Warehouse (Exercise 1)', ej2: 'Exercise 2', ej3: 'Exercise 3', ej4: 'Industrial project (Exercise 4)', ej6: 'Mecánicas del Sureste (Exercise 6)', ej7: 'Exercise 7',
+      kl: '6-task IT project (Klastorin)', hl: 'Reliable Construction Co. with three-point estimates (Hillier & Lieberman)', kd: 'Four tasks with discrete durations (Klastorin)',
     },
     part: {
       stmt: 'From statement to table', roy: 'Build the AON network', pert: 'Build the AOA network', det: 'Detective', times: 'Times',
@@ -232,6 +251,7 @@
     },
     sol: {
       intro: 'Solution of version {letter} (seed {sd}). Every figure comes from the same core as the lab.',
+      introEx: 'Solution of version {letter}: {name}. Every figure comes from the same core as the lab.',
       means: 'Times and floats are found with the means tₑ to two decimals.',
       refNet: 'With the reference AOA network (the one of the set rules). If the student numbered the events differently, mark it on their network.',
       detErr: 'Error {i}: {text}', mcq: '{q} {a}.',

@@ -23,6 +23,10 @@
     pr: ['js/core/probgrade.js', 'js/views/normal-table.js', 'js/i18n-prob.js', 'js/i18n-mc.js'],
     // F3f (T010): las explicaciones de los errores del detective, las de «Ejercicios».
     dt: ['js/i18n-det.js'],
+    // F3f (T013): los ejemplos citados como proyecto del modelo A (examples y stochex) y, con «Del enunciado a la tabla»,
+    // los enunciados de los apuntes (statements, que usa examples: después de xe).
+    xe: ['js/core/examples.js', 'js/core/stochex.js'],
+    xs: ['js/core/statements.js'],
   };
   /** Los globales que deja cada familia (la familia está cargada). */
   const READY = {
@@ -31,6 +35,8 @@
     st: (P) => !!P.probgen && !!P.chartSvg,
     pr: (P) => !!P.probgrade && !!P.normalTable && !!P.i18nProb && !!P.i18nMc,
     dt: (P) => !!P.i18nDet,
+    xe: (P) => !!P.examples && !!P.stochex,
+    xs: (P) => !!P.statements,
   };
 
   function create(o) {

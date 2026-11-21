@@ -676,3 +676,11 @@ test('F3f T012 · dibujos de papel: las redes llevan maxW 1120 (8 pt en la pági
   }
   assert.ok(svgs(partOf(d.solution, 'roy')).every((b) => width(NS.render(Object.assign({}, b.model, { maxW: undefined }))) === 1260));
 });
+
+test('F3f T013 · con un ejemplo citado, la solución dice su nombre en vez de la semilla', () => {
+  const o = opts({ level: 'medium', seed: 3, parts: ['times', 'floats'], example: 'ej6' });
+  const { d } = make(o);
+  assert.equal(d.solution[0].p, trx('es')('exam.sol.introEx', { letter: 'A', name: trx('es')('exam.ex.ej6') }));
+  // Una tabla generada, con su semilla.
+  assert.match(make(opts({ level: 'medium', seed: 3, parts: ['times'] })).d.solution[0].p, /^⟦exam\.sol\.intro⟧\{"letter":"A","sd":\d+\}$/);
+});

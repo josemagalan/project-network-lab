@@ -331,3 +331,58 @@ test('F3f T012 · el pie de página (modelo, semilla usada y documento) y la lí
   assert.equal(I.t('en', 'exam.page.printWait', { k: 2, n: 4 }), 'Preparing the statements: 2 of 4 versions…');
   assert.equal(I.t('es', 'exam.page.previewNote'), 'exam.page.previewNote', 'la nota de la vista previa seguida ya no hace falta');
 });
+
+// ---------- T013: los extras y el ejemplo citado como proyecto del modelo A ----------
+
+test('F3f T013 · familiesOf con un ejemplo: examples y stochex (xe); los de tres tiempos y discretas, también st; con el enunciado, statements (xs)', () => {
+  assert.deepEqual(EA.familiesOf(['times', 'floats'], 'ej6'), ['xe']);
+  assert.deepEqual(EA.familiesOf(['times', 'floats', 'tcl'], 'kl'), ['st', 'pr', 'xe']);
+  assert.deepEqual(EA.familiesOf(['roy'], 'kd'), ['lab', 'st', 'xe']);
+  assert.deepEqual(EA.familiesOf(['stmt', 'roy'], 'ej1'), ['sg', 'lab', 'xe', 'xs']);
+  assert.deepEqual(EA.familiesOf(['stmt'], ''), ['sg']);
+  assert.deepEqual(EA.familiesOf(['stmt']), ['sg']);
+});
+
+test('F3f T013 · los nombres de los ejemplos (exam.ex.<id>) son los títulos de core/examples y core/stochex, en ES y EN', () => {
+  const X = require('../js/core/examples.js');
+  const SX = require('../js/core/stochex.js');
+  for (const id of E.EXAMPLES) {
+    const e = ['kl', 'hl', 'kd'].includes(id) ? SX.get(id) : X.get(id);
+    for (const lang of ['es', 'en']) assert.equal(I.t(lang, `exam.ex.${id}`), e.title[lang], `${id} ${lang}`);
+  }
+  assert.equal(I.t('es', 'exam.page.project'), 'Proyecto');
+  assert.equal(I.t('es', 'exam.page.projectGen'), 'Tabla generada con la semilla');
+  assert.equal(I.t('en', 'exam.page.projectGen'), 'Table generated from the seed');
+});
+
+test('F3f T013 · el pie y la línea de estado del modelo de un ejemplo llevan su nombre en vez de la semilla (ES y EN)', () => {
+  const t = (lang) => (k, p) => I.t(lang, k, p);
+  const ex = { letter: 'A', example: 'kl', seed: null, sdUsed: null };
+  assert.equal(EA.footOf(ex, 's', t('es')), 'Modelo A · Proyecto informático de 6 tareas (Klastorin) · Enunciado');
+  assert.equal(EA.footOf(ex, 'o', t('en')), 'Version A · 6-task IT project (Klastorin) · Solution');
+  assert.equal(EA.statusOf(ex, 4, 'a4', t('es')), 'Modelo A · Proyecto informático de 6 tareas (Klastorin) · 4 páginas en A4');
+  assert.equal(EA.statusOf({ letter: 'B', example: null, seed: 7920, sdUsed: 7920 }, 2, 'a4', t('es')), 'Modelo B · semilla 7920 · 2 páginas en A4');
+});
+
+test('F3f T013 · withExample: al elegir un ejemplo se quitan las partes que no permite (con sus puntos y apartados) y la otra ruta; sin ejemplo, nada cambia', () => {
+  const s = EA.load('#lang=es&ep=stmt-times-floats-tcl-read&eq=tcl.route-times.events&pt=read:2-tcl:3', '', 'es').state;
+  const k = EA.withExample(s, 'kl');
+  assert.equal(k.ee, 'kl');
+  assert.deepEqual(k.ep, ['times', 'floats', 'tcl']);
+  assert.deepEqual(k.eq, ['times.events']);
+  assert.deepEqual(k.pt, { tcl: 3 });
+  assert.equal(E.check(EA.optsOf(k)).ok, true);
+  const d = EA.withExample(s, 'kd');
+  assert.deepEqual([d.ep, d.pt], [[], {}]);
+  const g = EA.withExample(k, '');
+  assert.deepEqual([g.ee, g.ep, g.eq, g.pt], ['', k.ep, k.eq, k.pt]);
+  assert.notEqual(EA.withExample(s, 'kl'), s, 'un estado nuevo');
+  assert.deepEqual(s.ep, ['stmt', 'times', 'floats', 'tcl', 'read'], 'sin tocar el de antes');
+});
+
+test('F3f T013 · un enlace con un ejemplo y partes que no permite: se quitan al abrirlo y se avisa; si todo vale, sin aviso', () => {
+  const bad = EA.load('#lang=es&ep=stmt-times-floats&ee=kl', '', 'es');
+  assert.deepEqual([bad.state.ee, bad.state.ep, bad.warning], ['kl', ['times', 'floats'], true]);
+  const ok = EA.load('#lang=es&ep=times-floats&ee=kl', '', 'es');
+  assert.deepEqual([ok.state.ep, ok.warning], [['times', 'floats'], undefined]);
+});

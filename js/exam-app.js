@@ -13,10 +13,12 @@
  * «Imprimir» (window.print con el documento a la vista: en papel solo salen sus hojas) e «Imprimir todos los enunciados»
  * (espera a los modelos con el progreso a la vista, pone los enunciados de todos en #exPrintOut, cada uno desde una hoja
  * nueva, e imprime; al acabar, afterprint deja la página como estaba).
+ * T013: «Proyecto»: la tabla generada o un ejemplo de los apuntes como modelo A (ee); las partes que no permite se quitan y
+ * no se pueden marcar (withExample), y sus archivos llegan al elegirlo (familias xe y xs).
  * Estado en el «#» (P7): las claves de §3, con lista blanca; un valor que no vale vuelve al defecto y se avisa, como
  * en cpm.html. La cabecera del enunciado va siempre como texto (textContent y value), 600 caracteres como mucho.
  * La parte sin DOM (KEYS, DEFAULTS, decode, load, encode, optsOf, familiesOf, backHref, GROUPS, docCtx, searchKey,
- * viewBlocks, pageCss, footOf, statusOf) se prueba en Node;
+ * viewBlocks, pageCss, footOf, statusOf, withExample) se prueba en Node;
  * PNL.examApp.state() da el estado a las pruebas de navegador.
  */
 (function (root) {
@@ -111,7 +113,10 @@
 
   /** El estado de un enlace: el idioma del «#», si no el de ?lang= y si no el del navegador (como moodle.html). */
   function load(hash, search, navLang) {
-    const { state, warning } = decode(hash);
+    const r = decode(hash);
+    let { state, warning } = r;
+    // Un ejemplo con partes que no permite (T013): se quitan y se avisa.
+    if (state.ee) { const w = withExample(state, state.ee); if (JSON.stringify(w) !== JSON.stringify(state)) { state = w; warning = true; } }
     if (!state.lang) {
       const q = new URLSearchParams(search || '').get('lang');
       state.lang = q === 'en' || q === 'es' ? q : (String(navLang || '').toLowerCase().startsWith('en') ? 'en' : 'es');
@@ -163,7 +168,28 @@
 
   /** Las familias que piden las partes, en el orden de family-load. */
   const FAMILY_OF = { stmt: ['sg'], roy: ['lab'], pert: ['lab'], minDummy: ['lab'], succ: ['lab'], det: ['lab', 'dt'], tcl: ['st', 'pr'], read: ['st', 'pr'], disc: ['st', 'pr'], rep: ['st', 'pr'] };
-  const familiesOf = (parts) => { const set = new Set((parts || []).flatMap((p) => FAMILY_OF[p] || [])); return Object.keys(FL.FAMILIES).filter((f) => set.has(f)); };
+  /** Con un ejemplo citado (T013): examples y stochex (xe); los de tres tiempos y discretas, además probgen (st); con el
+   *  enunciado, los de los apuntes (xs). */
+  const familiesOf = (parts, example) => {
+    const set = new Set((parts || []).flatMap((p) => FAMILY_OF[p] || []));
+    if (example) {
+      set.add('xe');
+      if (['kl', 'hl', 'kd'].includes(example)) set.add('st');
+      else if ((parts || []).includes('stmt')) set.add('xs');
+    }
+    return Object.keys(FL.FAMILIES).filter((f) => set.has(f));
+  };
+  /** Elegir el proyecto (T013): con un ejemplo, fuera las partes que no permite (con sus puntos y apartados) y la otra ruta. */
+  function withExample(s, id) {
+    const out = clone(s);
+    out.ee = id || '';
+    if (!id) return out;
+    const ok = E.partsOf(id) || [];
+    out.ep = s.ep.filter((p) => ok.includes(p));
+    out.eq = s.eq.filter((x) => out.ep.includes(x.split('.')[0]) && x !== 'tcl.route');
+    out.pt = Object.fromEntries(Object.entries(s.pt).filter(([p]) => out.ep.includes(p)));
+    return out;
+  }
   /** «Volver al laboratorio»: cpm.html con el mismo idioma y la misma notación. */
   const backHref = (s) => `cpm.html#lang=${s.lang}&nota=${s.nota}`;
 
@@ -196,10 +222,13 @@
   const pageCss = (pp) => `@page { size: ${pp === 'letter' ? 'letter' : 'A4'}; margin: 15mm; }`;
   const seedText = (v) => (v == null ? '—' : v);
   /** El pie de cada hoja: el modelo, la semilla usada y el documento. */
-  const footOf = (meta, dv, t) => `${t('exam.head.foot', { l: meta.letter, s: seedText(meta.sdUsed) })} · ${t(`exam.page.docs.${dv}`)}`;
+  const footOf = (meta, dv, t) => `${meta.example ? t('exam.head.footEx', { l: meta.letter, name: t(`exam.ex.${meta.example}`) })
+    : t('exam.head.foot', { l: meta.letter, s: seedText(meta.sdUsed) })} · ${t(`exam.page.docs.${dv}`)}`;
   /** La línea de estado de la vista previa: modelo, semilla (y la usada, si es otra), páginas y papel. */
   function statusOf(m, n, pp, t) {
     const paper = t(pp === 'letter' ? 'exam.page.paperLetter' : 'exam.page.paperA4');
+    const pages = n === 1 ? t('exam.page.pagesOne', { paper }) : t('exam.page.pages', { n, paper });
+    if (m.example) return t('exam.page.statusEx', { l: m.letter, name: t(`exam.ex.${m.example}`), pages });
     return t('exam.page.status', {
       l: m.letter, s: seedText(m.seed), u: m.sdUsed != null && m.sdUsed !== m.seed ? t('exam.page.used', { u: m.sdUsed }) : '',
       pages: n === 1 ? t('exam.page.pagesOne', { paper }) : t('exam.page.pages', { n, paper }),
@@ -259,6 +288,8 @@
 
     function partRow(p, c, prop) {
       const on = state.ep.includes(p);
+      // Con un ejemplo (T013), las partes que no permite no se pueden marcar.
+      const barred = !!state.ee && !(E.partsOf(state.ee) || []).includes(p);
       const name = t(`exam.part.${p}`);
       const toggle = (e) => {
         const ep = E.PARTS.filter((x) => (x === p ? e.target.checked : state.ep.includes(x)));
@@ -268,7 +299,7 @@
       const items = on && E.ITEMS[p] ? h('div', { class: 'xm-items', role: 'group', 'aria-label': t('exam.page.itemsOf', { part: name }) }, E.ITEMS[p].map((x) => {
         const checked = c.items[p] && c.items[p].includes(x);
         const last = checked && c.items[p].length === 1;
-        return h('label', { class: 'xm-item-check' }, [h('input', { type: 'checkbox', id: `exItem-${p}-${x}`, checked, disabled: last,
+        return h('label', { class: 'xm-item-check' }, [h('input', { type: 'checkbox', id: `exItem-${p}-${x}`, checked, disabled: last || (!!state.ee && x === 'route'),
           onchange: () => { const k = `${p}.${x}`; set({ eq: allItems().filter((y) => (y === k ? !state.eq.includes(k) : state.eq.includes(y))) }); } }), t(`exam.item.${x}`)]);
       })) : h('div', { class: 'xm-items' }, []);
       const value = p in state.pt ? state.pt[p] : prop[p];
@@ -279,7 +310,7 @@
           set({ pt: Object.assign({}, state.pt, { [p]: Number(x) }) });
         } }) : null;
       return h('div', { class: on ? 'xm-prow on' : 'xm-prow' }, [
-        h('label', { class: 'xm-pcheck' }, [h('input', { type: 'checkbox', id: `exPart-${p}`, checked: on, onchange: toggle }), name]),
+        h('label', { class: 'xm-pcheck' }, [h('input', { type: 'checkbox', id: `exPart-${p}`, checked: on, disabled: barred && !on, onchange: toggle }), name]),
         items, h('div', { class: 'xm-pts' }, [pts]),
       ]);
     }
@@ -289,11 +320,15 @@
       const c = E.check(opts);
       const prop = c.ok || c.errors.every((e) => e.key !== 'empty') ? E.points(opts) : {};
       const levels = E.LEVELS.map((l) => [l, t(`mq.level.${l}`)]);
+      // El proyecto (T013): la tabla generada o un ejemplo de los apuntes; encoge con su columna (los nombres son largos).
+      const project = select('exProject', t('exam.page.project'), [['', t('exam.page.projectGen')], ...E.EXAMPLES.map((id) => [id, t(`exam.ex.${id}`)])], state.ee, (v) => set(withExample(state, v)));
+      project.classList.add('xm-project');
       const top = h('div', { class: 'xm-row' }, [
         select('exLevel', t('exam.page.level'), levels, state.lv, (v) => set({ lv: v })),
         h('label', { class: 'xm-field' }, [t('exam.page.seed'), h('input', { type: 'number', id: 'exSeed', min: 1, max: E.SEED_MAX, step: 1, inputmode: 'numeric', value: String(state.sd),
           onchange: (e) => { const v = intIn(String(e.target.value).trim(), 1, E.SEED_MAX); if (v === undefined) { render(); return; } set({ sd: v }); } })]),
         select('exModels', t('exam.page.models'), Array.from({ length: E.MAX_MODELS }, (_, i) => [i + 1, String(i + 1)]), state.em, (v) => set({ em: Number(v) })),
+        project,
       ]);
       const groups = GROUPS.map((g) => h('div', { class: 'xm-group' }, [h('p', { class: 'xm-group-name' }, [t(`exam.page.group.${g.id}`)]), ...g.parts.map((p) => partRow(p, c, prop))]));
       let total;
@@ -306,7 +341,9 @@
       const reset = h('button', { type: 'button', id: 'exReset', class: 'ghost', disabled: !Object.keys(state.pt).length, onclick: () => set({ pt: {} }) }, [t('exam.page.reset')]);
       const parts = h('fieldset', { class: 'xm-parts' }, [h('legend', {}, [t('exam.page.parts')]), h('p', { class: 'xm-hint' }, [t('exam.page.partsHint')]), ...groups,
         h('div', { class: 'xm-sum' }, [total, reset])]);
-      const out = [h('p', { class: 'xm-lead' }, [t('exam.page.lead')]), top, parts];
+      const out = [h('p', { class: 'xm-lead' }, [t('exam.page.lead')]), top];
+      if (state.ee) out.push(h('p', { id: 'exExampleNote', class: 'xm-hint', role: 'status' }, [t('exam.page.exampleNote')]));
+      out.push(parts);
       if (c.warnings.some((x) => x.key === 'detOwn')) out.push(h('p', { class: 'xm-warn', role: 'status' }, [t('exam.page.detOwn')]));
       if (state.ep.includes('det') && !state.ep.includes('roy') && !state.ep.includes('pert')) {
         out.push(h('div', { class: 'xm-row' }, [select('exDetGraph', t('exam.page.detGraph'), [['aon', t('exam.page.graphAon')], ['aoa', t('exam.page.graphAoa')]], state.ed, (v) => set({ ed: v }))]));
@@ -519,8 +556,8 @@
       const o = optsOf(state);
       if (!E.check(o).ok) { idle(); pendingSince = 0; clear($('exPreview')); if (printJob) endPrintAll(); return; }
       // Las familias de las partes marcadas, antes de buscar.
-      const p = loader.need(familiesOf(state.ep));
-      if (p) { pending(); p.then(() => { if (loader.ready(familiesOf(state.ep))) preview(); }, () => {}); return; }
+      const p = loader.need(familiesOf(state.ep, state.ee));
+      if (p) { pending(); p.then(() => { if (loader.ready(familiesOf(state.ep, state.ee))) preview(); }, () => {}); return; }
       const key = searchKey(o);
       if (key !== search.key) {
         search.gen++;
@@ -546,13 +583,13 @@
       render();
     });
     api.state = () => ({
-      state: clone(state), hash: root.location.hash, opts: optsOf(state), families: familiesOf(state.ep), ready: loader.ready(familiesOf(state.ep)),
+      state: clone(state), hash: root.location.hash, opts: optsOf(state), families: familiesOf(state.ep, state.ee), ready: loader.ready(familiesOf(state.ep, state.ee)),
       models: search.models.map((m) => ({ letter: m.letter, ok: m.ok, sdUsed: m.sdUsed, tries: m.tries })), searches: search.searches,
-      pending: !current, doc: current && { k: current.k, meta: current.d.meta, values: current.d.values, points: current.d.points }, sheets: current ? sheets : 0,
+      pending: !current, doc: current && { k: current.k, meta: current.d.meta, values: current.d.values, points: current.d.points, link: current.d.link }, sheets: current ? sheets : 0,
     });
   }
 
-  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, decode, load, encode, optsOf, familiesOf, backHref, docCtx, searchKey, viewBlocks, pageCss, footOf, statusOf };
+  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, decode, load, encode, optsOf, familiesOf, backHref, docCtx, searchKey, viewBlocks, pageCss, footOf, statusOf, withExample };
   root.PNL = root.PNL || {};
   root.PNL.examApp = api;
   if (isNode) module.exports = api;

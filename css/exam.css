@@ -20,6 +20,8 @@
 .xm-field { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
 .xm-field select { min-height: 32px; padding: 0 6px; font: inherit; font-size: 14px; color: var(--ink); border-radius: 6px; }
 .xm-field input[type="number"] { width: 96px; min-height: 32px; padding: 2px 6px; text-align: right; }
+.xm-project { flex: 1 1 240px; min-width: 0; max-width: 100%; }
+.xm-project select { flex: 1 1 auto; width: 100%; min-width: 0; }
 .xm-hint { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 .xm-warn { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--warn-soft); border: 1px solid var(--warn-line); font-size: 13px; line-height: 1.4; }
 .xm-total { margin: 0; font-size: 14px; font-weight: 700; }
@@ -35,7 +37,7 @@
 .xm-pcheck input, .xm-check input, .xm-item-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
 .xm-items { display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .xm-item-check { font-size: 13px; white-space: nowrap; }
-.xm-item-check:has(input:disabled) { color: var(--muted); }
+.xm-item-check:has(input:disabled), .xm-pcheck:has(input:disabled) { color: var(--muted); }
 .xm-pts { text-align: right; }
 .xm-pts-in { width: 60px; min-height: 30px; padding: 2px 6px; text-align: right; font-variant-numeric: tabular-nums; }
 .xm-sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-top: 6px; border-top: 1px solid var(--line); }

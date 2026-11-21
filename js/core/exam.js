@@ -411,7 +411,9 @@
         student.push({ p: tr('exam.data') }, table([tr('col.act'), tr('col.dur'), tr('col.preds')], acts.map((id) => [id, dur[id], none(preds[id])])));
       }
     }
-    solution.push({ p: tr('exam.sol.intro', { letter: model.letter || 'A', sd: model.sdUsed == null ? '—' : model.sdUsed }) });
+    // Con un ejemplo citado (T013), su nombre en vez de la semilla.
+    solution.push({ p: model.example ? tr('exam.sol.introEx', { letter: model.letter || 'A', name: tr(`exam.ex.${model.example}`) })
+      : tr('exam.sol.intro', { letter: model.letter || 'A', sd: model.sdUsed == null ? '—' : model.sdUsed }) });
     if (D0.scale !== 1) solution.push({ p: tr('exam.sol.means') });
     rubric.push({ p: tr('exam.rub.intro') }, { p: tr('exam.rub.carriedRule') });
 
