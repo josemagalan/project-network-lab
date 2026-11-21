@@ -7,6 +7,8 @@ const I = require('../js/i18n.js');
 require('../js/i18n-moodle.js');
 // F4a: los textos de «Duraciones inciertas» también se cargan aparte (plan P3).
 require('../js/i18n-unc.js');
+// F3f (T010): los textos del examen imprimible (i18n-exam) se cargan con examen.html y entran en las mismas comprobaciones.
+require('../js/i18n-exam.js');
 
 const keysDeep = (o, prefix = '') => Object.entries(o).flatMap(([k, v]) =>
   (v && typeof v === 'object' && !Array.isArray(v) ? keysDeep(v, prefix + k + '.') : [prefix + k])).sort();
@@ -261,4 +263,15 @@ test('F3d T011: los textos del detective (i18n-det) están en los dos idiomas, c
     for (const t of types.filter((x) => x !== 'calcCrit')) assert.ok(ID[lang].exp[t], `${lang} det.exp.${t}`);
     assert.ok(ID[lang].exp.calcCritOn && ID[lang].exp.calcCritOff);
   }
+});
+
+test('F3f T010: los textos del examen (i18n-exam) están en los dos idiomas, con los mismos parámetros, y no pisan otros', () => {
+  const IE = require('../js/i18n-exam.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(IE.es), keysDeep(IE.en));
+  for (const k of keysDeep(IE.es)) assert.deepEqual(params(get(IE.es, k)), params(get(IE.en, k)), `exam.${k}`);
+  for (const lang of I.languages) assert.equal(I.dict[lang].exam, IE[lang]);
+  assert.equal(I.t('es', 'exam.head.points', { n: '2,5' }), '(2,5 puntos)');
+  assert.equal(I.t('en', 'exam.page.status', { l: 'B', s: 7, u: '', p: 3, paper: 'A4' }), 'Version B · seed 7 · 3 pages on A4');
 });

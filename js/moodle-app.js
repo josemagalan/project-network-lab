@@ -8,6 +8,7 @@
  * etapa 0) y la construcción (lab, etapas 7 a 10). moodle-page no cambia lo que hace: recibe need y ready para esperar a
  * la familia antes de la vista previa y de «Descargar»; en cpm.html (grupo mq) no los recibe y todo sigue igual.
  * F3e (T016): la familia estocástica (st) de las etapas 11 a 17, y core/series en la base (la pestaña de las series).
+ * F3f (T010; análisis H5): las familias y su carga, en js/family-load.js (las comparte con examen.html), sin cambios.
  * El estado del enlace es el de cpm.html#v=moodle (urlstate: idioma y notación; v=moodle siempre), para que la
  * redirección de T017 solo cambie la página. La cabecera lleva el título, Idioma, Notación y «Volver al laboratorio».
  * La parte sin DOM (FAMILIES, familiesOf, load, hashOf, backHref) se prueba en Node; PNL.moodleApp.state() da el idioma
@@ -19,22 +20,13 @@
   const isNode = typeof module !== 'undefined' && module.exports;
   const U = isNode ? require('./core/urlstate.js') : root.PNL.urlstate;
 
-  /** Las familias de etapas que no van en la base: sus archivos, en el orden en que se cargan. */
-  const FAMILIES = {
-    // F3c (P5): la etapa 0 pide el generador de enunciados.
-    sg: ['js/core/contexts.js', 'js/core/stmtgen.js'],
-    // F3d (H1, P4): las etapas 7 a 10, aoacheck y roycheck (antes que detective) y la imagen de la red (net-svg, con
-    // layout y aoa-layout, que en cpm.html van en la carga común).
-    lab: ['js/core/aoacheck.js', 'js/core/roycheck.js', 'js/core/detective.js', 'js/views/layout.js', 'js/views/aoa-layout.js', 'js/views/net-svg.js'],
-    // F3e (T016, H10): las etapas 11 a 17 (y las series con el TCL): los tres tiempos, el TCL, la simulación, probgen y
-    // los gráficos de «Leer una simulación» (chart-svg, ctx.chart).
-    st: ['js/core/threept.js', 'js/core/tcl.js', 'js/core/sim.js', 'js/core/mc.js', 'js/core/probgen.js', 'js/views/chart-svg.js'],
-  };
+  // F3f (T010; análisis H5): las familias y su carga están en js/family-load.js, que comparte con examen.html.
+  const FL = isNode ? require('./family-load.js') : root.PNL.familyLoad;
+  /** Las familias de etapas que no van en la base: sus archivos, en el orden en que se cargan (las de family-load). */
+  const FAMILIES = FL.FAMILIES;
   /** La familia de cada etapa que no es de la base (las siete de la F3b van en la base). */
   const FAMILY_OF = { stmt: 'sg', minDummy: 'lab', succ: 'lab', immPred: 'lab', detective: 'lab',
     tclMoments: 'st', tclPath: 'st', tclProb: 'st', tclRoute: 'st', mcRead: 'st', mcDisc: 'st', mcRep: 'st' };
-  /** El global que deja el último archivo de cada familia (la familia está cargada). */
-  const READY = { sg: () => !!root.PNL.stmtgen, lab: () => !!root.PNL.detective && !!root.PNL.netSvg, st: () => !!root.PNL.probgen && !!root.PNL.chartSvg };
   /** Las familias que piden unas etapas, sin repetir y en el orden de FAMILIES. */
   const familiesOf = (stages) => Object.keys(FAMILIES).filter((f) => (stages || []).some((s) => FAMILY_OF[s] === f));
 
@@ -61,35 +53,11 @@
     const lang = () => state.lang;
     const t = (k, p) => I.t(lang(), k, p);
 
-    // ---------- Familias bajo demanda (como need de app.js: async = false, reintento entero tras un fallo) ----------
-    const broken = new Set();
-    const loading = {};
-    const ready = (stages) => familiesOf(stages).every((f) => !broken.has(f) && READY[f]());
-    function needFamily(f) {
-      if (!broken.has(f) && READY[f]()) return Promise.resolve();
-      if (!loading[f]) {
-        const retry = broken.has(f);
-        const have = new Set([...root.document.scripts].map((x) => x.getAttribute('src')));
-        const files = FAMILIES[f].filter((src, i, all) => retry || !have.has(src) || i === all.length - 1);
-        loading[f] = new Promise((resolve, reject) => {
-          files.forEach((src, i) => {
-            const el = root.document.createElement('script');
-            el.src = src; el.async = false;
-            if (i === files.length - 1) el.onload = () => resolve();
-            // Un script que no carga se quita, para que el reintento lo vuelva a pedir.
-            el.onerror = () => { el.remove(); reject(new Error(src)); };
-            root.document.body.appendChild(el);
-          });
-        }).then(() => {
-          broken.delete(f);
-          if (!READY[f]()) throw new Error(`family ${f}`);
-          if (!broken.size) $('loadFailed').hidden = true;
-        }).catch((err) => { delete loading[f]; broken.add(f); $('loadFailed').hidden = false; throw err; });
-      }
-      return loading[f];
-    }
+    // ---------- Familias bajo demanda (family-load: async = false, reintento entero tras un fallo) ----------
+    const loader = FL.create({ doc: root.document, onFail: () => { $('loadFailed').hidden = false; }, onOk: () => { $('loadFailed').hidden = true; } });
+    const ready = (stages) => loader.ready(familiesOf(stages));
     /** null si las familias de estas etapas ya están; si no, la promesa de cargarlas. */
-    const need = (stages) => (ready(stages) ? null : Promise.all(familiesOf(stages).map(needFamily)));
+    const need = (stages) => loader.need(familiesOf(stages));
 
     // ---------- Cabecera ----------
     function renderTexts() {

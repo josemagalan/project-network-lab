@@ -1,0 +1,106 @@
+/* exam.css — la hoja de examen.html, el examen imprimible (F3f, plan P2 y P6; T010; tableros 107–109): la cabecera de la
+   página (como moodle.html), los controles y la vista previa en pantalla. Solo la carga examen.html, después de
+   styles.css; los colores son los de styles.css. Las reglas de papel (@page, partes que no se parten, páginas giradas)
+   llegan con T012. Las clases llevan el prefijo xm-: ex- es de «Ejercicios» en styles.css, que también se carga. */
+
+/* ---------- cabecera (como la de moodle.html) ---------- */
+.xm-head-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-left: auto; font-size: 14px; }
+.xm-head-ctl label { display: inline-flex; align-items: center; gap: 6px; }
+.xm-head-ctl select { min-height: 34px; padding: 0 6px; font: inherit; color: var(--ink); border-radius: 8px; }
+.xm-back { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 0 12px; border: 1px solid var(--edge); border-radius: 8px; font-size: 14px; font-weight: 700; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.xm-back:hover { text-decoration: underline; }
+.xm-back-short { display: none; }
+
+/* ---------- la página: controles a la izquierda (600 px) y documento a la derecha ---------- */
+.xm-layout { display: grid; grid-template-columns: minmax(0, 600px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.xm-form, .xm-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.xm-lead { margin: 0; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.xm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.xm-field { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.xm-field select { min-height: 32px; padding: 0 6px; font: inherit; font-size: 14px; color: var(--ink); border-radius: 6px; }
+.xm-field input[type="number"] { width: 96px; min-height: 32px; padding: 2px 6px; text-align: right; }
+.xm-hint { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.xm-warn { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--warn-soft); border: 1px solid var(--warn-line); font-size: 13px; line-height: 1.4; }
+.xm-total { margin: 0; font-size: 14px; font-weight: 700; }
+
+/* La tabla «Partes, apartados y puntos», por grupos. */
+.xm-parts { margin: 0; padding: 6px 12px 10px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.xm-parts legend { padding: 0 4px; font-weight: 700; font-size: 15px; }
+.xm-group { display: flex; flex-direction: column; }
+.xm-group-name { margin: 6px 0 2px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.xm-prow { display: grid; grid-template-columns: 200px minmax(0, 1fr) 64px; gap: 4px 10px; align-items: center; min-height: 32px; padding: 3px 0; border-top: 1px solid var(--line); }
+.xm-pcheck, .xm-check, .xm-item-check { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; font-size: 14px; line-height: 1.3; }
+.xm-prow.on .xm-pcheck { font-weight: 700; }
+.xm-pcheck input, .xm-check input, .xm-item-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex: none; }
+.xm-items { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.xm-item-check { font-size: 13px; white-space: nowrap; }
+.xm-item-check:has(input:disabled) { color: var(--muted); }
+.xm-pts { text-align: right; }
+.xm-pts-in { width: 60px; min-height: 30px; padding: 2px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.xm-sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-top: 6px; border-top: 1px solid var(--line); }
+.xm-sum .xm-warn { flex: 1 1 260px; }
+button.ghost:disabled { color: var(--muted); cursor: not-allowed; }
+
+/* Plegados: cabecera, extras y papel. */
+.xm-more { border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; }
+.xm-more > summary { font-size: 14px; font-weight: 700; cursor: pointer; min-height: 28px; display: flex; align-items: center; }
+.xm-more[open] { display: flex; flex-direction: column; gap: 8px; padding-bottom: 10px; }
+.xm-sub { margin: 0; padding: 6px 10px 8px; border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.xm-sub legend { padding: 0 4px; font-weight: 700; font-size: 14px; }
+.xm-head-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+.xm-head-field { flex-direction: column; align-items: stretch; gap: 2px; font-size: 13px; }
+.xm-head-field input, .xm-head-field textarea { width: 100%; min-height: 32px; padding: 4px 8px; font-size: 14px; }
+.xm-wide-field { grid-column: 1 / -1; }
+
+/* ---------- documento a la vista: pestañas, modelos, acciones y vista previa ---------- */
+.xm-side-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 4px 12px; border-bottom: 1px solid var(--line); }
+.xm-tabs { display: flex; gap: 2px; }
+.xm-tabs [role="tab"] { padding: 8px 12px; min-height: 40px; font: inherit; font-size: 15px; font-weight: 700; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--accent); cursor: pointer; }
+.xm-tabs [role="tab"][aria-selected="true"] { border-bottom-color: var(--accent); color: var(--ink); }
+.xm-models { display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: 6px; }
+.xm-models button { min-height: 30px; padding: 3px 10px; font-size: 13px; }
+.xm-models button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.xm-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.xm-preview { min-height: 240px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; min-width: 0; overflow-x: auto; }
+.xm-preview > * { flex-shrink: 0; }
+
+/* Los bloques del documento (exam-view). En pantalla se ven como en papel: fondo blanco y texto oscuro. */
+.xm-preview p { margin: 0; font-size: 14px; line-height: 1.45; }
+.xm-part { display: flex; justify-content: space-between; gap: 12px; margin: 10px 0 0; padding-bottom: 3px; font-size: 16px; border-bottom: 1.5px solid currentColor; }
+.xm-part .xm-pts { font-weight: 400; font-size: 14px; }
+.xm-item, .xm-h { margin: 6px 0 0; font-size: 14px; }
+.xm-annex { margin: 10px 0 0; font-size: 15px; }
+.xm-scroll { max-width: 100%; overflow-x: auto; }
+.xm-table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.xm-table th, .xm-table td { padding: 3px 7px; border: 1px solid var(--edge); text-align: center; }
+.xm-table thead th { background: var(--soft); }
+.xm-table td.xm-blank { min-width: 46px; height: 22px; }
+.xm-normal { font-size: 11px; }
+.xm-fig { margin: 0; max-width: 100%; overflow-x: auto; }
+.xm-fig img { display: block; max-width: 100%; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; }
+.xm-alt { font-style: italic; color: var(--muted); }
+.xm-box { border: 1px solid var(--edge); border-radius: 4px; }
+.xm-quote { margin: 0; padding: 4px 12px; border-left: 3px solid var(--edge); }
+.xm-consequent { padding: 6px 10px; border: 1px dashed var(--edge); border-radius: 6px; background: var(--soft); }
+.xm-link { display: flex; gap: 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--edge); border-radius: 6px; }
+.xm-qr { width: 132px; height: 132px; flex: none; background: #fff; }
+.xm-url { font-family: var(--mono); font-size: 12px !important; word-break: break-all; }
+
+@media (max-width: 900px) {
+  .xm-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .xm-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand back" "ctl ctl"; align-items: start; gap: 8px; }
+  .xm-brand { grid-area: brand; min-width: 0; }
+  .xm-brand .brand-name { font-size: 16px; }
+  .xm-back { grid-area: back; min-height: 0; padding: 4px 0; border: 0; font-size: 13px; font-weight: 600; }
+  .xm-head-ctl { grid-area: ctl; margin-left: 0; gap: 8px; }
+  .xm-back-long { display: none; }
+  .xm-back-short { display: inline; }
+}
+@media (max-width: 560px) {
+  main { padding: 12px; }
+  .xm-prow { grid-template-columns: minmax(0, 1fr) 64px; }
+  .xm-prow .xm-items { grid-column: 1 / -1; order: 3; }
+  .xm-head-grid { grid-template-columns: minmax(0, 1fr); }
+}

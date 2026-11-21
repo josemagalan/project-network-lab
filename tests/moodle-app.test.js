@@ -62,7 +62,7 @@ test('la base y las familias se cargan en el orden de la página sin errores y d
   const run = (f) => vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), ctx, { filename: f });
   scriptsOf(html).forEach(run);
   // F3e (T016): las series (core/series) van en la base: la pestaña «Series encadenadas» cuenta sus etapas sin esperar.
-  for (const k of ['i18n', 'urlstate', 'moodle', 'series', 'i18nMoodle', 'dom', 'questionView', 'moodlePage', 'moodleApp']) assert.ok(ctx.PNL[k], k);
+  for (const k of ['i18n', 'urlstate', 'moodle', 'series', 'i18nMoodle', 'dom', 'questionView', 'moodlePage', 'familyLoad', 'moodleApp']) assert.ok(ctx.PNL[k], k);
   assert.equal(ctx.PNL.stmtgen, undefined);
   assert.equal(ctx.PNL.detective, undefined);
   for (const k of ['threept', 'tcl', 'sim', 'mc', 'probgen', 'chartSvg']) assert.equal(ctx.PNL[k], undefined, k);
@@ -156,4 +156,17 @@ test('F3e T017 · cpm.html ya no carga el exportador: sin su vista ni su grupo, 
   for (const f of ['js/moodle-page.js', 'js/core/moodle.js', 'js/i18n-moodle.js', 'js/views/question-view.js']) assert.equal(app.includes(f), false, `${f} en app.js`);
   assert.doesNotMatch(app, /moodlePage|\bmqc\b|\bmq:/, 'sin el controlador ni el grupo mq');
   assert.match(app, /location\.replace\(`moodle\.html\$\{location\.search\}\$\{location\.hash\}`\)/, 'la redirección, con la consulta y el «#»');
+});
+
+// F3f (T010; análisis H5): la carga por familias sale a js/family-load.js, que comparte con examen.html, sin cambiar lo que
+// hace moodle.html: las mismas familias sg, lab y st (las nuevas, pr y dt, no las pide ninguna etapa).
+test('F3f T010 · moodle.html carga js/family-load.js justo antes de moodle-app.js, y moodle-app usa sus familias y su carga', () => {
+  const FL = require('../js/family-load.js');
+  const src = scriptsOf(html);
+  assert.equal(src[src.length - 2], 'js/family-load.js');
+  for (const f of ['sg', 'lab', 'st']) assert.deepEqual(MA.FAMILIES[f], FL.FAMILIES[f], f);
+  assert.deepEqual(Object.values(MA.FAMILY_OF).filter((f, i, a) => a.indexOf(f) === i).sort(), ['lab', 'sg', 'st']);
+  const app = fs.readFileSync(path.join(ROOT, 'js', 'moodle-app.js'), 'utf8');
+  assert.match(app, /familyLoad/);
+  assert.doesNotMatch(app, /createElement\('script'\)/, 'la carga de scripts está en family-load');
 });

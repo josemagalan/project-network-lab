@@ -10424,6 +10424,300 @@ check('Principio 27 · cada vista carga menos de 1 MB', async () => {
   }
 });
 
+// ---------- F3f, T010: examen.html, la página del examen imprimible (plan P6 y P7; oculta hasta T016; tableros 107–109) ----------
+
+const exWait = (page) => page.waitForFunction(() => window.PNL && PNL.examApp && PNL.examApp.state && document.querySelector('#exView .xm-parts'));
+const exOpen = async (hash, opts) => { const p = await open(`examen.html${hash ? `#${hash}` : ''}`, opts); await exWait(p); return p; };
+const exState = (page) => page.evaluate(() => PNL.examApp.state());
+const exHead = (page) => page.evaluate(() => {
+  const back = document.getElementById('backLink');
+  return {
+    h1: document.querySelector('header h1').textContent, sub: document.querySelector('.xm-head-sub').textContent,
+    lang: document.documentElement.lang, title: document.title, hash: location.hash,
+    back: back.getAttribute('href'), backText: back.innerText.trim(),
+    labels: [...document.querySelectorAll('header label')].map((l) => l.firstElementChild.textContent),
+    notas: [...document.querySelectorAll('#selNota option')].map((o) => o.textContent), notaVal: document.getElementById('selNota').value,
+  };
+});
+const EX_HEAD = {
+  es: { h1: 'Examen imprimible', sub: 'Laboratorio de redes de proyectos · PERT · CPM · ROY', back: 'Volver al laboratorio', short: 'Al laboratorio',
+    title: 'Examen imprimible · Laboratorio de redes de proyectos', labels: ['Idioma', 'Notación'], notas: ['Inglesa (ES, EF, TF…)', 'Española (tᵢ, fᵢ, HT…)'] },
+  en: { h1: 'Printable exam', sub: 'Project Network Lab · PERT · CPM · ROY', back: 'Back to the lab', short: 'To the lab',
+    title: 'Printable exam · Project Network Lab', labels: ['Language', 'Notation'], notas: ['English (ES, EF, TF…)', 'Spanish (tᵢ, fᵢ, HT…)'] },
+};
+const exRes = (page) => page.evaluate(() => performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname));
+const exChecked = (page) => page.evaluate(() => ({
+  parts: [...document.querySelectorAll('.xm-pcheck input:checked')].map((i) => i.id.replace('exPart-', '')),
+  items: [...document.querySelectorAll('.xm-item-check input:checked')].map((i) => i.id.replace('exItem-', '')),
+  disabled: [...document.querySelectorAll('.xm-item-check input:disabled')].map((i) => i.id.replace('exItem-', '')),
+  pts: Object.fromEntries([...document.querySelectorAll('.xm-pts-in')].map((i) => [i.id.replace('exPts-', ''), i.value])),
+  sum: (document.querySelector('.xm-sum [role="status"]') || {}).textContent,
+}));
+
+check('F3f T010 · examen.html: cabecera propia con el título, idioma, notación y «Volver al laboratorio» (ES y EN); el enlace abre el laboratorio con los mismos', async () => {
+  for (const lang of ['es', 'en']) {
+    const x = EX_HEAD[lang];
+    const page = await exOpen(`lang=${lang}`);
+    const hd = await exHead(page);
+    assert.equal(hd.h1, x.h1); assert.equal(hd.sub, x.sub); assert.equal(hd.title, x.title); assert.equal(hd.lang, lang);
+    assert.deepEqual(hd.labels, x.labels); assert.deepEqual(hd.notas, x.notas); assert.equal(hd.notaVal, 'en');
+    assert.equal(hd.backText, x.back);
+    assert.equal(hd.hash, `#lang=${lang}&nota=en`);
+    assert.equal(hd.back, `cpm.html#lang=${lang}&nota=en`);
+    assert.equal(await page.locator('h1').count(), 1);
+    await page.locator('#backLink').click();
+    await page.waitForFunction(() => window.PNL && PNL.app && PNL.app.state());
+    const s = await state(page);
+    assert.equal(s.lang, lang); assert.equal(s.nota, 'en');
+    await close(page);
+  }
+  // Sin idioma en el «#», el de ?lang= o el del navegador.
+  const q = await open('examen.html?lang=en'); await exWait(q);
+  assert.equal(await q.evaluate(() => location.hash), '#lang=en&nota=en');
+  await close(q);
+  const g = await exOpen('', { locale: 'en-GB' });
+  assert.equal((await exHead(g)).lang, 'en');
+  await close(g);
+});
+
+check('F3f T010 · al abrirla: «Tiempos» y «Holguras» marcadas con sus apartados y la propuesta de puntos (suman 10); la tabla de partes por grupos (ES y EN)', async () => {
+  for (const [lang, groups, total] of [['es', ['Lo determinista', 'Construir las redes', 'Detective', 'Probabilidad y Montecarlo'], 'Total: 10 puntos'],
+    ['en', ['Deterministic', 'Build the networks', 'Detective', 'Probability and Monte Carlo'], 'Total: 10 points']]) {
+    const page = await exOpen(`lang=${lang}`);
+    assert.deepEqual(await page.locator('.xm-group-name').allTextContents(), groups);
+    assert.equal(await page.locator('.xm-pcheck').count(), 12);
+    const c = await exChecked(page);
+    assert.deepEqual(c.parts, ['times', 'floats']);
+    assert.deepEqual(c.items, ['times-times', 'times-events', 'floats-floats', 'floats-sf', 'floats-critical']);
+    const sep = lang === 'es' ? ',' : '.';
+    assert.deepEqual(c.pts, { times: '4', floats: '6' });
+    assert.equal(c.sum, total);
+    assert.equal(await page.locator('#exReset').isDisabled(), true);
+    // Solo las partes marcadas enseñan sus apartados y sus puntos.
+    assert.equal(await page.locator('#exItem-tcl-moments').count(), 0);
+    await page.locator('#exPart-tcl').check();
+    await page.waitForFunction(() => location.hash.includes('ep=times-floats-tcl'));
+    const c2 = await exChecked(page);
+    assert.deepEqual(c2.items.filter((x) => x.startsWith('tcl-')), ['tcl-moments', 'tcl-path', 'tcl-project', 'tcl-prob', 'tcl-deadline'], 'la otra ruta, sin marcar');
+    assert.equal(Object.values(c2.pts).map((v) => Number(v.replace(',', '.'))).reduce((a, b) => a + b, 0), 10);
+    assert.ok(Object.values(c2.pts).every((v) => !v.includes(sep === ',' ? '.' : ',')), JSON.stringify(c2.pts));
+    await close(page);
+  }
+});
+
+check('F3f T010 AC9 · cada control escribe su clave en el «#»; al recargar se conserva todo; cambiar el «#» a mano rehace la página sin recargarla', async () => {
+  const page = await exOpen('lang=es');
+  await page.selectOption('#exLevel', 'hard');
+  await page.fill('#exSeed', '2026'); await page.press('#exSeed', 'Enter');
+  await page.selectOption('#exModels', '3');
+  await page.locator('#exPart-tcl').check();
+  await page.locator('#exItem-tcl-route').check();
+  await page.locator('#exItem-times-events').uncheck();
+  await page.fill('#exPts-tcl', '2,5'); await page.press('#exPts-tcl', 'Enter');
+  await page.locator('#exModel-2').click();
+  await page.locator('#exDoc-r').click();
+  await page.locator('.xm-more > summary').click();
+  await page.locator('#exExtra-g').uncheck();
+  await page.selectOption('#exPaper', 'letter');
+  const want = '#lang=es&nota=en&ep=times-floats-tcl&lv=hard&sd=2026&em=3&eq=times.events-tcl.route&pt=tcl:2.5&ea=inq&pp=letter&dv=r&mi=2';
+  assert.equal(await page.evaluate(() => location.hash), want);
+  let c = await exChecked(page);
+  assert.equal(c.pts.tcl, '2,5');
+  assert.match(c.sum, /^Los puntos suman \d+(,\d+)?, no 10\. Puedes imprimir igual\.$/);
+  assert.equal(await page.locator('#exReset').isDisabled(), false);
+  // El último apartado de una parte no se puede quitar.
+  assert.deepEqual(c.disabled, ['times-times']);
+  assert.equal((await exState(page)).opts.points.tcl, 2.5);
+  await page.reload(); await exWait(page);
+  assert.equal(await page.evaluate(() => location.hash), want);
+  c = await exChecked(page);
+  assert.deepEqual(c.parts, ['times', 'floats', 'tcl']);
+  assert.equal(await page.locator('#exLevel').inputValue(), 'hard');
+  assert.equal(await page.locator('#exSeed').inputValue(), '2026');
+  assert.equal(await page.locator('#exModels').inputValue(), '3');
+  assert.equal(await page.locator('#exModel-2').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#exDoc-r').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('#exPaper').inputValue(), 'letter');
+  assert.equal(await page.locator('#exExtra-g').isChecked(), false);
+  // «Volver a la propuesta» quita los puntos propios.
+  await page.locator('#exReset').click();
+  assert.equal(await page.evaluate(() => location.hash), want.replace('&pt=tcl:2.5', ''));
+  assert.equal((await exChecked(page)).sum, 'Total: 10 puntos');
+  // Unos puntos que no valen no se aceptan: se avisa y se vuelve al valor de antes.
+  await page.fill('#exPts-times', '3,3'); await page.press('#exPts-times', 'Enter');
+  await page.waitForFunction(() => document.getElementById('live').textContent === 'Los puntos van de 0 a 10, de 0,25 en 0,25.');
+  assert.doesNotMatch(await page.evaluate(() => location.hash), /pt=/);
+  // Con menos modelos, el modelo a la vista vuelve al A.
+  await page.selectOption('#exModels', '2');
+  assert.equal((await exState(page)).state.mi, 0);
+  // El «#» a mano rehace la página sin recargarla.
+  await page.evaluate(() => { window.exMark = 1; location.hash = '#lang=en&nota=es&ep=roy-det'; });
+  await page.waitForFunction(() => document.documentElement.lang === 'en' && document.querySelector('header h1').textContent === 'Printable exam');
+  assert.equal(await page.evaluate(() => window.exMark), 1);
+  assert.deepEqual((await exChecked(page)).parts, ['roy', 'det']);
+  await close(page);
+});
+
+check('F3f T010 · sin partes, el aviso; con «Del enunciado a la tabla» o las dos redes, el aviso del detective aparte; el detective sin construcción elige su red', async () => {
+  const page = await exOpen('lang=es');
+  await page.locator('#exPart-times').uncheck();
+  await page.locator('#exPart-floats').uncheck();
+  assert.equal(await page.evaluate(() => location.hash), '#lang=es&nota=en&ep=');
+  assert.equal(await page.locator('.xm-sum [role="status"]').textContent(), 'Marca al menos una parte.');
+  await page.locator('#exPart-det').check();
+  assert.equal(await page.locator('#exDetGraph').count(), 1);
+  await page.selectOption('#exDetGraph', 'aoa');
+  assert.match(await page.evaluate(() => location.hash), /&ed=aoa/);
+  assert.equal(await page.locator('.xm-form > .xm-warn').count(), 0);
+  await page.locator('#exPart-roy').check();
+  assert.equal(await page.locator('#exDetGraph').count(), 0, 'con una red que construir, el detective va sobre la otra');
+  await page.locator('#exPart-pert').check();
+  assert.equal(await page.locator('.xm-form > .xm-warn').textContent(), 'Con «Del enunciado a la tabla» o con las dos redes que construir, el detective lleva un proyecto aparte.');
+  await close(page);
+  // Un enlace dañado se abre con lo que se puede recuperar y lo dice.
+  const w = await open('examen.html#lang=en&lv=extreme&sd=5'); await exWait(w);
+  assert.equal(await w.locator('#urlWarning').isVisible(), true);
+  assert.equal(await w.locator('#urlWarning').textContent(), 'The link was incomplete or damaged: what could be recovered has been opened.');
+  assert.equal(await w.evaluate(() => location.hash), '#lang=en&nota=en&sd=5');
+  await close(w);
+});
+
+check('F3f T010 AC9 · la cabecera del enunciado: se conserva al recargar, <script> se queda en texto y no pasa de 600 caracteres en total', async () => {
+  const page = await exOpen('lang=es');
+  let dialogs = 0; page.on('dialog', (d) => { dialogs++; d.dismiss(); });
+  await page.locator('.xm-more > summary').click();
+  const evil = '<script>alert(1)</script><img src=x onerror=alert(2)>';
+  await page.fill('#exHead-subject', evil); await page.press('#exHead-subject', 'Tab');
+  await page.fill('#exHead-call', 'Convocatoria ordinaria'); await page.press('#exHead-call', 'Tab');
+  assert.match(await page.evaluate(() => location.hash), /&eh=%3Cscript%3E/);
+  await page.reload(); await exWait(page);
+  await page.locator('.xm-more > summary').click();
+  assert.equal(await page.locator('#exHead-subject').inputValue(), evil);
+  assert.equal(await page.locator('#exHead-call').inputValue(), 'Convocatoria ordinaria');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#exView script, #exView img[src="x"]').length), 0);
+  assert.equal(dialogs, 0);
+  // Las instrucciones, con su texto por defecto como sugerencia; lo que pase de 600 en total se corta.
+  assert.equal(await page.locator('#exHead-instructions').getAttribute('placeholder'), 'Responde en el propio examen y justifica los resultados. Puedes usar calculadora.');
+  const used = evil.length + 'Convocatoria ordinaria'.length;
+  await page.locator('#exHead-instructions').focus();
+  await page.keyboard.insertText('x'.repeat(700));
+  assert.equal((await page.locator('#exHead-instructions').inputValue()).length, 600 - used);
+  assert.equal(await page.locator('#exHeadCount').textContent(), '600 de 600 caracteres');
+  await page.press('#exHead-instructions', 'Tab');
+  assert.equal(Object.values((await exState(page)).state.eh).join('').length, 600);
+  await close(page);
+});
+
+check('F3f T010 AC17 · examen.html carga su base sin el laboratorio ni el exportador, y cada familia al marcar su parte (una sola vez)', async () => {
+  const page = await exOpen('lang=es');
+  await page.waitForLoadState('networkidle');
+  let res = await exRes(page);
+  for (const re of [/d3/, /\/js\/app\.js$/, /narrate|predict|editor|roy-view|pert-view|matrix-view|results|gantt|\/learn|moodle-page|moodle-app|question-view/]) assert.equal(res.some((r) => re.test(r)), false, `${re}`);
+  const fam = await page.evaluate(() => PNL.familyLoad.FAMILIES);
+  for (const f of Object.values(fam).flat()) assert.equal(res.some((r) => r.endsWith(`/${f}`)), false, `${f} al abrir`);
+  assert.ok(res.some((r) => r.endsWith('/js/exam-app.js')) && res.some((r) => r.endsWith('/css/exam.css')));
+  for (const [part, fams] of [['tcl', ['st', 'pr']], ['det', ['lab', 'dt']], ['stmt', ['sg']], ['rep', []], ['roy', []]]) {
+    await page.locator(`#exPart-${part}`).check();
+    await page.waitForFunction(() => PNL.examApp.state().ready);
+    await page.waitForLoadState('networkidle');
+    res = await exRes(page);
+    for (const f of fams.flatMap((x) => fam[x])) assert.equal(res.filter((r) => r.endsWith(`/${f}`)).length, 1, `${part}: ${f}`);
+  }
+  for (const k of ['probgen', 'probgrade', 'normalTable', 'i18nProb', 'i18nMc', 'detective', 'netSvg', 'i18nDet', 'stmtgen']) assert.ok(await page.evaluate((x) => !!PNL[x], k), k);
+  await close(page);
+});
+
+check('F3f T010 · si una familia no llega, se avisa; al volver a marcar la parte se pide otra vez y el aviso se va', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'es-ES', reducedMotion: 'reduce' });
+  const p = await ctx.newPage();
+  p.on('pageerror', (e) => errors.push(`examen.html: ${e.message}`));
+  let fail = true;
+  await p.route('**/js/core/probgrade.js', (r) => (fail ? r.abort() : r.continue()));
+  await p.goto(`${BASE}/examen.html#lang=es`);
+  await exWait(p);
+  await p.locator('#exPart-tcl').check();
+  await p.locator('#loadFailed:not([hidden])').waitFor();
+  assert.equal(await p.locator('#loadFailed').textContent(), 'No se pudo cargar esta parte del laboratorio. Comprueba la conexión y vuelve a intentarlo.');
+  fail = false;
+  await p.locator('#exPart-tcl').uncheck();
+  await p.locator('#exPart-tcl').check();
+  await p.waitForFunction(() => !!PNL.probgrade && document.getElementById('loadFailed').hidden && PNL.examApp.state().ready);
+  await ctx.close();
+});
+
+check('F3f T010 · teclado: Tab llega a los controles en orden; las pestañas del documento se recorren con las flechas, Inicio y Fin', async () => {
+  const page = await exOpen('lang=es&em=2');
+  await page.locator('#exDoc-s').focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.evaluate(() => [document.activeElement.id, location.hash]).then((x) => x.join(' ')), 'exDoc-o #lang=es&nota=en&em=2&dv=o');
+  await page.keyboard.press('End');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'exDoc-r');
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'exDoc-s');
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'exDoc-r');
+  assert.deepEqual(await page.locator('[role="tab"]').evaluateAll((xs) => xs.map((x) => x.tabIndex)), [-1, -1, 0]);
+  assert.equal(await page.locator('#exPreview').getAttribute('aria-labelledby'), 'exDoc-r');
+  await close(page);
+  // Tab desde el principio de la página: saltar al contenido, idioma, notación, volver y los controles.
+  const k = await exOpen('lang=es');
+  const order = [];
+  for (let i = 0; i < 9; i++) { await k.keyboard.press('Tab'); order.push(await k.evaluate(() => document.activeElement.id || document.activeElement.className)); }
+  assert.deepEqual(order, ['skip', 'selLang', 'selNota', 'backLink', 'exLevel', 'exSeed', 'exModels', 'exPart-stmt', 'exPart-times']);
+  // Una casilla cambiada con el teclado conserva el foco tras rehacer la página.
+  await k.keyboard.press('Space');
+  assert.equal(await k.evaluate(() => document.activeElement.id), 'exPart-times');
+  assert.deepEqual((await exChecked(k)).parts, ['floats']);
+  await close(k);
+});
+
+check('F3f T010 · «Copiar enlace» copia el enlace de la página y lo dice', async () => {
+  const page = await exOpen('lang=es&lv=easy');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.locator('#exCopy').click();
+  await page.waitForFunction(() => document.getElementById('live').textContent === 'Enlace copiado.');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), await page.evaluate(() => location.href));
+  await close(page);
+});
+
+check('F3f T010 · examen.html a 1280 px y a 360 px: sin desplazamiento horizontal, cabecera apilada con «Al laboratorio»; axe en claro y oscuro, ES y EN', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const hash = `lang=${lang}&ep=stmt-roy-pert-det-times-floats-tcl-rep&em=3`;
+    const wide = await exOpen(hash, { scheme });
+    await wide.locator('.xm-more > summary').click();
+    assert.ok(await noHScroll(wide));
+    // Los controles a la izquierda (600 px) y el documento a la derecha.
+    const [f, s] = await Promise.all(['.xm-form', '.xm-side'].map((sel) => wide.locator(sel).boundingBox()));
+    assert.ok(f.width <= 600 && s.x > f.x + f.width, JSON.stringify([f, s]));
+    await axe(wide, `F3f T010 · examen.html a 1280 px (${lang}, ${scheme})`);
+    await close(wide);
+    const page = await exOpen(hash, { width: 360, height: 800, scheme });
+    assert.equal((await exHead(page)).backText, EX_HEAD[lang].short);
+    await page.locator('.xm-more > summary').click();
+    assert.ok(await noHScroll(page));
+    await axe(page, `F3f T010 · examen.html a 360 px (${lang}, ${scheme})`);
+    await close(page);
+  }
+  // Con la notación española y el detective solo (su red, a la vista).
+  const n = await exOpen('lang=es&nota=es&ep=det');
+  await axe(n, 'F3f T010 · examen.html con el detective sin construcción');
+  await close(n);
+});
+
+check('F3f T010 · principio 27: examen.html con todas sus familias por debajo de 1 MB; al abrirla, solo la base', async () => {
+  const p = await exOpen('lang=es');
+  await p.waitForLoadState('networkidle');
+  const sum = () => p.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((s, e) => s + (e.encodedBodySize || e.transferSize || 0), 0));
+  const base = await sum();
+  for (const part of ['stmt', 'roy', 'det', 'tcl', 'rep']) await p.locator(`#exPart-${part}`).check();
+  await p.waitForFunction(() => PNL.examApp.state().ready);
+  await p.waitForLoadState('networkidle');
+  const bytes = await sum();
+  console.log(`    examen.html: base ${(base / 1024).toFixed(0)} KB; con todas las familias ${(bytes / 1024).toFixed(0)} KB`);
+  assert.ok(base > 0 && bytes > base && bytes <= BUDGET, `${bytes} bytes`);
+  await close(p);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {
