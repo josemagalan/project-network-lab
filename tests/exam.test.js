@@ -273,3 +273,21 @@ test('exam · ejemplo con detective: sobre la red del ejemplo, o con su propio p
   const f = D.forSeed(G.LEVELS.medium, 3, { graph: 'aon', kind: 'net', level: 'medium' });
   assert.deepEqual(own.det, { own: true, graph: 'aon', kind: 'net', sd: f.sd, rows: f.rows, errors: f.seeded.errors });
 });
+
+test('F3f T015 · partsOf y check no necesitan core/examples (en examen.html llega con su familia, después de elegir el ejemplo): STRUCT_ONLY lo dice y coincide con los ejemplos', () => {
+  const X = require('../js/core/examples.js');
+  assert.deepEqual(E.STRUCT_ONLY, E.EXAMPLES.filter((id) => id.startsWith('ej') && X.get(id).structureOnly));
+  // Sin examples a mano: core/exam en un contexto propio, con PNL sin examples.
+  const vm = require('node:vm');
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const ctx = { PNL: {} };
+  ctx.globalThis = ctx;
+  for (const f of ['topo', 'project', 'cpm', 'aoa', 'mindummy', 'rng', 'generator', 'grade', 'moodle', 'series', 'exam']) vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'core', `${f}.js`), 'utf8'), ctx);
+  const EX = ctx.PNL.exam;
+  assert.equal(ctx.PNL.examples, undefined);
+  // (los arreglos del otro contexto se copian: deepEqual estricto mira el prototipo)
+  for (const id of E.EXAMPLES) assert.deepEqual([...EX.partsOf(id)], E.partsOf(id), id);
+  assert.equal(EX.check({ parts: ['times', 'floats'], level: 'medium', seed: 1, models: 1, example: 'ej1' }).ok, false);
+  assert.equal(EX.check({ parts: ['roy', 'pert'], level: 'medium', seed: 1, models: 1, example: 'ej1' }).ok, true);
+});

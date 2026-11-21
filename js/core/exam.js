@@ -66,14 +66,16 @@
   const EXAMPLES = ['ej1', 'ej2', 'ej3', 'ej4', 'ej6', 'ej7', 'kl', 'hl', 'kd'];
   const STRUCT = ['stmt', 'roy', 'pert', 'det', 'minDummy', 'succ'];
   /** Las partes que permite un ejemplo, según sus datos: solo la estructura, duraciones, a, m y b, o discretas. */
+  // Los ejercicios de la F2a sin duraciones (structureOnly en core/examples; una prueba lo comprueba). Aquí, para que
+  // partsOf y check no necesiten core/examples: en examen.html llega con su familia, después de elegir el ejemplo (T015).
+  const STRUCT_ONLY = ['ej1', 'ej2', 'ej3'];
   function partsOf(id) {
     if (!EXAMPLES.includes(id)) return null;
     if (id === 'kd') return ['roy', 'pert', 'disc'];
     if (id === 'kl' || id === 'hl') return PARTS.filter((p) => p !== 'stmt' && !['read', 'disc'].includes(p));
-    const e = X().get(id);
-    return e.structureOnly ? STRUCT.slice() : PARTS.filter((p) => STRUCT.includes(p) || p === 'times' || p === 'floats');
+    return STRUCT_ONLY.includes(id) ? STRUCT.slice() : PARTS.filter((p) => STRUCT.includes(p) || p === 'times' || p === 'floats');
   }
-  const durationless = (id) => id === 'kd' || (id && id.startsWith('ej') && X().get(id).structureOnly);
+  const durationless = (id) => id === 'kd' || STRUCT_ONLY.includes(id);
 
   // ---------- comprobación de las opciones ----------
   function check(o) {
@@ -872,7 +874,7 @@
     return head('calc');
   }
 
-  const api = { PARTS, ITEMS, LEVELS, MAX_MODELS, TRIES_EXAM, MODEL_STEP, SEED_MAX, EXAMPLES, partsOf, check, stagesOf,
+  const api = { PARTS, ITEMS, LEVELS, MAX_MODELS, TRIES_EXAM, MODEL_STEP, SEED_MAX, EXAMPLES, STRUCT_ONLY, partsOf, check, stagesOf,
     modelSeed, start, step, result, project, models, APP, PAPER_DX, PAPER_MAX, WIDE, GRID, points, itemPoints, document };
   root.PNL = root.PNL || {};
   root.PNL.exam = api;

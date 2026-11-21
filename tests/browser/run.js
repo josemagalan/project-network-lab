@@ -11204,6 +11204,163 @@ check('F3f T013 AC24 · «Proyecto»: un ejemplo de los apuntes como modelo A, c
   await close(page);
 });
 
+// ---------- F3f, T015: accesibilidad, teclado, pantalla, otro contexto y tamaño (AC15–AC18) ----------
+
+const exPrintStub = () => { window.print = () => { window.__printed = (window.__printed || 0) + 1; }; };
+
+check('F3f T015 AC15 AC16 · axe con la notación española y con un ejemplo elegido, con cada documento, en claro y oscuro, ES y EN; las cifras no cambian con el idioma ni la notación', async () => {
+  const H = 'ep=stmt-roy-det-times-floats-tcl-read&lv=easy&sd=6';
+  let values = null;
+  for (const [lang, scheme] of [['es', 'dark'], ['en', 'light']]) {
+    for (const dv of ['s', 'o', 'r']) {
+      const page = await exOpen(`lang=${lang}&nota=es&${H}&dv=${dv}`, { scheme });
+      await exReady(page);
+      await axe(page, `F3f T015 · examen.html, notación española, documento ${dv} (${lang}, ${scheme})`);
+      const v = JSON.stringify((await exState(page)).doc.values);
+      values = values || v;
+      assert.equal(v, values, `${lang} ${dv}: las mismas cifras`);
+      await close(page);
+    }
+  }
+  const en = await exOpen(`lang=en&nota=en&${H}`);
+  await exReady(en);
+  assert.equal(JSON.stringify((await exState(en)).doc.values), values, 'notación inglesa: las mismas cifras');
+  await close(en);
+  for (const [lang, scheme] of [['en', 'dark'], ['es', 'light']]) {
+    const page = await exOpen(`lang=${lang}&ep=times-floats-tcl-rep&ee=kl&dv=s`, { scheme });
+    await exReady(page);
+    assert.equal(await page.locator('#exExampleNote').count(), 1);
+    await axe(page, `F3f T015 · examen.html con un ejemplo de los apuntes (${lang}, ${scheme})`);
+    await close(page);
+  }
+});
+
+check('F3f T015 AC16 · todo con el teclado: proyecto, modelos, puntos, apartados, pestañas y modelos del documento, «Imprimir», «Imprimir todos los enunciados» y la vista previa', async () => {
+  const page = await exOpen('lang=es&sd=2', { init: exPrintStub });
+  await exReady(page);
+  const focus = () => page.evaluate(() => document.activeElement.id);
+  // Los modelos, con las flechas en su lista.
+  await page.locator('#exModels').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => PNL.examApp.state().state.em === 2);
+  // Puntos: se escriben y se confirman con Intro; el foco se queda en la casilla.
+  await page.locator('#exPts-times').focus();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('3,5');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.examApp.state().state.pt.times === 3.5);
+  assert.equal(await focus(), 'exPts-times');
+  // Un apartado, con Espacio.
+  await page.locator('#exItem-floats-sf').focus();
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => PNL.examApp.state().state.eq.includes('floats.sf'));
+  assert.equal(await focus(), 'exItem-floats-sf');
+  await exReady(page);
+  // Desde la pestaña del documento, Tab recorre los modelos, las acciones y la vista previa, en orden.
+  await page.locator('#exDoc-s').focus();
+  const order = [];
+  for (let i = 0; i < 6; i++) { await page.keyboard.press('Tab'); order.push(await focus()); }
+  assert.deepEqual(order, ['exModel-0', 'exModel-1', 'exPrint', 'exPrintAll', 'exCopy', 'exPreview']);
+  // El modelo B con Intro; «Imprimir» e «Imprimir todos los enunciados» con Intro.
+  await page.locator('#exModel-1').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.examApp.state().state.mi === 1 && PNL.examApp.state().doc && PNL.examApp.state().doc.meta.letter === 'B', null, { timeout: 60000 });
+  await page.locator('#exPrint').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__printed === 1);
+  await page.locator('#exPrintAll').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__printed === 2, null, { timeout: 60000 });
+  // El proyecto, con las flechas (al final: el Ejercicio 1 es solo estructura y quita «Tiempos» y «Holguras»).
+  await page.locator('#exProject').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => PNL.examApp.state().state.ee === 'ej1');
+  assert.equal(await focus(), 'exProject');
+  assert.equal(await page.locator('#exPart-times').isDisabled(), true);
+  await page.keyboard.press('ArrowUp');
+  await page.waitForFunction(() => PNL.examApp.state().state.ee === '');
+  assert.equal(await focus(), 'exProject');
+  await close(page);
+});
+
+check('F3f T015 AC16 · a 1280×720 se ven a la vez los controles, los botones y la primera hoja de la vista previa, sin desplazarse', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await exOpen(`lang=${lang}`);
+    await exReady(page);
+    const g = await page.evaluate(() => {
+      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+      return { y: window.scrollY, level: r('#exLevel').bottom, project: r('#exProject').bottom, part: r('#exPart-times').bottom, print: r('#exPrint').bottom, paper: r('#exPreview .xm-paper').top };
+    });
+    assert.equal(g.y, 0);
+    for (const [k, v] of Object.entries(g)) if (k !== 'y') assert.ok(v > 0 && v < 720, `${lang}: ${k} en ${v}`);
+    assert.ok(g.paper < 720 - 200, `${lang}: se ve un buen trozo de la primera hoja (${g.paper})`);
+    await close(page);
+  }
+});
+
+check('F3f T015 AC16 · cada red, gráfico, rejilla y QR de la vista previa tiene su alternativa en texto (la del QR, con su enlace)', async () => {
+  for (const dv of ['s', 'o']) {
+    const page = await exOpen(`lang=es&ep=${EX_ALL}&lv=medium&sd=4&dv=${dv}`);
+    await exReady(page);
+    const imgs = await page.evaluate(() => [...document.querySelectorAll('#exPreview img')].map((i) => ({ alt: i.getAttribute('alt'), cls: i.className })));
+    assert.ok(imgs.length >= (dv === 's' ? 5 : 2), `${dv}: ${imgs.length} imágenes`);
+    for (const im of imgs) assert.ok(im.alt && im.alt.trim().length >= 12, `${dv}: alternativa «${im.alt}»`);
+    if (dv === 's') {
+      const st = await exState(page);
+      const qr = imgs.find((i) => i.cls === 'xm-qr');
+      assert.ok(qr && qr.alt.includes(st.doc.link), qr && qr.alt);
+      assert.ok(imgs.some((i) => /^Rejilla de puntos para dibujar la red ROY$/.test(i.alt)));
+      assert.ok(imgs.some((i) => /histograma/i.test(i.alt)), imgs.map((i) => i.alt.slice(0, 40)).join(' | '));
+    } else {
+      assert.ok(imgs.some((i) => /^Red ROY/.test(i.alt)) && imgs.some((i) => /^Red PERT/.test(i.alt)), imgs.map((i) => i.alt.slice(0, 40)).join(' | '));
+    }
+    await close(page);
+  }
+});
+
+check('F3f T015 · un enlace que ya trae un ejercicio de los apuntes (ee=ej4, ee=ej1) abre la página con su proyecto, sin errores', async () => {
+  for (const [hash, ep] of [['ep=times-floats&ee=ej4', ['times', 'floats']], ['ep=stmt-roy-pert&ee=ej1', ['stmt', 'roy', 'pert']]]) {
+    const page = await exOpen(`lang=es&${hash}`);
+    await page.waitForFunction(() => { const s = PNL.examApp.state(); return s.doc && s.doc.meta.example; }, null, { timeout: 60000 });
+    const st = await exState(page);
+    assert.deepEqual(st.state.ep, ep);
+    assert.equal(st.doc.meta.example, hash.slice(-3));
+    await close(page);
+  }
+});
+
+check('F3f T015 AC1 AC18 · el enlace de la página abierto en otro navegador (otro idioma del sistema, oscuro, 360 px) da el mismo examen', async () => {
+  const a = await exOpen(`lang=es&ep=roy-det-times-floats-tcl-rep&lv=hard&sd=21&em=2&mi=1&dv=o&pt=tcl:3&eq=floats.sf`);
+  await exReady(a);
+  const sa = await exState(a);
+  await close(a);
+  const b = await open(`examen.html${sa.hash}`, { locale: 'en-US', scheme: 'dark', width: 360, height: 800 });
+  await exWait(b);
+  await exReady(b);
+  const sb = await exState(b);
+  assert.equal(sb.hash, sa.hash);
+  assert.deepEqual(sb.models, sa.models);
+  assert.deepEqual([sb.doc.meta, sb.doc.values, sb.doc.points, sb.doc.link], [sa.doc.meta, sa.doc.values, sa.doc.points, sa.doc.link]);
+  assert.equal(sb.sheets, sa.sheets);
+  await close(b);
+});
+
+check('F3f T015 AC17 · principio 27: examen.html con todas las familias a la vez, también las de los ejemplos (xe y xs), por debajo de 1 MB', async () => {
+  const p = await exOpen(`lang=es&ep=${EX_ALL}`);
+  await p.waitForFunction(() => PNL.examApp.state().ready, null, { timeout: 60000 });
+  await p.selectOption('#exProject', 'ej6');
+  await p.waitForFunction(() => { const s = PNL.examApp.state(); return s.ready && s.families.includes('xs'); }, null, { timeout: 60000 });
+  await p.waitForLoadState('networkidle');
+  const r = await p.evaluate(() => ({
+    bytes: [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((s, e) => s + (e.encodedBodySize || e.transferSize || 0), 0),
+    files: performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname.replace(/^.*?\/js\//, 'js/')),
+  }));
+  for (const f of Object.values(require('../../js/family-load.js').FAMILIES).flat()) assert.ok(r.files.includes(f), `cargado ${f}`);
+  console.log(`    examen.html con todas las familias (también xe y xs): ${(r.bytes / 1024).toFixed(0)} KB`);
+  assert.ok(r.bytes <= BUDGET, `${r.bytes} bytes`);
+  await close(p);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {
