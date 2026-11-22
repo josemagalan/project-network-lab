@@ -76,6 +76,10 @@
     return STRUCT_ONLY.includes(id) ? STRUCT.slice() : PARTS.filter((p) => STRUCT.includes(p) || p === 'times' || p === 'floats');
   }
   const durationless = (id) => id === 'kd' || STRUCT_ONLY.includes(id);
+  // Los ejemplos cuya red no admite los errores del detective (detective.seed no siembra, sea cual sea la semilla; una
+  // prueba lo comprueba con todos): ahí el detective lleva un proyecto aparte, con aviso (revisión de nivel 2, N-F1).
+  const DET_OWN_EX = { kl: { 'aoa:net': ['medium', 'hard'] } };
+  const detOwnEx = (id, graph, kind, level) => !!(DET_OWN_EX[id] && (DET_OWN_EX[id][`${graph}:${kind}`] || []).includes(level));
 
   // ---------- comprobación de las opciones ----------
   function check(o) {
@@ -123,6 +127,7 @@
       const net = parts.includes('times') || parts.includes('floats') || (example != null && EXAMPLES.includes(example) && durationless(example));
       det = { graph, kind: net ? 'net' : 'all', own };
       if (own) warnings.push({ key: 'detOwn' });
+      else if (example != null && detOwnEx(example, graph, det.kind, o.level)) { det.own = true; warnings.push({ key: 'detOwnEx' }); }
     }
     return { ok: !errors.length, parts, items, det, warnings, errors, example };
   }
@@ -345,6 +350,7 @@
    * debería valer otra cosa que la solución toma el valor de la fórmula (expected), hasta que no cambia nada.
    */
   function settle(gradeOf, ans, sown, fields, fmt) {
+    const orig = Object.assign({}, ans);
     for (let i = 0; i < 200; i++) {
       const cells = gradeOf(ans);
       let changed = false;
@@ -352,8 +358,10 @@
         const c = cells[f];
         if (f === sown || !c || c.status === 'carried' || c.expected == null) continue;
         const moved = typeof c.expected === 'number' ? Math.abs(c.expected - c.right) > 1e-6 : fmt(c.expected) !== fmt(c.right);
-        if (!moved || ans[f] === fmt(c.expected)) continue;
-        ans[f] = fmt(c.expected);
+        // Si vuelve a valer lo correcto, la casilla vuelve a lo que tenía (punto fijo; N-F4).
+        const want = moved ? fmt(c.expected) : orig[f];
+        if (ans[f] === want) continue;
+        ans[f] = want;
         changed = true;
       }
       if (!changed) return cells;
@@ -408,6 +416,9 @@
       if (tcl) {
         student.push({ p: tr('exam.dataTcl') }, table([tr('col.act'), tr('col.preds'), 'a', 'm', 'b'], acts.map((id) => [id, none(preds[id]), n2(amb[id].a), n2(amb[id].m), n2(amb[id].b)])));
         if (has('times') || has('floats')) student.push({ p: tr('exam.means') });
+      } else if (model.example && durationless(model.example)) {
+        // Sin duraciones (ej1–ej3) o con duraciones discretas (Kd, que las da su parte): solo las precedencias (N-F2).
+        student.push({ p: tr('exam.dataStruct') }, table([tr('col.act'), tr('col.preds')], acts.map((id) => [id, none(preds[id])])));
       } else {
         const dur = Object.fromEntries(project.activities.map((a) => [a.id, a.d]));
         student.push({ p: tr('exam.data') }, table([tr('col.act'), tr('col.dur'), tr('col.preds')], acts.map((id) => [id, dur[id], none(preds[id])])));
@@ -424,6 +435,22 @@
     const edges = [...net.arcs, ...net.dummies];
     const T = () => sol.cpm.times; const F = () => sol.cpm.floats;
     let tv = null; const TV = () => (tv = tv || tclValues(model.tcl));
+    // Con «Construir la PERT» o con el enunciado, los sucesos y los sucesores de la solución son los de la red de las
+    // reglas (como Moodle, AC2): si no es la PERT mínima dibujada (o no hay ninguna), se dibuja ella también, una vez,
+    // junto a la frase que la nombra (exam.sol.refNet; revisión de nivel 2, N-F3, decisión del autor).
+    const netKey = (n) => JSON.stringify([n.events.length, [...n.arcs.map((a) => `${a.from}>${a.to}:${a.act}`), ...n.dummies.map((x) => `${x.from}>${x.to}:f`)].sort()]);
+    let refDrawn = has('pert') && netKey(MD().solve(project).net) === netKey(net);
+    const refNet = () => {
+      const out = [{ p: tr('exam.sol.refNet') }];
+      if (refDrawn) return out;
+      refDrawn = true;
+      const alt = tr('exam.alt.refNet', { n: net.events.length, m: net.arcs.length, k: net.dummies.length });
+      const rows = [...net.arcs.map((x) => ({ label: x.act, from: x.from, to: x.to, dummy: false })), ...net.dummies.map((x) => ({ label: x.name, from: x.from, to: x.to, dummy: true }))]
+        .sort((x, y) => x.from - y.from || x.to - y.to || natural(x.label, y.label));
+      out.push(svgBlock({ graph: 'aoa', base: net, pert: net, title: alt, desc: alt, dx: PAPER_DX, maxW: PAPER_MAX }, alt),
+        table([tr('col.arc'), tr('col.from'), tr('col.to')], rows.map((x) => [x.dummy ? tr('dummy', { name: x.label }) : x.label, x.from, x.to])));
+      return out;
+    };
     let calcExample = false;
     // La explicación de un error del detective con los datos de la red, como «Ejercicios» (ex-det; bocetos de T009).
     function detText(e, dp, seeded) {
@@ -569,7 +596,7 @@
           s.push({ p: tr('exam.ask.events') }, table([tr('col.event'), L.TE, L.TL, tr('col.slack')], evs.map((nn) => [nn, null, null, null])));
         }
         o2.push(table([tr('col.event'), L.TE, L.TL, tr('col.slack')], evs.map((nn) => [nn, show(sol.events.TE[nn]), show(sol.events.TL[nn]), show(sol.events.slack[nn])])));
-        if (ownNet) o2.push({ p: tr('exam.sol.refNet') });
+        if (ownNet) o2.push(...refNet());
         for (const nn of evs) { v[`e${nn}.TE`] = val(sol.events.TE[nn]); v[`e${nn}.TL`] = val(sol.events.TL[nn]); v[`e${nn}.slack`] = val(sol.events.slack[nn]); }
         r.events = [{ p: tr(ownNet ? 'exam.rub.eventsOwn' : 'exam.rub.events') }];
       }
@@ -615,7 +642,7 @@
       }
       const s = ownNet ? [{ p: tr('exam.ask.succOwn') }, { box: 6 }] : [{ p: tr('exam.ask.succ') }, table([tr('col.event'), tr('col.arrives'), tr('col.leaves')], rows)];
       const o2 = [table([tr('col.event'), tr('col.leaves')], solRows)];
-      if (ownNet) o2.push({ p: tr('exam.sol.refNet') });
+      if (ownNet) o2.push(...refNet());
       return { s, o: o2, r: { succ: [{ p: tr(ownNet ? 'exam.rub.succOwn' : 'exam.rub.succ') }] }, v };
     };
     P.tcl = () => {
@@ -730,7 +757,8 @@
 
     // ---------- los ejemplos de error consecuente (con el corrector del núcleo) ----------
     function calcExampleOf() {
-      const ask = [...(it.times || []), ...(it.floats || [])];
+      // Lo que modela la hoja: tiempos, holguras y marcas de crítica (los sucesos no: nunca arrastran en este ejemplo).
+      const ask = [...(it.times || []), ...(it.floats || [])].filter((x) => x !== 'events');
       const shown = (x) => String(r2(x));
       const durRows = base.rows.map((r) => {
         const d0 = r2(sol.project.activities.find((x) => x.id === r.id).d / sc);
@@ -745,7 +773,7 @@
       };
       // La hoja de quien se equivoca en el EF de a (δ de más) y sigue bien con sus datos: tiempos, duración y holguras.
       const tryOne = (a, delta) => {
-        const sheet = sheetOf();
+        const sheet = sheetOf(); const orig = sheetOf();
         const sown = `${a}.EF`;
         sheet.act[a].EF = shown(gs.cpm.times[a].EF + delta);
         for (let i = 0; i < 200; i++) {
@@ -753,14 +781,20 @@
           let changed = false;
           for (const [k, cell] of Object.entries(cl)) {
             const [id, f] = k.split('.');
-            if (k === sown || !sheet.act[id] || cell.state === 'carried' || r2(cell.expect) === r2(cell.right) || sheet.act[id][f] === String(cell.expect)) continue;
-            sheet.act[id][f] = String(cell.expect);
+            if (k === sown || !sheet.act[id] || f === 'crit' || cell.state === 'carried') continue;
+            // Si con los datos de la hoja vuelve a valer lo correcto, la casilla vuelve a su valor (punto fijo; N-F4).
+            const want = r2(cell.expect) === r2(cell.right) ? orig.act[id][f] : String(cell.expect);
+            if (sheet.act[id][f] === want) continue;
+            sheet.act[id][f] = want;
             changed = true;
           }
           const ef = shown(Math.max(...acts.filter((id) => !gs.project.succs[id].length).map((id) => Number(sheet.act[id].EF))));
           if (ef !== sheet.dur) { sheet.dur = ef; changed = true; }
           if (!changed) break;
         }
+        // Marca como críticas las de holgura total 0 con sus datos (si no se piden holguras, las de verdad), como el
+        // alumno coherente que corrige grade (N-F4).
+        sheet.crit = ask.includes('floats') ? acts.filter((id) => Math.abs(Number(sheet.act[id].TF)) < 1e-9) : gs.cpm.critical.slice();
         const cl = GRD().grade(gs, sheet, ask).cells;
         return { a, sown, sheet, wrong: Number(sheet.act[a].EF), carried: Object.keys(cl).filter((k) => cl[k].state === 'carried'), ok: !cl[sown] || cl[sown].state === 'wrong' };
       };
@@ -823,7 +857,8 @@
       const cells = settle((x) => PGR().grade(kind, X, x).cells, ans, sown, fields, fmt);
       const carried = fields.filter((f) => cells[f] && cells[f].status === 'carried');
       if (!carried.length || cells[sown].status !== 'wrong') return null;
-      return { consequent: { kind, answers: ans, sown, carried }, p: tr('exam.rub.example', { cell: cellName(kind, sown), wrong: wrongTxt, right: fmt(right[sown]), list: carried.map((k) => cellName(kind, k)).join(', ') }) };
+      const rightTxt = typeof right[sown] === 'number' && kind === 'tcl' ? I.numText(lang, right[sown], 2) : fmt(right[sown]);
+      return { consequent: { kind, answers: ans, sown, carried }, p: tr('exam.rub.example', { cell: cellName(kind, sown), wrong: wrongTxt, right: rightTxt, list: carried.map((k) => cellName(kind, k)).join(', ') }) };
     }
 
     // ---------- montaje ----------
@@ -874,7 +909,7 @@
     return head('calc');
   }
 
-  const api = { PARTS, ITEMS, LEVELS, MAX_MODELS, TRIES_EXAM, MODEL_STEP, SEED_MAX, EXAMPLES, STRUCT_ONLY, partsOf, check, stagesOf,
+  const api = { PARTS, ITEMS, LEVELS, MAX_MODELS, TRIES_EXAM, MODEL_STEP, SEED_MAX, EXAMPLES, STRUCT_ONLY, partsOf, detOwnEx, check, stagesOf,
     modelSeed, start, step, result, project, models, APP, PAPER_DX, PAPER_MAX, WIDE, GRID, points, itemPoints, document };
   root.PNL = root.PNL || {};
   root.PNL.exam = api;

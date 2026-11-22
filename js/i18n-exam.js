@@ -27,6 +27,7 @@
       total: 'Total: {n} puntos', sumWarn: 'Los puntos suman {n}, no 10. Puedes imprimir igual.', reset: 'Volver a la propuesta',
       pointsBad: 'Los puntos van de 0 a 10, de 0,25 en 0,25.', empty: 'Marca al menos una parte.',
       detOwn: 'Con «Del enunciado a la tabla» o con las dos redes que construir, el detective lleva un proyecto aparte.',
+      detOwnEx: 'En la red PERT de este ejemplo no caben los errores del detective de este nivel: el detective lleva un proyecto aparte.',
       detGraph: 'Red del detective', graphAon: 'ROY (actividad en el nodo)', graphAoa: 'PERT (actividad en el arco)',
       more: 'Cabecera, extras y papel',
       header: 'Cabecera del enunciado', subject: 'Asignatura', call: 'Convocatoria', date: 'Fecha', duration: 'Duración', instructions: 'Instrucciones',
@@ -72,6 +73,7 @@
     },
     // ---------- bloque 2 (T011): partes, enunciados y solución; bloque 3: la rúbrica ----------
     data: 'Un proyecto tiene las actividades, las duraciones (en días) y las precedencias de esta tabla.',
+    dataStruct: 'Un proyecto tiene las actividades y las precedencias de esta tabla.',
     dataTcl: 'Un proyecto tiene las actividades y las precedencias de esta tabla. Las duraciones son beta-PERT, con la estimación optimista (a), la más probable (m) y la pesimista (b), en semanas.',
     means: 'En los tiempos y las holguras, usa como duración de cada actividad su media tₑ = (a + 4m + b) / 6, con dos decimales.',
     withMeans: 'Con las medias tₑ de dos decimales.',
@@ -110,6 +112,7 @@
     alt: {
       roy: 'Red ROY del proyecto, de {n} nodos (con Inicio y Fin) y {m} arcos. La misma red está en la tabla que sigue.',
       pert: 'Red PERT del proyecto con el mínimo de ficticias: {n} sucesos, {m} actividades y {k} ficticias. La misma red está en la tabla que sigue.',
+      refNet: 'Red PERT de referencia (la de las reglas de los conjuntos): {n} sucesos, {m} actividades y {k} ficticias. La misma red está en la tabla que sigue.',
       det: 'Red ROY con errores, de {n} nodos (con Inicio y Fin) y {m} arcos. La misma red está en la tabla que sigue.',
       detAoa: 'Red PERT con errores, de {n} sucesos, {m} actividades y {k} ficticias. La misma red está en la tabla que sigue.',
     },
@@ -164,6 +167,7 @@
       total: 'Total: {n} points', sumWarn: 'The points add up to {n}, not 10. You can still print.', reset: 'Back to the proposal',
       pointsBad: 'Points go from 0 to 10, in steps of 0.25.', empty: 'Tick at least one part.',
       detOwn: 'With “From statement to table” or with both networks to build, the detective uses a separate project.',
+      detOwnEx: 'This example’s AOA network has no room for the detective’s mistakes at this level: the detective uses a separate project.',
       detGraph: 'Detective network', graphAon: 'AON (activity on node)', graphAoa: 'AOA (activity on arrow)',
       more: 'Header, extras and paper',
       header: 'Statement header', subject: 'Course', call: 'Session', date: 'Date', duration: 'Duration', instructions: 'Instructions',
@@ -209,6 +213,7 @@
     },
     // ---------- bloques 2 y 3 (T011) ----------
     data: 'A project has the activities, durations (in days) and precedences of this table.',
+    dataStruct: 'A project has the activities and precedences of this table.',
     dataTcl: 'A project has the activities and precedences of this table. Durations are beta-PERT, with the optimistic (a), most likely (m) and pessimistic (b) estimates, in weeks.',
     means: 'For times and floats, use as each activity’s duration its mean tₑ = (a + 4m + b) / 6, to two decimals.',
     withMeans: 'With the means tₑ to two decimals.',
@@ -246,6 +251,7 @@
     alt: {
       roy: 'AON network of the project, with {n} nodes (including Start and End) and {m} arcs. The same network is in the table below.',
       pert: 'AOA network of the project with the fewest dummies: {n} events, {m} activities and {k} dummies. The same network is in the table below.',
+      refNet: 'Reference AOA network (the one of the set rules): {n} events, {m} activities and {k} dummies. The same network is in the table below.',
       det: 'AON network with errors, with {n} nodes (including Start and End) and {m} arcs. The same network is in the table below.',
       detAoa: 'AOA network with errors, with {n} events, {m} activities and {k} dummies. The same network is in the table below.',
     },

@@ -11482,6 +11482,91 @@ check('F3f T017 AC13 AC25 · una tabla que no cabe en la hoja con lo que la pres
   await close(page);
 });
 
+// ---------- F3f, T019: lo que encontró la revisión de nivel 2 (ronda 1) ----------
+
+check('F3f T019 I-F1 · un emoji justo en el tope de 600 caracteres no parte el carácter ni rompe el «#»: la página sigue al día', async () => {
+  const page = await exOpen('lang=es&ep=times-floats&sd=3');
+  await exDoc(page);
+  await page.locator('.xm-more > summary').click();
+  await page.locator('#exHead-instructions').focus();
+  await page.keyboard.insertText('x'.repeat(599));
+  await page.keyboard.insertText('😀');
+  await page.press('#exHead-instructions', 'Tab');
+  const v = await page.locator('#exHead-instructions').inputValue();
+  assert.ok(!/[\uD800-\uDBFF]$/.test(v), 'sin medio emoji al final');
+  await page.selectOption('#exLevel', 'hard');
+  await page.waitForFunction(() => /lv=hard/.test(location.hash) && PNL.examApp.state().doc && PNL.examApp.state().doc.meta.level === 'hard', null, { timeout: 60000 });
+  await close(page);
+});
+
+check('F3f T019 I-F2 · cambiar en la página el idioma, la notación o un extra da la misma vista previa que abrir ese enlace (sin documentos viejos de la caché)', async () => {
+  const page = await exOpen('lang=es&nota=en&ep=times-floats-tcl&sd=3&dv=o');
+  await exDoc(page);
+  const fresh = async () => {
+    const hash = await page.evaluate(() => location.hash.slice(1));
+    const p2 = await exOpen(hash);
+    const st2 = await exDoc(p2);
+    const text = await p2.evaluate(() => document.getElementById('exPreview').innerText);
+    await close(p2);
+    return { st2, text };
+  };
+  const now = async () => ({ st: await exDoc(page), text: await page.evaluate(() => document.getElementById('exPreview').innerText) });
+  await page.selectOption('#selLang', 'en');
+  await page.waitForFunction(() => /lang=en/.test(location.hash) && PNL.examApp.state().doc && !PNL.examApp.state().pending);
+  await page.selectOption('#selNota', 'es');
+  await page.waitForFunction(() => /nota=es/.test(location.hash) && PNL.examApp.state().doc && !PNL.examApp.state().pending);
+  let a = await now(); let b = await fresh();
+  assert.equal(a.text, b.text, 'idioma y notación: la misma solución');
+  assert.match(a.st.doc.link, /lang=en&nota=es/);
+  assert.match(a.text, /Solution/);
+  await page.locator('#exDoc-s').click();
+  await page.waitForFunction(() => PNL.examApp.state().state.dv === 's' && PNL.examApp.state().doc && !PNL.examApp.state().pending);
+  await page.locator('.xm-more > summary').click();
+  await page.locator('#exExtra-g').uncheck();
+  await page.waitForFunction(() => !/g/.test(PNL.examApp.state().state.ea) && PNL.examApp.state().doc && !PNL.examApp.state().pending);
+  a = await now(); b = await fresh();
+  assert.equal(a.text, b.text, 'sin hoja para dibujar: el mismo enunciado');
+  assert.doesNotMatch(a.text, /Drawing sheet/);
+  await close(page);
+});
+
+check('F3f T019 I-F4 · si cambian las opciones mientras se buscan los modelos, la búsqueda vieja no dibuja nada y la nueva acaba', async () => {
+  const page = await exOpen(`lang=es&ep=${EX_ALL}&lv=hard&sd=1&em=8&mi=7`);
+  await page.waitForFunction(() => PNL.examApp.state().searches >= 1);
+  await page.evaluate(() => { location.hash = 'lang=es&ep=&lv=hard&sd=1&em=8&mi=7'; });
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => { location.hash = 'lang=es&ep=times&lv=hard&sd=1&em=1'; });
+  await page.waitForFunction(() => { const s = PNL.examApp.state(); return s.doc && !s.pending && s.sheets > 0 && s.state.ep.join() === 'times'; }, null, { timeout: 30000 });
+  const st = await exState(page);
+  assert.deepEqual(Object.keys(st.doc.values), ['times']);
+  await close(page);
+});
+
+check('F3f T019 I-F5 · una tabla partida que va en la primera parte empieza tras el título del documento, sin dejar la primera hoja casi vacía', async () => {
+  const page = await exOpen('lang=es&ep=disc&lv=hard&sd=510&pp=letter&dv=o');
+  for (const pp of ['letter', 'a4']) {
+    await exGo(page, `lang=es&ep=disc&lv=hard&sd=510&pp=${pp}&dv=o`, { pp, dv: 'o' });
+    await page.emulateMedia({ media: 'print' });
+    const sheets = await exSheets(page);
+    exPaperOk(sheets, `510 disc ${pp}`, /^Modelo A · semilla 510 · Solución$/);
+    const first = await page.evaluate(() => [...document.querySelector('#exPreview .xm-paper .xm-body').children].map((u) => u.tagName + (u.className ? `.${u.className}` : '')));
+    assert.ok(first.some((x) => /H2\.xm-part/.test(x)), `${pp}: la parte empieza en la primera hoja (${first.join(' ')})`);
+    assert.ok(first.some((x) => /xm-scroll/.test(x)), `${pp}: con el primer trozo de la tabla`);
+    await page.emulateMedia({ media: 'screen' });
+  }
+  await close(page);
+});
+
+check('F3f T019 N-F1 · Klastorin con el detective sobre la PERT y Tiempos en media: la página avisa del proyecto aparte y el examen sale', async () => {
+  const page = await exOpen('lang=es&ep=det-times&ee=kl&ed=aoa&lv=medium&dv=s');
+  const st = await exDoc(page);
+  assert.ok(st.sheets > 0);
+  const warn = await page.evaluate(() => [...document.querySelectorAll('#exView .xm-warn')].map((x) => x.textContent));
+  assert.ok(warn.some((x) => /proyecto aparte/.test(x) && /ejemplo/.test(x)), warn.join(' | '));
+  assert.match(await page.evaluate(() => document.getElementById('exPreview').innerText), /Esta parte usa otro proyecto/);
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

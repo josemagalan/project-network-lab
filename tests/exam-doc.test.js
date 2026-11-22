@@ -684,3 +684,143 @@ test('F3f T013 · con un ejemplo citado, la solución dice su nombre en vez de l
   // Una tabla generada, con su semilla.
   assert.match(make(opts({ level: 'medium', seed: 3, parts: ['times'] })).d.solution[0].p, /^⟦exam\.sol\.intro⟧\{"letter":"A","sd":\d+\}$/);
 });
+
+// ---------- revisión de nivel 2 de la F3f (T019) ----------
+
+/** La hoja del ejemplo es la de un alumno coherente: cada casilla que con sus datos vale otra cosa que la solución sale
+ *  arrastrada (y la rúbrica la nombra), y las demás salen bien. El corrector acepta también el valor bueno donde el
+ *  alumno arrastraría un error, así que no basta con que nada salga mal. */
+function checkConsequentRest(b, m) {
+  const x = b.consequent;
+  let cells; let st; let moved;
+  if (x.kind === 'calc') {
+    const amb = m.tcl ? Object.fromEntries(m.tcl.rows.map((r) => [r.id, r])) : null;
+    const rows = m.base.rows.map((r) => Object.assign({}, r, { duration: amb ? String(r2((amb[r.id].a + 4 * amb[r.id].m + amb[r.id].b) / 6)) : r.duration }));
+    cells = GR.grade(GR.solve(PR.parse(rows, 'pred').project), x.answers, x.ask).cells;
+    st = (k) => cells[k].state;
+    moved = (c) => (typeof c.expect === 'number' ? r2(c.expect) !== r2(c.right) : c.expect !== c.right);
+  } else {
+    cells = PGR.grade(x.kind, m[x.kind], x.answers).cells;
+    st = (k) => cells[k].status;
+    // Lo que escribiría el alumno coherente (el valor esperado con sus datos): si el corrector lo da por arrastrado, el
+    // ejemplo tiene que nombrar esa casilla; si lo da por bueno (redondeos de sus datos), da igual.
+    const fmt = (v) => (Array.isArray(v) ? v.join(', ') : String(v));
+    moved = (c, k) => c.expected != null && PGR.grade(x.kind, m[x.kind], Object.assign({}, x.answers, { [k]: fmt(c.expected) })).cells[k].status === 'carried';
+  }
+  for (const k of Object.keys(cells)) {
+    if (k === x.sown) continue;
+    if (moved(cells[k], k)) assert.ok(x.carried.includes(k), `${x.kind}: ${k} cambia con los datos del alumno y la rúbrica no la nombra (${st(k)})`);
+    else assert.ok(['ok', 'right'].includes(st(k)) && !x.carried.includes(k), `${x.kind}: ${k} sale ${st(k)}`);
+  }
+}
+
+test('exam-doc · N-F4 y N-F7: el ejemplo de error consecuente nombra todas las casillas que arrastran y el resto de la hoja está bien', () => {
+  const cases = [['easy', 76, ['floats', 'rep']]];
+  for (const level of ['easy', 'medium', 'hard']) for (let s = 1; s <= 8; s++) {
+    cases.push([level, s, ['times', 'floats', 'tcl', 'disc', 'rep']], [level, 40 + s, ['floats']], [level, 60 + s, ['floats', 'tcl']]);
+  }
+  for (const [level, seed, parts] of cases) {
+    const o = opts({ level, seed, parts });
+    const { m, d } = make(o);
+    for (const b of d.rubric.filter((x) => kind(x) === 'consequent')) { checkConsequent(b, m, o); checkConsequentRest(b, m); }
+  }
+});
+
+test('exam-doc · N-F5: AC22 sin la tabla de datos de arriba: «Réplicas» lleva sus precedencias y «Leer», su a, m y b', () => {
+  const rep = make(opts({ level: 'easy', seed: 9, parts: ['rep'] })).d;
+  assert.ok(tables(partOf(rep.student, 'rep')).some((t) => headHas(t, T('col.preds'))), 'réplicas con precedencias');
+  const rd = make(opts({ level: 'easy', seed: 9, parts: ['times', 'read'] })).d;
+  assert.ok(tables(partOf(rd.student, 'read')).some((t) => headHas(t, 'a') && headHas(t, 'm') && headHas(t, 'b')), '«Leer» con a, m y b');
+});
+
+// Las preguntas de cada apartado en el enunciado (claves de i18n-moodle o, con ⟦…⟧, de i18n-exam).
+const ASK = {
+  times: { times: ['exam.ask.times'], events: ['exam.ask.events', 'exam.ask.eventsOwn', 'exam.ask.eventsSucc'] },
+  floats: { critical: ['exam.ask.critical'] }, // «Holguras» y «Holgura de seguridad» comparten la pregunta: van por sus columnas, abajo
+  tcl: { moments: ['exam.ask.moments'], path: ['ask.path'], project: ['ask.mu', 'ask.var'], prob: ['ask.z'], deadline: ['ask.zp', 'ask.Tp'], route: ['series.ask.tclRoute'] },
+  read: { pct: ['ask.pct'], crit: ['ask.crit'] },
+  disc: { combos: ['exam.ask.combos'], mean: ['ask.mean'], crit: ['exam.ask.critIdx'] },
+  rep: { crit: ['exam.ask.critIdx'] },
+};
+const askPrefix = (k) => (k.startsWith('exam.') ? `⟦${k}⟧` : T(k, {}).split('{')[0]);
+test('exam-doc · N-F6: AC23 en el enunciado: un apartado quitado de cualquier parte no deja su pregunta', () => {
+  const PARTS = { times: ['times', 'floats'], floats: ['floats'], tcl: ['times', 'tcl'], read: ['read'], disc: ['disc'], rep: ['rep'] };
+  for (const [p, items] of Object.entries(ASK)) {
+    for (const [x, keys] of Object.entries(items)) {
+      const parts = PARTS[p];
+      const on = x === 'route' ? { tcl: { on: ['route'] } } : {};
+      const off = { [p]: { off: [x], on: x === 'route' ? [] : undefined } };
+      const pref = keys.map(askPrefix);
+      const has = (d) => partOf(d.student, p).some((b) => kind(b) === 'p' && pref.some((q) => q && String(b.p).startsWith(q)));
+      const level = 'easy'; const seed = 3;
+      const dOn = make(opts({ level, seed, parts, items: on })).d;
+      assert.ok(has(dOn), `${p}.${x}: con el apartado, su pregunta`);
+      if (x === 'route') continue; // la otra ruta va quitada por defecto
+      const dOff = make(opts({ level, seed, parts, items: off })).d;
+      assert.ok(!has(dOff), `${p}.${x}: quitado, su pregunta sigue en el enunciado`);
+    }
+  }
+  // «Holguras» quitado: sin las columnas TF, FF e IF (queda la de la holgura de seguridad).
+  const d = make(opts({ level: 'easy', seed: 3, parts: ['floats'], items: { floats: { off: ['floats'] } } })).d;
+  for (const t of tables(partOf(d.student, 'floats'))) for (const f of ['TF', 'FF', 'IF']) assert.ok(!headHas(t, L[f]), f);
+  assert.ok(tables(partOf(d.student, 'floats')).some((t) => headHas(t, L.SF)));
+});
+
+test('exam-doc · N-F2: con un ejemplo sin duraciones (ej1–ej3) o con duraciones discretas (Kd), los datos del enunciado no dan duraciones', () => {
+  for (const [ex, parts] of [['ej1', ['roy']], ['ej3', ['pert', 'minDummy']], ['kd', ['roy', 'disc']]]) {
+    const o = opts({ example: ex, parts });
+    const d = E.document(Object.assign({ letter: 'A' }, E.project(o, 0, ctx)), o, ctx);
+    const top = beforeParts(d.student);
+    assert.ok(top.some((b) => kind(b) === 'p' && b.p === '⟦exam.dataStruct⟧'), `${ex}: el texto sin duraciones`);
+    assert.ok(!top.some((b) => kind(b) === 'p' && b.p === '⟦exam.data⟧'), ex);
+    for (const t of tables(top)) assert.ok(!headHas(t, T('col.dur')), `${ex}: sin columna de duración`);
+    assert.ok(tables(top).some((t) => headHas(t, T('col.preds'))), `${ex}: con las precedencias`);
+  }
+  // Con duraciones (ej4), como antes.
+  const o = opts({ example: 'ej4', parts: ['roy'] });
+  const d = E.document(Object.assign({ letter: 'A' }, E.project(o, 0, ctx)), o, ctx);
+  assert.ok(tables(beforeParts(d.student)).some((t) => headHas(t, T('col.dur'))));
+});
+
+/** Las aristas (desde, hasta, nombre) de una red PERT, para compararlas. */
+const pertDrawnSame = (parts, min, rules) => parts.includes('pert') && netKey(min) === netKey(rules);
+const netKey = (n) => JSON.stringify([n.events.length, [...n.arcs.map((a) => `${a.from}>${a.to}:${a.act}`), ...n.dummies.map((x) => `${x.from}>${x.to}:f`)].sort()]);
+test('exam-doc · N-F3: con «Construir la PERT» o el enunciado, la solución dibuja la red a la que se refieren los sucesos y los sucesores cuando no es la PERT mínima', () => {
+  let diff = 0; let same = 0;
+  for (const [level, seed, parts] of [['hard', 2, ['pert', 'times', 'succ']], ['easy', 5, ['stmt', 'times']], ['medium', 3, ['pert', 'succ']],
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((s) => ['hard', 20 + s, ['pert', 'times']]), ...[1, 2, 3, 4].map((s) => ['easy', 30 + s, ['pert', 'succ']])]) {
+    const o = opts({ level, seed, parts });
+    const { m, d } = make(o);
+    const project = PR.parse(m.base.rows, 'pred').project;
+    const rules = GR.solve(project).net;
+    const min = MD.solve(project).net;
+    const aoa = svgs(d.solution).filter((b) => b.model && b.model.graph === 'aoa');
+    const drawsRules = aoa.find((b) => netKey(b.model.pert) === netKey(rules));
+    assert.ok(drawsRules, `${level} ${seed} ${parts}: la red de los sucesos está dibujada`);
+    // Su texto alternativo dice cuál es (la de las reglas o la mínima) y le sigue la tabla de sus arcos.
+    assert.match(drawsRules.alt, pertDrawnSame(parts, min, rules) ? /^⟦exam\.alt\.pert⟧/ : /^⟦exam\.alt\.refNet⟧/);
+    const after = d.solution[d.solution.indexOf(drawsRules) + 1];
+    assert.ok(after && kind(after) === 'table' && headHas(after.table, T('col.arc')), 'la tabla de sus arcos detrás');
+    const pertDrawn = parts.includes('pert');
+    const expected = (pertDrawn ? 1 : 0) + (pertDrawn && netKey(min) === netKey(rules) ? 0 : 1);
+    assert.equal(aoa.length, expected, `${level} ${seed} ${parts}: dibujos de la PERT`);
+    if (pertDrawn) { if (netKey(min) === netKey(rules)) same++; else diff++; }
+    // Los sucesores de la solución están en la red dibujada de las reglas.
+    if (d.values.succ) {
+      const names = new Set([...rules.arcs.map((a) => a.act), ...rules.dummies.map((x) => x.name)]);
+      for (const xs of Object.values(d.values.succ)) for (const x of xs) assert.ok(names.has(x), x);
+    }
+  }
+  assert.ok(diff > 0 && same > 0, `${diff} distintas, ${same} iguales`);
+  // Sin sucesos ni sucesores, solo la PERT mínima.
+  const { d } = make(opts({ level: 'hard', seed: 2, parts: ['pert'] }));
+  assert.equal(svgs(d.solution).filter((b) => b.model && b.model.graph === 'aoa').length, 1);
+});
+
+test('exam-doc · N-F9: en el ejemplo de error consecuente del TCL, el valor bueno lleva la coma decimal en español, como el equivocado', () => {
+  const { d } = make(opts({ level: 'medium', seed: 1, parts: ['tcl'] }));
+  const b = d.rubric.find((x) => kind(x) === 'consequent' && x.consequent.kind === 'tcl');
+  const params = JSON.parse(b.p.replace(/^⟦exam\.rub\.example⟧/, ''));
+  assert.match(params.wrong, /^\d+,\d+$/);
+  assert.match(params.right, /^\d+,\d+$/);
+});

@@ -48,6 +48,10 @@
   const headerLength = (eh) => HEAD_FIELDS.reduce((n, k) => n + String((eh && eh[k]) || '').length, 0);
   const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
   const dec = (v) => { try { return decodeURIComponent(v); } catch { return null; } };
+  /** El texto con max unidades como mucho, sin dejar medio carácter (un sustituto alto suelto) al final (I-F1). */
+  const clipText = (v, max) => { const x = String(v).slice(0, Math.max(0, max)); return /[\uD800-\uDBFF]$/.test(x) ? x.slice(0, -1) : x; };
+  /** Sin sustitutos sueltos, que encodeURIComponent no admite (por si llegan de otro sitio que la cabecera). */
+  const wellFormed = (v) => String(v).replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD');
   const allItems = () => E.PARTS.flatMap((p) => (E.ITEMS[p] || []).map((x) => `${p}.${x}`));
   const ptsOk = (x) => /^\d{1,2}(\.\d{1,2})?$/.test(x) && Number(x) <= 10 && Number.isInteger(Number(x) * 4);
   const intIn = (x, lo, hi) => (/^\d+$/.test(x) && Number(x) >= lo && Number(x) <= hi ? Number(x) : undefined);
@@ -65,7 +69,10 @@
     eq: (v) => {
       const xs = v ? v.split('-') : [];
       const ok = allItems();
-      return xs.every((x) => ok.includes(x)) ? ok.filter((x) => xs.includes(x)) : undefined;
+      if (!xs.every((x) => ok.includes(x))) return undefined;
+      // Ninguna parte se queda sin apartados (la página no deja quitar el último; un enlace tampoco; I-F6).
+      const empty = Object.keys(E.ITEMS).some((p) => E.ITEMS[p].every((x) => itemsOn()[p].includes(x) === xs.includes(`${p}.${x}`)));
+      return empty ? undefined : ok.filter((x) => xs.includes(x));
     },
     pt: (v) => {
       const out = {};
@@ -137,7 +144,7 @@
     if (s.ee) out.push(`ee=${s.ee}`);
     if (s.ed !== DEFAULTS.ed) out.push(`ed=${s.ed}`);
     if (s.ea !== DEFAULTS.ea) out.push(`ea=${s.ea}`);
-    if (headerLength(s.eh)) out.push(`eh=${HEAD_FIELDS.map((k) => encodeURIComponent(s.eh[k] || '')).join('|')}`);
+    if (headerLength(s.eh)) out.push(`eh=${HEAD_FIELDS.map((k) => encodeURIComponent(wellFormed(s.eh[k] || ''))).join('|')}`);
     if (s.pp !== DEFAULTS.pp) out.push(`pp=${s.pp}`);
     if (s.dv !== DEFAULTS.dv) out.push(`dv=${s.dv}`);
     if (s.mi !== DEFAULTS.mi) out.push(`mi=${s.mi}`);
@@ -344,7 +351,7 @@
       const out = [h('p', { class: 'xm-lead' }, [t('exam.page.lead')]), top];
       if (state.ee) out.push(h('p', { id: 'exExampleNote', class: 'xm-hint', role: 'status' }, [t('exam.page.exampleNote')]));
       out.push(parts);
-      if (c.warnings.some((x) => x.key === 'detOwn')) out.push(h('p', { class: 'xm-warn', role: 'status' }, [t('exam.page.detOwn')]));
+      for (const k of ['detOwn', 'detOwnEx']) if (c.warnings.some((x) => x.key === k)) out.push(h('p', { class: 'xm-warn', role: 'status' }, [t(`exam.page.${k}`)]));
       if (state.ep.includes('det') && !state.ep.includes('roy') && !state.ep.includes('pert')) {
         out.push(h('div', { class: 'xm-row' }, [select('exDetGraph', t('exam.page.detGraph'), [['aon', t('exam.page.graphAon')], ['aoa', t('exam.page.graphAoa')]], state.ed, (v) => set({ ed: v }))]));
       }
@@ -360,7 +367,7 @@
         // Ningún campo deja pasar de 600 caracteres en total: lo que sobra se corta.
         const k = e.target.id.replace('exHead-', '');
         const others = headerLength(Object.assign({}, state.eh, { [k]: '' }));
-        if (others + e.target.value.length > HEADER_MAX) e.target.value = e.target.value.slice(0, HEADER_MAX - others);
+        if (others + e.target.value.length > HEADER_MAX) e.target.value = clipText(e.target.value, HEADER_MAX - others);
         count.textContent = t('exam.page.headerCount', { n: others + e.target.value.length, max: HEADER_MAX });
       }
       function setHead(k, v) { set({ eh: Object.assign({}, state.eh, { [k]: v }) }); }
@@ -482,6 +489,7 @@
       pendingSince = 0;
       if (!model.ok) { idle(); message(t('exam.page.noProject', { n: E.TRIES_EXAM }), 'xm-warn'); return; }
       const d = docOf(k, optsOf(state));
+      if (!d.ok) { idle(); clear($('exPreview')); return; }
       current = { k, d };
       sheets = EV.pages($('exPreview'), viewBlocks(d, state.dv, state, t), Object.assign(viewCtx(), { paper: state.pp, foot: footOf(d.meta, state.dv, t) }));
       fit();
@@ -526,12 +534,20 @@
       if ($('exPrintStatus')) $('exPrintStatus').textContent = '';
       if ($('exPrintAll')) $('exPrintAll').disabled = !E.check(optsOf(state)).ok;
     }
+    /** Las opciones ya no son las de la búsqueda (no valen o faltan familias): se abandona, sin dibujar nada (I-F4). */
+    function stop() {
+      if (search.key == null) return;
+      search.gen++;
+      Object.assign(search, { key: null, o: null, models: [], job: null });
+      docs.clear();
+    }
     function pump() {
       if (search.running) return;
       search.running = true;
       const gen = search.gen;
       const tick = () => {
         if (gen !== search.gen) { search.running = false; pump(); return; }
+        if (!search.o) { search.running = false; return; }
         const fail = search.models.some((m) => !m.ok);
         if (search.models.length >= state.em || fail) { search.running = false; return; }
         const k = search.models.length;
@@ -554,10 +570,10 @@
     }
     function preview() {
       const o = optsOf(state);
-      if (!E.check(o).ok) { idle(); pendingSince = 0; clear($('exPreview')); if (printJob) endPrintAll(); return; }
+      if (!E.check(o).ok) { stop(); idle(); pendingSince = 0; clear($('exPreview')); if (printJob) endPrintAll(); return; }
       // Las familias de las partes marcadas, antes de buscar.
       const p = loader.need(familiesOf(state.ep, state.ee));
-      if (p) { pending(); p.then(() => { if (loader.ready(familiesOf(state.ep, state.ee))) preview(); }, () => {}); return; }
+      if (p) { if (searchKey(o) !== search.key) stop(); pending(); p.then(() => { if (loader.ready(familiesOf(state.ep, state.ee))) preview(); }, () => {}); return; }
       const key = searchKey(o);
       if (key !== search.key) {
         search.gen++;
@@ -589,7 +605,7 @@
     });
   }
 
-  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, decode, load, encode, optsOf, familiesOf, backHref, docCtx, searchKey, viewBlocks, pageCss, footOf, statusOf, withExample };
+  const api = { KEYS, DEFAULTS, HEADER_MAX, GROUPS, headerLength, clipText, decode, load, encode, optsOf, familiesOf, backHref, docCtx, searchKey, viewBlocks, pageCss, footOf, statusOf, withExample };
   root.PNL = root.PNL || {};
   root.PNL.examApp = api;
   if (isNode) module.exports = api;

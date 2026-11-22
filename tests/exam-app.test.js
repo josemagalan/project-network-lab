@@ -391,3 +391,29 @@ test('F3f T013 · un enlace con un ejemplo y partes que no permite: se quitan al
   const ok = EA.load('#lang=es&ep=times-floats&ee=kl', '', 'es');
   assert.deepEqual([ok.state.ep, ok.warning], [['times', 'floats'], undefined]);
 });
+
+// ---------- revisión de nivel 2 de la F3f (T019) ----------
+
+test('F3f T019 I-F1 · la cabecera se corta sin partir un carácter (sin medio emoji) y encode nunca lanza', () => {
+  assert.equal(EA.clipText(`${'x'.repeat(599)}😀`, 600), 'x'.repeat(599));
+  assert.equal(EA.clipText(`${'x'.repeat(598)}😀`, 600), `${'x'.repeat(598)}😀`);
+  assert.equal(EA.clipText('abc', 600), 'abc');
+  const s = EA.load('#lang=es', '', 'es').state;
+  s.eh.instructions = `${'x'.repeat(5)}\uD83D`;
+  let hash;
+  assert.doesNotThrow(() => { hash = EA.encode(s); });
+  const back = EA.load(hash, '', 'es');
+  assert.equal(back.warning, undefined);
+  assert.ok(back.state.eh.instructions.startsWith('xxxxx'));
+});
+
+test('F3f T019 I-F6 · un enlace que deja una parte sin ningún apartado vuelve al defecto y avisa', () => {
+  const r = EA.load('#lang=es&eq=floats.floats-floats.sf-floats.critical', '', 'es');
+  assert.equal(r.warning, true);
+  assert.deepEqual(r.state.eq, []);
+  assert.equal(E.check(EA.optsOf(r.state)).ok, true);
+  // Quitar dos de tres, sí; y la otra ruta (apagada por defecto) se puede encender.
+  const ok = EA.load('#lang=es&eq=floats.floats-floats.sf-tcl.route', '', 'es');
+  assert.equal(ok.warning, undefined);
+  assert.deepEqual(ok.state.eq, ['floats.floats', 'floats.sf', 'tcl.route']);
+});

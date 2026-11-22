@@ -291,3 +291,65 @@ test('F3f T015 · partsOf y check no necesitan core/examples (en examen.html lle
   assert.equal(EX.check({ parts: ['times', 'floats'], level: 'medium', seed: 1, models: 1, example: 'ej1' }).ok, false);
   assert.equal(EX.check({ parts: ['roy', 'pert'], level: 'medium', seed: 1, models: 1, example: 'ej1' }).ok, true);
 });
+
+// ---------- revisión de nivel 2 de la F3f (T019): N-F1 y N-F10 ----------
+
+const D = require('../js/core/detective.js');
+const X = require('../js/core/examples.js');
+const PR = require('../js/core/project.js');
+/** La red de un ejemplo citado, como la arma core/exam para el modelo A. */
+function exampleProject(id) {
+  let base;
+  if (id === 'kl' || id === 'hl') base = SR.fromTcl(PG.fromExample(id));
+  else if (id === 'kd') base = SR.fromRows(PG.fromExample('kd').rows.map((r) => ({ id: r.id, name: '', duration: String(r.x[0]), links: r.preds.join(', ') })), 'pred');
+  else { const e = X.get(id); base = SR.fromRows(e.structureOnly ? e.rows.map((r) => Object.assign({}, r, { duration: '1' })) : e.rows, e.mode); }
+  return PR.parse(base.rows, 'pred').project;
+}
+
+test('exam · N-F1: detOwnEx dice qué ejemplos no admiten los errores del detective en su red (con detective.seed, sea cual sea la semilla)', () => {
+  let some = 0;
+  // Los ejemplos que permiten el detective, con los tipos de error que pueden tocarles (sin duraciones, solo de red).
+  for (const id of E.EXAMPLES.filter((x) => E.partsOf(x).includes('det'))) {
+    const project = exampleProject(id);
+    for (const graph of ['aon', 'aoa']) for (const kind of E.STRUCT_ONLY.includes(id) ? ['net'] : ['net', 'all']) for (const level of E.LEVELS) {
+      const ok = [1, 2, 3, 2026].map((sd) => !!D.seed(project, { graph, kind, level, sd }));
+      assert.ok(ok.every((x) => x === ok[0]), `${id} ${graph} ${kind} ${level}: depende de la semilla`);
+      assert.equal(E.detOwnEx(id, graph, kind, level), !ok[0], `${id} ${graph} ${kind} ${level}`);
+      if (!ok[0]) some++;
+    }
+  }
+  assert.ok(some > 0);
+});
+
+test('exam · N-F1: Klastorin con el detective sobre la PERT y Tiempos (media y difícil): proyecto aparte para el detective y aviso; en fácil, sobre el ejemplo', () => {
+  for (const [level, extra, det] of [['medium', [], 'aoa'], ['hard', ['roy'], 'aon'], ['medium', ['roy'], 'aoa']]) {
+    const o = opts({ level, seed: 7, parts: ['det', 'times', ...extra], example: 'kl', det });
+    const c = E.check(o);
+    assert.equal(c.ok, true);
+    assert.equal(c.det.own, true, `${level} ${extra}`);
+    assert.ok(c.warnings.some((w) => w.key === 'detOwnEx'), `${level} ${extra}: aviso`);
+    const m = E.project(o, 0, ctx);
+    assert.equal(m.ok, true, `${level} ${extra}: sale el examen`);
+    assert.equal(m.example, 'kl');
+    assert.equal(m.det.own, true);
+    assert.ok(Array.isArray(m.det.rows) && m.det.rows.length > 0);
+  }
+  const easy = E.check(opts({ level: 'easy', seed: 7, parts: ['det', 'times'], example: 'kl', det: 'aoa' }));
+  assert.equal(easy.det.own, false);
+  assert.ok(!easy.warnings.length);
+  assert.equal(E.project(opts({ level: 'easy', seed: 7, parts: ['det', 'times'], example: 'kl', det: 'aoa' }), 0, ctx).det.own, false);
+});
+
+test('exam · N-F10: el tope son exactamente TRIES_EXAM semillas (la 2000.ª se prueba; la siguiente, no)', () => {
+  const o = opts({ level: 'easy', seed: 50, parts: ['times', 'floats'] });
+  const real = E.project(o, 0, ctx);
+  for (const [extra, want] of [[E.TRIES_EXAM - 1, true], [E.TRIES_EXAM, false]]) {
+    const job = E.start(o, 0, ctx);
+    const target = job.seed + extra;
+    job.valid = (s) => (s === target ? { base: real.base, tcl: null, read: null, disc: null, rep: null, det: null } : null);
+    while (!E.step(job, 50));
+    const r = E.result(job);
+    assert.equal(r.ok, want, `objetivo a ${extra} semillas`);
+    if (want) { assert.equal(r.tries, E.TRIES_EXAM); assert.equal(r.sdUsed, target); } else assert.equal(r.reason, 'tries');
+  }
+});

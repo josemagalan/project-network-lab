@@ -311,7 +311,15 @@
     let items = us.map(measure);
     // Una tabla que no cabe en una hoja con lo que la presenta encima (las piezas keep de antes, que layout pone con ella),
     // en trozos por filas con la cabecera repetida (T017): así no se sale de la hoja ni deja solo al pie lo que la presenta.
-    const aboveOf = (its, j) => { let a = 0; for (; j >= 0 && its[j].keep; j--) a += its[j].h + gap; return a; };
+    // Si delante solo queda lo de antes de las partes (cabecera, título), layout pone la parte detrás (onlyPre): cuenta
+    // también (revisión de nivel 2, I-F5).
+    const aboveOf = (its, j) => {
+      let a = 0;
+      for (; j >= 0 && its[j].keep; j--) a += its[j].h + gap;
+      let pre = 0; let k = j;
+      for (; k >= 0 && its[k].kind === 'pre'; k--) pre += its[k].h + gap;
+      return k < 0 ? a + pre : a;
+    };
     const tooTall = (u, x, its, j) => u.type === 'table' && !u.wide && x.h > H - aboveOf(its, j);
     if (items.some((x, i) => tooTall(us[i], x, items, i - 1))) {
       const list = []; const its = [];
