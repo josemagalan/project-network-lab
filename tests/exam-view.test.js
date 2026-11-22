@@ -255,3 +255,22 @@ test('F3f T012 · layout: una pieza más alta que la página va sola en la suya 
   assert.deepEqual(shape(pages), ['0', '1', '2']);
   assert.deepEqual(pages.map((p) => !!p.over), [false, true, false]);
 });
+
+test('F3f T017 · rowChunks: una tabla más alta que la hoja se parte por filas, cada trozo con la cabecera y sin pasar de su alto', () => {
+  // Cabecera de 30 y diez filas de 100 (más 2 de bordes): todo cabe en 1100 → un trozo.
+  const rows = Array(10).fill(100);
+  assert.deepEqual(EV.rowChunks(30, rows, 2, 1100, 1100), [[0, 10]]);
+  // El primero, con lo que lo presenta encima (le quedan 500): 2 + 30 + 4 · 100 = 432; el resto, 632 ≤ 1000.
+  assert.deepEqual(EV.rowChunks(30, rows, 2, 500, 1000), [[0, 4], [4, 10]]);
+  // Justo: 2 + 30 + 4 · 100 = 432 cabe en 432 y no en 431.
+  // (Con el último trozo de 2 filas, el anterior le cede una: al menos 3 al final si al otro le quedan 3.)
+  assert.deepEqual(EV.rowChunks(30, rows, 2, 432, 432), [[0, 4], [4, 7], [7, 10]]);
+  // (Aquí no: el anterior se quedaría con menos de 3.)
+  assert.deepEqual(EV.rowChunks(30, rows, 2, 431, 431), [[0, 3], [3, 6], [6, 9], [9, 10]]);
+  // Si en el primer hueco no cabe ni una fila, el primer trozo se mide con la hoja entera (irá en una nueva).
+  assert.deepEqual(EV.rowChunks(30, rows, 2, 100, 1000), [[0, 7], [7, 10]]);
+  // Una fila más alta que la hoja va sola (no hay cómo partirla).
+  assert.deepEqual(EV.rowChunks(30, [100, 2000, 100], 2, 1000, 1000), [[0, 1], [1, 2], [2, 3]]);
+  // Sin filas, un trozo vacío (la tabla tal cual).
+  assert.deepEqual(EV.rowChunks(30, [], 2, 1000, 1000), [[0, 0]]);
+});

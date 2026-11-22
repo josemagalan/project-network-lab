@@ -11449,6 +11449,39 @@ check('F3f T016 AC15 AC16 AC17 · la portada con la tarjeta nueva y «Aprende m�
   }
 });
 
+// ---------- F3f, T017: lo que destapó la evidencia (cifras.js, sección 7) ----------
+
+check('F3f T017 AC13 AC25 · una tabla que no cabe en la hoja con lo que la presenta se parte por filas con la cabecera repetida: las discretas de 36 combinaciones (difícil, semilla 510) salen enteras en carta y en A4, en el enunciado y en la solución, sin dejar sola al pie la parte ni el párrafo que las presenta', async () => {
+  const DOC = { s: 'Enunciado', o: 'Solución' };
+  const page = await exOpen(`lang=es&ep=${EX_ALL}&lv=hard&sd=510`);
+  for (const pp of ['letter', 'a4']) {
+    for (const dv of ['s', 'o']) {
+      await exGo(page, `lang=es&ep=${EX_ALL}&lv=hard&sd=510&pp=${pp}&dv=${dv}`, { pp, dv });
+      assert.equal((await exState(page)).doc.meta.sdUsed, 510);
+      await page.emulateMedia({ media: 'print' });
+      const sheets = await exSheets(page);
+      exPaperOk(sheets, `510 ${pp} ${dv}`, new RegExp(`^Modelo A · semilla 510 · ${DOC[dv]}$`));
+      const combos = await page.evaluate(() => [...document.querySelectorAll('#exPreview .xm-paper table')]
+        .filter((t) => { const th = t.querySelector('thead th'); return th && th.textContent === 'Combinación'; })
+        .map((t) => ({ head: [...t.querySelectorAll('thead th')].map((x) => x.textContent).join('|'), rows: [...t.querySelectorAll('tbody tr')].map((r) => r.firstElementChild.textContent),
+          first: !t.closest('.xm-scroll').previousElementSibling, part: t.closest('.xm-scroll').dataset.part || null })));
+      // El primer trozo va con el párrafo que lo presenta (no empieza la hoja solo).
+      assert.equal(combos[0].first, false, `${pp} ${dv}: el primer trozo, sin lo que lo presenta`);
+      assert.ok(combos.length >= 2, `${pp} ${dv}: la tabla de 36 filas no cabe con lo que la presenta y se parte (${combos.length})`);
+      // Ninguna hoja lleva solo títulos o párrafos de presentación (lo que antes quedaba solo al pie, en A4).
+      const lonely = await page.evaluate(() => [...document.querySelectorAll('#exPreview .xm-paper')].map((p) => [...p.querySelector('.xm-body').children])
+        .filter((us) => us.length && us.every((u) => /^H[23]$/.test(u.tagName))).length);
+      assert.equal(lonely, 0, `${pp} ${dv}: hojas con solo un título`);
+      assert.equal(new Set(combos.map((c) => c.head)).size, 1, `${pp} ${dv}: la misma cabecera en cada trozo`);
+      assert.deepEqual(combos.map((c) => c.part), combos.map(() => '11'), `${pp} ${dv}: cada trozo, de la parte 11 (las discretas)`);
+      assert.deepEqual(combos.flatMap((c) => c.rows), Array.from({ length: 36 }, (_, i) => String(i + 1)), `${pp} ${dv}: las 36 filas, en orden y una vez`);
+      assert.equal(pdfInfo(await page.pdf({ preferCSSPageSize: true })).pages, sheets.length, `${pp} ${dv}: páginas del PDF`);
+      await page.emulateMedia({ media: 'screen' });
+    }
+  }
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

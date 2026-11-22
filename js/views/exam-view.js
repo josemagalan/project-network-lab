@@ -240,18 +240,46 @@
   }
 
   /**
+   * Los trozos de una tabla más alta que la hoja (T017, hallazgo de la evidencia: las discretas de 36 combinaciones en
+   * carta): headH, el alto de la cabecera; rowHs, el de cada fila; extra, el resto (bordes); first, el alto para el primer
+   * trozo (la hoja menos lo que lo presenta encima, que va con él) y max, el de una hoja. Cada trozo lleva la cabecera y
+   * tantas filas como quepan; si en first no cabe ni una, el primero se mide con max (irá en una hoja nueva). Una fila más
+   * alta que la hoja va sola. El último trozo lleva al menos WIDOW filas si el anterior puede cederlas sin quedarse con
+   * menos (quitar filas a un trozo nunca lo hace más alto). Da los intervalos [desde, hasta) de las filas.
+   */
+  const WIDOW = 3;
+  function rowChunks(headH, rowHs, extra, first, max) {
+    const out = [];
+    let lim = extra + headH + (rowHs[0] || 0) <= first ? first : max;
+    let a = 0; let used = extra + headH;
+    rowHs.forEach((r, i) => {
+      if (i > a && used + r > lim) { out.push([a, i]); a = i; used = extra + headH; lim = max; }
+      used += r;
+    });
+    out.push([a, rowHs.length]);
+    // Sin una o dos filas sueltas en el último trozo: pasa las que falten del anterior si a este le quedan 3 o más.
+    if (out.length > 1) {
+      const p = out[out.length - 2]; const l = out[out.length - 1];
+      const b = Math.max(p[0] + WIDOW, l[1] - WIDOW);
+      if (b < l[0]) { p[1] = b; l[0] = b; }
+    }
+    return out;
+  }
+
+  /**
    * El documento en hojas de papel, dentro de container (T012). ctx, además: paper ('a4' | 'letter') y foot (el pie:
    * modelo, semilla y documento). Cada hoja: .xm-pagebox > .xm-paper (.xm-rotated si va girada) > .xm-sheet > .xm-body
    * (las piezas; en la girada, .xm-rot con el título de la parte y el dibujo) y .xm-foot (pie, «Gira la hoja…» en la
    * girada y «Página k de n»). Se mide en una hoja de prueba fuera de la vista, con el mismo CSS, así que la vista
-   * previa y el papel son lo mismo. Da el número de hojas.
+   * previa y el papel son lo mismo. Una tabla que no cabe en una hoja con lo que la presenta se parte por filas en
+   * varias, cada una con la cabecera (rowChunks; T017). Da el número de hojas.
    */
   function pages(container, blocks, ctx) {
     const { h, clear } = root.PNL.dom;
     const doc = root.document;
     const t = ctx.t;
     const cls = ctx.paper === 'letter' ? 'xm-letter' : 'xm-a4';
-    const us = units(blocks, ctx);
+    let us = units(blocks, ctx);
     const sheet = (rot) => {
       const body = h('div', { class: 'xm-body' }, []);
       const foot = h('div', { class: 'xm-foot' }, []);
@@ -273,13 +301,39 @@
     const labelH = tmp[1].getBoundingClientRect().height;
     tmp.forEach((el) => probe.body.removeChild(el));
     // Lo ancho no se mide (va en su página girada); del anexo ancho, solo su título, que va encima del dibujo.
-    const titleH = {};
-    const items = us.map((u, i) => {
-      if (u.wide && u.type === 'annex') { probe.body.appendChild(u.el); titleH[i] = u.el.firstChild.getBoundingClientRect().height + gap; }
+    const titleH = new Map();
+    const measure = (u) => {
+      if (u.wide && u.type === 'annex') { probe.body.appendChild(u.el); titleH.set(u, u.el.firstChild.getBoundingClientRect().height + gap); }
       if (u.kind === 'break' || u.wide) return { h: 0, kind: u.kind, wide: u.wide, keep: u.keep };
       probe.body.appendChild(u.el);
       return { h: u.el.getBoundingClientRect().height, kind: u.kind, wide: u.wide, keep: u.keep };
-    });
+    };
+    let items = us.map(measure);
+    // Una tabla que no cabe en una hoja con lo que la presenta encima (las piezas keep de antes, que layout pone con ella),
+    // en trozos por filas con la cabecera repetida (T017): así no se sale de la hoja ni deja solo al pie lo que la presenta.
+    const aboveOf = (its, j) => { let a = 0; for (; j >= 0 && its[j].keep; j--) a += its[j].h + gap; return a; };
+    const tooTall = (u, x, its, j) => u.type === 'table' && !u.wide && x.h > H - aboveOf(its, j);
+    if (items.some((x, i) => tooTall(us[i], x, items, i - 1))) {
+      const list = []; const its = [];
+      us.forEach((u, i) => {
+        if (!tooTall(u, items[i], its, its.length - 1)) { list.push(u); its.push(items[i]); return; }
+        const table = u.el.querySelector('table');
+        const thead = table.querySelector('thead'); const tbody = table.querySelector('tbody');
+        const trs = [...tbody.children];
+        const headH = thead.getBoundingClientRect().height;
+        const rowHs = trs.map((r) => r.getBoundingClientRect().height);
+        const extra = items[i].h - headH - rowHs.reduce((t, x) => t + x, 0);
+        rowChunks(headH, rowHs, Math.max(0, extra), H - aboveOf(its, its.length - 1), H).forEach(([a, b], k) => {
+          const el = h('div', { class: 'xm-scroll', tabindex: '0' }, [h('table', { class: table.getAttribute('class') }, [
+            k ? thead.cloneNode(true) : thead, h('tbody', {}, trs.slice(a, b))])]);
+          if (u.el.hasAttribute('data-part')) el.setAttribute('data-part', u.el.getAttribute('data-part'));
+          const v = Object.assign({}, u, { el, keep: k ? false : u.keep });
+          list.push(v); its.push(measure(v));
+        });
+      });
+      list.forEach((u, i) => u.el.setAttribute('data-u', String(i)));
+      us = list; items = its;
+    }
     doc.body.removeChild(probe.box);
     const pl = layout(items, H, { gap, noteH });
     clear(container);
@@ -292,7 +346,7 @@
         rot.style.height = `${W}px`;
         rot.style.transform = `translateY(${H}px) rotate(-90deg)`;
         const im = u.el.querySelector('img');
-        if (im) im.style.maxHeight = `${Math.floor(W - (u.label ? labelH + gap : 0) - (titleH[pg.i] || 0))}px`;
+        if (im) im.style.maxHeight = `${Math.floor(W - (u.label ? labelH + gap : 0) - (titleH.get(u) || 0))}px`;
         s.body.appendChild(rot);
       } else {
         for (const x of pg.items) s.body.appendChild('note' in x ? note(x.note) : us[x.i].el);
@@ -305,7 +359,7 @@
     return pl.length;
   }
 
-  const api = { render, units, layout, pages, svgSize, gridSvg, WIDE, BOX_LINE };
+  const api = { render, units, layout, rowChunks, pages, svgSize, gridSvg, WIDE, BOX_LINE };
   root.PNL = root.PNL || {};
   root.PNL.examView = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
