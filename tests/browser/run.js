@@ -11593,6 +11593,246 @@ check('F3f T019 N-F1 · Klastorin con el detective sobre la PERT y Tiempos en me
   await close(page);
 });
 
+// ---------- F5a, T010: la pestaña de las precedencias generalizadas (oculta), la tabla y la ROY con etiquetas ----------
+
+const GPR = require(path.join(ROOT, 'js', 'core', 'gpr.js'));
+const GPRX = require(path.join(ROOT, 'js', 'core', 'gprex.js'));
+const U5 = require(path.join(ROOT, 'js', 'core', 'urlstate.js'));
+const NR5 = require(path.join(ROOT, 'js', 'narrate.js'));
+const gprHash = (s) => U5.encode(Object.assign({ v: 'gpr' }, s)).slice(1);
+async function gprLab(hash, opts) {
+  const page = await lab(hash, opts);
+  await page.waitForFunction(() => PNL.gprTab && PNL.gprTab.state && PNL.gprTab.state());
+  return page;
+}
+const gprSt = (page) => page.evaluate(() => PNL.gprTab.state());
+const gprGo = async (page, s) => {
+  await setHash(page, gprHash(s));
+  await page.waitForFunction((id) => PNL.gprTab.state().src.id === id, s.qe || 'fc');
+};
+// Lo que dice cada arco de la ROY: las relaciones que no son FS+0, con el código de la notación y el desfase con su signo.
+function gprLabels(id, nota, lang) {
+  const gp = GPR.parse(GPRX.get(id).rows).project;
+  return gp.rels.filter((r) => !(r.type === 'FS' && r.lag === 0))
+    .map((r) => `${nota === 'es' ? GPR.ES_NAME[r.type] : r.type}${r.lag ? `${r.lag < 0 ? '-' : '+'}${NR5.fmt(lang, Math.abs(r.lag))}` : ''}`).sort();
+}
+const gprRoyLabels = async (page) => (await page.locator('#gprRoy text.elab').allTextContents()).sort();
+// Tiempos y holguras de la tabla de resultados (la alternativa en texto de la red), por actividad.
+const gprResults = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#gprResultsTable tbody tr')]
+  .map((tr) => [tr.getAttribute('data-act'), [...tr.querySelectorAll('td')].map((td) => td.textContent)])));
+// La tabla de la maqueta 120 (EN): una relación a medio escribir, dos FF con B, una predecesora que no existe y una CC larga.
+const GPR_OWN120 = [
+  { id: 'A', name: 'Lay the foundations', duration: '8', links: '' },
+  { id: 'B', name: 'Build the walls', duration: '6', links: 'A SS+' },
+  { id: 'C', name: 'Install the roof', duration: '4', links: 'B FF+1, B FF+2' },
+  { id: 'D', name: 'Wiring', duration: '3', links: 'Z' },
+  { id: 'E', name: 'Paint', duration: '5', links: 'A SS+10' },
+];
+
+check('F5a T010 · AC5 y AC16: cada ejemplo abre con su tabla de solo lectura, su fuente, la ROY con las relaciones en los arcos y sus tiempos (ES y EN); la pestaña sigue oculta', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await gprLab(`v=gpr&lang=${lang}`);
+    assert.equal(await page.locator('#gprView').isVisible(), true);
+    assert.equal(await page.locator('#navGpr').isVisible(), false, 'pestaña oculta hasta T015');
+    assert.equal(await page.locator('#stage').isVisible(), false);
+    for (const ex of GPRX.list()) {
+      await gprGo(page, { qe: ex.id, lang });
+      const gp = GPR.parse(ex.rows).project;
+      const sol = GPR.solve(gp);
+      assert.equal(await page.locator('#gprProj').inputValue(), ex.id);
+      assert.equal(await page.locator('#gprChips li').count(), ex.rows.length, ex.id);
+      assert.ok((await page.locator('#gprSource').innerText()).includes(ex.source[lang]), `${ex.id}: fuente`);
+      assert.equal(await page.locator('#gprOwn').count(), 0, 'sin tabla editable en los ejemplos');
+      assert.deepEqual(await gprRoyLabels(page), gprLabels(ex.id, 'en', lang), `${ex.id}: etiquetas`);
+      assert.ok((await page.locator('#gprRoyHead').innerText()).includes(NR5.fmt(lang, sol.duration)), `${ex.id}: duración`);
+      const res = await gprResults(page);
+      for (const a of gp.activities) {
+        const t = sol.times[a.id]; const f = sol.floats[a.id];
+        assert.deepEqual(res[a.id], [a.d, t.ES, t.EF, t.LS, t.LF, f.TF, f.FF].map((v) => NR5.fmt(lang, v)), `${ex.id} · ${a.id}`);
+      }
+      // La red dice en su texto las relaciones con etiqueta.
+      const label = await page.locator('#gprRoy svg').getAttribute('aria-label');
+      for (const r of gp.rels.filter((x) => !(x.type === 'FS' && x.lag === 0))) assert.ok(label.includes(`${r.from} → ${r.to}`), `${ex.id}: ${label}`);
+    }
+    await close(page);
+  }
+});
+
+check('F5a T010 · ROSEBUD: las flechas críticas son las relaciones que mandan (G–M–V–Y–W–X), no las de fin a comienzo; con la caja de 4 y la compacta, también las etiquetas', async () => {
+  for (const box of ['7', '4', 'c']) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang: 'es', box }));
+    assert.equal(await page.locator('#gprRoy path.edge.crit').count(), 7, `caja ${box}`);
+    assert.deepEqual(await gprRoyLabels(page), gprLabels('rb', 'en', 'es'));
+    assert.equal((await gprSt(page)).duration, 24);
+    await close(page);
+  }
+});
+
+check('F5a T010 · AC16: las relaciones y las holguras con la notación elegida (FS/SS/FF/SF o FC/CC/FF/CF) y las cabeceras de las holguras con sus siglas y su nombre', async () => {
+  for (const [lang, nota, ss, tf, ff] of [['es', 'en', 'SS+3', /TF.*holgura total/s, /FF.*holgura libre/s], ['es', 'es', 'CC+3', /HT.*holgura total/s, /HL.*holgura libre/s],
+    ['en', 'en', 'SS+3', /TF.*total float/s, /FF.*free float/s], ['en', 'es', 'CC+3', /HT.*total float/s, /HL.*free float/s]]) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang, nota }));
+    assert.deepEqual(await gprRoyLabels(page), gprLabels('rb', nota, lang), `${lang}/${nota}`);
+    const chips = await page.locator('#gprChips').innerText();
+    assert.ok(chips.includes(`G ${ss}`), chips);
+    const heads = await page.locator('#gprResultsTable thead th').allTextContents();
+    assert.ok(heads.some((x) => tf.test(x)), heads.join(' | '));
+    assert.ok(heads.some((x) => ff.test(x)), heads.join(' | '));
+    // Cambiar la notación en «Ajustes» reescribe las etiquetas sin recargar.
+    await setCtl(page, '#selNota', nota === 'es' ? 'en' : 'es');
+    assert.deepEqual(await gprRoyLabels(page), gprLabels('rb', nota === 'es' ? 'en' : 'es', lang));
+    await close(page);
+  }
+});
+
+check('F5a T010 · AC6: la tabla propia marca cada fila con su error y no calcula; el aviso de CC larga dice a qué equivale y no impide calcular; al corregir, la ROY aparece y el enlace guarda la tabla', async () => {
+  const page = await gprLab(gprHash({ qe: 'own', qt: GPR_OWN120, lang: 'en' }));
+  assert.equal(await page.locator('#gprProj').inputValue(), 'own');
+  assert.match(await page.locator('#gprIssues').innerText(), /3 errors/);
+  assert.match(await page.locator('#gprIssues').innerText(), /Rows B, C and D/);
+  const inv = async (i) => page.locator(`#gprT-${i}-links`).getAttribute('aria-invalid');
+  assert.deepEqual([await inv(0), await inv(1), await inv(2), await inv(3), await inv(4)], ['false', 'true', 'true', 'true', 'false']);
+  const msg = async (i) => page.locator(`#gprOwn tbody tr[data-row="${i}"] [data-msg]`).innerText();
+  assert.match(await msg(1), /“\+”/);
+  assert.match(await msg(2), /Two FF relations with B/);
+  assert.match(await msg(3), /no activity Z/);
+  assert.match(await msg(4), /SS\+10 .*\(8\).*A FS\+2/);
+  assert.equal(await page.locator('#gprRoy').count(), 0, 'sin red mientras haya errores');
+  await page.locator('#gprT-1-links').fill('A SS+2');
+  await page.locator('#gprT-2-links').fill('B FF+1');
+  assert.match(await page.locator('#gprIssues').innerText(), /1 error/);
+  await page.locator('#gprT-3-links').fill('A');
+  await page.waitForSelector('#gprRoy svg');
+  assert.equal(await page.locator('#gprIssues').count(), 0);
+  assert.equal(await page.locator('#gprT-3-links').evaluate((el) => document.activeElement === el), true, 'el foco sigue en la casilla');
+  assert.deepEqual(await gprRoyLabels(page), ['FF+1', 'SS+10', 'SS+2']);
+  assert.match(await msg(4), /A FS\+2/, 'el aviso sigue con la tabla calculada');
+  const qt = U5.decode(await page.evaluate(() => location.hash)).state.qt;
+  assert.deepEqual(qt.map((r) => r.links), ['', 'A SS+2', 'B FF+1', 'A', 'A SS+10']);
+  // Otro navegador con el mismo enlace ve la misma tabla y la misma red.
+  const hash = await page.evaluate(() => location.hash.slice(1));
+  const other = await gprLab(hash, { locale: 'en-GB' });
+  assert.deepEqual(await gprRoyLabels(other), ['FF+1', 'SS+10', 'SS+2']);
+  await close(other);
+  await close(page);
+});
+
+check('F5a T010 · AC5 y AC6: la escritura de la maqueta 120 (también «B cc + 2», «B FF-1,5» y «B FF−1.5»), filas añadidas, quitadas y pegadas; un ciclo y un identificador que es un código de relación', async () => {
+  const page = await gprLab(gprHash({ qe: 'own', qt: [{ id: 'A', duration: '4', links: '' }, { id: 'B', duration: '3', links: 'A cc + 2' }], lang: 'es' }));
+  await page.waitForSelector('#gprRoy svg');
+  assert.deepEqual(await gprRoyLabels(page), ['SS+2']);
+  await page.locator('#gprAdd').click();
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprT-2-id');
+  await page.locator('#gprT-2-id').fill('C');
+  await page.locator('#gprT-2-duration').fill('2,5');
+  await page.locator('#gprT-2-links').fill('B FF-1,5');
+  await page.waitForFunction(() => document.querySelectorAll('#gprRoy text.elab').length === 2);
+  assert.deepEqual(await gprRoyLabels(page), ['FF-1,5', 'SS+2']);
+  await page.locator('#gprT-2-links').fill('B FF−1.5');
+  await page.waitForFunction(() => [...document.querySelectorAll('#gprRoy text.elab')].some((x) => x.textContent === 'FF-1,5'));
+  // Quitar la fila C deja la tabla de dos filas.
+  await page.locator('#gprDel-2').click();
+  assert.equal(await page.locator('#gprOwn tbody tr').count(), 2);
+  // Pegar desde una hoja de cálculo añade las filas.
+  await page.locator('#gprPaste summary').click();
+  await page.locator('#gprPasteText').fill('D\tCimientos\t3\tB SS+1\nE\tTejado\t2\tD, A FF');
+  await page.locator('#gprPasteApply').click();
+  assert.equal(await page.locator('#gprOwn tbody tr').count(), 4);
+  await page.waitForFunction(() => document.querySelectorAll('#gprRoy text.elab').length === 3);
+  // Un ciclo: sin fila, en la lista de errores.
+  await page.locator('#gprT-0-links').fill('E');
+  assert.match(await page.locator('#gprIssues').innerText(), /ciclo/);
+  await page.locator('#gprT-0-links').fill('');
+  await page.waitForSelector('#gprRoy svg');
+  // Un identificador que es un código de relación.
+  await page.locator('#gprT-1-id').fill('SS');
+  assert.match(await page.locator('#gprOwn tbody tr[data-row="1"] [data-msg]').innerText(), /SS.*código de relación/);
+  assert.equal(await page.locator('#gprT-1-id').getAttribute('aria-invalid'), 'true');
+  // «Vaciar» deja una fila vacía y dice que falta escribir.
+  await page.locator('#gprClear').click();
+  assert.equal(await page.locator('#gprOwn tbody tr').count(), 1);
+  assert.match(await page.locator('#gprIssues').innerText(), /vacía/);
+  await close(page);
+});
+
+check('F5a T010 · AC7: «Partir del taller» copia la tabla con relaciones FC sin desfase y las fechas de la ruta guiada; el taller no cambia; un identificador que es un código de relación queda marcado', async () => {
+  const EXS = require(path.join(ROOT, 'js', 'core', 'examples.js'));
+  const PRJ = require(path.join(ROOT, 'js', 'core', 'project.js'));
+  const CPM = require(path.join(ROOT, 'js', 'core', 'cpm.js'));
+  const ex = EXS.get('ej6');
+  const pr = PRJ.parse(ex.rows.map((r) => ({ id: r.id, duration: String(r.duration), links: r.links })), ex.mode).project;
+  const page = await lab(U5.encode({ v: 'work', t: PRJ.toRows(pr, 'pred'), mode: 'pred', lang: 'es' }).slice(1));
+  const work0 = await page.evaluate(() => JSON.stringify([PNL.app.state().t, PNL.app.state().mode]));
+  await page.evaluate(() => document.getElementById('navGpr').click());
+  await page.waitForFunction(() => PNL.gprTab && PNL.gprTab.state && PNL.gprTab.state());
+  await page.locator('#gprFromWork').click();
+  await page.waitForFunction(() => PNL.gprTab.state().src.kind === 'own');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprProj');
+  const cs = CPM.solve(pr);
+  const st = await gprSt(page);
+  assert.equal(st.duration, cs.duration);
+  const res = await gprResults(page);
+  for (const id of cs.order) assert.deepEqual(res[id].slice(1, 5), ['ES', 'EF', 'LS', 'LF'].map((f) => NR5.fmt('es', cs.times[id][f])), id);
+  assert.deepEqual(await gprRoyLabels(page), [], 'todas FC+0: sin etiquetas');
+  assert.ok((await page.locator('#live').innerText()).length > 0, 'se anuncia la copia');
+  // Volver al taller: la misma tabla.
+  await page.evaluate(() => document.getElementById('navWork').click());
+  await page.waitForFunction(() => PNL.app.state().v === 'work');
+  assert.equal(await page.evaluate(() => JSON.stringify([PNL.app.state().t, PNL.app.state().mode])), work0);
+  await close(page);
+  // Una actividad del taller que se llama como un código de relación.
+  const w = await lab(U5.encode({ v: 'work', t: [{ id: 'A', duration: '3', links: '' }, { id: 'FF', duration: '2', links: 'A' }], mode: 'pred', lang: 'es' }).slice(1));
+  await w.evaluate(() => document.getElementById('navGpr').click());
+  await w.waitForFunction(() => PNL.gprTab && PNL.gprTab.state && PNL.gprTab.state());
+  await w.locator('#gprFromWork').click();
+  await w.waitForFunction(() => PNL.gprTab.state().src.kind === 'own');
+  assert.equal(await w.locator('#gprT-1-id').getAttribute('aria-invalid'), 'true');
+  assert.match(await w.locator('#gprOwn tbody tr[data-row="1"] [data-msg]').innerText(), /FF.*código de relación/);
+  await close(w);
+});
+
+check('F5a T010 · AC14: el grupo gr solo con v=gpr (al abrir y al ir por enlace); la pestaña con su hoja y por debajo de 1 MB', async () => {
+  for (const hash of ['v=route&ex=ej6&step=0&lang=es', 'v=work&lang=es', 'v=unc&lang=es', 'v=ex&lang=es&sd=7', 'v=m0&lang=es']) {
+    const p = await lab(hash);
+    await p.waitForTimeout(150);
+    assert.equal(await p.evaluate(() => !!PNL.gprTab || !!PNL.gpr || [...document.scripts].some((s) => /gpr/.test(s.getAttribute('src') || ''))
+      || !!document.querySelector('link[href="css/gpr.css"]')), false, hash);
+    await close(p);
+  }
+  const r = await lab('v=route&ex=ej6&step=0&lang=es');
+  await setHash(r, 'v=gpr&qe=rb&lang=es');
+  await r.waitForFunction(() => PNL.gprTab && PNL.gprTab.state && PNL.gprTab.state());
+  assert.equal(await r.locator('#gprView').isVisible(), true);
+  assert.equal(await r.locator('#stage').isVisible(), false);
+  await close(r);
+  for (const hash of ['v=gpr&qe=rb&lang=es', gprHash({ qe: 'own', qt: GPR_OWN120, lang: 'en' })]) {
+    const page = await gprLab(hash);
+    assert.equal(await page.evaluate(() => !!document.querySelector('link[href="css/gpr.css"]')), true);
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+    console.log(`    cpm.html#${hash.slice(0, 40)}: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${hash}: ${bytes} bytes`);
+    await close(page);
+  }
+});
+
+check('F5a T010 · axe sin violaciones (claro y oscuro, ES y EN) con un ejemplo y con la tabla propia con errores; a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang }), { scheme });
+    await axe(page, `F5a · ROSEBUD · ${lang} · ${scheme}`);
+    await gprGo(page, { qe: 'own', qt: GPR_OWN120, lang });
+    await page.waitForSelector('#gprOwn');
+    await axe(page, `F5a · tabla propia con errores · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  for (const s of [{ qe: 'rb', lang: 'es' }, { qe: 'own', qt: GPR_OWN120, lang: 'en' }]) {
+    const m = await gprLab(gprHash(s), { width: 360, height: 740 });
+    assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `${s.qe}: sin desbordar a lo ancho`);
+    await shot(m, `f5a-t010-${s.qe}-360`, true);
+    await close(m);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

@@ -209,6 +209,23 @@ test('F4a: los textos de «Duraciones inciertas» están en los dos idiomas, con
   for (const code of ['missing', 'badNum', 'tooBig', 'aGtM', 'mGtB']) for (const lang of I.languages) assert.ok(I.dict[lang].unc.issue[code]);
 });
 
+test('F5a T010: los textos de «Precedencias generalizadas» (i18n-gpr) están en los dos idiomas, con los mismos parámetros', () => {
+  const IG = require('../js/i18n-gpr.js');
+  const G = require('../js/core/gpr.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(IG.es), keysDeep(IG.en));
+  for (const k of keysDeep(IG.es)) assert.deepEqual(params(get(IG.es, k)), params(get(IG.en, k)), `gpr.${k}`);
+  for (const lang of I.languages) assert.equal(I.dict[lang].gpr, IG[lang]);
+  assert.equal(I.t('es', 'nav.gpr'), 'Precedencias generalizadas');
+  assert.equal(I.t('en', 'nav.gpr'), 'Generalized precedences');
+  // Un nombre por cada tipo de relación y un texto por cada error de core/gpr que va en una fila.
+  for (const lang of I.languages) {
+    for (const type of G.TYPES) assert.ok(I.dict[lang].gpr.relName[type], `${lang} relName.${type}`);
+    for (const c of ['badId', 'reservedCode', 'reservedNode', 'duplicateId', 'badDuration', 'badRel', 'unknownRef', 'selfRel', 'dupRel', 'tooMany', 'ssLong']) assert.ok(I.dict[lang].gpr.issue[c], `${lang} issue.${c}`);
+  }
+});
+
 test('F4b T010: los textos de M7 están en los dos idiomas, con los mismos parámetros', () => {
   const I7 = require('../js/i18n-m7.js');
   const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();

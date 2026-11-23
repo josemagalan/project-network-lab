@@ -92,11 +92,11 @@ test('F4a T013 y F4b T013: M5, M6 y M7 disponibles abren su apartado en ambos id
   assert.equal((html.match(/data-i18n="soonPhase4"|tone-soon/g) || []).length, 0);
 });
 
-test('F4a T013: la barra publica Duraciones inciertas entre Taller y Ejercicios', () => {
+test('F4a T013 y F5a T010: la barra publica Duraciones inciertas entre Taller y Ejercicios; Precedencias generalizadas va después de Taller (P12), oculta hasta T015', () => {
   const lab = fs.readFileSync(path.join(ROOT, 'cpm.html'), 'utf8');
   const nav = lab.match(/<nav\b[\s\S]*?<\/nav>/)[0];
-  assert.deepEqual([...nav.matchAll(/id="(nav\w+)"/g)].map((m) => m[1]), ['navM0', 'navRoute', 'navWork', 'navUnc', 'navEx']);
-  assert.doesNotMatch(nav, /\bhidden\b/);
+  assert.deepEqual([...nav.matchAll(/id="(nav\w+)"/g)].map((m) => m[1]), ['navM0', 'navRoute', 'navWork', 'navGpr', 'navUnc', 'navEx']);
+  assert.deepEqual([...nav.matchAll(/<a\b[^>]*\bhidden\b[^>]*>/g)].map((m) => m[0].match(/id="(\w+)"/)[1]), ['navGpr']);
 });
 
 test('scripts, estilos, iconos y logotipos son locales y existen; sin CDN ni innerHTML', () => {

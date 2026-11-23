@@ -87,7 +87,7 @@
   }
 
   // Filas → proyecto con relaciones (plan §3). Errores con los códigos de core/project y badRel, dupRel, selfRel;
-  // aviso ssLong (CC con desfase ≥ duración de la predecesora, con la FC equivalente; P7).
+  // aviso ssLong (CC con desfase ≥ duración de la predecesora, con la FC equivalente; P7), también junto a errores.
   function parse(rows) {
     const errors = [];
     const warnings = [];
@@ -124,7 +124,14 @@
       }
     }
     if (rels.length > MAX_RELS) errors.push({ code: 'tooMany', ids: [] });
-    const done = (e) => ({ project: null, report: { errors: sortIssues(e), warnings: [] } });
+    // El aviso ssLong sale aunque haya errores en otras filas (tablero 120, T010), si se sabe la duración de la predecesora.
+    const dOf = Object.fromEntries(items.map((it) => [it.id, it.d]));
+    for (const r of rels) {
+      if (r.type === 'SS' && dOf[r.from] !== null && r.lag >= dOf[r.from] - TOL) {
+        warnings.push({ code: 'ssLong', row: r.row, ids: [r.from, r.to], lag: r.lag, equiv: rnd(r.lag - dOf[r.from]) });
+      }
+    }
+    const done = (e) => ({ project: null, report: { errors: sortIssues(e), warnings: sortIssues(warnings) } });
     if (errors.length) return done(errors);
     if (!items.length) return { project: null, report: { errors: [], warnings: [] } };
 
@@ -134,12 +141,6 @@
     };
     const topo = T.order(asGraph(project));
     if (topo.cycle) return done([{ code: 'cycle', ids: topo.cycle }]);
-    const dOf = Object.fromEntries(items.map((it) => [it.id, it.d]));
-    for (const r of rels) {
-      if (r.type === 'SS' && r.lag >= dOf[r.from] - TOL) {
-        warnings.push({ code: 'ssLong', row: r.row, ids: [r.from, r.to], lag: r.lag, equiv: rnd(r.lag - dOf[r.from]) });
-      }
-    }
     return { project, report: { errors: [], warnings: sortIssues(warnings) } };
   }
 

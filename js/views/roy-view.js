@@ -7,6 +7,9 @@
  * (lado a lado: la red se encoge con su columna en vez de mantener 560 px).
  * F4b (M7, plan P8): ctx.shade = { values: { id: v entre 0 y 1 }, fmt(v), label } colorea cada actividad según un índice
  * (cinco tonos de una escala, clases shade-0…shade-4 de css/m7.css) y escribe su valor en la caja; sin tiempos.
+ * F5a (plan §4, T010): ctx.labels = Map('U>V' → [{ text, title }]) escribe la relación en el arco (precedencias
+ * generalizadas, una etiqueta debajo de otra si hay varias); ctx.critEdges = Set('U>V') dice qué flechas son críticas en lugar
+ * de la regla de fin a comienzo, y ctx.ariaExtra se añade al texto de la red. Sin ellos, la red de siempre.
  */
 (function (root) {
   'use strict';
@@ -68,7 +71,7 @@
     const svg = sel.append('svg').attr('class', 'net').attr('width', '100%').attr('style', `max-width:${width}px;min-width:${ctx.fit ? Math.min(width, ctx.minWidth || 0) : Math.min(width, 560)}px`)
       .attr('viewBox', `0 0 ${width} ${height}`).attr('role', 'img')
       .attr('aria-label', ctx.shade ? `${G.i18n.t(lang, 'view.netLabel', { name: ctx.name, n: project.activities.length })} ${ctx.shade.label}: ${project.activities.map((a) => `${a.id} ${ctx.shade.fmt(ctx.shade.values[a.id])}`).join(', ')}.`
-        : G.i18n.t(lang, 'view.netLabel', { name: ctx.name, n: project.activities.length }));
+        : G.i18n.t(lang, 'view.netLabel', { name: ctx.name, n: project.activities.length }) + (ctx.ariaExtra ? ` ${ctx.ariaExtra}` : ''));
     const defs = svg.append('defs');
     for (const [id, cls] of [['pnl-mk', 'mk'], ['pnl-mk-a', 'mk-a'], ['pnl-mk-c', 'mk-c'], ['pnl-mk-s', 'mk-s']]) {
       defs.append('marker').attr('id', id).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
@@ -80,6 +83,7 @@
     const edges = [];
     for (const u of [START, ...solution.order]) for (const v of graph.succs(u)) edges.push([u, v]);
     const eg = svg.append('g');
+    const tags = [];   // F5a: etiquetas de las relaciones, encima de las flechas
     for (const [u, v] of edges) {
       const a = pos[u]; const b = pos[v];
       const x1 = a.x + a.w; const y1 = a.cy; const x2 = b.x; const y2 = b.cy;
@@ -88,6 +92,7 @@
       const bends = (lay.bends && lay.bends[`${u}>${v}`]) || [];
       let d = `M${x1} ${y1}`;
       let px = x1; let py = y1;
+      const gaps = [];   // tramos entre columnas: [x0, y0, x1, y1]
       const curveTo = (x, y) => {
         const dx = (x - px) / 2;
         d += py === y ? ` L${x} ${y}` : ` C ${px + dx} ${py}, ${x - dx} ${y}, ${x} ${y}`;
@@ -95,15 +100,35 @@
       for (const b of bends) {
         const xl = pad + b.col * colGap;
         const yb = pad + g.lab + (b.row - minRow) * rowGap + g.h / 2;
+        gaps.push([px, py, xl, yb]);
         curveTo(xl, yb);
         d += ` L${xl + g.w} ${yb}`;
         px = xl + g.w; py = yb;
       }
+      gaps.push([px, py, x2, y2]);
       if (bends.length) curveTo(x2, y2); else d += ` L${x2} ${y2}`;
       let cls = edgeClass.get(`${u}>${v}`) || '';
-      if (!cls && criticalOn && isCritNode(u) && isCritNode(v) && tight(u, v) && (crit.has(u) || crit.has(v))) cls = 'crit';
+      if (!cls && criticalOn && ctx.critEdges) cls = ctx.critEdges.has(`${u}>${v}`) ? 'crit' : '';
+      else if (!cls && criticalOn && isCritNode(u) && isCritNode(v) && tight(u, v) && (crit.has(u) || crit.has(v))) cls = 'crit';
+      const lab = ctx.labels && ctx.labels.get(`${u}>${v}`);
+      // En el tramo del medio (el de la izquierda si son pares), centrada en él: los tramos curvos son simétricos.
+      if (lab && lab.length) { const q = gaps[Math.floor(gaps.length / 2)]; tags.push({ x: (q[0] + q[2]) / 2, y: (q[1] + q[3]) / 2, lab, cls }); }
       eg.append('path').attr('d', d).attr('class', `edge ${cls}`)
         .attr('marker-end', `url(#${{ chosen: 'pnl-mk-a', compared: 'pnl-mk-a', crit: 'pnl-mk-c', sel: 'pnl-mk-s' }[cls] || 'pnl-mk'})`);
+    }
+
+    if (tags.length) {
+      const lg = svg.append('g').attr('class', 'elabs');
+      for (const q of tags) {
+        q.lab.forEach((l, i) => {
+          const w = 6.6 * l.text.length + 8;
+          const y = q.y - 12 - (q.lab.length - 1 - i) * 17;
+          const gl = lg.append('g').attr('class', `elab-g${q.cls ? ` ${q.cls}` : ''}`);
+          gl.append('rect').attr('class', 'elab-bg').attr('x', q.x - w / 2).attr('y', y - 9).attr('width', w).attr('height', 16).attr('rx', 4);
+          gl.append('title').text(l.title || l.text);
+          gl.append('text').attr('class', 'elab').attr('x', q.x).attr('y', y + 3.5).text(l.text);
+        });
+      }
     }
 
     const ng = svg.append('g');

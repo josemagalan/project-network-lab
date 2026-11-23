@@ -87,6 +87,18 @@ test('F5a T003: aviso ssLong con la FC equivalente, sin impedir el cálculo (P7)
   assert.deepEqual(G.parse(rows([['A', 8], ['B', 7, 'A CC+7']])).report.warnings, []);
 });
 
+test('F5a T010: el aviso ssLong sale también con errores en otras filas (tablero 120); con un ciclo, igual', () => {
+  const r = G.parse([{ id: 'A', duration: '8', links: '' }, { id: 'B', duration: '6', links: 'A SS+' }, { id: 'C', duration: '4', links: 'B FF+1, B FF+2' },
+    { id: 'D', duration: '3', links: 'Z' }, { id: 'E', duration: '5', links: 'A SS+10' }]).report;
+  assert.deepEqual(r.errors.map((e) => e.code), ['badRel', 'dupRel', 'unknownRef']);
+  assert.deepEqual(r.warnings, [{ code: 'ssLong', row: 4, ids: ['A', 'E'], lag: 10, equiv: 2 }]);
+  // Sin la duración de la predecesora no hay aviso (no se sabe a qué equivale).
+  assert.deepEqual(G.parse(rows([['A', 'x'], ['B', 7, 'A CC+10']])).report.warnings, []);
+  const c = G.parse(rows([['A', 8, 'B'], ['B', 7, 'A CC+10']])).report;
+  assert.deepEqual(c.errors.map((e) => e.code), ['cycle']);
+  assert.deepEqual(c.warnings.map((w) => w.row), [1]);
+});
+
 test('F5a T003: format y toRows escriben en cada idioma y se vuelven a leer igual', () => {
   const rel = (type, lag) => ({ from: 'B', to: 'Z', type, lag });
   assert.equal(G.format(rel('FS', 0), 'en'), 'B');

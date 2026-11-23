@@ -1,0 +1,59 @@
+/* Project Network Lab — estilos de «Precedencias generalizadas» (F5a). Se cargan bajo demanda con la vista v=gpr (app.js,
+   grupo gr), como sus scripts, para que las demás vistas no los paguen (principio 27). Usan los tokens de styles.css. */
+.gpr { display: flex; flex-direction: column; gap: 12px; }
+.gpr h2 { margin: 0; font-size: 14px; }
+.gpr p { margin: 0; }
+.gpr-bar { padding: 8px 14px; }
+.gpr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.gpr button.ghost { min-height: 32px; padding: 4px 12px; }
+.gpr-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
+.gpr-field select { min-height: 32px; max-width: 100%; min-width: 0; }
+.gpr-bar #gprProj { width: 22rem; }
+.gpr-card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.gpr-mono, .gpr-code { font-family: var(--mono); }
+/* Tabla de un ejemplo: fichas de solo lectura (tablero 115). */
+.gpr-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.gpr-chip { font-size: 13px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); }
+.gpr-chip .gpr-mono { font-size: 12.5px; }
+.gpr .small { font-size: 13px; }
+/* Tabla propia y su ayuda (tablero 120). */
+.gpr-own-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 340px); gap: 14px; align-items: start; }
+.gpr-scroll { overflow-x: auto; position: relative; }
+table.data.gpr-own { font-size: 13px; }
+table.data.gpr-own th, table.data.gpr-own td { padding: 3px 5px; vertical-align: top; }
+table.data.gpr-own input { width: 100%; min-width: 3em; height: 30px; padding: 0 5px; font-size: 13px; }
+table.data.gpr-own input[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
+table.data.gpr-own input.gpr-warn { border: 2px solid var(--warn-line); }
+table.data.gpr-own tr.bad { background: var(--critical-soft); }
+.gpr-msg { text-align: left; font-size: 12.5px; min-width: 12em; max-width: 22em; }
+.gpr-m { display: block; }
+.gpr-m-err { color: var(--critical-text); }
+.gpr-m-warn { color: var(--warn); }
+.gpr-issues { background: var(--critical-soft); border: 1px solid var(--critical); border-radius: 10px; padding: 6px 12px; font-size: 14px; }
+.gpr-issues ul { margin: 4px 0 0; padding-left: 1.2em; }
+.gpr-paste summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.gpr-paste textarea { width: 100%; font-family: var(--mono); font-size: 13px; }
+.gpr-help { font-size: 13.5px; line-height: 1.55; }
+.gpr-code { display: block; font-size: 13px; padding: 6px 8px; background: var(--soft); border-radius: 6px; }
+/* Red ROY con las relaciones escritas en los arcos (views/roy-view, ctx.labels). */
+.gpr-net { overflow-x: auto; }
+.gpr-net svg.net { display: block; margin: 0 auto; }
+.net .elab-bg { fill: var(--card); stroke: var(--line); }
+.net .elab { font-size: 11.5px; font-weight: 700; text-anchor: middle; fill: var(--accent); }
+.net .elab-g.crit .elab-bg { stroke: var(--critical); }
+.net .elab-g.crit .elab { fill: var(--critical-text); }
+.gpr-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
+.gpr-legend .gpr-crit { color: var(--critical-text); font-weight: 600; }
+.gpr-note { font-size: 13px; }
+.gpr-swipe { display: none; }
+.gpr-results summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+table.data.gpr-res { font-size: 13px; font-variant-numeric: tabular-nums; margin-top: 6px; }
+table.data.gpr-res th, table.data.gpr-res td { padding: 3px 8px; }
+table.data.gpr-res td.num { text-align: right; }
+table.data.gpr-res tr.crit th[scope="row"] { color: var(--critical-text); }
+.gpr-full { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
+@media (max-width: 760px) {
+  .gpr-own-grid { grid-template-columns: minmax(0, 1fr); }
+  .gpr-bar #gprProj { width: 100%; }
+  .gpr-swipe { display: block; }
+}
