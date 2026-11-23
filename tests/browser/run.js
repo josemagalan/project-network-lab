@@ -11833,6 +11833,133 @@ check('F5a T010 · axe sin violaciones (claro y oscuro, ES y EN) con un ejemplo 
   }
 });
 
+// ---------- F5a, T011: el paso a paso con predicción ----------
+
+const GPRT = require(path.join(ROOT, 'js', 'gpr.js'));
+// Índice del paso de la traza del paso a paso (sin las clases) que cumple f.
+const gprIdx = (qe, f) => GPRT.walkTrace(GPRT.model(Object.assign(U5.decode('#v=gpr').state, { qe }), 'es')).findIndex(f);
+const gprStepAt = async (page, s, k) => {
+  await setHash(page, gprHash(Object.assign({}, s, { step: k })));
+  await page.waitForFunction((n) => PNL.app.state().step === n && document.getElementById('gprStepCard'), k);
+};
+
+check('F5a T011 · AC8: «Paso a paso» abre el paso 1; en la pasada hacia delante de Y manda V FF+6, resaltada en la tabla de términos y en la red; las flechas del teclado mueven el paso y se sale volviendo al paso 0', async () => {
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es' }));
+  assert.equal(await page.locator('#gprWalk').getAttribute('aria-pressed'), 'false');
+  await page.locator('#gprWalk').click();
+  await page.waitForFunction(() => PNL.app.state().step === 1 && document.getElementById('gprStepCard'));
+  assert.equal(await page.locator('#gprWalk').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#gprChips').count(), 0, 'la tabla de fichas no se ve en el paso a paso');
+  assert.equal(await page.locator('#gprPrev').isDisabled(), true);
+  assert.match(await page.locator('#gprCounter').innerText(), /Paso 1 de 20/);
+  const k = gprIdx('rb', (s) => s.kind === 'gprForward' && s.act === 'Y');
+  await gprStepAt(page, { qe: 'rb', lang: 'es' }, k);
+  assert.equal(await page.locator('#gprStepHead').innerText(), 'Pasada hacia delante · actividad Y');
+  const rows = await page.locator('#gprTerms tbody tr').allInnerTexts();
+  assert.equal(rows.length, 3);
+  assert.match(rows[2], /V → Y FF\+6\s+EF\(V\) \+ 6 − d\(Y\) = 16 \+ 6 − 8\s+14 ← manda/);
+  assert.equal(await page.locator('#gprTerms tbody tr.chosen').count(), 1);
+  assert.equal(await page.locator('#gprRoy path.edge.chosen').count(), 1);
+  assert.equal(await page.locator('#gprRoy .elab-g.chosen text').textContent(), 'FF+6');
+  assert.equal(await page.locator('#gprRoy rect.box.active').count(), 1);
+  assert.ok((await page.locator('#gprRoy text.val.hidden').count()) > 0, 'lo que aún no se ha calculado no se ve');
+  assert.equal(await page.locator('#gprResults').count(), 0, 'sin la tabla de resultados durante el paso a paso');
+  await page.locator('#gprStepHead').click();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction((n) => PNL.app.state().step === n, k + 1);
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction((n) => PNL.app.state().step === n, k);
+  await page.locator('#gprWalk').click();
+  await page.waitForFunction(() => PNL.app.state().step === 0 && !document.getElementById('gprStepCard'));
+  assert.equal(await page.locator('#gprChips li').count(), 8);
+  await close(page);
+});
+
+check('F5a T011 · AC8: con predicción, acierto y fallo en ES, T, LS, TF y FF; el término que manda no se marca hasta comprobar y «Siguiente» espera', async () => {
+  const s = { qe: 'rb', lang: 'es', pred: 1 };
+  const page = await gprLab(gprHash(s));
+  const fwd = gprIdx('rb', (x) => x.kind === 'gprForward' && x.act === 'Y');
+  await gprStepAt(page, s, fwd);
+  assert.equal(await page.locator('#gprPred').isChecked(), true);
+  assert.equal(await page.locator('#gprNext').isDisabled(), true);
+  assert.equal(await page.locator('#gprTerms tbody tr.chosen').count(), 0);
+  assert.equal(await page.locator('#gprRoy path.edge.chosen').count(), 0);
+  assert.match((await page.locator('#gprTerms tbody tr').allInnerTexts())[2], /\?$/);
+  await page.locator('#gprPredIn').fill('12');
+  await page.locator('#gprPredCheck').click();
+  assert.match(await page.locator('#gprPredFb').innerText(), /No.*14/);
+  assert.equal(await page.locator('#gprTerms tbody tr.chosen').count(), 1);
+  assert.equal(await page.locator('#gprNext').isDisabled(), false);
+  // ES acertado con coma decimal; T, LS.
+  // (Cada paso, con otro enlace: el mismo enlace no vuelve a abrir el paso.)
+  const cases = [[gprIdx('rb', (x) => x.kind === 'gprForward' && x.act === 'W'), '21,0', true], [gprIdx('rb', (x) => x.kind === 'gprEnd'), '24', true],
+    [gprIdx('rb', (x) => x.kind === 'gprBackward' && x.act === 'Y'), '14', true], [gprIdx('rb', (x) => x.kind === 'gprEnd'), '26', false],
+    [gprIdx('rb', (x) => x.kind === 'gprBackward' && x.act === 'L'), '4', false]];
+  for (const [k, v, ok] of cases) {
+    await gprStepAt(page, s, k);
+    await page.locator('#gprPredIn').fill(v);
+    await page.locator('#gprPredIn').press('Enter');
+    await page.waitForSelector('#gprPredFb');
+    assert.match(await page.locator('#gprPredFb').innerText(), ok ? /^Correcto/ : /^No/, `paso ${k} con ${v}`);
+  }
+  // Holgura total: una casilla por actividad; una mal.
+  const tf = gprIdx('rb', (x) => x.kind === 'gprFloat' && x.float === 'TF');
+  await gprStepAt(page, s, tf);
+  const sol = GPR.solve(GPR.parse(GPRX.get('rb').rows).project);
+  for (const [id, f] of Object.entries(sol.floats)) await page.locator(`#gprPredIn-${id}`).fill(String(id === 'Q' ? f.TF + 1 : f.TF));
+  await page.locator('#gprPredCheck').click();
+  assert.match(await page.locator('#gprPredFb').innerText(), /7 correctas · 1 por revisar/);
+  assert.equal(await page.locator('#gprFloats tr.wrong').count(), 1);
+  // Holgura libre: «Mostrar la solución» enseña las cifras y deja seguir.
+  await gprStepAt(page, s, tf + 1);
+  assert.equal(await page.locator('#gprNext').isDisabled(), true);
+  await page.locator('#gprPredShow').click();
+  assert.equal(await page.locator('#gprNext').isDisabled(), false);
+  assert.equal(await page.locator('#gprFloats tbody tr[data-act="Q"] td.num').innerText(), NR5.fmt('es', sol.floats.Q.FF));
+  await close(page);
+});
+
+check('F5a T011 · AC8 y Behaviour: el inicio manda cuando una relación daría un comienzo antes de 0; el fin, en la pasada hacia atrás; la duración la marca una actividad que no es final (EN, notación española)', async () => {
+  const own = { qe: 'own', qt: [{ id: 'A', duration: '5', links: '' }, { id: 'B', duration: '2', links: 'A SF-4' }], lang: 'es' };
+  const page = await gprLab(gprHash(own));
+  const m = GPRT.model(Object.assign(U5.decode('#v=gpr').state, own), 'es');
+  const tr = GPRT.walkTrace(m);
+  await gprStepAt(page, own, tr.findIndex((x) => x.kind === 'gprForward' && x.act === 'B'));
+  assert.match(await page.locator('#gprStepText').innerText(), /antes de 0/);
+  assert.match(await page.locator('#gprTerms tbody tr.chosen').innerText(), /Inicio/);
+  await gprStepAt(page, own, tr.findIndex((x) => x.kind === 'gprBackward' && x.act === 'B'));
+  assert.match(await page.locator('#gprTerms tbody tr.chosen').innerText(), /Fin/);
+  await close(page);
+  const s = { qe: 'cl', lang: 'en', nota: 'es' };
+  const p = await gprLab(gprHash(s));
+  await gprStepAt(p, s, gprIdx('cl', (x) => x.kind === 'gprEnd'));
+  assert.match(await p.locator('#gprStepText').innerText(), /B and C.*not final activities/);
+  await gprStepAt(p, s, gprIdx('cl', (x) => x.kind === 'gprForward' && x.act === 'C'));
+  assert.match(await p.locator('#gprTerms').innerText(), /fᵢ\(A\) \+ 2 − d\(C\)/);
+  assert.match(await p.locator('#gprTerms').innerText(), /B → C CC\+2/);
+  await close(p);
+});
+
+check('F5a T011 · axe sin violaciones en el paso a paso con predicción (ES claro, EN oscuro), antes y después de comprobar; a 360 px sin desplazamiento horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const s = { qe: 'rb', lang, pred: 1 };
+    const page = await gprLab(gprHash(s), { scheme });
+    await gprStepAt(page, s, gprIdx('rb', (x) => x.kind === 'gprForward' && x.act === 'Y'));
+    await axe(page, `F5a T011 · paso a paso · ${lang} · ${scheme}`);
+    await page.locator('#gprPredIn').fill('14');
+    await page.locator('#gprPredCheck').click();
+    await axe(page, `F5a T011 · paso a paso comprobado · ${lang} · ${scheme}`);
+    await gprStepAt(page, s, gprIdx('rb', (x) => x.kind === 'gprFloat'));
+    await axe(page, `F5a T011 · holguras · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await gprLab(gprHash({ qe: 'rb', lang: 'es', pred: 1, step: 6 }), { width: 360, height: 740 });
+  await m.waitForSelector('#gprStepCard');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5a-t011-360', true);
+  await close(m);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

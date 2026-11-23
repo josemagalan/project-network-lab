@@ -2,12 +2,13 @@
  * gpr — controlador de la pestaña «Precedencias generalizadas» (spec f5a-precedencias-generalizadas; plan §4, P1, P7, P12;
  * tableros 114, 115, 120 y 121). T010: la barra (proyecto y «Partir del taller»), la tabla (fichas de solo lectura en los
  * ejemplos; editable con «Tabla propia», con el error o el aviso de cada fila) y la red ROY con la relación escrita en cada
- * arco, sus tiempos y su tabla de tiempos y holguras (la alternativa en texto de la red). El paso a paso, la PERT
- * equivalente, el Gantt y el «¿Y si…?» llegan en T011–T014. La pestaña no se ve en la barra hasta T015.
+ * arco, sus tiempos y su tabla de tiempos y holguras (la alternativa en texto de la red). T011: el paso a paso con
+ * predicción (tablero 116), del paso 1 en adelante: en el paso 0 (la tabla) se ve la pestaña de siempre. La PERT
+ * equivalente, el Gantt y el «¿Y si…?» llegan en T012–T014. La pestaña no se ve en la barra hasta T015.
  *
  * Los códigos de las relaciones van con la notación elegida en «Ajustes» (FS, SS, FF, SF o FC, CC, FF, CF; decisión del
  * autor en T010, spec AC16) y las cifras, con el idioma. La parte sin DOM (source, model, code, relTag, relText, issueText,
- * rowMarks, labels, critEdges, pasteRows) se prueba en Node (tests/gpr-tab.test.js); create() pinta la vista. Para las
+ * rowMarks, labels, critEdges, pasteRows, walkTrace, asked, terms, narration) se prueba en Node (tests/gpr-tab.test.js); create() pinta la vista. Para las
  * pruebas de navegador, PNL.gprTab.state() da lo pintado.
  */
 (function (root) {
@@ -60,7 +61,10 @@
   function model(state, lang) {
     const src = source(state, lang);
     const { project, report } = G.parse(src.rows);
-    return { src, gp: project, report, empty: !project && !report.errors.length, solution: project ? G.solve(project) : null };
+    const solution = project ? G.solve(project) : null;
+    const m = { src, gp: project, report, empty: !project && !report.errors.length, solution };
+    m.trace = walkTrace(m);
+    return m;
   }
 
   // ---------- Errores y avisos ----------
@@ -115,7 +119,7 @@
       if (plain(r)) continue;
       const k = `${r.from}>${r.to}`;
       if (!out.has(k)) out.set(k, []);
-      out.get(k).push({ text: relTag(r, nota, lang), title: `${r.from} → ${r.to}: ${I.t(lang, `gpr.relName.${r.type}`)}${r.lag ? ` ${relTag(r, nota, lang).slice(code(r.type, nota).length)}` : ''}` });
+      out.get(k).push({ rel: gp.rels.indexOf(r), text: relTag(r, nota, lang), title: `${r.from} → ${r.to}: ${I.t(lang, `gpr.relName.${r.type}`)}${r.lag ? ` ${relTag(r, nota, lang).slice(code(r.type, nota).length)}` : ''}` });
     }
     return out;
   }
@@ -132,6 +136,110 @@
       if (!cp.succs[id].length && Math.abs(sol.times[id].EF - sol.duration) < TOL) out.add(`${id}>${END}`);
     }
     return out;
+  }
+
+  // ---------- El paso a paso (T011) ----------
+
+  /** La traza del reproductor: la de core/gpr sin el paso de las clases, que llega con «¿Y si…?» (T014). Sin solución, null. */
+  const walkTrace = (m) => (m.solution ? G.trace(m.gp, m.solution).filter((x) => x.kind !== 'gprClasses') : null);
+  const ASK = { gprForward: ['ES'], gprBackward: ['LS'], gprEnd: ['T'] };
+  /** Lo que se predice en cada paso: ES hacia delante, LS hacia atrás, T y cada holgura (EF y LF salen solas). */
+  const asked = (step) => (step.kind === 'gprFloat' ? step.reveals : step.reveals.filter((rv) => (ASK[step.kind] || []).includes(rv.field)));
+  const askedStep = (step) => Object.assign({}, step, { reveals: asked(step) });
+
+  /** Los términos de un paso de las pasadas: rótulo, fórmula con siglas (expr), con cifras (calc; null en el inicio), valor
+   *  y si manda. Hacia delante, sobre ES(j); hacia atrás, sobre LS(i) (plan §0). */
+  function terms(step, gp, sol, nota, lang) {
+    const N = I.notation(nota);
+    const n = (v) => NR.fmt(lang, v);
+    const d = (id) => gp.activities.find((a) => a.id === id).d;
+    const tm = sol.times;
+    const chosen = new Set(step.formula.chosen);
+    const fwd = step.kind === 'gprForward';
+    const join = (items) => items.map(([sg, x], i) => (i ? ` ${sg} ${x}` : x)).join('');
+    return step.formula.terms.map((t) => {
+      const out = { key: t.key, value: t.value, chosen: chosen.has(t.key) };
+      if (t.rel === null) {
+        if (fwd) return Object.assign(out, { label: I.t(lang, 'gpr.walk.start'), expr: '0', calc: null });
+        return Object.assign(out, { label: I.t(lang, 'gpr.walk.end'), expr: `T − d(${step.act})`, calc: `${n(sol.duration)} − ${n(d(step.act))}` });
+      }
+      const r = gp.rels[t.rel];
+      out.label = `${r.from} → ${r.to}${plain(r) ? '' : ` ${relTag(r, nota, lang)}`}`;
+      const finish = r.type === 'FS' || r.type === 'FF';   // la relación sale del fin de la predecesora
+      const onFinish = r.type === 'FF' || r.type === 'SF';  // y actúa sobre el fin de la sucesora
+      let sym; let num;
+      if (fwd) {
+        const f = finish ? 'EF' : 'ES';
+        sym = [['', `${N[f]}(${r.from})`]]; num = [['', n(tm[r.from][f])]];
+        if (r.lag) { const sg = r.lag < 0 ? '−' : '+'; sym.push([sg, n(Math.abs(r.lag))]); num.push([sg, n(Math.abs(r.lag))]); }
+        if (onFinish) { sym.push(['−', `d(${r.to})`]); num.push(['−', n(d(r.to))]); }
+      } else {
+        const f = onFinish ? 'LF' : 'LS';
+        sym = [['', `${N[f]}(${r.to})`]]; num = [['', n(tm[r.to][f])]];
+        if (r.lag) { const sg = r.lag < 0 ? '+' : '−'; sym.push([sg, n(Math.abs(r.lag))]); num.push([sg, n(Math.abs(r.lag))]); }
+        if (finish) { sym.push(['−', `d(${r.from})`]); num.push(['−', n(d(r.from))]); }
+      }
+      return Object.assign(out, { expr: join(sym), calc: join(num) });
+    });
+  }
+
+  /** Título y texto de un paso. Con o.hide (predicción sin comprobar) dice qué se calcula, no quién manda ni el valor. */
+  function narration(step, m, o) {
+    const { lang, nota, hide } = o;
+    const N = I.notation(nota);
+    const tw = (k, p) => I.t(lang, `gpr.walk.${k}`, p);
+    const n = (v) => NR.fmt(lang, v);
+    const sol = m.solution; const gp = m.gp;
+    const c = (x) => code(x, nota);
+    const id = step.act;
+    if (step.kind === 'gprForward' || step.kind === 'gprBackward') {
+      const fwd = step.kind === 'gprForward';
+      const f = fwd ? N.ES : N.LS;
+      const title = tw(fwd ? 'fwdTitle' : 'bwdTitle', { id });
+      const rows = terms(step, gp, sol, nota, lang);
+      const rels = rows.filter((r, i) => step.formula.terms[i].rel !== null);
+      if (!rels.length) {
+        const text = tw(fwd ? 'fwdFirst' : 'bwdLast', { id, f });
+        return { title, text: hide ? text : `${text} ${line(fwd, id)}` };
+      }
+      if (hide) return { title, text: tw(fwd ? 'fwdHidden' : 'bwdHidden', { id, f }) };
+      const parts = [tw(fwd ? 'fwdText' : 'bwdText', { id, f })];
+      const win = rows.filter((r) => r.chosen);
+      const relWin = win.filter((r) => r.key !== START && r.key !== END);
+      if (relWin.length) {
+        parts.push(relWin.length === 1 ? tw('governsOne', { term: relWin[0].label, v: n(relWin[0].value) })
+          : tw('governsMany', { terms: I.list(lang, relWin.map((r) => r.label)), v: n(relWin[0].value) }));
+        for (const r of relWin) {
+          const rel = gp.rels[step.formula.terms[rows.indexOf(r)].rel];
+          parts.push(tw(`${fwd ? 'meanFwd' : 'meanBwd'}${rel.lag ? '' : 'NoLag'}.${rel.type}`, { code: c(rel.type), from: rel.from, to: rel.to }));
+        }
+      } else if (fwd) parts.push(rels.some((r) => r.value < 0) ? tw('clamp') : tw('startGoverns', { id }));
+      else parts.push(tw('endGoverns', { id }));
+      parts.push(line(fwd, id));
+      return { title, text: parts.join(' ') };
+    }
+    if (step.kind === 'gprEnd') {
+      const title = tw('endTitle');
+      if (hide) return { title, text: tw('endHidden', { ef: N.EF }) };
+      let text = tw('endText', { ef: N.EF, ss: c('SS'), sf: c('SF'), T: n(sol.duration), ids: I.list(lang, step.endBy) });
+      if (step.notFinal.length) text += ` ${I.t(lang, `gpr.net.${step.notFinal.length === 1 ? 'notFinalOne' : 'notFinalMany'}`, { ids: I.list(lang, step.notFinal) })}`;
+      return { title, text };
+    }
+    if (step.kind === 'gprFloat') {
+      const text = tw(`floatText.${step.float}`, { tf: N.TF, ff: N.FF, ls: N.LS, es: N.ES, ef: N.EF });
+      return { title: tw(`floatTitle.${step.float}`), text: hide ? `${text} ${tw('floatAsk')}` : text };
+    }
+    if (step.kind === 'gprCritical') {
+      const paths = step.paths.map((p) => p.acts.join('–'));
+      return { title: tw('critTitle'), text: `${tw('critText', { tf: N.TF, list: I.list(lang, step.critical) })} ${tw(paths.length === 1 ? 'pathOne' : 'pathMany', { p: paths.join('; ') })}` };
+    }
+    return { title: '', text: '' };
+    // EF = ES + d (hacia delante) o LF = LS + d (hacia atrás), con las cifras.
+    function line(fwd, a) {
+      const t = sol.times[a]; const dd = gp.activities.find((x) => x.id === a).d;
+      return fwd ? tw('efLine', { ef: N.EF, es: N.ES, id: a, a: n(t.ES), d: n(dd), b: n(t.EF) })
+        : tw('lfLine', { lf: N.LF, ls: N.LS, id: a, a: n(t.LS), d: n(dd), b: n(t.LF) });
+    }
   }
 
   /** Filas pegadas de una hoja de cálculo (actividad, nombre, duración y predecesoras), como en el taller. */
@@ -165,11 +273,19 @@
       const sel = h('select', { id: 'gprProj', onchange: (e) => pickProject(e.target.value) },
         X.list().map((ex) => h('option', { value: ex.id, selected: m.src.id === ex.id }, [ex.title[lang()]]))
           .concat([h('option', { value: 'own', selected: m.src.kind === 'own' }, [tg('own')])]));
+      const on = walking();
       return h('div', { class: 'card gpr-bar' }, [h('div', { class: 'gpr-row' }, [
         h('label', { class: 'gpr-field' }, [tg('project'), ' ', sel]),
         button(tg('fromWork'), fromWork, { id: 'gprFromWork' }),
+        h('span', { class: 'gpr-push' }),
+        // «Paso a paso» (T011): del paso 1 en adelante; volver al paso 0 es volver a la tabla.
+        h('div', { class: 'seg', role: 'group', 'aria-label': tg('walk.toggle') }, [h('button', { type: 'button', id: 'gprWalk', 'aria-pressed': String(on), disabled: !m.trace,
+          onclick: () => { hooks.dispatch({ type: 'go', n: on ? 0 : 1 }); focus('gprWalk'); } }, [tg('walk.toggle')])]),
+        on ? h('label', { class: 'gpr-check' }, [h('input', { type: 'checkbox', id: 'gprPred', checked: !!state().pred,
+          onchange: (e) => { hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }); focus('gprPred'); } }), ' ', I.t(lang(), 'predict.toggle')]) : null,
       ])]);
     }
+    const walking = () => !!m.trace && state().step > 0;
     function pickProject(id) {
       if (id === 'own' && !state().qt) { hooks.dispatch({ type: 'gprTable', rows: [Object.assign(blank(), { id: 'A' })] }, { push: true }); focus('gprProj'); return; }
       go({ qe: id }, { push: true });
@@ -273,7 +389,7 @@
 
     // ---------- La red ROY con las relaciones (tablero 115) ----------
     let lay = { key: null };
-    function netCard() {
+    function netCard(walk) {
       const s = state();
       const gp = m.gp; const sol = m.solution;
       const key = JSON.stringify([gp.activities.map((a) => [a.id, a.d]), gp.rels.map((r) => [r.from, r.to])]);
@@ -284,15 +400,38 @@
       }
       const view = { order: lay.cs.order, levels: lay.cs.levels, critical: sol.critical, times: sol.times, floats: sol.floats, duration: sol.duration };
       const revealed = new Map();
-      for (const id of lay.cs.order) {
-        for (const f of ['ES', 'EF', 'LS', 'LF']) revealed.set(`${id}.${f}`, sol.times[id][f]);
-        for (const f of ['TF', 'FF']) revealed.set(`${id}.${f}`, sol.floats[id][f]);
-      }
+      let shownT = true; let critOn = true; let edgeMarks = null; let stepCtx = null;
       const labs = labels(gp, s.nota, lang());
+      if (walk) {
+        // Paso a paso: lo calculado hasta el paso (sin el actual mientras se predice), la actividad del paso y sus términos.
+        const { tr, k, hide } = walk;
+        for (let i = 1; i <= k; i++) if (i < k || !hide) for (const rv of tr[i].reveals) revealed.set(`${rv.act}.${rv.field}`, rv.value);
+        const endIdx = tr.findIndex((x) => x.kind === 'gprEnd');
+        shownT = k > endIdx || (k === endIdx && !hide);
+        critOn = k >= tr.findIndex((x) => x.kind === 'gprCritical');
+        const step = tr[k];
+        if (step.formula) {
+          stepCtx = { act: step.act };
+          edgeMarks = new Map();
+          const win = new Set();
+          step.formula.terms.forEach((t) => {
+            const key = t.rel === null ? (step.kind === 'gprForward' ? `${START}>${step.act}` : `${step.act}>${END}`) : `${gp.rels[t.rel].from}>${gp.rels[t.rel].to}`;
+            const on = !hide && step.formula.chosen.includes(t.key);
+            if (on && t.rel !== null) win.add(t.rel);
+            if (on || !edgeMarks.has(key)) edgeMarks.set(key, on ? 'chosen' : 'compared');
+          });
+          for (const list of labs.values()) for (const l of list) l.cls = win.has(l.rel) ? 'chosen' : '';
+        }
+      } else {
+        for (const id of lay.cs.order) {
+          for (const f of ['ES', 'EF', 'LS', 'LF']) revealed.set(`${id}.${f}`, sol.times[id][f]);
+          for (const f of ['TF', 'FF']) revealed.set(`${id}.${f}`, sol.floats[id][f]);
+        }
+      }
       const relList = gp.rels.filter((r) => !plain(r)).map((r) => `${r.from} → ${r.to} ${relTag(r, s.nota, lang())}`);
       const holder = h('div', { class: 'gpr-net', id: 'gprRoy', tabindex: '0' });
-      root.PNL.royView.render(holder, { project: lay.cp, solution: view, lay: lay.roy, step: null, revealed, box: s.box, lang: lang(), nota: s.nota,
-        criticalOn: true, numFmt: num, name: m.src.title, fit: true, minWidth: 640, geo: { gx: 84 }, labels: labs, critEdges: critEdges(gp, sol, lay.cp),
+      root.PNL.royView.render(holder, { project: lay.cp, solution: view, lay: lay.roy, step: stepCtx, revealed, box: s.box, lang: lang(), nota: s.nota,
+        criticalOn: critOn, numFmt: num, name: m.src.title, fit: true, minWidth: 640, geo: { gx: 84 }, labels: labs, critEdges: critEdges(gp, sol, lay.cp), edgeMarks,
         ariaExtra: relList.length ? tg('net.rels', { list: relList.join(', ') }) : '' });
       const N = I.notation(s.nota);
       const legend = h('p', { class: 'gpr-legend', id: 'gprLegend' }, [
@@ -301,8 +440,9 @@
         h('span', {}, [tg('legend.noLabel', { fs: code('FS', s.nota) })]),
       ]);
       // A 360 px la red no se encoge por debajo de 640 px: se desliza dentro de su marco (tablero 121).
-      const parts = [h('h2', { id: 'gprRoyHead' }, [tg('net.head', { T: num(sol.duration) })]), holder,
+      const parts = [h('h2', { id: 'gprRoyHead' }, [shownT ? tg('net.head', { T: num(sol.duration) }) : tg('net.title')]), holder,
         h('p', { class: 'gpr-swipe muted small', 'aria-hidden': 'true' }, [tg('net.swipe')]), legend];
+      if (walk) return h('section', { class: 'card gpr-card', 'aria-labelledby': 'gprRoyHead' }, parts);
       if (sol.notFinal.length) parts.push(h('p', { class: 'gpr-note', id: 'gprNotFinal' }, [tg(sol.notFinal.length === 1 ? 'net.notFinalOne' : 'net.notFinalMany', { ids: I.list(lang(), sol.notFinal) })]));
       parts.push(resultsBlock(N));
       return h('section', { class: 'card gpr-card', 'aria-labelledby': 'gprRoyHead' }, parts);
@@ -326,6 +466,102 @@
             h('thead', {}, [head]), h('tbody', {}, body)])])]);
     }
 
+    // ---------- El paso a paso (tablero 116) ----------
+    let lastWalk = '';
+    const PR = () => root.PNL.predict;
+    function walkCard() {
+      const tr = m.trace; const k = Math.min(state().step, tr.length - 1); const step = tr[k];
+      const ask = askedStep(step);
+      const hide = hooks.predicting(ask);
+      const nar = narration(step, m, { lang: lang(), nota: nota(), hide });
+      const parts = [h('h2', { id: 'gprStepHead' }, [nar.title]), h('p', { id: 'gprStepText' }, [nar.text])];
+      if (step.formula) parts.push(termsTable(step, hide));
+      if (step.kind === 'gprFloat') parts.push(floatsTable(step, ask, hide));
+      parts.push(predictBox(step, ask, hide), walkNav(tr, k, hide, nar));
+      return { card: h('section', { class: 'card gpr-card gpr-step', id: 'gprStepCard', 'aria-labelledby': 'gprStepHead' }, parts), walk: { tr, k, hide } };
+    }
+    function termsTable(step, hide) {
+      const N = I.notation(nota());
+      const rows = terms(step, m.gp, m.solution, nota(), lang());
+      const f = step.kind === 'gprForward' ? N.ES : N.LS;
+      return h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tg('walk.termsCaption', { f, id: step.act }) }, [
+        h('table', { class: 'data gpr-terms', id: 'gprTerms' }, [h('caption', { class: 'sr-only' }, [tg('walk.termsCaption', { f, id: step.act })]),
+          h('thead', {}, [h('tr', {}, ['term', 'formula', 'value'].map((x) => h('th', { scope: 'col' }, [tg(`walk.head.${x}`)])))]),
+          h('tbody', {}, rows.map((r) => {
+            const win = !hide && r.chosen;
+            return h('tr', { class: win ? 'chosen' : null }, [h('th', { scope: 'row' }, [r.label]),
+              h('td', {}, [r.calc === null ? '—' : `${r.expr} = ${r.calc}`]),
+              h('td', { class: 'num' }, [hide ? '?' : num(r.value), win ? ` ${tg('walk.governs')}` : null])]);
+          }))])]);
+    }
+    // Holguras: una fila por actividad con lo que hace falta para calcularla; con predicción, una casilla en cada una.
+    function floatsTable(step, ask, hide) {
+      const N = I.notation(nota());
+      const f = step.float;
+      const ctxF = f === 'TF' ? ['ES', 'LS'] : ['ES', 'EF'];
+      const pred = hooks.pred();
+      const res = !hide && pred.done && pred.step === state().step && pred.result ? pred.result : null;
+      const body = step.reveals.map((rv) => {
+        const key = PR().key(rv);
+        const mark = res ? res.get(key) : null;
+        const cell = hide ? h('td', { class: 'num' }, [h('input', { id: `gprPredIn-${rv.act}`, size: '5', inputmode: 'decimal', value: pred.answers.get(key) || '',
+          'aria-label': `${N[f]}(${rv.act})`, oninput: (e) => { pred.answers.set(key, e.target.value); } })])
+          : h('td', { class: 'num' }, [num(rv.value)]);
+        return h('tr', { 'data-act': rv.act, class: mark === 'wrong' || mark === 'empty' ? 'wrong' : mark === 'ok' ? 'ok' : null }, [h('th', { scope: 'row' }, [rv.act]),
+          ...ctxF.map((x) => h('td', { class: 'gpr-ctx' }, [num(m.solution.times[rv.act][x])])), cell,
+          res ? h('td', {}, [I.t(lang(), `predict.${mark === 'ok' ? 'ok' : 'wrong'}`)]) : null]);
+      });
+      const head = h('tr', {}, [h('th', { scope: 'col' }, [tg('results.act')]), ...ctxF.map((x) => h('th', { scope: 'col' }, [N[x]])), h('th', { scope: 'col' }, [N[f]]),
+        res ? h('th', { scope: 'col' }, [I.t(lang(), 'predict.your')]) : null]);
+      return h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tg('walk.floatsCaption', { f: N[f] }) }, [
+        h('table', { class: 'data gpr-res', id: 'gprFloats' }, [h('caption', { class: 'sr-only' }, [tg('walk.floatsCaption', { f: N[f] })]), h('thead', {}, [head]), h('tbody', {}, body)])]);
+    }
+    function predictBox(step, ask, hide) {
+      if (!state().pred || !ask.reveals.length) return null;
+      const pred = hooks.pred();
+      const N = I.notation(nota());
+      const many = step.kind === 'gprFloat';
+      if (hide) {
+        const rv = ask.reveals[0]; const key = PR().key(rv);
+        const msg = h('p', { class: 'small gpr-m-err', id: 'gprPredEmpty', hidden: true }, [tg('walk.empty')]);
+        const check = () => {
+          if (!many && !String(pred.answers.get(key) || '').trim()) { msg.hidden = false; focus('gprPredIn'); return; }
+          hooks.predCheck(ask);
+          focus('gprPredFb');
+        };
+        const row = [];
+        if (!many) {
+          row.push(h('label', { for: 'gprPredIn' }, [rv.field === 'T' ? 'T =' : `${N[rv.field]}(${rv.act}) =`]),
+            h('input', { id: 'gprPredIn', value: pred.answers.get(key) || '', size: '7', inputmode: 'decimal', 'aria-describedby': 'gprPredEmpty',
+              oninput: (e) => { pred.answers.set(key, e.target.value); }, onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); check(); } } }));
+        }
+        row.push(h('button', { type: 'button', class: 'primary', id: 'gprPredCheck', onclick: check }, [I.t(lang(), 'predict.check')]),
+          button(I.t(lang(), 'predict.show'), () => { hooks.predShow(); focus('gprNext'); }, { id: 'gprPredShow' }));
+        return h('div', { class: 'gpr-predict' }, [h('div', { class: 'gpr-row' }, row), msg]);
+      }
+      if (!(pred.done && pred.step === state().step && pred.result)) return null;
+      if (many) {
+        const c = PR().summary(pred.result);
+        return h('p', { class: 'gpr-fb', id: 'gprPredFb', tabindex: '-1', role: 'status' }, [I.t(lang(), c.ok === 1 ? 'predict.summaryOne' : 'predict.summary', c)]);
+      }
+      const rv = ask.reveals[0]; const ok = pred.result.get(PR().key(rv)) === 'ok';
+      return h('p', { class: `gpr-fb ${ok ? 'gpr-ok' : 'gpr-wrong'}`, id: 'gprPredFb', tabindex: '-1', role: 'status' }, [tg(ok ? 'walk.ok' : 'walk.wrong', { v: num(rv.value) })]);
+    }
+    function walkNav(tr, k, hide, nar) {
+      const n = tr.length - 1;
+      const wkey = `${m.src.id}|${lang()}|${k}|${n}|${hide}`;
+      if (wkey !== lastWalk) { lastWalk = wkey; if (hooks.announce) hooks.announce(`${I.t(lang(), 'player.counter', { i: k, n })}. ${nar.title}. ${hide ? I.t(lang(), 'predict.hidden') : nar.text}`); }
+      return h('div', { class: 'gpr-row gpr-walknav' }, [
+        h('button', { type: 'button', class: 'ghost', id: 'gprPrev', disabled: k <= 1, onclick: () => { hooks.dispatch({ type: 'prev' }); focus('gprPrev'); } }, [`← ${I.t(lang(), 'player.prev')}`]),
+        h('button', { type: 'button', class: 'ghost', id: 'gprNext', disabled: k >= n || hide, onclick: () => {
+          hooks.dispatch({ type: 'next' });
+          const st = m.trace[Math.min(state().step, n)];
+          focus(hooks.predicting(askedStep(st)) ? (st.kind === 'gprFloat' ? `gprPredIn-${st.reveals[0].act}` : 'gprPredIn') : 'gprNext');
+        } }, [`${I.t(lang(), 'player.next')} →`]),
+        h('span', { class: 'muted small', id: 'gprCounter' }, [`${I.t(lang(), 'player.counter', { i: k, n })} · ${tg('walk.keys')}`]),
+        hide ? h('span', { class: 'muted small' }, [I.t(lang(), 'predict.hidden')]) : null]);
+    }
+
     // ---------- Pintar ----------
     let netSlot = null;
     function fillNet() {
@@ -334,8 +570,13 @@
     }
     function draw() {
       clear(container);
-      ownTable = null; issuesSlot = null;
+      ownTable = null; issuesSlot = null; netSlot = null;
       container.appendChild(bar());
+      if (walking()) {
+        const w = walkCard();
+        container.appendChild(h('div', { class: 'gpr-walk' }, [w.card, netCard(w.walk)]));
+        return;
+      }
       if (m.src.kind === 'own') container.appendChild(h('div', { class: 'gpr-own-grid' }, [ownCard(), helpCard()]));
       else container.appendChild(chipsCard());
       netSlot = h('div', { class: 'gpr-netslot' });
@@ -344,7 +585,7 @@
     }
     function render(model, opts) {
       // Al teclear en la tabla propia no se rehace la tabla: se marcan las filas y se vuelve a pintar la red.
-      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && ownTable && ownTable.isConnected
+      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && ownTable && ownTable.isConnected && netSlot
         && model.src.rows.length === m.src.rows.length;
       m = model;
       if (typing) { markOwn(); fillNet(); return; }
@@ -359,7 +600,8 @@
     return { render, debug, leave };
   }
 
-  const api = { FIELDS, code, numTxt, relTag, relText, source, model, issueText, rowMarks, labels, structure, critEdges, pasteRows, create };
+  const api = { FIELDS, code, numTxt, relTag, relText, source, model, issueText, rowMarks, labels, structure, critEdges, pasteRows,
+    walkTrace, asked, askedStep, terms, narration, create };
   root.PNL = root.PNL || {};
   root.PNL.gprTab = api;
   if (isNode) module.exports = api;

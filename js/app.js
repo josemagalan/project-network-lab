@@ -199,7 +199,7 @@
     if (state.v === 'ex') { model = Object.assign(G.ex.model(state, lang()), { exm: true }); return; }
     // «Duraciones inciertas» (F4a): su proyecto, medias y varianzas y, con «uw», la traza del paso a paso (T011).
     if (state.v === 'unc') { model = Object.assign(G.unc.model(state, lang()), { uncm: true }); model.trace = G.unc.trace(state, model); return; }
-    // «Precedencias generalizadas» (F5a): su tabla (un ejemplo o la propia), lo leído y la solución; el paso a paso, en T011.
+    // «Precedencias generalizadas» (F5a): su tabla (un ejemplo o la propia), lo leído, la solución y la traza (T011).
     if (state.v === 'gpr') { model = Object.assign(G.gprTab.model(state, lang()), { gprm: true }); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
@@ -264,7 +264,9 @@
     if (!model) return null;
     if (model.m0) return state.mm === 'route' ? model.route : null;
     if (model.uncm) return model.trace || null;
-    if (model.exm || model.gprm) return null;
+    if (model.exm) return null;
+    // «Precedencias generalizadas» (F5a, T011): su traza; el paso 0 es la tabla y el paso a paso va del 1 en adelante.
+    if (model.gprm) return model.trace || null;
     if (pert()) return model.net ? (prog() ? progNet().trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -1192,15 +1194,18 @@
       const m0Route = state.v === 'm0' && state.mm === 'route';
       // F4a (T011): el paso a paso de «Duraciones inciertas» usa el reproductor de la página con su propia botonera.
       const uncRoute = state.v === 'unc' && !!trace();
-      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route && !uncRoute) || !$('cmpView').hidden || !$('retoView').hidden || !$('royRetoView').hidden) return;
+      // F5a (T011): el paso a paso de «Precedencias generalizadas» va del paso 1 en adelante (el 0 es la tabla); sin reproducir.
+      const gprWalk = state.v === 'gpr' && state.step > 0 && !!trace();
+      if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route && !uncRoute && !gprWalk) || !$('cmpView').hidden || !$('retoView').hidden || !$('royRetoView').hidden) return;
       // El texto en modo «Subrayar» y la matriz de M0 usan las flechas para moverse (F2c, plan §0).
       if (e.target.closest && e.target.closest('[data-own-keys]')) return;
       if ((tag === 'button' || tag === 'summary') && (e.key === ' ' || e.key === 'Enter')) return;   // «Ajustes» es un summary (F4a, T013)
-      const nextOff = uncRoute ? state.step >= total() - 1 || predicting(trace()[state.step]) : $('btnNext').disabled;
+      const nextOff = gprWalk ? state.step >= total() - 1 || predicting(G.gprTab.askedStep(trace()[state.step]))
+        : uncRoute ? state.step >= total() - 1 || predicting(trace()[state.step]) : $('btnNext').disabled;
       if (e.key === 'ArrowRight' && !nextOff) { e.preventDefault(); dispatch({ type: 'next' }); }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); dispatch({ type: 'prev' }); }
-      else if (e.key === 'Home') { e.preventDefault(); dispatch({ type: 'first' }); }
-      else if (e.key === ' ' && !uncRoute) { e.preventDefault(); togglePlay(); }
+      else if (e.key === 'ArrowLeft' && !(gprWalk && state.step <= 1)) { e.preventDefault(); dispatch({ type: 'prev' }); }
+      else if (e.key === 'Home') { e.preventDefault(); dispatch(gprWalk ? { type: 'go', n: 1 } : { type: 'first' }); }
+      else if (e.key === ' ' && !uncRoute && !gprWalk) { e.preventDefault(); togglePlay(); }
     });
     window.addEventListener('hashchange', () => {
       if (toMoodle()) return;
@@ -1284,6 +1289,10 @@
         state: () => state, lang, dispatch,
         // «Partir del taller» (AC7): la tabla del taller (o el ejemplo que muestra) con su forma.
         workRows: workSource,
+        // Paso a paso (T011): la predicción de la página, como en «Duraciones inciertas»; se corrige solo lo que se pregunta.
+        pred: () => pred, predicting,
+        predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
+        predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
       });
       G.gprTab.state = () => gprc.debug();

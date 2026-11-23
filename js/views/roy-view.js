@@ -9,7 +9,9 @@
  * (cinco tonos de una escala, clases shade-0…shade-4 de css/m7.css) y escribe su valor en la caja; sin tiempos.
  * F5a (plan §4, T010): ctx.labels = Map('U>V' → [{ text, title }]) escribe la relación en el arco (precedencias
  * generalizadas, una etiqueta debajo de otra si hay varias); ctx.critEdges = Set('U>V') dice qué flechas son críticas en lugar
- * de la regla de fin a comienzo, y ctx.ariaExtra se añade al texto de la red. Sin ellos, la red de siempre.
+ * de la regla de fin a comienzo, y ctx.ariaExtra se añade al texto de la red. T011: ctx.edgeMarks = Map('U>V' → 'chosen' o
+ * 'compared') marca los términos del paso, y una etiqueta con cls propio (la relación que manda) no toma el de su flecha.
+ * Sin ellos, la red de siempre.
  */
 (function (root) {
   'use strict';
@@ -62,6 +64,7 @@
       }
     }
     for (const [a, b] of ctx.selPrecs || []) edgeClass.set(`${a}>${b}`, 'sel');
+    for (const [k, c] of ctx.edgeMarks || []) edgeClass.set(k, c);
     const isCritNode = (id) => id === START || id === END || crit.has(id);
     const tight = (a, b) => Math.abs(solution.times[a].EF - solution.times[b].ES) < 1e-9;
 
@@ -123,7 +126,8 @@
         q.lab.forEach((l, i) => {
           const w = 6.6 * l.text.length + 8;
           const y = q.y - 12 - (q.lab.length - 1 - i) * 17;
-          const gl = lg.append('g').attr('class', `elab-g${q.cls ? ` ${q.cls}` : ''}`);
+          const lc = l.cls !== undefined ? l.cls : q.cls;
+          const gl = lg.append('g').attr('class', `elab-g${lc ? ` ${lc}` : ''}`);
           gl.append('rect').attr('class', 'elab-bg').attr('x', q.x - w / 2).attr('y', y - 9).attr('width', w).attr('height', 16).attr('rx', 4);
           gl.append('title').text(l.title || l.text);
           gl.append('text').attr('class', 'elab').attr('x', q.x).attr('y', y + 3.5).text(l.text);

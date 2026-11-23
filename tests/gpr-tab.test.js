@@ -99,3 +99,80 @@ test('F5a T010: pegar desde una hoja de cálculo (actividad, nombre, duración y
     { id: 'D', name: 'Cimientos', duration: '3', links: 'B SS+1' }, { id: 'E', name: 'Tejado', duration: '2', links: 'D, A FF' }]);
   assert.deepEqual(T.pasteRows(''), []);
 });
+
+// ---------- T011: el paso a paso ----------
+
+test('F5a T011: la traza del paso a paso (sin las clases, que llegan con «¿Y si…?») y lo que se pregunta en cada paso', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const tr = T.walkTrace(m);
+  assert.deepEqual(tr.map((s) => s.kind[3] + (s.float || s.act || '')).join(' '), 'l FG FL FM FQ FV FY FW FX E BX BW BY BV BQ BM BL BG FTF FFF C');
+  assert.equal(T.walkTrace(T.model(st({ qe: 'own', qt: OWN120 }), 'en')), null);
+  const ask = (k) => T.asked(tr[k]).map((rv) => `${rv.act}.${rv.field}`);
+  assert.deepEqual(ask(6), ['Y.ES']);
+  assert.deepEqual(ask(9), ['@E.T']);
+  assert.deepEqual(ask(12), ['Y.LS']);
+  assert.equal(ask(18).length, 8);
+  assert.ok(ask(18).every((k) => k.endsWith('.TF')));
+  assert.deepEqual(ask(20), []);
+  assert.deepEqual(ask(0), []);
+});
+
+test('F5a T011 (AC8): los términos de cada paso, con su fórmula y sus cifras, dan el valor del núcleo (todos los ejemplos, las dos pasadas)', () => {
+  const evalCalc = (s) => s.replace(/\s/g, '').replace(/,/g, '.').replace(/−/g, '-').split(/(?=[+-])/).reduce((a, x) => a + Number(x), 0);
+  for (const ex of X.list()) {
+    const m = T.model(st({ qe: ex.id }), 'es');
+    for (const step of T.walkTrace(m).filter((s) => s.formula)) {
+      const rows = T.terms(step, m.gp, m.solution, 'en', 'en');
+      assert.equal(rows.length, step.formula.terms.length);
+      for (const r of rows) {
+        if (r.calc !== null) assert.ok(Math.abs(evalCalc(r.calc) - r.value) < 1e-9, `${ex.id} ${step.act} ${r.label}: ${r.calc} ≠ ${r.value}`);
+        else assert.equal(r.value, 0);
+      }
+      assert.deepEqual(rows.filter((r) => r.chosen).map((r) => r.key), step.formula.chosen);
+    }
+  }
+  // ROSEBUD, Y: el inicio, V SS+2 y V FF+6, que manda.
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const y = T.walkTrace(m).find((s) => s.kind === 'gprForward' && s.act === 'Y');
+  assert.deepEqual(T.terms(y, m.gp, m.solution, 'en', 'en').map((r) => [r.label, r.expr, r.calc, r.value, r.chosen]), [
+    ['Start', '0', null, 0, false],
+    ['V → Y SS+2', 'ES(V) + 2', '10 + 2', 12, false],
+    ['V → Y FF+6', 'EF(V) + 6 − d(Y)', '16 + 6 − 8', 14, true],
+  ]);
+  assert.equal(T.terms(y, m.gp, m.solution, 'es', 'es')[2].expr, 'fᵢ(V) + 6 − d(Y)');
+  const by = T.walkTrace(m).find((s) => s.kind === 'gprBackward' && s.act === 'Y');
+  assert.deepEqual(T.terms(by, m.gp, m.solution, 'en', 'en').map((r) => [r.label, r.expr, r.calc, r.value]), [
+    ['End', 'T − d(Y)', '24 − 8', 16],
+    ['Y → W SS+5', 'LS(W) − 5', '21 − 5', 16],
+    ['Y → W FF', 'LF(W) − d(Y)', '22 − 8', 14],
+  ]);
+});
+
+test('F5a T011: la narración de cada paso: quién manda, el inicio cuando una relación daría menos de 0 y la actividad que no es final', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const tr = T.walkTrace(m);
+  const y = T.narration(tr[6], m, { lang: 'es', nota: 'en', hide: false });
+  assert.equal(y.title, 'Pasada hacia delante · actividad Y');
+  assert.match(y.text, /Manda V → Y FF\+6 \(14\)/);
+  assert.match(y.text, /EF\(Y\) = ES\(Y\) \+ d = 14 \+ 8 = 22/);
+  const hidden = T.narration(tr[6], m, { lang: 'es', nota: 'en', hide: true });
+  assert.doesNotMatch(hidden.text, /Manda|14/);
+  const clamp = T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '5', links: '' }, { id: 'B', duration: '2', links: 'A SF-4' }] }), 'es');
+  const b = T.walkTrace(clamp).find((s) => s.kind === 'gprForward' && s.act === 'B');
+  assert.match(T.narration(b, clamp, { lang: 'es', nota: 'es', hide: false }).text, /antes de 0/);
+  const cl = T.model(st({ qe: 'cl' }), 'en');
+  const end = T.walkTrace(cl).find((s) => s.kind === 'gprEnd');
+  assert.match(T.narration(end, cl, { lang: 'en', nota: 'en', hide: false }).text, /B and C.*not final activities/);
+});
+
+test('F5a T011 (decisión del autor): sin desfase, la explicación no habla del desfase', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const tr = T.walkTrace(m);
+  const fwd = T.narration(tr.find((s) => s.kind === 'gprForward' && s.act === 'Y'), m, { lang: 'es', nota: 'en', hide: false }).text;
+  assert.match(fwd, /antes de que acabe V más el desfase/);
+  const bwd = T.narration(tr.find((s) => s.kind === 'gprBackward' && s.act === 'Y'), m, { lang: 'es', nota: 'en', hide: false }).text;
+  assert.match(bwd, /Con FF, Y debe acabar antes del fin tardío de W\./);
+  assert.doesNotMatch(bwd, /desfase/);
+  const en = T.narration(tr.find((s) => s.kind === 'gprForward' && s.act === 'L'), m, { lang: 'en', nota: 'en', hide: false }).text;
+  assert.match(en, /With FF, L cannot finish before G finishes; that is why d\(L\) is subtracted\./);
+});

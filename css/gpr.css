@@ -57,3 +57,28 @@ table.data.gpr-res tr.crit th[scope="row"] { color: var(--critical-text); }
   .gpr-bar #gprProj { width: 100%; }
   .gpr-swipe { display: block; }
 }
+/* Paso a paso (T011, tablero 116): la explicación a la izquierda y la red a la derecha. */
+.gpr-push { flex: 1 1 auto; }
+.gpr-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; min-height: 32px; }
+.gpr-walk { display: grid; grid-template-columns: minmax(300px, 430px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.gpr-step { font-size: 14px; line-height: 1.5; }
+table.data.gpr-terms { font-size: 13px; font-variant-numeric: tabular-nums; }
+table.data.gpr-terms th, table.data.gpr-terms td { padding: 4px 6px; text-align: left; }
+table.data.gpr-terms td.num { font-weight: 700; white-space: nowrap; }
+table.data.gpr-terms th[scope="row"] { white-space: nowrap; }
+.gpr-bar .seg button { padding: 4px 12px; min-height: 32px; font-size: 14px; }
+table.data.gpr-terms tr.chosen { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+table.data.gpr-res tr.wrong { background: var(--critical-soft); }
+table.data.gpr-res tr.ok { background: var(--ok-soft); }
+table.data.gpr-res td.gpr-ctx { color: var(--muted); text-align: right; }
+table.data.gpr-res input { width: 5em; height: 28px; padding: 0 5px; }
+.gpr-predict input { height: 30px; padding: 0 6px; }
+.gpr-fb { font-weight: 600; }
+.gpr-fb.gpr-ok { color: var(--ok); }
+.gpr-fb.gpr-wrong { color: var(--critical-text); }
+.gpr-walknav { gap: 8px 12px; }
+.net .elab-g.chosen .elab-bg { fill: var(--accent); stroke: var(--accent); }
+.net .elab-g.chosen .elab { fill: var(--accent-ink); }
+@media (max-width: 760px) {
+  .gpr-walk { grid-template-columns: minmax(0, 1fr); }
+}
