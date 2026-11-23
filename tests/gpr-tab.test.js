@@ -201,3 +201,68 @@ test('F5a T012: la nota del Gantt dice qué relación que no es FS sin desfase f
   // Con relaciones FS sin desfase no hay nada que contar.
   assert.deepEqual(T.ganttNote(T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '4', links: '' }, { id: 'B', duration: '2', links: 'A' }] }), 'es'), 'en', 'es'), []);
 });
+
+// ---------- T013: la PERT equivalente y la sincronía con la ROY ----------
+
+test('F5a T013 (AC9): el resumen de las dos redes: elementos, duración, actividades partidas y relaciones no representables', () => {
+  const rb = T.pertSummary(T.model(st({ qe: 'rb' }), 'es'), 'en', 'es');
+  assert.deepEqual(rb.roy, { acts: 8, rels: 11, T: 24 });
+  assert.deepEqual(rb.pert, { pieces: 12, waits: 1, dummies: 5, events: 15, T: 24 });
+  assert.deepEqual(rb.gaps, [{ act: 'L', gap: 1 }, { act: 'Y', gap: 2 }, { act: 'W', gap: 2 }]);
+  assert.deepEqual(rb.omitted, []);
+  const rv = T.pertSummary(T.model(st({ qe: 'rv' }), 'es'), 'en', 'es');
+  assert.deepEqual([rv.roy.T, rv.pert.T], [14, 10]);
+  assert.deepEqual(rv.gaps, [{ act: 'B', gap: 4 }]);
+  const fc = T.pertSummary(T.model(st({ qe: 'fc' }), 'es'), 'es', 'es');
+  assert.deepEqual(fc.pert, { pieces: 2, waits: 1, dummies: 0, events: 4, T: 18 });
+  const om = T.pertSummary(T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '5', links: '' }, { id: 'B', duration: '2', links: 'A SF-6' }] }), 'es'), 'es', 'es');
+  assert.deepEqual(om.omitted, ['A → B CF-6']);
+});
+
+test('F5a T013 (AC10): una relación elegida marca su arco y su etiqueta en la ROY y sus trozos, esperas y ficticias en la PERT', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const vy = m.gp.rels.findIndex((r) => r.from === 'V' && r.to === 'Y' && r.type === 'FF');
+  let k = T.relMarks(m, vy);
+  assert.deepEqual([...k.roy.entries()], [['V>Y', 'chosen']]);
+  assert.deepEqual([...k.pert.keys()].sort(), ['V₂', 'Y₂']);
+  const gl = m.gp.rels.findIndex((r) => r.from === 'G' && r.to === 'L' && r.type === 'FF');
+  assert.deepEqual([...T.relMarks(m, gl).pert.keys()].sort(), ['F2', 'G₂', 'L₂']);
+  const wx = m.gp.rels.findIndex((r) => r.from === 'W' && r.to === 'X');
+  k = T.relMarks(m, wx);
+  assert.deepEqual([...k.pert.keys()].sort(), ['W₂', 'X', 'w1']);
+  assert.equal(T.relMarks(m, null), null);
+  assert.equal(T.relMarks(m, 99), null, 'una relación que no existe no marca nada');
+});
+
+test('F5a T013 (AC10): al pulsar un arco de la PERT se elige su relación (si son varias, una tras otra); al pulsar un arco de la ROY, la suya', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const idx = (f, t, ty) => m.gp.rels.findIndex((r) => r.from === f && r.to === t && r.type === ty);
+  const yw = idx('Y', 'W', 'SS'); const qw = idx('Q', 'W', 'FS');
+  assert.deepEqual(T.relsOfArc(m, 'W₁'), [yw, qw]);
+  assert.equal(T.pickFromArc(m, 'W₁', null), yw);
+  assert.equal(T.pickFromArc(m, 'W₁', yw), qw);
+  assert.equal(T.pickFromArc(m, 'W₁', qw), yw);
+  assert.equal(T.pickFromArc(m, 'F3', null), yw);
+  assert.equal(T.pickFromArc(m, 'w1', null), idx('W', 'X', 'FS'));
+  assert.equal(T.pickFromArc(m, 'F1', null), null, 'una ficticia que no representa una relación sola no elige nada');
+  const ss = idx('V', 'Y', 'SS'); const ff = idx('V', 'Y', 'FF');
+  assert.equal(T.pickFromEdge(m, 'V>Y', null, null), ss);
+  assert.equal(T.pickFromEdge(m, 'V>Y', null, ss), ff);
+  assert.equal(T.pickFromEdge(m, 'V>Y', ff, null), ff, 'la etiqueta elige su relación');
+  assert.equal(T.pickFromEdge(m, '__start>G', null, null), null);
+  assert.deepEqual(T.relOptions(m, 'es', 'es').slice(0, 3).map((o) => o.text), ['G → M', 'G → L CC+3', 'G → L FF']);
+});
+
+test('F5a T013 (AC9 y AC10): la explicación de la relación elegida: cómo está en la PERT, cómo se parten sus actividades y los huecos', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const idx = (f, t, ty) => m.gp.rels.findIndex((r) => r.from === f && r.to === t && r.type === ty);
+  const vy = T.relExplain(m, idx('V', 'Y', 'FF'), 'en', 'es');
+  assert.equal(vy.head, 'V → Y FF+6');
+  assert.deepEqual(vy.lines, ['En la PERT: V₂ → Y₂.', 'V se parte en V₁ (2) y V₂ (4).', 'Y se parte en Y₁ (2), Y₂ (3) y Y₃ (3).',
+    'En el calendario temprano de la PERT hay un hueco de 2 entre Y₁ y Y₂.']);
+  assert.deepEqual(T.relExplain(m, idx('G', 'L', 'FF'), 'en', 'es').lines.slice(0, 1), ['En la PERT: G₂ → L₂, con la ficticia F2.']);
+  assert.deepEqual(T.relExplain(m, idx('W', 'X', 'FS'), 'en', 'en').lines.slice(0, 1), ['In the AOA network: W₂ → wait 1 → X.']);
+  assert.deepEqual(T.relExplain(m, idx('G', 'M', 'FS'), 'en', 'es').lines, ['En la PERT: G₂ → M.', 'G se parte en G₁ (3) y G₂ (3).']);
+  const om = T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '5', links: '' }, { id: 'B', duration: '2', links: 'A SF-6' }] }), 'es');
+  assert.match(T.relExplain(om, 0, 'en', 'es').lines[0], /no se puede dibujar/);
+});

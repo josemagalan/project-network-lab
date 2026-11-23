@@ -12101,6 +12101,123 @@ check('F5a T012 · axe sin violaciones con el Gantt y su tabla (ES claro, EN osc
   await close(big);
 });
 
+// ---------- F5a, T013: la PERT equivalente y la sincronía con la ROY ----------
+
+const GPRP = require(path.join(ROOT, 'js', 'core', 'gprpert.js'));
+const gprRel = (id, f, t, ty) => GPR.parse(GPRX.get(id).rows).project.rels.findIndex((r) => r.from === f && r.to === t && r.type === ty);
+const gprPertChosen = async (page) => (await page.locator('#gprPert text.elabel.chosen').allTextContents()).sort();
+const gprSummary = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#gprSummary tbody tr')]
+  .map((tr) => [tr.getAttribute('data-row'), [...tr.querySelectorAll('td')].map((td) => td.textContent)])));
+
+check('F5a T013 · AC9: «Redes» enseña la ROY, la PERT equivalente o las dos (qn, por defecto las dos); la PERT de cada ejemplo tiene sus trozos, esperas y ficticias y el resumen dice sus cifras (ES y EN)', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang }));
+    assert.equal(await page.locator('#gprNetBoth').getAttribute('aria-pressed'), 'true');
+    for (const ex of GPRX.list()) {
+      await gprGo(page, { qe: ex.id, lang });
+      const gp = GPR.parse(ex.rows).project;
+      const b = GPRP.build(gp);
+      assert.equal(await page.locator('#gprRoy svg').count(), 1, ex.id);
+      assert.equal(await page.locator('#gprPert path.edge').count(), b.net.arcs.length + b.net.dummies.length, `${ex.id}: arcos de la PERT`);
+      const sum = await gprSummary(page);
+      assert.deepEqual(sum.T, [NR5.fmt(lang, GPR.solve(gp).duration), NR5.fmt(lang, b.Tpert)], `${ex.id}: duraciones`);
+      assert.ok(sum.elems[1].includes(String(b.net.events.length)), `${ex.id}: ${sum.elems[1]}`);
+    }
+    await close(page);
+  }
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es' }));
+  const sum = await gprSummary(page);
+  assert.deepEqual(sum.elems, ['8 actividades, 11 relaciones', '12 trozos, 1 espera, 5 ficticias, 15 sucesos']);
+  assert.deepEqual(sum.gaps, ['ninguna', 'L (1), Y (2), W (2)']);
+  assert.deepEqual(sum.omitted, ['—', 'ninguna']);
+  assert.ok((await page.locator('#gprPert text.elabel').allTextContents()).includes('espera 1'));
+  await page.locator('#gprNetRoy').click();
+  await page.waitForFunction(() => PNL.app.state().qn === 'roy');
+  assert.equal(await page.locator('#gprPert').count(), 0);
+  assert.equal(await page.locator('#gprRelPanel').count(), 0);
+  assert.match(page.url(), /qn=roy/);
+  await page.locator('#gprNetPert').click();
+  await page.waitForFunction(() => PNL.app.state().qn === 'pert');
+  assert.equal(await page.locator('#gprRoy').count(), 0);
+  assert.equal(await page.locator('#gprPert svg').count(), 1);
+  await page.locator('#gprNetBoth').click();
+  await page.waitForFunction(() => PNL.app.state().qn === 'both');
+  assert.doesNotMatch(page.url(), /qn=/);
+  await close(page);
+});
+
+check('F5a T013 · AC10: al elegir una relación (en la lista o en la ROY) se resaltan en la PERT sus trozos, esperas y ficticias, y al pulsar un arco de la PERT se resalta su relación en la ROY; el enlace la guarda', async () => {
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es' }));
+  assert.equal(await page.locator('#gprRoy path.edge.chosen').count(), 0);
+  const vy = gprRel('rb', 'V', 'Y', 'FF');
+  await page.locator('#gprRel').selectOption(String(vy));
+  await page.waitForFunction((k) => PNL.app.state().qr === k, vy);
+  assert.equal(await page.locator('#gprRoy path.edge.chosen').count(), 1);
+  assert.equal(await page.locator('#gprRoy .elab-g.chosen text').textContent(), 'FF+6');
+  assert.deepEqual(await gprPertChosen(page), ['V₂ 4', 'Y₂ 3']);
+  assert.match(await page.locator('#gprRelText').innerText(), /En la PERT: V₂ → Y₂\./);
+  assert.match(page.url(), new RegExp(`qr=${vy}`));
+  // La etiqueta de la ROY elige su relación; G → L CC+3 (notación anglosajona: SS+3).
+  await page.locator('#gprRoy .elab-g', { hasText: 'SS+3' }).dispatchEvent('click');
+  await page.waitForFunction((k) => PNL.app.state().qr === k, gprRel('rb', 'G', 'L', 'SS'));
+  assert.deepEqual(await gprPertChosen(page), ['G₁ 3', 'L₁ 2']);
+  // De la PERT a la ROY: la ficticia F3 es Y → W SS+5; W₁ representa dos relaciones y se pasa de una a otra.
+  await page.locator('#gprPert text.elabel', { hasText: /^F3$/ }).dispatchEvent('click');
+  await page.waitForFunction((k) => PNL.app.state().qr === k, gprRel('rb', 'Y', 'W', 'SS'));
+  assert.equal(await page.locator('#gprRoy .elab-g.chosen text').textContent(), 'SS+5');
+  await page.locator('#gprPert text.elabel', { hasText: /^W₁ 1$/ }).dispatchEvent('click');
+  await page.waitForFunction((k) => PNL.app.state().qr === k, gprRel('rb', 'Q', 'W', 'FS'));
+  assert.equal(await page.locator('#gprRoy .elab-g.chosen').count(), 0, 'Q → W no tiene etiqueta');
+  assert.equal(await page.locator('#gprRoy path.edge.chosen').count(), 1);
+  // La tabla de la PERT (su alternativa en texto) también elige con el teclado.
+  await page.locator('#gprPertTable summary').click();
+  await page.locator('#gprPertTable button', { hasText: /^espera$/ }).click();
+  await page.waitForFunction((k) => PNL.app.state().qr === k, gprRel('rb', 'W', 'X', 'FS'));
+  assert.match(await page.locator('#gprRelText').innerText(), /W₂ → espera 1 → X/);
+  // El enlace abre la relación elegida; otro proyecto la borra.
+  const p2 = await gprLab(page.url().split('#')[1]);
+  assert.deepEqual(await gprPertChosen(p2), ['W₂', 'X 1', 'espera 1'].sort());
+  await close(p2);
+  await page.locator('#gprRel').selectOption('');
+  await page.waitForFunction(() => PNL.app.state().qr === null);
+  assert.equal(await page.locator('#gprPert text.elabel.chosen').count(), 0);
+  await close(page);
+});
+
+check('F5a T013 · AC9: ROSEBUD dura 24 en las dos redes con L, Y y W partidas en el tiempo; en la crítica al revés la PERT da 10 y la ROY 14, y desde ROSEBUD se llega a ese ejemplo', async () => {
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es' }));
+  assert.match(await page.locator('#gprPertNote').innerText(), /crítica al revés.*10.*14/);
+  await page.locator('#gprPertNote button').click();
+  await page.waitForFunction(() => PNL.gprTab.state().src.id === 'rv');
+  assert.deepEqual((await gprSummary(page)).T, ['14', '10']);
+  assert.match(await page.locator('#gprPertNote').innerText(), /Aquí la PERT da 10 y la ROY 14.*B/);
+  assert.equal(await page.locator('#gprPertNote button').count(), 0);
+  await close(page);
+  const en = await gprLab(gprHash({ qe: 'rv', lang: 'en' }));
+  assert.match(await en.locator('#gprPertNote').innerText(), /Here the AOA network gives 10 and the AON network 14/);
+  await close(en);
+});
+
+check('F5a T013 · axe sin violaciones con las dos redes y una relación elegida (ES claro, EN oscuro) y con la tabla de la PERT abierta; a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang, qr: gprRel('rb', 'V', 'Y', 'FF') }), { scheme });
+    await page.waitForSelector('#gprPert svg');
+    await axe(page, `F5a T013 · ROY y PERT · ${lang} · ${scheme}`);
+    await page.locator('#gprPertTable summary').click();
+    await axe(page, `F5a T013 · tabla de la PERT · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await gprLab(gprHash({ qe: 'rb', lang: 'es', qr: gprRel('rb', 'V', 'Y', 'FF') }), { width: 360, height: 740 });
+  await m.waitForSelector('#gprPert svg');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5a-t013-360', true);
+  await close(m);
+  const big = await gprLab(gprHash({ qe: 'rb', lang: 'es', qr: gprRel('rb', 'V', 'Y', 'FF') }));
+  await big.waitForSelector('#gprPert svg');
+  await shot(big, 'f5a-t013-1280');
+  await close(big);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

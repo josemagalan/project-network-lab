@@ -4,7 +4,8 @@
  * ejemplos; editable con «Tabla propia», con el error o el aviso de cada fila) y la red ROY con la relación escrita en cada
  * arco, sus tiempos y su tabla de tiempos y holguras (la alternativa en texto de la red). T011: el paso a paso con
  * predicción (tablero 116), del paso 1 en adelante: en el paso 0 (la tabla) se ve la pestaña de siempre. La PERT
- * equivalente y el «¿Y si…?» llegan en T013 y T014. T012: el Gantt con las relaciones (tablero 118, views/gpr-gantt), con su
+ * equivalente (T013, tablero 117: «Redes», la PERT por piezas, la relación elegida en las dos redes y el resumen) y el
+ * «¿Y si…?» (T014). T012: el Gantt con las relaciones (tablero 118, views/gpr-gantt), con su
  * nota, su leyenda y su tabla; no se ve en el paso a paso. La pestaña no se ve en la barra hasta T015.
  *
  * Los códigos de las relaciones van con la notación elegida en «Ajustes» (FS, SS, FF, SF o FC, CC, FF, CF; decisión del
@@ -23,6 +24,7 @@
   const C = req('./core/cpm.js', 'cpm');
   const G = req('./core/gpr.js', 'gpr');
   const X = req('./core/gprex.js', 'gprex');
+  const GP = req('./core/gprpert.js', 'gprpert');
   const NR = req('./narrate.js', 'narrate');
   const { START, END } = req('./core/topo.js', 'topo');
 
@@ -276,6 +278,88 @@
     return out;
   }
 
+  // ---------- La PERT equivalente y la sincronía (T013, tablero 117) ----------
+
+  /** Una relación como se nombra fuera de la tabla: «V → Y FF+6» (las FS sin desfase, «G → M»). */
+  const relName = (r, nota, lang) => `${r.from} → ${r.to}${plain(r) ? '' : ` ${relTag(r, nota, lang)}`}`;
+  let pertCache = { key: null, b: null };
+  /** La PERT equivalente de core/gprpert (la última, guardada: no se rehace al cambiar de relación o de vista). */
+  function pertOf(m) {
+    if (!m.solution) return null;
+    const key = JSON.stringify([m.gp.activities.map((a) => [a.id, a.d]), m.gp.rels.map((r) => [r.from, r.to, r.type, r.lag])]);
+    if (pertCache.key !== key) pertCache = { key, b: GP.build(m.gp) };
+    return pertCache.b;
+  }
+
+  let rvCache = null;
+  /** Las cifras del ejemplo de la crítica al revés (para la nota), calculadas una vez y sin tocar la PERT guardada. */
+  function rvFigures() {
+    if (!rvCache) {
+      const gp = G.parse(X.get('rv').rows).project;
+      const b = GP.build(gp);
+      rvCache = { T: G.solve(gp).duration, tp: b.Tpert, ids: [...new Set(b.gaps.map((g) => g.act))] };
+    }
+    return rvCache;
+  }
+
+  /** Las dos redes en cifras: elementos y duración; en la PERT, las actividades partidas en el tiempo (con su hueco) y las
+   *  relaciones que no se pueden dibujar. Los trozos de duración 0 cuentan como ficticias (P4). */
+  function pertSummary(m, nota, lang) {
+    const b = pertOf(m); const acts = b.pieces.acts;
+    const zero = acts.filter((a) => a.zero).length;
+    return { roy: { acts: m.gp.activities.length, rels: m.gp.rels.length, T: m.solution.duration },
+      pert: { pieces: acts.filter((a) => !a.wait && !a.zero).length, waits: b.pieces.waits.length, dummies: b.net.dummies.length + zero, events: b.net.events.length, T: b.Tpert },
+      gaps: b.gaps.map((g) => ({ act: g.act, gap: g.gap })), omitted: b.omitted.map((k) => relName(m.gp.rels[k], nota, lang)) };
+  }
+
+  /** Lo que se resalta con la relación k elegida: su flecha en la ROY y sus trozos, esperas y ficticias en la PERT. */
+  function relMarks(m, k) {
+    if (k == null || !m.gp || !m.gp.rels[k]) return null;
+    const r = m.gp.rels[k];
+    const mp = pertOf(m).map[k];
+    return { rel: k, roy: new Map([[`${r.from}>${r.to}`, 'chosen']]), pert: new Map(mp ? [...mp.arcs, ...mp.dummies].map((x) => [x, 'chosen']) : []) };
+  }
+  /** Las relaciones que representa un arco de la PERT (un trozo puede estar en varias; una ficticia, en una o en ninguna). */
+  function relsOfArc(m, label) {
+    const map = pertOf(m).map;
+    return Object.keys(map).map(Number).sort((a, b) => a - b).filter((k) => map[k].arcs.includes(label) || map[k].dummies.includes(label));
+  }
+  // La siguiente de la lista: la primera si la elegida no está en ella; si está, la de después (se pasa de una a otra).
+  const cycle = (list, cur) => (!list.length ? null : list[(list.indexOf(cur) + 1) % list.length]);
+  /** La relación que se elige al pulsar un arco de la PERT. */
+  const pickFromArc = (m, label, cur) => cycle(relsOfArc(m, label), cur);
+  /** La relación que se elige al pulsar una flecha de la ROY (rel = null) o su etiqueta (rel, la suya). */
+  function pickFromEdge(m, key, rel, cur) {
+    if (rel != null) return rel;
+    const [u, v] = key.split('>');
+    return cycle(m.gp.rels.map((r, k) => [r, k]).filter(([r]) => r.from === u && r.to === v).map(([, k]) => k), cur);
+  }
+  /** Las relaciones de la lista «Relación». */
+  const relOptions = (m, nota, lang) => m.gp.rels.map((r, k) => ({ rel: k, text: relName(r, nota, lang) }));
+
+  /** La explicación de la relación k: cómo está en la PERT, cómo se parten sus actividades y los huecos que quedan. */
+  function relExplain(m, k, nota, lang) {
+    const r = m.gp.rels[k];
+    const b = pertOf(m);
+    const tp = (key, p) => I.t(lang, `gpr.pert.${key}`, p);
+    const n = (v) => NR.fmt(lang, v);
+    const head = relName(r, nota, lang);
+    const mp = b.map[k];
+    if (!mp) return { head, lines: [tp('omittedRel')] };
+    const acts = Object.fromEntries(b.pieces.acts.map((a) => [a.id, a]));
+    const name = (x) => (acts[x] && acts[x].wait ? `${tp('wait')} ${n(acts[x].d)}` : x);
+    const path = mp.arcs.map(name).join(' → ');
+    const dm = mp.dummies.length ? tp(mp.dummies.length === 1 ? 'withDummy' : 'withDummies', { list: I.list(lang, mp.dummies) }) : '';
+    const lines = [mp.startOf ? tp('inPertStart', { path, id: mp.startOf, dm }) : tp('inPert', { path, dm })];
+    const own = [...new Set([r.from, r.to])];
+    for (const a of own) {
+      const ps = b.pieces.pieceAt[a];
+      if (ps.length > 1) lines.push(tp('split', { id: a, list: I.list(lang, ps.map((x) => `${x.id} (${n(x.d)})`)) }));
+    }
+    for (const g of b.gaps) if (own.includes(g.act)) lines.push(tp('gap', { g: n(g.gap), a: g.after, b: g.before }));
+    return { head, lines };
+  }
+
   /** Filas pegadas de una hoja de cálculo (actividad, nombre, duración y predecesoras), como en el taller. */
   function pasteRows(text) {
     return P.parsePasted(text).map((r) => ({ id: str(r.id), name: str(r.name), duration: str(r.duration), links: str(r.links) }));
@@ -311,6 +395,10 @@
       return h('div', { class: 'card gpr-bar' }, [h('div', { class: 'gpr-row' }, [
         h('label', { class: 'gpr-field' }, [tg('project'), ' ', sel]),
         button(tg('fromWork'), fromWork, { id: 'gprFromWork' }),
+        // «Redes» (T013, tablero 117): la ROY, la PERT equivalente o las dos (qn, por defecto las dos).
+        h('div', { class: 'seg', role: 'group', 'aria-label': tg('nets.label') }, [h('span', { class: 'gpr-seglab', 'aria-hidden': 'true' }, [tg('nets.label')]),
+          ...[['roy', 'gprNetRoy'], ['pert', 'gprNetPert'], ['both', 'gprNetBoth']].map(([v, id]) => h('button', { type: 'button', id, 'aria-pressed': String(nets() === v),
+            onclick: () => { go({ qn: v }); focus(id); } }, [tg(`nets.${v}`)]))]),
         // «Gantt» (T012, tablero 118): se abre a fechas tempranas (qg=1); las tardías se eligen junto al dibujo (qg=2).
         h('div', { class: 'seg', role: 'group', 'aria-label': tg('gantt.toggle') }, [h('button', { type: 'button', id: 'gprGantt', 'aria-pressed': String(ganttOn()),
           disabled: !m.solution, onclick: toggleGantt }, [tg('gantt.toggle')])]),
@@ -323,6 +411,8 @@
       ])]);
     }
     const walking = () => !!m.trace && state().step > 0;
+    const nets = () => (['roy', 'pert', 'both'].includes(state().qn) ? state().qn : 'both');
+    const pick = (k) => { if (k !== null && k !== state().qr) go({ qr: k }); };
     const ganttOn = () => !!m.solution && (state().qg === 1 || state().qg === 2);
     function toggleGantt() {
       const on = !ganttOn();
@@ -468,6 +558,12 @@
           for (const list of labs.values()) for (const l of list) l.cls = win.has(l.rel) ? 'chosen' : '';
         }
       } else {
+        // T013: la relación elegida (qr), resaltada; las demás etiquetas de su flecha, sin resaltar.
+        const sel = relMarks(m, s.qr);
+        if (sel) {
+          edgeMarks = sel.roy;
+          for (const [k, list] of labs) if (sel.roy.has(k)) for (const l of list) l.cls = l.rel === sel.rel ? 'chosen' : '';
+        }
         for (const id of lay.cs.order) {
           for (const f of ['ES', 'EF', 'LS', 'LF']) revealed.set(`${id}.${f}`, sol.times[id][f]);
           for (const f of ['TF', 'FF']) revealed.set(`${id}.${f}`, sol.floats[id][f]);
@@ -477,7 +573,8 @@
       const holder = h('div', { class: 'gpr-net', id: 'gprRoy', tabindex: '0' });
       root.PNL.royView.render(holder, { project: lay.cp, solution: view, lay: lay.roy, step: stepCtx, revealed, box: s.box, lang: lang(), nota: s.nota,
         criticalOn: critOn, numFmt: num, name: m.src.title, fit: true, minWidth: 640, geo: { gx: 84 }, labels: labs, critEdges: critEdges(gp, sol, lay.cp), edgeMarks,
-        ariaExtra: relList.length ? tg('net.rels', { list: relList.join(', ') }) : '' });
+        ariaExtra: relList.length ? tg('net.rels', { list: relList.join(', ') }) : '',
+        onEdge: walk ? null : (key, rel) => pick(pickFromEdge(m, key, rel, state().qr)) });
       const N = I.notation(s.nota);
       const legend = h('p', { class: 'gpr-legend', id: 'gprLegend' }, [
         h('span', {}, [tg(`legend.box${s.box === '4' || s.box === 'c' ? s.box : '7'}`, N)]),
@@ -509,6 +606,78 @@
         h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tg('results.caption', { name: m.src.title }) }, [
           h('table', { class: 'data gpr-res', id: 'gprResultsTable' }, [h('caption', { class: 'sr-only' }, [tg('results.caption', { name: m.src.title })]),
             h('thead', {}, [head]), h('tbody', {}, body)])])]);
+    }
+
+    // ---------- La PERT equivalente y la relación en las dos redes (T013, tablero 117) ----------
+    let pertLay = { b: null, lay: null };
+    let pertTableOpen = false;
+    function pertCard() {
+      const b = pertOf(m);
+      if (pertLay.b !== b) pertLay = { b, lay: root.PNL.aoaLayout.layout(b.net) };
+      const acts = Object.fromEntries(b.pieces.acts.map((a) => [a.id, a]));
+      const sel = relMarks(m, state().qr);
+      const onSelect = (label) => pick(pickFromArc(m, label, state().qr));
+      const arcName = (x) => (acts[x] && acts[x].wait ? tg('pert.wait') : x);
+      const arcText = (x, dummy) => {
+        const a = !dummy && acts[x];
+        if (!a) return null;
+        if (a.wait) return `${tg('pert.wait')} ${num(a.d)}`;
+        return a.zero ? x : `${x} ${num(a.d)}`;
+      };
+      const holder = h('div', { class: 'gpr-net', id: 'gprPert', tabindex: '0' });
+      root.PNL.pertView.render(holder, { net: b.net, lay: pertLay.lay, revealed: new Map(), step: null, solution: null, lang: lang(), nota: nota(), criticalOn: false,
+        numFmt: num, name: m.src.title, numbered: true, fit: true, minWidth: 640, geo: { colGap: 100, rowGap: 80 }, idPrefix: 'gpr-pk',
+        marks: sel ? sel.pert : null, arcText, zero: new Set(b.pieces.acts.filter((a) => a.zero).map((a) => a.id)), wait: new Set(b.pieces.waits), onSelect });
+      const tbl = h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tg('pert.table') });
+      root.PNL.pertView.arcTable(tbl, { net: b.net, numFmt: num, lang: lang(), name: m.src.title, durations: Object.fromEntries(b.pieces.acts.map((a) => [a.id, a.d])),
+        onSelect, arcName });
+      const details = h('details', { class: 'gpr-results', id: 'gprPertTable', open: pertTableOpen, ontoggle: (e) => { pertTableOpen = e.target.open; } },
+        [h('summary', {}, [tg('pert.table')]), tbl]);
+      return h('section', { class: 'card gpr-card', 'aria-labelledby': 'gprPertHead' }, [h('h2', { id: 'gprPertHead' }, [tg('pert.title')]), holder,
+        h('p', { class: 'gpr-swipe muted small', 'aria-hidden': 'true' }, [tg('net.swipe')]), h('p', { class: 'gpr-legend' }, [tg('pert.legend')]), details]);
+    }
+    function relPanel() {
+      const qr = state().qr;
+      const sel = relMarks(m, qr);
+      const nt = nota();
+      const select = h('select', { id: 'gprRel', onchange: (e) => { go({ qr: e.target.value === '' ? null : Number(e.target.value) }); focus('gprRel'); } },
+        [h('option', { value: '', selected: !sel }, [tg('rel.none')])].concat(relOptions(m, nt, lang()).map((o) => h('option', { value: String(o.rel), selected: !!sel && sel.rel === o.rel }, [o.text]))));
+      let box;
+      if (sel) {
+        const ex = relExplain(m, sel.rel, nt, lang());
+        box = h('div', { class: 'gpr-relbox', id: 'gprRelText', role: 'status' }, [h('p', {}, [h('strong', {}, [ex.head])]), ...ex.lines.map((x) => h('p', {}, [x]))]);
+      } else box = h('div', { class: 'gpr-relbox', id: 'gprRelText', role: 'status' }, [h('p', {}, [tg('rel.hint')])]);
+      const s = pertSummary(m, nt, lang());
+      const cnt = (n, k) => tg(`sum.${k}${n === 1 ? 'One' : ''}`, { n: num(n) });
+      const none = tg('sum.none');
+      const rows = [
+        ['elems', `${cnt(s.roy.acts, 'acts')}, ${cnt(s.roy.rels, 'rels')}`, ['pieces', 'waits', 'dummies', 'events'].map((k) => cnt(s.pert[k], k)).join(', ')],
+        ['T', num(s.roy.T), num(s.pert.T)],
+        ['gaps', none, s.gaps.length ? s.gaps.map((g) => `${g.act} (${num(g.gap)})`).join(', ') : none],
+        ['omitted', '—', s.omitted.length ? s.omitted.join(', ') : none],
+      ];
+      const table = h('table', { class: 'data gpr-sum', id: 'gprSummary' }, [h('caption', { class: 'sr-only' }, [tg('sum.caption')]),
+        h('thead', {}, [h('tr', {}, [h('td', {}, []), h('th', { scope: 'col' }, [tg('nets.roy')]), h('th', { scope: 'col' }, [tg('nets.pert')])])]),
+        h('tbody', {}, rows.map(([k, a, b]) => h('tr', { 'data-row': k }, [h('th', { scope: 'row' }, [tg(`sum.${k}`)]),
+          h('td', { class: k === 'T' ? 'num strong' : null }, [a]), h('td', { class: k === 'T' ? 'num strong' : null }, [b])])))]);
+      return h('section', { class: 'card gpr-card gpr-help', id: 'gprRelPanel', 'aria-labelledby': 'gprRelHead' }, [
+        h('h2', { id: 'gprRelHead' }, [tg('rel.title')]),
+        h('label', { class: 'gpr-field' }, [tg('rel.label'), ' ', select]), box,
+        h('div', { class: 'gpr-scroll' }, [table]), h('p', { class: 'muted small' }, [tg('sum.rule')]),
+        pertNote(s), h('p', { class: 'muted small' }, [tg('rel.keys')])]);
+    }
+    // Cuando la PERT dura menos que la ROY, por qué; si no, el ejemplo en que pasa (la crítica al revés).
+    function pertNote(s) {
+      const ids = (x) => I.list(lang(), [...new Set(x.gaps.map((g) => g.act))]);
+      if (s.pert.T < s.roy.T - TOL) {
+        return h('p', { class: 'gpr-warnbox', id: 'gprPertNote' }, [tg(s.omitted.length ? 'note.lessOmitted' : 'note.less', { tp: num(s.pert.T), T: num(s.roy.T), ids: ids(s) })]);
+      }
+      const rv = X.get('rv');
+      if (!rv || m.src.id === 'rv') return null;
+      const r = rvFigures();
+      if (!(r.tp < r.T - TOL)) return null;
+      return h('p', { class: 'gpr-warnbox', id: 'gprPertNote' }, [tg('note.other', { name: rv.title[lang()], tp: num(r.tp), T: num(r.T), ids: I.list(lang(), r.ids) }), ' ',
+        h('button', { type: 'button', class: 'link', onclick: () => { go({ qe: 'rv' }, { push: true }); focus('gprProj'); } }, [tg('note.see')])]);
     }
 
     // ---------- El Gantt con las relaciones (T012, tablero 118) ----------
@@ -654,7 +823,12 @@
     let netSlot = null;
     function fillNet() {
       clear(netSlot);
-      if (m.solution) netSlot.appendChild(netCard());
+      if (!m.solution) return;
+      const v = nets();
+      if (v === 'roy') netSlot.appendChild(netCard());
+      else {
+        netSlot.appendChild(h('div', { class: 'gpr-nets' }, [h('div', { class: 'gpr-nets-main' }, [v === 'both' ? netCard() : null, pertCard()]), relPanel()]));
+      }
       if (ganttOn()) netSlot.appendChild(ganttBlock());
     }
     function draw() {
@@ -690,7 +864,8 @@
   }
 
   const api = { FIELDS, code, numTxt, relTag, relText, source, model, issueText, rowMarks, labels, structure, critEdges, pasteRows,
-    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, create };
+    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, relName, pertOf, pertSummary, relMarks, relsOfArc, pickFromArc, pickFromEdge,
+    relOptions, relExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.gprTab = api;
   if (isNode) module.exports = api;

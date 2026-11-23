@@ -12,6 +12,10 @@
  *   predTable(el, ctx): la tabla de precedentes del dibujo progresivo (ctx.project; ctx.act, la actividad del paso).
  *   succTable(el, ctx): la tabla de posteriores de los pasos de construcción, con el papel de cada actividad.
  *   arcTable(el, ctx): la alternativa en texto (un arco por fila), con botones para seleccionar.
+ * F5a (T013, PERT equivalente por piezas): ctx.marks = Map(etiqueta → clase) resalta los arcos de una relación; ctx.zero
+ * (trozos de duración 0, en trazo discontinuo como las ficticias) y ctx.wait (esperas) dan clase a su etiqueta;
+ * ctx.arcText(etiqueta, ficticia) escribe la etiqueta de un arco y ctx.arcName(etiqueta), su nombre en arcTable
+ * (sin ellos, lo de siempre).
  */
 (function (root) {
   'use strict';
@@ -42,6 +46,7 @@
     }
     if (ctx.emph) for (const label of ctx.emph) set(label, 'rule');
     if (ctx.removable) for (const label of ctx.removable) set(label, 'rm');
+    for (const [label, c] of ctx.marks || []) set(label, c);
     if (selected) set(selected, 'sel');
     return cls;
   }
@@ -105,10 +110,13 @@
         mid = { x: (ps[k].x + ps[k + 1].x) / 2, y: (ps[k].y + ps[k + 1].y) / 2 };
       }
       const c = cls.get(e.label) || '';
-      const path = eg.append('path').attr('d', d).attr('class', `edge${e.dummy ? ' dummy' : ''}${c ? ` ${c}` : ''}`).attr('marker-end', `url(#${marker(c)})`);
+      const zero = !!(ctx.zero && ctx.zero.has(e.label));
+      const kind = zero ? ' zero' : ctx.wait && ctx.wait.has(e.label) ? ' wait' : '';
+      const path = eg.append('path').attr('d', d).attr('class', `edge${e.dummy || zero ? ' dummy' : ''}${c ? ` ${c}` : ''}`).attr('marker-end', `url(#${marker(c)})`);
       const vertical = !curved && a.x === b.x;
-      const txt = e.dummy ? e.label : (dur[e.label] == null ? e.label : `${e.label} = ${numFmt(dur[e.label])}`);
-      const label = lg.append('text').attr('class', `elabel${e.dummy ? ' dummy' : ''}${c ? ` ${c}` : ''}`)
+      const own = ctx.arcText ? ctx.arcText(e.label, e.dummy) : null;
+      const txt = own != null ? own : e.dummy ? e.label : (dur[e.label] == null ? e.label : `${e.label} = ${numFmt(dur[e.label])}`);
+      const label = lg.append('text').attr('class', `elabel${e.dummy ? ' dummy' : ''}${kind}${c ? ` ${c}` : ''}`)
         .attr('x', mid.x + (vertical ? 10 : 0)).attr('y', mid.y + (vertical ? 4 : -7)).attr('text-anchor', vertical ? 'start' : 'middle').text(txt);
       if (onSelect) {
         for (const el of [path, label]) el.style('cursor', 'pointer').on('click', () => onSelect(e.label));
@@ -210,6 +218,7 @@
     clear(container);
     const { net, numFmt } = ctx;
     const dur = ctx.durations || {};
+    const name = (x) => (ctx.arcName ? ctx.arcName(x) : x);
     const rows = [...net.arcs.map((e) => ({ label: e.act, from: e.from, to: e.to, d: dur[e.act], why: '' })),
       ...net.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, d: 0, why: `${t(ctx, `pert.rule.${d.rule}`)}: ${G.i18n.list(ctx.lang, d.because)}`, dummy: true }))]
       .sort((x, y) => x.from - y.from || x.to - y.to);
@@ -219,8 +228,8 @@
         .map((x) => h('th', { scope: 'col' }, [x])))]),
       h('tbody', {}, rows.map((r) => h('tr', { class: ctx.selected === r.label ? 'sel' : '' }, [
         h('th', { scope: 'row' }, [ctx.onSelect
-          ? h('button', { type: 'button', class: 'link', 'aria-pressed': String(ctx.selected === r.label), 'aria-label': t(ctx, 'pert.select', { x: r.label }), onclick: () => ctx.onSelect(r.label) }, [r.dummy ? `${r.label} (${t(ctx, 'pert.dummy')})` : r.label])
-          : (r.dummy ? `${r.label} (${t(ctx, 'pert.dummy')})` : r.label)]),
+          ? h('button', { type: 'button', class: 'link', 'aria-pressed': String(ctx.selected === r.label), 'aria-label': t(ctx, 'pert.select', { x: name(r.label) }), onclick: () => ctx.onSelect(r.label) }, [r.dummy ? `${r.label} (${t(ctx, 'pert.dummy')})` : name(r.label)])
+          : (r.dummy ? `${r.label} (${t(ctx, 'pert.dummy')})` : name(r.label))]),
         h('td', {}, [String(r.from)]), h('td', {}, [String(r.to)]),
         h('td', {}, [r.d == null ? '—' : numFmt(r.d)]), h('td', {}, [r.why]),
       ]))),

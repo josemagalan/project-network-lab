@@ -11,6 +11,7 @@
  * generalizadas, una etiqueta debajo de otra si hay varias); ctx.critEdges = Set('U>V') dice qué flechas son críticas en lugar
  * de la regla de fin a comienzo, y ctx.ariaExtra se añade al texto de la red. T011: ctx.edgeMarks = Map('U>V' → 'chosen' o
  * 'compared') marca los términos del paso, y una etiqueta con cls propio (la relación que manda) no toma el de su flecha.
+ * T013: ctx.onEdge('U>V', rel) al pulsar una flecha (rel = null) o una etiqueta (rel = su relación).
  * Sin ellos, la red de siempre.
  */
 (function (root) {
@@ -115,9 +116,10 @@
       else if (!cls && criticalOn && isCritNode(u) && isCritNode(v) && tight(u, v) && (crit.has(u) || crit.has(v))) cls = 'crit';
       const lab = ctx.labels && ctx.labels.get(`${u}>${v}`);
       // En el tramo del medio (el de la izquierda si son pares), centrada en él: los tramos curvos son simétricos.
-      if (lab && lab.length) { const q = gaps[Math.floor(gaps.length / 2)]; tags.push({ x: (q[0] + q[2]) / 2, y: (q[1] + q[3]) / 2, lab, cls }); }
-      eg.append('path').attr('d', d).attr('class', `edge ${cls}`)
+      if (lab && lab.length) { const q = gaps[Math.floor(gaps.length / 2)]; tags.push({ x: (q[0] + q[2]) / 2, y: (q[1] + q[3]) / 2, lab, cls, key: `${u}>${v}` }); }
+      const ep = eg.append('path').attr('d', d).attr('class', `edge ${cls}`)
         .attr('marker-end', `url(#${{ chosen: 'pnl-mk-a', compared: 'pnl-mk-a', crit: 'pnl-mk-c', sel: 'pnl-mk-s' }[cls] || 'pnl-mk'})`);
+      if (ctx.onEdge) ep.style('cursor', 'pointer').on('click', () => ctx.onEdge(`${u}>${v}`, null));
     }
 
     if (tags.length) {
@@ -131,6 +133,7 @@
           gl.append('rect').attr('class', 'elab-bg').attr('x', q.x - w / 2).attr('y', y - 9).attr('width', w).attr('height', 16).attr('rx', 4);
           gl.append('title').text(l.title || l.text);
           gl.append('text').attr('class', 'elab').attr('x', q.x).attr('y', y + 3.5).text(l.text);
+          if (ctx.onEdge) gl.style('cursor', 'pointer').on('click', () => ctx.onEdge(q.key, l.rel));
         });
       }
     }
