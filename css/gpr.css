@@ -8,7 +8,7 @@
 .gpr button.ghost { min-height: 32px; padding: 4px 12px; }
 .gpr-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
 .gpr-field select { min-height: 32px; max-width: 100%; min-width: 0; }
-.gpr-bar #gprProj { width: 22rem; }
+.gpr-bar #gprProj { width: 16rem; }
 .gpr-card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gpr-mono, .gpr-code { font-family: var(--mono); }
 /* Tabla de un ejemplo: fichas de solo lectura (tablero 115). */
@@ -112,3 +112,11 @@ table.data.gpr-sum td.strong { font-weight: 700; }
 @media (max-width: 960px) {
   .gpr-nets { grid-template-columns: minmax(0, 1fr); }
 }
+/* «¿Y si…?» y las clases (T014, tablero 119). */
+.gpr h3.gpr-h3 { margin: 4px 0 0; font-size: 13.5px; }
+.gpr-wi-res { border-radius: 8px; padding: 8px 10px; font-size: 13.5px; border: 1px solid var(--line); background: var(--soft); }
+.gpr-wi-res.up { background: var(--critical-soft); border-color: var(--critical); }
+.gpr-wi-res.down { background: var(--ok-soft); border-color: var(--ok); }
+table.data.gpr-cls td.strong { font-weight: 700; }
+table.data.gpr-cls tr.chosen { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.gpr button.link.gpr-link { background: none; border: 0; padding: 0; min-height: 0; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }

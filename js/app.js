@@ -72,6 +72,8 @@
     lr: ['js/learn.js'],
     // F4a (T012): «Aprende más» de M5 y M6, aparte de la pestaña (la reserva de la puerta T001).
     ul: ['js/learn-unc.js'],
+    // F5a (T014): «Aprende más» de «Precedencias generalizadas», al abrirlo.
+    gl: ['js/learn-gpr.js'],
     // F4b (plan P4, T012): «Aprende más» de M7, aparte de M5 y M6 y de la vista de M7 (grupo u7).
     l7: ['js/learn-m7.js'],
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo de la F2b, solo con view=cmp, view=reto o m=prog
@@ -100,7 +102,7 @@
     // v=gpr (core/aoa ya está en la carga común).
     gr: ['css/gpr.css', 'js/core/gpr.js', 'js/core/gprpert.js', 'js/core/gprex.js', 'js/i18n-gpr.js', 'js/views/gpr-gantt.js', 'js/gpr.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -1070,6 +1072,22 @@
     const dlg = $('learnDialog');
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   }
+  // «Aprende más» de «Precedencias generalizadas» (F5a, T014): su grupo (gl) se carga al abrirlo.
+  function openGprLearn() {
+    const LG = G.learnGpr;
+    if (!LG) { need('gl').then(openGprLearn, noop); return; }
+    const c = LG[lang()];
+    const body = clear($('learnBody'));
+    $('learnTitle').textContent = c.title;
+    for (const sec of c.sections) {
+      body.appendChild(h('h3', {}, [sec.head]));
+      sec.paras.forEach((p) => body.appendChild(h('p', {}, [p])));
+    }
+    body.appendChild(h('h3', {}, [t('learn.refs')]));
+    body.appendChild(h('ul', {}, LG.refs[lang()].map((r) => h('li', {}, [r]))));
+    const dlg = $('learnDialog');
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  }
   // «Aprende más» de M0 (F2c, T018): precedencias inmediatas, transitivas y redundantes, depurar y leer el texto.
   function openM0Learn() { openTopicLearn('m0Narr.learnTitle', 'm0'); }
   // «Aprende más» de «Ejercicios» (F3a, T015; F3e, T012): el mismo diálogo, con la sección del tipo (learn-ex).
@@ -1293,6 +1311,7 @@
         pred: () => pred, predicting,
         predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
         predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
+        learn: openGprLearn,
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
       });
       G.gprTab.state = () => gprc.debug();

@@ -11836,7 +11836,7 @@ check('F5a T010 · axe sin violaciones (claro y oscuro, ES y EN) con un ejemplo 
 // ---------- F5a, T011: el paso a paso con predicción ----------
 
 const GPRT = require(path.join(ROOT, 'js', 'gpr.js'));
-// Índice del paso de la traza del paso a paso (sin las clases) que cumple f.
+// Índice del paso de la traza del paso a paso (con las clases desde T014) que cumple f.
 const gprIdx = (qe, f) => GPRT.walkTrace(GPRT.model(Object.assign(U5.decode('#v=gpr').state, { qe }), 'es')).findIndex(f);
 const gprStepAt = async (page, s, k) => {
   await setHash(page, gprHash(Object.assign({}, s, { step: k })));
@@ -11851,7 +11851,7 @@ check('F5a T011 · AC8: «Paso a paso» abre el paso 1; en la pasada hacia delan
   assert.equal(await page.locator('#gprWalk').getAttribute('aria-pressed'), 'true');
   assert.equal(await page.locator('#gprChips').count(), 0, 'la tabla de fichas no se ve en el paso a paso');
   assert.equal(await page.locator('#gprPrev').isDisabled(), true);
-  assert.match(await page.locator('#gprCounter').innerText(), /Paso 1 de 20/);
+  assert.match(await page.locator('#gprCounter').innerText(), /Paso 1 de 21/);
   const k = gprIdx('rb', (s) => s.kind === 'gprForward' && s.act === 'Y');
   await gprStepAt(page, { qe: 'rb', lang: 'es' }, k);
   assert.equal(await page.locator('#gprStepHead').innerText(), 'Pasada hacia delante · actividad Y');
@@ -12215,6 +12215,145 @@ check('F5a T013 · axe sin violaciones con las dos redes y una relación elegida
   const big = await gprLab(gprHash({ qe: 'rb', lang: 'es', qr: gprRel('rb', 'V', 'Y', 'FF') }));
   await big.waitForSelector('#gprPert svg');
   await shot(big, 'f5a-t013-1280');
+  await close(big);
+});
+
+// ---------- F5a, T014: «¿Y si…?», las clases de Valls y Lino y «Aprende más» ----------
+
+const gprClsRows = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#gprClasses tbody tr')]
+  .map((tr) => [tr.getAttribute('data-act'), [...tr.querySelectorAll('td')].map((td) => td.textContent)])));
+
+check('F5a T014 · AC11: «¿Y si…?» abre con la primera crítica que no es normal; otra duración recalcula la red, la duración y las clases, y el enlace lo guarda (crítica al revés: B de 6 a 5, 6 y 7 da 15, 14 y 13)', async () => {
+  const page = await gprLab(gprHash({ qe: 'rv', lang: 'es' }));
+  assert.equal(await page.locator('#gprWhatIfBtn').getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.locator('#gprWhatIf').count(), 0);
+  await page.locator('#gprWhatIfBtn').click();
+  await page.waitForFunction(() => { const w = PNL.app.state().qw; return w && w[0] === 'B' && w[1] === 6; });
+  assert.equal(await page.locator('#gprWhatIfBtn').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#gprWiAct').inputValue(), 'B');
+  assert.equal(await page.locator('#gprWiDur').inputValue(), '6');
+  assert.deepEqual((await gprClsRows(page)).B, ['?', '?', '?'], 'la clase de la elegida, oculta hasta predecirla o mostrarla');
+  await page.locator('#gprWiShow').click();
+  assert.deepEqual(await gprClsRows(page), { A: ['↑ alarga', '↓ acorta', 'normal'], B: ['↓ acorta', '↑ alarga', 'al revés'], C: ['↑ alarga', '↓ acorta', 'normal'] });
+  for (const [d, T] of [['5', '15'], ['7', '13'], ['6', '14']]) {
+    await page.locator('#gprWiDur').fill(d);
+    await page.locator('#gprWiTry').click();
+    await page.waitForFunction((x) => PNL.app.state().qw[1] === Number(x), d);
+    assert.ok((await page.locator('#gprRoyHead').innerText()).includes(T), `B = ${d}`);
+    assert.deepEqual((await gprSummary(page)).T[0], T);
+  }
+  await page.locator('#gprWiDur').fill('5');
+  await page.locator('#gprWiDur').press('Enter');
+  await page.waitForFunction(() => PNL.app.state().qw[1] === 5);
+  assert.equal(await page.locator('#gprWiResult').innerText(), 'Acortar B de 6 a 5 alarga el proyecto: de 14 a 15.\nCambian las fechas de B y C.');
+  assert.match(page.url(), /qw=B(%3A|:)5/);
+  assert.equal(await page.locator('#gprWiReset').innerText(), 'Volver a 6');
+  // Una duración que no vale no cambia nada y lo dice.
+  await page.locator('#gprWiDur').fill('-2');
+  await page.locator('#gprWiTry').click();
+  assert.equal(await page.locator('#gprWiErr').isVisible(), true);
+  assert.equal(await state(page).then((s) => s.qw[1]), 5);
+  // El enlace abre lo mismo; «Volver a 6» deja la duración de siempre y cerrar quita el «¿Y si…?».
+  const p2 = await gprLab(page.url().split('#')[1]);
+  assert.ok((await p2.locator('#gprRoyHead').innerText()).includes('15'));
+  await close(p2);
+  await page.locator('#gprWiReset').click();
+  await page.waitForFunction(() => PNL.app.state().qw[1] === 6);
+  assert.equal(await page.locator('#gprWiResult').count(), 0);
+  await page.locator('#gprWiAct').selectOption('A');
+  await page.waitForFunction(() => PNL.app.state().qw[0] === 'A' && PNL.app.state().qw[1] === 10);
+  await page.locator('#gprWhatIfBtn').click();
+  await page.waitForFunction(() => PNL.app.state().qw === null && !document.getElementById('gprWhatIf'));
+  assert.doesNotMatch(page.url(), /qw=/);
+  await close(page);
+});
+
+check('F5a T014 · AC4: en ROSEBUD Y es neutra (con 6 a 10 sigue en 24) y en el ejemplo de las seis clases salen las otras cuatro; la clase de la actividad elegida se predice antes de verla', async () => {
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es', qw: ['Y', 8] }));
+  await page.waitForSelector('#gprWhatIf');
+  assert.deepEqual((await gprClsRows(page)).Y, ['?', '?', '?'], 'la de la actividad elegida, oculta hasta predecir');
+  assert.equal((await gprClsRows(page)).G[2], 'normal');
+  await page.locator('#gprWiCls').selectOption('normal');
+  await page.locator('#gprWiCheck').click();
+  assert.match(await page.locator('#gprWiFb').innerText(), /^No: Y es neutra/);
+  assert.deepEqual((await gprClsRows(page)).Y, ['= igual', '= igual', 'neutra']);
+  for (const d of [6, 10]) {
+    await page.locator('#gprWiDur').fill(String(d));
+    await page.locator('#gprWiTry').click();
+    await page.waitForFunction((x) => PNL.app.state().qw[1] === x, d);
+    assert.match(await page.locator('#gprWiResult').innerText(), /no cambia la duración del proyecto: sigue en 24/);
+  }
+  await gprGo(page, { qe: 'cl', lang: 'en', qw: ['D', 3] });
+  await page.waitForSelector('#gprWhatIf');
+  await page.locator('#gprWiCls').selectOption('incNormal');
+  await page.locator('#gprWiCheck').click();
+  assert.match(await page.locator('#gprWiFb').innerText(), /^Correct/);
+  await page.locator('#gprWiAct').selectOption('C');
+  await page.waitForFunction(() => PNL.app.state().qw[0] === 'C');
+  await page.locator('#gprWiShow').click();
+  const rows = await gprClsRows(page);
+  assert.deepEqual(Object.fromEntries(Object.entries(rows).map(([k, v]) => [k, v[2]])),
+    { A: 'normal', B: 'decreasing reverse', C: 'bicritical', D: 'increasing normal' });
+  await close(page);
+});
+
+check('F5a T014 · A6: el paso a paso termina con las clases; con predicción se elige la clase de cada crítica y se corrige', async () => {
+  const s = { qe: 'rb', lang: 'es', pred: 1 };
+  const page = await gprLab(gprHash(s));
+  const k = gprIdx('rb', (x) => x.kind === 'gprClasses');
+  await gprStepAt(page, s, k);
+  assert.match(await page.locator('#gprCounter').innerText(), /Paso 21 de 21/);
+  assert.equal(await page.locator('#gprStepHead').innerText(), 'Clase de cada actividad crítica');
+  assert.equal(await page.locator('#gprClsWalk select').count(), 6);
+  const cls = { G: 'normal', M: 'normal', V: 'normal', Y: 'neutral', W: 'neutral', X: 'normal' };
+  for (const [id, c] of Object.entries(cls)) await page.locator(`#gprPredCls-${id}`).selectOption(id === 'W' ? 'reverse' : c);
+  await page.locator('#gprPredCheck').click();
+  assert.match(await page.locator('#gprPredFb').innerText(), /5 correctas · 1 por revisar/);
+  assert.equal(await page.locator('#gprClsWalk tr.wrong').count(), 1);
+  assert.match(await page.locator('#gprClsWalk tr[data-act="W"]').innerText(), /neutra/);
+  await close(page);
+});
+
+check('F5a T014 · «Aprende más» carga su grupo (gl) solo al abrirlo y cuenta las relaciones, ROY frente a PERT, las seis clases, ROSEBUD y las dos holguras (ES y EN)', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang }));
+    assert.equal(await page.evaluate(() => !!PNL.learnGpr || [...document.scripts].some((x) => /learn-gpr/.test(x.getAttribute('src') || ''))), false);
+    await page.locator('#gprLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open);
+    assert.equal(await page.evaluate(() => !!PNL.learnGpr), true);
+    const L = require(path.join(ROOT, 'js', 'learn-gpr.js'));
+    assert.equal(await page.locator('#learnTitle').innerText(), L[lang].title);
+    assert.equal(await page.locator('#learnBody h3').count(), L[lang].sections.length + 1);
+    assert.match(await page.locator('#learnBody').innerText(), lang === 'es' ? /Y es neutra/ : /Y is neutral/);
+    await page.keyboard.press('Escape');
+    await close(page);
+  }
+});
+
+check('F5a T014 · axe sin violaciones con el «¿Y si…?» (antes y después de predecir), el paso de las clases y «Aprende más» (ES claro, EN oscuro); a 360 px sin desplazamiento horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await gprLab(gprHash({ qe: 'cl', lang, qw: ['C', 2] }), { scheme });
+    await page.waitForSelector('#gprWhatIf');
+    await axe(page, `F5a T014 · ¿Y si…? · ${lang} · ${scheme}`);
+    await page.locator('#gprWiShow').click();
+    await axe(page, `F5a T014 · ¿Y si…? mostrado · ${lang} · ${scheme}`);
+    const s = { qe: 'rb', lang, pred: 1 };
+    await gprStepAt(page, s, gprIdx('rb', (x) => x.kind === 'gprClasses'));
+    await axe(page, `F5a T014 · paso de las clases · ${lang} · ${scheme}`);
+    await gprGo(page, { qe: 'rb', lang });
+    await page.locator('#gprLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open);
+    await axe(page, `F5a T014 · Aprende más · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await gprLab(gprHash({ qe: 'cl', lang: 'es', qw: ['C', 2] }), { width: 360, height: 740 });
+  await m.waitForSelector('#gprWhatIf');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5a-t014-360', true);
+  await close(m);
+  const big = await gprLab(gprHash({ qe: 'cl', lang: 'es', qw: ['C', 2] }));
+  await big.waitForSelector('#gprWhatIf');
+  await shot(big, 'f5a-t014-1280', true);
   await close(big);
 });
 

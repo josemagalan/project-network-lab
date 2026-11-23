@@ -63,9 +63,20 @@
   /** Lo que pinta la pestaña: la fuente, el proyecto leído (o null), sus errores y avisos y la solución. */
   function model(state, lang) {
     const src = source(state, lang);
-    const { project, report } = G.parse(src.rows);
-    const solution = project ? G.solve(project) : null;
-    const m = { src, gp: project, report, empty: !project && !report.errors.length, solution };
+    const parsed = G.parse(src.rows);
+    const report = parsed.report;
+    let project = parsed.project;
+    let solution = project ? G.solve(project) : null;
+    // «¿Y si…?» (T014, AC11): con qw, toda la pestaña es la del proyecto con la duración nueva; whatIf guarda la de partida.
+    let whatIf = null;
+    const w = state.qw;
+    const act = project && Array.isArray(w) && project.activities.find((a) => a.id === w[0]);
+    if (act) {
+      const r = G.whatIf(project, act.id, w[1]);
+      whatIf = { id: act.id, d0: act.d, d: w[1], before: r.before, after: r.after, delta: r.delta, changed: r.changed, base: project, baseSol: solution };
+      project = r.gp; solution = r.sol;
+    }
+    const m = { src, gp: project, report, empty: !project && !report.errors.length, solution, whatIf };
     m.trace = walkTrace(m);
     return m;
   }
@@ -143,11 +154,13 @@
 
   // ---------- El paso a paso (T011) ----------
 
-  /** La traza del reproductor: la de core/gpr sin el paso de las clases, que llega con «¿Y si…?» (T014). Sin solución, null. */
-  const walkTrace = (m) => (m.solution ? G.trace(m.gp, m.solution).filter((x) => x.kind !== 'gprClasses') : null);
+  /** La traza del reproductor: la de core/gpr; en el paso de las clases (T014, A6) se predice la de cada crítica que tiene
+   *  una (con duración 0 no se puede acortar y no la tiene). Sin solución, null. */
+  const walkTrace = (m) => (m.solution ? G.trace(m.gp, m.solution).map((x) => (x.kind !== 'gprClasses' ? x : Object.assign({}, x, {
+    reveals: m.solution.critical.filter((id) => x.classes[id] && x.classes[id].cls).map((id) => ({ act: id, field: 'gpr.cls', value: x.classes[id].cls })) }))) : null);
   const ASK = { gprForward: ['ES'], gprBackward: ['LS'], gprEnd: ['T'] };
   /** Lo que se predice en cada paso: ES hacia delante, LS hacia atrás, T y cada holgura (EF y LF salen solas). */
-  const asked = (step) => (step.kind === 'gprFloat' ? step.reveals : step.reveals.filter((rv) => (ASK[step.kind] || []).includes(rv.field)));
+  const asked = (step) => (step.kind === 'gprFloat' || step.kind === 'gprClasses' ? step.reveals : step.reveals.filter((rv) => (ASK[step.kind] || []).includes(rv.field)));
   const askedStep = (step) => Object.assign({}, step, { reveals: asked(step) });
 
   /** Los términos de un paso de las pasadas: rótulo, fórmula con siglas (expr), con cifras (calc; null en el inicio), valor
@@ -232,6 +245,12 @@
       const text = tw(`floatText.${step.float}`, { tf: N.TF, ff: N.FF, ls: N.LS, es: N.ES, ef: N.EF });
       return { title: tw(`floatTitle.${step.float}`), text: hide ? `${text} ${tw('floatAsk')}` : text };
     }
+    if (step.kind === 'gprClasses') {
+      let text = tw('clsText');
+      const zero = m.solution.critical.filter((id) => step.classes[id] && !step.classes[id].cls);
+      if (zero.length) text += ` ${tw('clsZero', { ids: I.list(lang, zero) })}`;
+      return { title: tw('clsTitle'), text: hide ? `${text} ${tw('clsAsk')}` : text };
+    }
     if (step.kind === 'gprCritical') {
       const paths = step.paths.map((p) => p.acts.join('–'));
       return { title: tw('critTitle'), text: `${tw('critText', { tf: N.TF, list: I.list(lang, step.critical) })} ${tw(paths.length === 1 ? 'pathOne' : 'pathMany', { p: paths.join('; ') })}` };
@@ -277,6 +296,26 @@
     }
     return out;
   }
+
+  // ---------- «¿Y si…?» y las clases (T014, tablero 119) ----------
+
+  /** La actividad que propone el «¿Y si…?» al abrirse: la primera crítica que no es normal, o la primera crítica. */
+  function whatIfStart(m) {
+    const sol = m.solution;
+    return sol.critical.find((id) => sol.classes[id] && sol.classes[id].cls && sol.classes[id].cls !== 'normal') || sol.critical[0] || m.gp.activities[0].id;
+  }
+  /** Lo que dice el «¿Y si…?»: alargar o acortar, cómo cambia la duración del proyecto y qué fechas se mueven. */
+  function whatIfText(m, lang) {
+    const w = m.whatIf;
+    if (!w || Math.abs(w.d - w.d0) < TOL) return [];
+    const tw = (k, p) => I.t(lang, `gpr.wi.${k}`, p);
+    const n = (v) => NR.fmt(lang, v);
+    const act = tw(w.d > w.d0 ? 'longer' : 'shorter', { id: w.id, d0: n(w.d0), d: n(w.d) });
+    const eff = w.delta > TOL ? 'up' : w.delta < -TOL ? 'down' : 'same';
+    return [tw(eff, { act, T0: n(w.before), T1: n(w.after) }), w.changed.length ? tw('changed', { list: I.list(lang, w.changed) }) : tw('noChange')];
+  }
+  /** Las actividades críticas con el efecto de alargarlas y de acortarlas ('+', '-', '0'; null si no se puede) y su clase. */
+  const classRows = (m) => m.solution.critical.map((id) => { const c = m.solution.classes[id]; return { id, up: c.up, down: c.down, cls: c.cls }; });
 
   // ---------- La PERT equivalente y la sincronía (T013, tablero 117) ----------
 
@@ -408,9 +447,20 @@
           onclick: () => { hooks.dispatch({ type: 'go', n: on ? 0 : 1 }); focus('gprWalk'); } }, [tg('walk.toggle')])]),
         on ? h('label', { class: 'gpr-check' }, [h('input', { type: 'checkbox', id: 'gprPred', checked: !!state().pred,
           onchange: (e) => { hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }); focus('gprPred'); } }), ' ', I.t(lang(), 'predict.toggle')]) : null,
+        // «¿Y si…?» (T014, tablero 119): se abre con la primera crítica que no es normal (qw) y se cierra con el mismo botón.
+        h('div', { class: 'seg', role: 'group', 'aria-label': tg('wi.toggle') }, [h('button', { type: 'button', id: 'gprWhatIfBtn', 'aria-pressed': String(!!m.whatIf),
+          disabled: !m.solution, onclick: toggleWhatIf }, [tg('wi.toggle')])]),
+        hooks.learn ? button(I.t(lang(), 'learn.button'), () => hooks.learn(), { id: 'gprLearn' }) : null,
       ])]);
     }
     const walking = () => !!m.trace && state().step > 0;
+    function toggleWhatIf() {
+      if (m.whatIf) go({ qw: null });
+      else { const id = whatIfStart(m); go({ qw: [id, m.gp.activities.find((a) => a.id === id).d] }); }
+      focus('gprWhatIfBtn');
+      const card = m.whatIf && root.document.getElementById('gprWhatIf');
+      if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+    }
     const nets = () => (['roy', 'pert', 'both'].includes(state().qn) ? state().qn : 'both');
     const pick = (k) => { if (k !== null && k !== state().qr) go({ qr: k }); };
     const ganttOn = () => !!m.solution && (state().qg === 1 || state().qg === 2);
@@ -608,6 +658,63 @@
             h('thead', {}, [head]), h('tbody', {}, body)])])]);
     }
 
+    // ---------- «¿Y si…?» y las clases (T014, tablero 119) ----------
+    let wiSeen = { key: null, fb: null };   // la clase de la actividad elegida, predicha o mostrada (con su respuesta)
+    function whatIfCard() {
+      const w = m.whatIf;
+      const tw = (k, p) => tg(`wi.${k}`, p);
+      const key = `${m.src.id}|${w.id}|${w.d}`;
+      const seen = wiSeen.key === key;
+      const sel = h('select', { id: 'gprWiAct', onchange: (e) => { const a = w.base.activities.find((x) => x.id === e.target.value); go({ qw: [a.id, a.d] }); focus('gprWiAct'); } },
+        w.base.activities.map((a) => h('option', { value: a.id, selected: a.id === w.id }, [`${a.id} (${num(a.d)})`])));
+      const err = h('p', { class: 'small gpr-m-err', id: 'gprWiErr', hidden: true }, [tw('bad')]);
+      const inp = h('input', { id: 'gprWiDur', value: numTxt(w.d, lang()), size: '6', inputmode: 'decimal', autocomplete: 'off', 'aria-describedby': 'gprWiErr',
+        onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); tryIt(); } } });
+      function tryIt() {
+        const v = root.PNL.predict.parseAnswer(inp.value);
+        if (!(Number.isFinite(v) && v >= 0 && String(v).length <= 6)) { err.hidden = false; inp.setAttribute('aria-invalid', 'true'); inp.focus(); return; }
+        go({ qw: [w.id, v] });
+        focus('gprWiDur');
+      }
+      const lines = whatIfText(m, lang());
+      const res = lines.length ? h('div', { class: `gpr-wi-res ${w.delta > TOL ? 'up' : w.delta < -TOL ? 'down' : 'same'}`, id: 'gprWiResult', role: 'status' },
+        lines.map((x) => h('span', { class: 'gpr-m' }, [x]))) : h('p', { class: 'muted small' }, [tw('hint')]);
+      const rows = classRows(m);
+      const mine = rows.find((r) => r.id === w.id);
+      const hide = (r) => r.id === w.id && !!r.cls && !seen;
+      const arrow = (x) => tw(`arrow.${x == null ? 'none' : x}`);
+      const table = h('table', { class: 'data gpr-res gpr-cls', id: 'gprClasses' }, [h('caption', { class: 'sr-only' }, [tw('clsTitle')]),
+        h('thead', {}, [h('tr', {}, ['act', 'up', 'down', 'cls'].map((k) => h('th', { scope: 'col' }, [tw(`head.${k}`)])))]),
+        h('tbody', {}, rows.map((r) => h('tr', { 'data-act': r.id, class: r.id === w.id ? 'chosen' : null }, [h('th', { scope: 'row' }, [r.id]),
+          h('td', {}, [hide(r) ? '?' : arrow(r.up)]), h('td', {}, [hide(r) ? '?' : arrow(r.down)]),
+          h('td', { class: 'strong' }, [hide(r) ? '?' : tg(`cls.${r.cls || 'none'}`)])])))]);
+      const parts = [h('h2', { id: 'gprWhatIfHead' }, [tw('title')]),
+        h('div', { class: 'gpr-row' }, [h('label', { class: 'gpr-field' }, [tw('act'), ' ', sel]), h('label', { class: 'gpr-field' }, [tw('dur'), ' ', inp]),
+          h('button', { type: 'button', class: 'primary', id: 'gprWiTry', onclick: tryIt }, [tw('try')]),
+          button(tw('reset', { d: num(w.d0) }), () => { go({ qw: [w.id, w.d0] }); focus('gprWiReset'); }, { id: 'gprWiReset' })]), err, res,
+        h('h3', { class: 'gpr-h3' }, [tw('clsTitle')]), h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tw('clsTitle') }, [table])];
+      if (!mine) parts.push(h('p', { class: 'small', id: 'gprWiNote' }, [tw('notCrit', { id: w.id, tf: num(m.solution.floats[w.id].TF) })]));
+      else if (!mine.cls) parts.push(h('p', { class: 'small', id: 'gprWiNote' }, [tw('zero', { id: w.id })]));
+      else if (!seen) {
+        const pick = h('select', { id: 'gprWiCls' }, [h('option', { value: '' }, [tw('pick')])]
+          .concat(root.PNL.predict.GPR_CLASSES.map((c) => h('option', { value: c }, [tg(`cls.${c}`)]))));
+        const empty = h('p', { class: 'small gpr-m-err', id: 'gprWiEmpty', hidden: true }, [tw('empty')]);
+        const check = () => {
+          if (!pick.value) { empty.hidden = false; pick.focus(); return; }
+          wiSeen = { key, fb: pick.value === mine.cls ? 'ok' : 'wrong' };
+          keepFocus(draw); focus('gprWiFb');
+        };
+        parts.push(h('div', { class: 'gpr-predict' }, [h('div', { class: 'gpr-row' }, [h('label', { for: 'gprWiCls' }, [tw('predict', { id: w.id })]), pick,
+          h('button', { type: 'button', class: 'primary', id: 'gprWiCheck', onclick: check }, [I.t(lang(), 'predict.check')]),
+          button(I.t(lang(), 'predict.show'), () => { wiSeen = { key, fb: null }; keepFocus(draw); focus('gprWiAct'); }, { id: 'gprWiShow' })]), empty]));
+      } else if (wiSeen.fb) {
+        parts.push(h('p', { class: `gpr-fb ${wiSeen.fb === 'ok' ? 'gpr-ok' : 'gpr-wrong'}`, id: 'gprWiFb', tabindex: '-1', role: 'status' },
+          [tw(wiSeen.fb, { id: w.id, cls: tg(`cls.${mine.cls}`) })]));
+      }
+      if (hooks.learn) parts.push(h('p', { class: 'muted small' }, [tw('more'), ' ', h('button', { type: 'button', class: 'link gpr-link', id: 'gprWiLearn', onclick: () => hooks.learn() }, [I.t(lang(), 'learn.button')])]));
+      return h('section', { class: 'card gpr-card', id: 'gprWhatIf', 'aria-labelledby': 'gprWhatIfHead' }, parts);
+    }
+
     // ---------- La PERT equivalente y la relación en las dos redes (T013, tablero 117) ----------
     let pertLay = { b: null, lay: null };
     let pertTableOpen = false;
@@ -734,6 +841,7 @@
       const parts = [h('h2', { id: 'gprStepHead' }, [nar.title]), h('p', { id: 'gprStepText' }, [nar.text])];
       if (step.formula) parts.push(termsTable(step, hide));
       if (step.kind === 'gprFloat') parts.push(floatsTable(step, ask, hide));
+      if (step.kind === 'gprClasses') parts.push(classesWalk(step, hide));
       parts.push(predictBox(step, ask, hide), walkNav(tr, k, hide, nar));
       return { card: h('section', { class: 'card gpr-card gpr-step', id: 'gprStepCard', 'aria-labelledby': 'gprStepHead' }, parts), walk: { tr, k, hide } };
     }
@@ -773,11 +881,34 @@
       return h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tg('walk.floatsCaption', { f: N[f] }) }, [
         h('table', { class: 'data gpr-res', id: 'gprFloats' }, [h('caption', { class: 'sr-only' }, [tg('walk.floatsCaption', { f: N[f] })]), h('thead', {}, [head]), h('tbody', {}, body)])]);
     }
+    // Clases (T014, A6): cada crítica con el efecto de alargarla y de acortarla y su clase; con predicción, una lista en cada una.
+    function classesWalk(step, hide) {
+      const tw = (k, p) => tg(`wi.${k}`, p);
+      const pred = hooks.pred();
+      const res = !hide && pred.done && pred.step === state().step && pred.result ? pred.result : null;
+      const arrow = (x) => tw(`arrow.${x == null ? 'none' : x}`);
+      const body = classRows(m).map((r) => {
+        const rv = step.reveals.find((x) => x.act === r.id);
+        const k = rv ? PR().key(rv) : null;
+        const mark = res && k ? res.get(k) : null;
+        const ask = hide && rv;
+        const cell = ask ? h('td', {}, [h('select', { id: `gprPredCls-${r.id}`, 'aria-label': `${tw('head.cls')} (${r.id})`, onchange: (e) => { pred.answers.set(k, e.target.value); } },
+          [h('option', { value: '' }, [tw('pick')])].concat(PR().GPR_CLASSES.map((c) => h('option', { value: c, selected: pred.answers.get(k) === c }, [tg(`cls.${c}`)]))))])
+          : h('td', { class: 'strong' }, [tg(`cls.${r.cls || 'none'}`)]);
+        return h('tr', { 'data-act': r.id, class: mark === 'wrong' || mark === 'empty' ? 'wrong' : mark === 'ok' ? 'ok' : null }, [h('th', { scope: 'row' }, [r.id]),
+          h('td', {}, [ask ? '?' : arrow(r.up)]), h('td', {}, [ask ? '?' : arrow(r.down)]), cell,
+          res ? h('td', {}, [mark ? I.t(lang(), `predict.${mark === 'ok' ? 'ok' : 'wrong'}`) : '']) : null]);
+      });
+      const head = h('tr', {}, ['act', 'up', 'down', 'cls'].map((x) => h('th', { scope: 'col' }, [tw(`head.${x}`)]))
+        .concat(res ? [h('th', { scope: 'col' }, [I.t(lang(), 'predict.your')])] : []));
+      return h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tg('walk.clsCaption') }, [
+        h('table', { class: 'data gpr-res gpr-cls', id: 'gprClsWalk' }, [h('caption', { class: 'sr-only' }, [tg('walk.clsCaption')]), h('thead', {}, [head]), h('tbody', {}, body)])]);
+    }
     function predictBox(step, ask, hide) {
       if (!state().pred || !ask.reveals.length) return null;
       const pred = hooks.pred();
       const N = I.notation(nota());
-      const many = step.kind === 'gprFloat';
+      const many = step.kind === 'gprFloat' || step.kind === 'gprClasses';
       if (hide) {
         const rv = ask.reveals[0]; const key = PR().key(rv);
         const msg = h('p', { class: 'small gpr-m-err', id: 'gprPredEmpty', hidden: true }, [tg('walk.empty')]);
@@ -813,7 +944,7 @@
         h('button', { type: 'button', class: 'ghost', id: 'gprNext', disabled: k >= n || hide, onclick: () => {
           hooks.dispatch({ type: 'next' });
           const st = m.trace[Math.min(state().step, n)];
-          focus(hooks.predicting(askedStep(st)) ? (st.kind === 'gprFloat' ? `gprPredIn-${st.reveals[0].act}` : 'gprPredIn') : 'gprNext');
+          focus(hooks.predicting(askedStep(st)) ? (st.kind === 'gprFloat' ? `gprPredIn-${st.reveals[0].act}` : st.kind === 'gprClasses' ? `gprPredCls-${st.reveals[0].act}` : 'gprPredIn') : 'gprNext');
         } }, [`${I.t(lang(), 'player.next')} →`]),
         h('span', { class: 'muted small', id: 'gprCounter' }, [`${I.t(lang(), 'player.counter', { i: k, n })} · ${tg('walk.keys')}`]),
         hide ? h('span', { class: 'muted small' }, [I.t(lang(), 'predict.hidden')]) : null]);
@@ -824,6 +955,7 @@
     function fillNet() {
       clear(netSlot);
       if (!m.solution) return;
+      if (m.whatIf) netSlot.appendChild(whatIfCard());
       const v = nets();
       if (v === 'roy') netSlot.appendChild(netCard());
       else {
@@ -864,7 +996,7 @@
   }
 
   const api = { FIELDS, code, numTxt, relTag, relText, source, model, issueText, rowMarks, labels, structure, critEdges, pasteRows,
-    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, relName, pertOf, pertSummary, relMarks, relsOfArc, pickFromArc, pickFromEdge,
+    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, whatIfStart, whatIfText, classRows, relName, pertOf, pertSummary, relMarks, relsOfArc, pickFromArc, pickFromEdge,
     relOptions, relExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.gprTab = api;

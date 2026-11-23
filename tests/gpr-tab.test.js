@@ -102,10 +102,10 @@ test('F5a T010: pegar desde una hoja de cálculo (actividad, nombre, duración y
 
 // ---------- T011: el paso a paso ----------
 
-test('F5a T011: la traza del paso a paso (sin las clases, que llegan con «¿Y si…?») y lo que se pregunta en cada paso', () => {
+test('F5a T011 y T014: la traza del paso a paso (con las clases desde T014) y lo que se pregunta en cada paso', () => {
   const m = T.model(st({ qe: 'rb' }), 'es');
   const tr = T.walkTrace(m);
-  assert.deepEqual(tr.map((s) => s.kind[3] + (s.float || s.act || '')).join(' '), 'l FG FL FM FQ FV FY FW FX E BX BW BY BV BQ BM BL BG FTF FFF C');
+  assert.deepEqual(tr.map((s) => s.kind[3] + (s.float || s.act || '')).join(' '), 'l FG FL FM FQ FV FY FW FX E BX BW BY BV BQ BM BL BG FTF FFF C C');
   assert.equal(T.walkTrace(T.model(st({ qe: 'own', qt: OWN120 }), 'en')), null);
   const ask = (k) => T.asked(tr[k]).map((rv) => `${rv.act}.${rv.field}`);
   assert.deepEqual(ask(6), ['Y.ES']);
@@ -114,6 +114,8 @@ test('F5a T011: la traza del paso a paso (sin las clases, que llegan con «¿Y s
   assert.equal(ask(18).length, 8);
   assert.ok(ask(18).every((k) => k.endsWith('.TF')));
   assert.deepEqual(ask(20), []);
+  assert.deepEqual(ask(21), ['G.gpr.cls', 'M.gpr.cls', 'V.gpr.cls', 'Y.gpr.cls', 'W.gpr.cls', 'X.gpr.cls']);
+  assert.deepEqual(T.asked(tr[21]).map((rv) => rv.value), ['normal', 'normal', 'normal', 'neutral', 'neutral', 'normal']);
   assert.deepEqual(ask(0), []);
 });
 
@@ -265,4 +267,42 @@ test('F5a T013 (AC9 y AC10): la explicación de la relación elegida: cómo est�
   assert.deepEqual(T.relExplain(m, idx('G', 'M', 'FS'), 'en', 'es').lines, ['En la PERT: G₂ → M.', 'G se parte en G₁ (3) y G₂ (3).']);
   const om = T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '5', links: '' }, { id: 'B', duration: '2', links: 'A SF-6' }] }), 'es');
   assert.match(T.relExplain(om, 0, 'en', 'es').lines[0], /no se puede dibujar/);
+});
+
+// ---------- T014: «¿Y si…?» y las clases de Valls y Lino ----------
+
+test('F5a T014 (AC11): el «¿Y si…?» (qw) recalcula el proyecto con la duración nueva; una actividad que no existe no cambia nada', () => {
+  const rv = (d) => T.model(st({ qe: 'rv', qw: ['B', d] }), 'es');
+  assert.deepEqual([5, 6, 7].map((d) => rv(d).solution.duration), [15, 14, 13]);
+  const w = rv(5).whatIf;
+  assert.deepEqual([w.id, w.d0, w.d, w.before, w.after, w.delta], ['B', 6, 5, 14, 15, 1]);
+  assert.equal(rv(5).gp.activities.find((a) => a.id === 'B').d, 5);
+  for (const d of [6, 7, 9, 10]) assert.equal(T.model(st({ qe: 'rb', qw: ['Y', d] }), 'es').solution.duration, 24, `Y = ${d}`);
+  assert.equal(T.model(st({ qe: 'rb', qw: ['Z', 3] }), 'es').whatIf, null);
+  assert.equal(T.model(st({ qe: 'rb' }), 'es').whatIf, null);
+  // La actividad que se propone al abrir: la primera crítica que no es normal (o la primera crítica).
+  assert.equal(T.whatIfStart(T.model(st({ qe: 'rb' }), 'es')), 'Y');
+  assert.equal(T.whatIfStart(T.model(st({ qe: 'rv' }), 'es')), 'B');
+  assert.equal(T.whatIfStart(T.model(st({ qe: 'fc' }), 'es')), 'A');
+});
+
+test('F5a T014 (AC11): lo que dice el «¿Y si…?»: alargar o acortar, cómo cambia la duración y qué fechas se mueven', () => {
+  assert.deepEqual(T.whatIfText(T.model(st({ qe: 'rv', qw: ['B', 5] }), 'es'), 'es'),
+    ['Acortar B de 6 a 5 alarga el proyecto: de 14 a 15.', 'Cambian las fechas de B y C.']);
+  assert.deepEqual(T.whatIfText(T.model(st({ qe: 'rv', qw: ['B', 7] }), 'en'), 'en'),
+    ['Lengthening B from 6 to 7 shortens the project: from 14 to 13.', 'The dates of B and C change.']);
+  const y = T.whatIfText(T.model(st({ qe: 'rb', qw: ['Y', 10] }), 'es'), 'es');
+  assert.equal(y[0], 'Alargar Y de 8 a 10 no cambia la duración del proyecto: sigue en 24.');
+  assert.equal(T.whatIfText(T.model(st({ qe: 'rb', qw: ['Y', 8] }), 'es'), 'es').length, 0, 'con la duración de siempre no hay nada que contar');
+  assert.deepEqual(T.whatIfText(T.model(st({ qe: 'rb', qw: ['L', 9] }), 'es'), 'es'), ['Alargar L de 2 a 9 no cambia la duración del proyecto: sigue en 24.', 'Cambian las fechas de L y Q.']);
+});
+
+test('F5a T014 (AC4): la tabla de las clases de las actividades críticas, con el efecto de alargar y de acortar por separado', () => {
+  const rows = T.classRows(T.model(st({ qe: 'cl' }), 'es'));
+  assert.deepEqual(rows.map((r) => [r.id, r.up, r.down, r.cls]), [['A', '+', '-', 'normal'], ['B', '0', '+', 'decReverse'], ['C', '+', '+', 'bicritical'], ['D', '+', '0', 'incNormal']]);
+  const zero = T.classRows(T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '3', links: '' }, { id: 'B', duration: '0', links: 'A' }, { id: 'C', duration: '2', links: 'B' }] }), 'es'));
+  assert.deepEqual(zero.find((r) => r.id === 'B'), { id: 'B', up: '+', down: null, cls: null });
+  // Las seis clases salen en los ejemplos, con el «¿Y si…?» en el de las seis.
+  const seen = new Set(['fc', 'cc', 'n16', 'rb', 'rv', 'cl'].flatMap((qe) => T.classRows(T.model(st({ qe }), 'es')).map((r) => r.cls)));
+  assert.deepEqual([...seen].sort(), ['bicritical', 'decReverse', 'incNormal', 'neutral', 'normal', 'reverse']);
 });

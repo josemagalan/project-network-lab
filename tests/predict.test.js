@@ -245,3 +245,12 @@ test('F4b T011: el camino crítico de una réplica (m7.path) vale si es uno de l
   const t = { kind: 'm7.rep', reveals: [{ act: 'R', field: 'm7.T', value: 22.4449 }] };
   assert.equal(Pr.check(t, new Map([[Pr.key(t.reveals[0]), '22,44']])).get(Pr.key(t.reveals[0])), 'ok');
 });
+
+test('F5a T014 (A6): la clase de una actividad crítica se predice eligiendo una de las seis', () => {
+  const step = { kind: 'gprClasses', reveals: [{ act: 'Y', field: 'gpr.cls', value: 'neutral' }, { act: 'G', field: 'gpr.cls', value: 'normal' }] };
+  const r = Pr.check(step, new Map([['Y.gpr.cls', 'neutral'], ['G.gpr.cls', 'reverse']]));
+  assert.deepEqual([...r.entries()], [['Y.gpr.cls', 'ok'], ['G.gpr.cls', 'wrong']]);
+  assert.equal(Pr.check(step, new Map()).get('Y.gpr.cls'), 'empty');
+  assert.equal(Pr.check(step, new Map([['Y.gpr.cls', '']])).get('Y.gpr.cls'), 'empty');
+  assert.deepEqual(Pr.GPR_CLASSES, ['normal', 'reverse', 'neutral', 'bicritical', 'incNormal', 'decReverse']);
+});
