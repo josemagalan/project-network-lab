@@ -416,4 +416,27 @@ test('F3f T019 I-F6 · un enlace que deja una parte sin ningún apartado vuelve 
   const ok = EA.load('#lang=es&eq=floats.floats-floats.sf-tcl.route', '', 'es');
   assert.equal(ok.warning, undefined);
   assert.deepEqual(ok.state.eq, ['floats.floats', 'floats.sf', 'tcl.route']);
+  // El TCL, la única parte con un apartado apagado por defecto (la otra ruta): quitados los demás, también se queda sin
+  // ninguno (revisión de nivel 2, ronda 2, F6).
+  const tcl = EA.load('#lang=es&ep=tcl&eq=tcl.moments-tcl.path-tcl.project-tcl.prob-tcl.deadline', '', 'es');
+  assert.equal(tcl.warning, true);
+  assert.deepEqual(tcl.state.eq, []);
+  assert.equal(E.check(EA.optsOf(tcl.state)).ok, true);
+});
+
+test('F3f T019 ronda 2, F5 · con un ejemplo, el TCL que solo tenía la otra ruta vuelve a sus apartados por defecto (el enlace y la página)', () => {
+  const only = 'tcl.moments-tcl.path-tcl.project-tcl.prob-tcl.deadline-tcl.route';
+  const r = EA.load(`#lang=es&ep=times-tcl&eq=${only}&ee=kl`, '', 'es');
+  assert.equal(r.warning, true);
+  assert.deepEqual(r.state.eq, []);
+  assert.equal(E.check(EA.optsOf(r.state)).ok, true);
+  // En la página: el TCL solo con la otra ruta y después Klastorin.
+  const s = EA.load(`#lang=es&ep=times-tcl&eq=${only}`, '', 'es').state;
+  assert.equal(E.check(EA.optsOf(s)).ok, true);
+  const w = EA.withExample(s, 'kl');
+  assert.deepEqual(w.eq, []);
+  assert.equal(E.check(EA.optsOf(w)).ok, true);
+  // Sin dejar el TCL vacío, lo demás que se cambió se queda (solo se va la otra ruta).
+  const k = EA.withExample(EA.load('#lang=es&ep=times-tcl&eq=tcl.moments-tcl.route', '', 'es').state, 'kl');
+  assert.deepEqual(k.eq, ['tcl.moments']);
 });

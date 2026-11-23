@@ -71,8 +71,7 @@
       const ok = allItems();
       if (!xs.every((x) => ok.includes(x))) return undefined;
       // Ninguna parte se queda sin apartados (la página no deja quitar el último; un enlace tampoco; I-F6).
-      const empty = Object.keys(E.ITEMS).some((p) => E.ITEMS[p].every((x) => itemsOn()[p].includes(x) === xs.includes(`${p}.${x}`)));
-      return empty ? undefined : ok.filter((x) => xs.includes(x));
+      return bareParts(xs).length ? undefined : ok.filter((x) => xs.includes(x));
     },
     pt: (v) => {
       const out = {};
@@ -153,6 +152,8 @@
 
   /** Los apartados que van marcados por defecto (los de core/exam: todos menos la otra ruta del TCL). */
   let defaultItems = null;
+  /** Las partes que los apartados cambiados xs (los de eq) dejarían sin ninguno. */
+  const bareParts = (xs) => Object.keys(E.ITEMS).filter((p) => E.ITEMS[p].every((x) => itemsOn()[p].includes(x) === xs.includes(`${p}.${x}`)));
   const itemsOn = () => (defaultItems = defaultItems || E.check({ parts: E.PARTS, level: 'medium', models: 1 }).items);
 
   /** Las opciones de core/exam: eq cambia cada apartado respecto a su defecto; los puntos, solo de las partes marcadas. */
@@ -194,6 +195,9 @@
     const ok = E.partsOf(id) || [];
     out.ep = s.ep.filter((p) => ok.includes(p));
     out.eq = s.eq.filter((x) => out.ep.includes(x.split('.')[0]) && x !== 'tcl.route');
+    // Si sin la otra ruta el TCL se queda sin apartados, vuelve a los suyos por defecto (revisión de nivel 2, ronda 2, F5).
+    const bare = bareParts(out.eq);
+    if (bare.length) out.eq = out.eq.filter((x) => !bare.includes(x.split('.')[0]));
     out.pt = Object.fromEntries(Object.entries(s.pt).filter(([p]) => out.ep.includes(p)));
     return out;
   }

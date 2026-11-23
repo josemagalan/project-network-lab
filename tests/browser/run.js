@@ -11511,14 +11511,19 @@ check('F3f T019 I-F2 · cambiar en la página el idioma, la notación o un extra
     return { st2, text };
   };
   const now = async () => ({ st: await exDoc(page), text: await page.evaluate(() => document.getElementById('exPreview').innerText) });
+  // Cada cambio por separado: el idioma solo (ronda 2, F2: con la notación detrás, la notación tapaba al idioma) y después la notación.
   await page.selectOption('#selLang', 'en');
   await page.waitForFunction(() => /lang=en/.test(location.hash) && PNL.examApp.state().doc && !PNL.examApp.state().pending);
+  let a = await now(); let b = await fresh();
+  assert.equal(a.text, b.text, 'idioma: la misma solución');
+  assert.match(a.st.doc.link, /[#&]lang=en$/); // la notación anglosajona, la de por defecto, no va en el enlace
+  assert.match(a.text, /Solution of version A \(seed 3\)/);
   await page.selectOption('#selNota', 'es');
   await page.waitForFunction(() => /nota=es/.test(location.hash) && PNL.examApp.state().doc && !PNL.examApp.state().pending);
-  let a = await now(); let b = await fresh();
+  a = await now(); b = await fresh();
   assert.equal(a.text, b.text, 'idioma y notación: la misma solución');
   assert.match(a.st.doc.link, /lang=en&nota=es/);
-  assert.match(a.text, /Solution/);
+  assert.match(a.text, /Solution of version A \(seed 3\)/);
   await page.locator('#exDoc-s').click();
   await page.waitForFunction(() => PNL.examApp.state().state.dv === 's' && PNL.examApp.state().doc && !PNL.examApp.state().pending);
   await page.locator('.xm-more > summary').click();
@@ -11553,6 +11558,27 @@ check('F3f T019 I-F5 · una tabla partida que va en la primera parte empieza tra
     assert.ok(first.some((x) => /H2\.xm-part/.test(x)), `${pp}: la parte empieza en la primera hoja (${first.join(' ')})`);
     assert.ok(first.some((x) => /xm-scroll/.test(x)), `${pp}: con el primer trozo de la tabla`);
     await page.emulateMedia({ media: 'screen' });
+  }
+  await close(page);
+});
+
+check('F3f T019 ronda 2, F1 · una tabla que cabe en una hoja con lo que la presenta no se parte, aunque la parte vaya tras la cabecera y la tabla de datos (difícil, carta)', async () => {
+  // Holguras: la parte cabe en una hoja y va entera a la siguiente; Tiempos y holguras: la parte es más alta que una hoja y
+  // empieza tras los datos, pero la tabla de tiempos con lo que la presenta cabe en la hoja siguiente.
+  const HEAD = { floats: 'Actividad|TF|FF|IF|SF', 'times-floats': 'Actividad|ES|EF|LS|LF' };
+  const page = await exOpen('lang=es&ep=floats&lv=hard&sd=1&pp=letter&dv=s');
+  for (const [ep, head] of Object.entries(HEAD)) {
+    for (const sd of [1, 3]) {
+      await exGo(page, `lang=es&ep=${ep}&lv=hard&sd=${sd}&pp=letter&dv=s`, { pp: 'letter', dv: 's' });
+      await page.emulateMedia({ media: 'print' });
+      const sheets = await exSheets(page);
+      exPaperOk(sheets, `${ep} ${sd}`, new RegExp(`^Modelo A · semilla ${sd} · Enunciado$`));
+      const ts = await page.evaluate((hd) => [...document.querySelectorAll('#exPreview .xm-paper table')]
+        .filter((t) => [...t.querySelectorAll('thead th')].map((x) => x.textContent).join('|') === hd)
+        .map((t) => t.querySelectorAll('tbody tr').length), head);
+      assert.equal(ts.length, 1, `${ep} ${sd}: la tabla ${head}, entera (${ts.join(' + ')} filas)`);
+      await page.emulateMedia({ media: 'screen' });
+    }
   }
   await close(page);
 });

@@ -311,16 +311,19 @@
     let items = us.map(measure);
     // Una tabla que no cabe en una hoja con lo que la presenta encima (las piezas keep de antes, que layout pone con ella),
     // en trozos por filas con la cabecera repetida (T017): así no se sale de la hoja ni deja solo al pie lo que la presenta.
-    // Si delante solo queda lo de antes de las partes (cabecera, título), layout pone la parte detrás (onlyPre): cuenta
-    // también (revisión de nivel 2, I-F5).
+    const keepOf = (its, j) => { let a = 0; for (; j >= 0 && its[j].keep; j--) a += its[j].h + gap; return a; };
+    // El hueco del primer trozo: si delante solo queda lo de antes de las partes (cabecera, título), la parte, más alta que
+    // una hoja, va detrás (onlyPre en layout) y lo de antes cuenta también (revisión de nivel 2, I-F5). Solo para el hueco:
+    // decidir si se parte con ello partiría tablas que caben enteras en la hoja siguiente (ronda 2, F1).
     const aboveOf = (its, j) => {
-      let a = 0;
-      for (; j >= 0 && its[j].keep; j--) a += its[j].h + gap;
-      let pre = 0; let k = j;
+      const a = keepOf(its, j);
+      let k = j;
+      while (k >= 0 && its[k].keep) k--;
+      let pre = 0;
       for (; k >= 0 && its[k].kind === 'pre'; k--) pre += its[k].h + gap;
       return k < 0 ? a + pre : a;
     };
-    const tooTall = (u, x, its, j) => u.type === 'table' && !u.wide && x.h > H - aboveOf(its, j);
+    const tooTall = (u, x, its, j) => u.type === 'table' && !u.wide && x.h > H - keepOf(its, j);
     if (items.some((x, i) => tooTall(us[i], x, items, i - 1))) {
       const list = []; const its = [];
       us.forEach((u, i) => {

@@ -738,9 +738,9 @@ const ASK = {
   times: { times: ['exam.ask.times'], events: ['exam.ask.events', 'exam.ask.eventsOwn', 'exam.ask.eventsSucc'] },
   floats: { critical: ['exam.ask.critical'] }, // «Holguras» y «Holgura de seguridad» comparten la pregunta: van por sus columnas, abajo
   tcl: { moments: ['exam.ask.moments'], path: ['ask.path'], project: ['ask.mu', 'ask.var'], prob: ['ask.z'], deadline: ['ask.zp', 'ask.Tp'], route: ['series.ask.tclRoute'] },
-  read: { pct: ['ask.pct'], crit: ['ask.crit'] },
-  disc: { combos: ['exam.ask.combos'], mean: ['ask.mean'], crit: ['exam.ask.critIdx'] },
-  rep: { crit: ['exam.ask.critIdx'] },
+  read: { pct: ['ask.pct'], pT: ['ask.p'], crit: ['ask.crit'], questions: ['mcq.mostCrit', 'mcq.mostCruc', 'mcq.critLowCruc', 'mcq.normal', 'mcq.promise'] },
+  disc: { combos: ['exam.ask.combos'], mean: ['ask.mean'], pT: ['ask.p'], crit: ['exam.ask.critIdx'] },
+  rep: { pT: ['ask.p'], crit: ['exam.ask.critIdx'] }, // reps y marks van por sus columnas de la tabla de réplicas, abajo
 };
 const askPrefix = (k) => (k.startsWith('exam.') ? `⟦${k}⟧` : T(k, {}).split('{')[0]);
 test('exam-doc · N-F6: AC23 en el enunciado: un apartado quitado de cualquier parte no deja su pregunta', () => {
@@ -764,6 +764,16 @@ test('exam-doc · N-F6: AC23 en el enunciado: un apartado quitado de cualquier p
   const d = make(opts({ level: 'easy', seed: 3, parts: ['floats'], items: { floats: { off: ['floats'] } } })).d;
   for (const t of tables(partOf(d.student, 'floats'))) for (const f of ['TF', 'FF', 'IF']) assert.ok(!headHas(t, L[f]), f);
   assert.ok(tables(partOf(d.student, 'floats')).some((t) => headHas(t, L.SF)));
+  // «Réplicas»: con «Duración de cada réplica» o «Réplicas en que es crítica», su columna va en blanco para el alumno;
+  // quitado el apartado, va rellena (es un dato, no una pregunta). Revisión de nivel 2, ronda 2, F3.
+  const repT = (d) => tables(partOf(d.student, 'rep')).find((t) => headHas(t, '⟦exam.col.critRun⟧'));
+  for (const [x, col] of [['reps', 'T'], ['marks', '⟦exam.col.critRun⟧']]) {
+    const on = make(opts({ level: 'easy', seed: 3, parts: ['rep'] })).d;
+    const off = make(opts({ level: 'easy', seed: 3, parts: ['rep'], items: { rep: { off: [x] } } })).d;
+    assert.equal(colFilled(repT(on), col), false, `rep.${x}: con el apartado, la columna ${col} en blanco`);
+    const t = repT(off); const i = t.head.findIndex((h) => String(h) === col);
+    assert.ok(t.rows.every((r) => r[i] !== null && r[i] !== ''), `rep.${x}: quitado, la columna ${col} rellena`);
+  }
 });
 
 test('exam-doc · N-F2: con un ejemplo sin duraciones (ej1–ej3) o con duraciones discretas (Kd), los datos del enunciado no dan duraciones', () => {
@@ -799,8 +809,18 @@ test('exam-doc · N-F3: con «Construir la PERT» o el enunciado, la solución d
     assert.ok(drawsRules, `${level} ${seed} ${parts}: la red de los sucesos está dibujada`);
     // Su texto alternativo dice cuál es (la de las reglas o la mínima) y le sigue la tabla de sus arcos.
     assert.match(drawsRules.alt, pertDrawnSame(parts, min, rules) ? /^⟦exam\.alt\.pert⟧/ : /^⟦exam\.alt\.refNet⟧/);
-    const after = d.solution[d.solution.indexOf(drawsRules) + 1];
-    assert.ok(after && kind(after) === 'table' && headHas(after.table, T('col.arc')), 'la tabla de sus arcos detrás');
+    // Cada PERT dibujada: su texto alternativo da sus cifras y le sigue la tabla de sus arcos y ficticias, la misma red
+    // (principio 24; revisión de nivel 2, ronda 2, F4).
+    for (const b of aoa) {
+      const net = b.model.pert;
+      const params = JSON.parse(b.alt.replace(/^⟦exam\.alt\.(pert|refNet)⟧/, ''));
+      assert.deepEqual(params, { n: net.events.length, m: net.arcs.length, k: net.dummies.length }, `${level} ${seed} ${parts}: el texto alternativo`);
+      const after = d.solution[d.solution.indexOf(b) + 1];
+      assert.ok(after && kind(after) === 'table' && headHas(after.table, T('col.arc')), 'la tabla de sus arcos detrás');
+      const ends = (xs) => xs.map((x) => `${x.from}>${x.to}`).sort();
+      assert.deepEqual(after.table.rows.map((r) => `${r[1]}>${r[2]}`).sort(), ends([...net.arcs, ...net.dummies]), `${level} ${seed} ${parts}: la tabla es la red dibujada`);
+      assert.equal(after.table.rows.filter((r) => String(r[0]).endsWith(T('dummy', { name: '' }))).length, net.dummies.length, 'sus ficticias, como tales');
+    }
     const pertDrawn = parts.includes('pert');
     const expected = (pertDrawn ? 1 : 0) + (pertDrawn && netKey(min) === netKey(rules) ? 0 : 1);
     assert.equal(aoa.length, expected, `${level} ${seed} ${parts}: dibujos de la PERT`);
@@ -817,10 +837,12 @@ test('exam-doc · N-F3: con «Construir la PERT» o el enunciado, la solución d
   assert.equal(svgs(d.solution).filter((b) => b.model && b.model.graph === 'aoa').length, 1);
 });
 
-test('exam-doc · N-F9: en el ejemplo de error consecuente del TCL, el valor bueno lleva la coma decimal en español, como el equivocado', () => {
-  const { d } = make(opts({ level: 'medium', seed: 1, parts: ['tcl'] }));
-  const b = d.rubric.find((x) => kind(x) === 'consequent' && x.consequent.kind === 'tcl');
-  const params = JSON.parse(b.p.replace(/^⟦exam\.rub\.example⟧/, ''));
-  assert.match(params.wrong, /^\d+,\d+$/);
-  assert.match(params.right, /^\d+,\d+$/);
+test('exam-doc · N-F9: en el ejemplo de error consecuente del TCL, el valor bueno lleva el separador decimal del idioma (la coma en español y el punto en inglés), como el equivocado', () => {
+  for (const [lang, re] of [['es', /^\d+,\d+$/], ['en', /^\d+\.\d+$/]]) {
+    const { d } = make(opts({ level: 'medium', seed: 1, parts: ['tcl'] }), ctxOf(lang));
+    const b = d.rubric.find((x) => kind(x) === 'consequent' && x.consequent.kind === 'tcl');
+    const params = JSON.parse(b.p.replace(/^⟦exam\.rub\.example⟧/, ''));
+    assert.match(params.wrong, re, `${lang}: el equivocado`);
+    assert.match(params.right, re, `${lang}: el bueno`);
+  }
 });
