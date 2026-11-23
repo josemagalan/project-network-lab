@@ -239,6 +239,52 @@
     return outc;
   }
 
+  // Traza paso a paso (plan §3) en el formato del reproductor: table → gprForward por actividad (términos: el Inicio y
+  // cada relación que llega, con su tipo, desfase y valor; chosen con las claves de los que mandan: '@S' o 'r<índice>')
+  // → gprEnd (T, quién lo marca y si no es final) → gprBackward (el Fin y cada relación que sale) → gprFloat (TF y FF)
+  // → gprCritical → gprClasses. Cada valor va en reveals, para predict.
+  function trace(gp, sol) {
+    const s = sol || solve(gp);
+    const order = T.order(asGraph(gp)).order;
+    const rel = (k) => gp.rels[k];
+    const steps = [{ kind: 'table', reveals: [] }];
+    for (const id of order) {
+      const terms = s.binding[id].fwd.map((t) => ({
+        key: t.rel === null ? START : `r${t.rel}`, from: t.from, rel: t.rel,
+        type: t.rel === null ? null : rel(t.rel).type, lag: t.rel === null ? null : rel(t.rel).lag, value: t.value }));
+      steps.push({ kind: 'gprForward', act: id,
+        reveals: [{ act: id, field: 'ES', value: s.times[id].ES }, { act: id, field: 'EF', value: s.times[id].EF }],
+        formula: { op: 'max', terms, chosen: s.binding[id].fwd.map((t, i) => (t.chosen ? terms[i].key : null)).filter(Boolean) } });
+    }
+    steps.push({ kind: 'gprEnd', reveals: [{ act: END, field: 'T', value: s.duration }], endBy: s.endBy, notFinal: s.notFinal });
+    for (const id of [...order].reverse()) {
+      const terms = s.binding[id].bwd.map((t) => ({
+        key: t.rel === null ? END : `r${t.rel}`, to: t.to, rel: t.rel,
+        type: t.rel === null ? null : rel(t.rel).type, lag: t.rel === null ? null : rel(t.rel).lag, value: t.value }));
+      steps.push({ kind: 'gprBackward', act: id,
+        reveals: [{ act: id, field: 'LF', value: s.times[id].LF }, { act: id, field: 'LS', value: s.times[id].LS }],
+        formula: { op: 'min', terms, chosen: s.binding[id].bwd.map((t, i) => (t.chosen ? terms[i].key : null)).filter(Boolean) } });
+    }
+    for (const f of ['TF', 'FF']) {
+      steps.push({ kind: 'gprFloat', float: f, reveals: order.map((id) => ({ act: id, field: f, value: s.floats[id][f] })) });
+    }
+    steps.push({ kind: 'gprCritical', reveals: [], critical: s.critical, critRels: s.critRels, paths: s.paths });
+    steps.push({ kind: 'gprClasses', reveals: [], classes: s.classes });
+    return steps;
+  }
+
+  // «¿Y si…?» (AC11): la misma red con otra duración para una actividad; el proyecto de partida no cambia.
+  function whatIf(gp, id, d) {
+    if (!gp.activities.some((a) => a.id === id)) throw new Error(`gpr.whatIf: no existe la actividad «${id}»`);
+    if (!(Number.isFinite(d) && d >= 0)) throw new Error('gpr.whatIf: duración no válida');
+    const before = solve(gp);
+    const next = Object.assign({}, gp, { activities: gp.activities.map((a) => (a.id === id ? Object.assign({}, a, { d }) : a)) });
+    const sol = solve(next);
+    const changed = next.activities.map((a) => a.id).filter((x) => ['ES', 'LS', 'EF', 'LF']
+      .some((f) => Math.abs(sol.times[x][f] - before.times[x][f]) > TOL));
+    return { gp: next, sol, before: before.duration, after: sol.duration, delta: rnd(sol.duration - before.duration), changed };
+  }
+
   // Proyecto de core/project cuando todas las relaciones son FS+0 (para comparar con core/cpm, AC2); si no, null.
   function toCpm(gp) {
     if (gp.rels.some((r) => r.type !== 'FS' || r.lag !== 0)) return null;
@@ -264,7 +310,7 @@
     }));
   }
 
-  const api = { MAX_ACTIVITIES, MAX_RELS, TYPES, ES_NAME, CODE, DELTA, weight, readLinks, parse, solve, classes, toCpm, format, toRows };
+  const api = { MAX_ACTIVITIES, MAX_RELS, TYPES, ES_NAME, CODE, DELTA, weight, readLinks, parse, solve, classes, trace, whatIf, toCpm, format, toRows };
   root.PNL = root.PNL || {};
   root.PNL.gpr = api;
   if (isNode) module.exports = api;

@@ -7,8 +7,8 @@ const X = require('../js/core/gprex.js');
 
 const CANON = /^[A-Z0-9]{1,4}( (FS|SS|FF|SF)([+-]\d+(\.\d+)?)?)?$/;
 
-test('F5a T002: cinco ejemplos, en este orden', () => {
-  assert.deepEqual(X.list().map((e) => e.id), ['fc', 'cc', 'n16', 'rb', 'rv']);
+test('F5a T002 y T007: seis ejemplos, en este orden', () => {
+  assert.deepEqual(X.list().map((e) => e.id), ['fc', 'cc', 'n16', 'rb', 'rv', 'cl']);
   assert.equal(X.get('rb').id, 'rb');
   assert.equal(X.get('nada'), null);
 });

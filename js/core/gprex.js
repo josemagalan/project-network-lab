@@ -17,6 +17,11 @@
     en: `J. M. Nicholas & H. Steyn (2012), Project Management for Engineering, Business and Technology, 4th ed., Routledge, ch. 6, ${where.en}`,
   });
 
+  const VL = {
+    es: 'Ejemplo del laboratorio para la clasificación de V. Valls y P. Lino (2001), Annals of Operations Research 102, 17–37',
+    en: 'Lab example for the classification of V. Valls & P. Lino (2001), Annals of Operations Research 102, 17–37',
+  };
+
   const list = [
     {
       id: 'fc',
@@ -62,11 +67,18 @@
     {
       id: 'rv',
       title: { es: 'Actividad crítica al revés', en: 'Reverse critical activity' },
-      source: { es: 'Ejemplo del laboratorio para la clasificación de V. Valls y P. Lino (2001), Annals of Operations Research 102, 17–37',
-                en: 'Lab example for the classification of V. Valls & P. Lino (2001), Annals of Operations Research 102, 17–37' },
+      source: VL,
       unit: { es: 'días', en: 'days' },
       rows: [r('A', 10, ''), r('B', 6, 'A FF'), r('C', 10, 'B SS')],
       expected: { duration: 14, ES: { A: 0, B: 4, C: 4 }, critical: ['A', 'B', 'C'] },
+    },
+    {
+      id: 'cl',
+      title: { es: 'Las seis clases de actividad crítica', en: 'The six classes of critical activity' },
+      source: VL,
+      unit: { es: 'días', en: 'days' },
+      rows: [r('A', 4, ''), r('B', 5, 'A FF+2'), r('C', 3, 'A FF+2, B SS+2'), r('D', 3, 'C SS')],
+      expected: { duration: 6, ES: { A: 0, B: 1, C: 3, D: 3 }, critical: ['A', 'B', 'C', 'D'] },
     },
   ];
   const byId = Object.fromEntries(list.map((e) => [e.id, e]));
