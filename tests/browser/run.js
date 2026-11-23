@@ -11960,6 +11960,147 @@ check('F5a T011 · axe sin violaciones en el paso a paso con predicción (ES cla
   await close(m);
 });
 
+// ---------- F5a, T012: el Gantt con las relaciones ----------
+
+const GG5 = require(path.join(ROOT, 'js', 'views', 'gpr-gantt.js'));
+// La tabla con las cuatro relaciones (ningún ejemplo tiene SF), con desfases positivos, negativos y nulos.
+const GPR_ALL4 = [
+  { id: 'A', duration: '6', links: '' },
+  { id: 'B', duration: '4', links: 'A SS+2' },
+  { id: 'C', duration: '3', links: 'A FF-1' },
+  { id: 'D', duration: '5', links: 'B SF+7' },
+  { id: 'E', duration: '2', links: 'C, D FS-1' },
+];
+// Barras y flechas pintadas: la caja de cada barra y el primer y el último punto de cada flecha, con su relación.
+const gprGanttDrawn = (page) => page.evaluate(() => {
+  const pts = (d) => d.match(/-?\d+(\.\d+)?/g).map(Number);
+  const bars = Object.fromEntries([...document.querySelectorAll('#gprGanttSvg rect.gbar')].map((r) => [r.getAttribute('data-act'),
+    { x0: +r.getAttribute('x'), x1: +r.getAttribute('x') + +r.getAttribute('width'), crit: r.classList.contains('bar-c') }]));
+  const arrows = [...document.querySelectorAll('#gprGanttSvg path.garr')].map((p) => {
+    const n = pts(p.getAttribute('d'));
+    return { rel: +p.getAttribute('data-rel'), first: [n[0], n[1]], last: [n[n.length - 2], n[n.length - 1]], crit: p.classList.contains('crit'), title: p.querySelector('title').textContent };
+  });
+  return { bars, arrows };
+});
+
+check('F5a T012 · AC13: «Gantt» abre el Gantt a fechas tempranas (qg=1) con una barra por actividad y una flecha por relación, las críticas resaltadas; «Fechas tardías» (qg=2) mueve las barras con holgura; el enlace lo guarda y se cierra con el mismo botón', async () => {
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es' }));
+  assert.equal(await page.locator('#gprGantt').getAttribute('aria-pressed'), 'false');
+  assert.equal(await page.locator('#gprGanttCard').count(), 0);
+  await page.locator('#gprGantt').click();
+  await page.waitForFunction(() => PNL.app.state().qg === 1 && document.getElementById('gprGanttCard'));
+  assert.equal(await page.locator('#gprGantt').getAttribute('aria-pressed'), 'true');
+  assert.match(page.url(), /qg=1/);
+  assert.equal(await page.locator('#gprGanttHead').innerText(), 'Gantt · fechas tempranas');
+  const { gp, sol } = (() => { const g = GPR.parse(GPRX.get('rb').rows).project; return { gp: g, sol: GPR.solve(g) }; })();
+  const geo = GG5.geometry(gp, sol, { late: false });
+  let d = await gprGanttDrawn(page);
+  assert.equal(Object.keys(d.bars).length, 8);
+  assert.equal(d.arrows.length, gp.rels.length);
+  for (const r of geo.rows) {
+    assert.ok(Math.abs(d.bars[r.id].x0 - r.x0) < 0.01, `${r.id}: comienzo temprano`);
+    assert.equal(d.bars[r.id].crit, sol.critical.includes(r.id), r.id);
+  }
+  assert.deepEqual(d.arrows.filter((a) => a.crit).map((a) => a.rel).sort((a, b) => a - b), sol.critRels);
+  assert.deepEqual(await page.locator('#gprGanttNote li').allInnerTexts(), ['Y empieza en 14: manda V → Y FF+6.', 'W empieza en 21: manda Y → W FF.']);
+  // Fechas tardías: L pasa de 4 a 11; las críticas no se mueven.
+  await page.locator('#gprGanttLate').click();
+  await page.waitForFunction(() => PNL.app.state().qg === 2);
+  assert.equal(await page.locator('#gprGanttLate').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#gprGanttHead').innerText(), 'Gantt · fechas tardías');
+  assert.match(page.url(), /qg=2/);
+  const lateGeo = GG5.geometry(gp, sol, { late: true });
+  d = await gprGanttDrawn(page);
+  for (const r of lateGeo.rows) assert.ok(Math.abs(d.bars[r.id].x0 - r.x0) < 0.01, `${r.id}: comienzo tardío`);
+  assert.ok(d.bars.L.x0 > geo.rows.find((r) => r.id === 'L').x0);
+  assert.equal(await page.locator('#gprGanttNote').count(), 0, 'la nota es de las fechas tempranas');
+  // El enlace abre el Gantt tal como estaba.
+  const p2 = await gprLab(page.url().split('#')[1]);
+  assert.equal(await p2.locator('#gprGanttLate').getAttribute('aria-pressed'), 'true');
+  await close(p2);
+  await page.locator('#gprGantt').click();
+  await page.waitForFunction(() => PNL.app.state().qg === 0 && !document.getElementById('gprGanttCard'));
+  assert.doesNotMatch(page.url(), /qg=/);
+  await close(page);
+});
+
+check('F5a T012 · AC13: cada flecha sale del comienzo (SS, SF) o del fin (FS, FF) de su predecesora y llega al comienzo (FS, SS) o al fin (FF, SF) de su sucesora, también a fechas tardías; su título dice la relación con la notación', async () => {
+  for (const [qg, nota] of [[1, 'en'], [2, 'es']]) {
+    const s = { qe: 'own', qt: GPR_ALL4, lang: 'es', qg, nota };
+    const page = await gprLab(gprHash(s));
+    await page.waitForSelector('#gprGanttSvg');
+    const gp = GPR.parse(GPR_ALL4).project;
+    const d = await gprGanttDrawn(page);
+    assert.equal(d.arrows.length, gp.rels.length);
+    for (const a of d.arrows) {
+      const r = gp.rels[a.rel];
+      const p = d.bars[r.from]; const q = d.bars[r.to];
+      const from = r.type[0] === 'S' ? p.x0 : p.x1; const to = r.type[1] === 'S' ? q.x0 : q.x1;
+      assert.ok(a.first[0] >= p.x0 - 0.01 && a.first[0] <= p.x1 + 0.01 && Math.abs(a.first[0] - from) <= GG5.INSET + 0.01, `${r.from}→${r.to} ${r.type}: sale en ${a.first[0]}`);
+      assert.ok(a.last[0] >= q.x0 - 0.01 && a.last[0] <= q.x1 + 0.01 && Math.abs(a.last[0] - to) <= 2 * GG5.INSET + 0.01, `${r.from}→${r.to} ${r.type}: llega en ${a.last[0]}`);
+    }
+    const titles = d.arrows.map((a) => a.title).sort();
+    assert.deepEqual(titles, nota === 'es' ? ['A → B CC+2', 'A → C FF-1', 'B → D CF+7', 'C → E FC', 'D → E FC-1'] : ['A → B SS+2', 'A → C FF-1', 'B → D SF+7', 'C → E FS', 'D → E FS-1']);
+    await close(page);
+  }
+});
+
+check('F5a T012 · AC13: la alternativa en texto del Gantt: el dibujo dice la duración y las críticas, y «Ver como tabla» enseña comienzo, fin, holgura y relaciones de cada actividad (ES y EN); sin Gantt con errores ni en el paso a paso', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang, qg: 1 }));
+    await page.waitForSelector('#gprGanttSvg');
+    const label = await page.locator('#gprGanttSvg').getAttribute('aria-label');
+    assert.ok(label.includes(lang === 'es' ? 'duración 24' : 'duration 24'), label);
+    assert.ok(label.includes(lang === 'es' ? 'G, M, V, Y, W y X' : 'G, M, V, Y, W and X'), label);
+    const btn = page.locator('#gprGanttTableBtn');
+    assert.equal(await btn.getAttribute('aria-expanded'), 'false');
+    assert.equal(await page.locator('#gprGanttTable').count(), 0);
+    await btn.click();
+    assert.equal(await page.locator('#gprGanttTableBtn').getAttribute('aria-expanded'), 'true');
+    const rows = await page.locator('#gprGanttTable tbody tr').allInnerTexts();
+    assert.equal(rows.length, 8);
+    assert.match(rows[5], /^Y[^\t]*\t14\t22\t0\tV SS\+2, V FF\+6$/);
+    assert.match(rows[0], /^G[^\t]*\t0\t6\t0\t—$/);
+    assert.ok((await page.locator('#gprGanttTable caption').textContent()).length > 10);
+    // La tabla sigue abierta al cambiar de fechas, con las tardías.
+    await page.locator('#gprGanttLate').click();
+    await page.waitForFunction(() => PNL.app.state().qg === 2);
+    assert.match((await page.locator('#gprGanttTable tbody tr').allInnerTexts())[1], /^L[^\t]*\t11\t13\t7\t/);
+    await close(page);
+  }
+  const bad = await gprLab(gprHash({ qe: 'own', qt: GPR_OWN120, lang: 'en', qg: 1 }));
+  await bad.waitForSelector('#gprOwn');
+  assert.equal(await bad.locator('#gprGantt').isDisabled(), true);
+  assert.equal(await bad.locator('#gprGanttCard').count(), 0);
+  await close(bad);
+  const w = await gprLab(gprHash({ qe: 'rb', lang: 'es', qg: 1, step: 3 }));
+  await w.waitForSelector('#gprStepCard');
+  assert.equal(await w.locator('#gprGanttCard').count(), 0, 'el paso a paso no enseña el Gantt');
+  await close(w);
+});
+
+check('F5a T012 · axe sin violaciones con el Gantt y su tabla (ES claro, EN oscuro, fechas tempranas y tardías); a 360 px la página no se desplaza en horizontal y el Gantt se desliza dentro de su marco (P8)', async () => {
+  for (const [lang, scheme, qg] of [['es', 'light', 1], ['en', 'dark', 2]]) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang, qg }), { scheme });
+    await page.waitForSelector('#gprGanttSvg');
+    await axe(page, `F5a T012 · Gantt · ${lang} · ${scheme}`);
+    await page.locator('#gprGanttTableBtn').click();
+    await axe(page, `F5a T012 · Gantt como tabla · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await gprLab(gprHash({ qe: 'rb', lang: 'es', qg: 1 }), { width: 360, height: 740 });
+  await m.waitForSelector('#gprGanttSvg');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  assert.equal(await m.evaluate(() => { const w = document.getElementById('gprGanttWrap'); return w.scrollWidth > w.clientWidth; }), true, 'el Gantt se desliza en su marco');
+  await m.locator('#gprGanttHead').scrollIntoViewIfNeeded();
+  await shot(m, 'f5a-t012-360', true);
+  await close(m);
+  const big = await gprLab(gprHash({ qe: 'rb', lang: 'en', qg: 1 }));
+  await big.locator('#gprGanttCard').scrollIntoViewIfNeeded();
+  await shot(big, 'f5a-t012-1280');
+  await close(big);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

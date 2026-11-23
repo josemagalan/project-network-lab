@@ -176,3 +176,28 @@ test('F5a T011 (decisión del autor): sin desfase, la explicación no habla del 
   const en = T.narration(tr.find((s) => s.kind === 'gprForward' && s.act === 'L'), m, { lang: 'en', nota: 'en', hide: false }).text;
   assert.match(en, /With FF, L cannot finish before G finishes; that is why d\(L\) is subtracted\./);
 });
+
+test('F5a T012 (AC13): la tabla del Gantt (su alternativa en texto): comienzo, fin, holgura total y relaciones que llegan, por comienzo temprano', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const early = T.ganttRows(m, false, 'en', 'es');
+  assert.deepEqual(early.map((r) => r.id), ['G', 'L', 'M', 'Q', 'V', 'Y', 'W', 'X']);
+  const y = early.find((r) => r.id === 'Y');
+  assert.deepEqual([y.start, y.finish, y.tf, y.crit], [14, 22, 0, true]);
+  assert.deepEqual(y.arrives, ['V SS+2', 'V FF+6']);
+  assert.deepEqual(early.find((r) => r.id === 'G').arrives, []);
+  const late = T.ganttRows(m, true, 'es', 'es');
+  const l = late.find((r) => r.id === 'L');
+  assert.deepEqual([l.start, l.finish, l.tf, l.crit], [11, 13, 7, false]);
+  assert.deepEqual(l.arrives, ['G CC+3', 'G FF']);
+  assert.deepEqual(late.map((r) => r.id), early.map((r) => r.id), 'las filas no se mueven al cambiar de fechas');
+  const own = T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '4', links: '' }, { id: 'B', duration: '2', links: 'A SF+1,5' }] }), 'es');
+  assert.deepEqual(T.ganttRows(own, false, 'es', 'es')[1].arrives, ['A CF+1,5']);
+});
+
+test('F5a T012: la nota del Gantt dice qué relación que no es FS sin desfase fija el comienzo de las primeras críticas (como el tablero 118)', () => {
+  assert.deepEqual(T.ganttNote(T.model(st({ qe: 'rb' }), 'es'), 'en', 'es'), ['Y empieza en 14: manda V → Y FF+6.', 'W empieza en 21: manda Y → W FF.']);
+  assert.deepEqual(T.ganttNote(T.model(st({ qe: 'rb' }), 'en'), 'es', 'en'), ['Y starts at 14: V → Y FF+6 governs.', 'W starts at 21: Y → W FF governs.']);
+  assert.deepEqual(T.ganttNote(T.model(st({ qe: 'fc' }), 'es'), 'es', 'es'), ['B empieza en 11: manda A → B FC+3.']);
+  // Con relaciones FS sin desfase no hay nada que contar.
+  assert.deepEqual(T.ganttNote(T.model(st({ qe: 'own', qt: [{ id: 'A', duration: '4', links: '' }, { id: 'B', duration: '2', links: 'A' }] }), 'es'), 'en', 'es'), []);
+});

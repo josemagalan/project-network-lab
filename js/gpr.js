@@ -4,11 +4,12 @@
  * ejemplos; editable con «Tabla propia», con el error o el aviso de cada fila) y la red ROY con la relación escrita en cada
  * arco, sus tiempos y su tabla de tiempos y holguras (la alternativa en texto de la red). T011: el paso a paso con
  * predicción (tablero 116), del paso 1 en adelante: en el paso 0 (la tabla) se ve la pestaña de siempre. La PERT
- * equivalente, el Gantt y el «¿Y si…?» llegan en T012–T014. La pestaña no se ve en la barra hasta T015.
+ * equivalente y el «¿Y si…?» llegan en T013 y T014. T012: el Gantt con las relaciones (tablero 118, views/gpr-gantt), con su
+ * nota, su leyenda y su tabla; no se ve en el paso a paso. La pestaña no se ve en la barra hasta T015.
  *
  * Los códigos de las relaciones van con la notación elegida en «Ajustes» (FS, SS, FF, SF o FC, CC, FF, CF; decisión del
  * autor en T010, spec AC16) y las cifras, con el idioma. La parte sin DOM (source, model, code, relTag, relText, issueText,
- * rowMarks, labels, critEdges, pasteRows, walkTrace, asked, terms, narration) se prueba en Node (tests/gpr-tab.test.js); create() pinta la vista. Para las
+ * rowMarks, labels, critEdges, pasteRows, walkTrace, asked, terms, narration, ganttRows, ganttNote) se prueba en Node (tests/gpr-tab.test.js); create() pinta la vista. Para las
  * pruebas de navegador, PNL.gprTab.state() da lo pintado.
  */
 (function (root) {
@@ -242,6 +243,39 @@
     }
   }
 
+  // ---------- El Gantt (T012, tablero 118) ----------
+
+  /** La tabla del Gantt (su alternativa en texto): por comienzo temprano, como las barras, cada actividad con su comienzo y
+   *  su fin a las fechas elegidas, su holgura total, si es crítica y las relaciones que llegan a ella con la notación. */
+  function ganttRows(m, late, nota, lang) {
+    const gp = m.gp; const sol = m.solution;
+    const crit = new Set(sol.critical);
+    return gp.activities.map((a, i) => [a, i])
+      .sort(([a, i], [b, j]) => sol.times[a.id].ES - sol.times[b.id].ES || a.id.localeCompare(b.id) || i - j)
+      .map(([a]) => {
+        const t = sol.times[a.id];
+        return { id: a.id, start: late ? t.LS : t.ES, finish: late ? t.LF : t.EF, tf: sol.floats[a.id].TF, crit: crit.has(a.id),
+          arrives: gp.rels.filter((r) => r.to === a.id).map((r) => `${r.from} ${relTag(r, nota, lang)}`) };
+      });
+  }
+
+  /** La nota del Gantt (tablero 118): en las dos primeras críticas cuyo comienzo temprano lo fija una relación que no es FS sin
+   *  desfase, cuál es (lo que el Gantt enseña y una red de solo FS no tendría). */
+  function ganttNote(m, nota, lang) {
+    const out = [];
+    const crit = new Set(m.solution.critical);
+    const steps = m.trace.filter((x) => x.kind === 'gprForward' && crit.has(x.act))
+      .sort((a, b) => m.solution.times[a.act].ES - m.solution.times[b.act].ES || a.act.localeCompare(b.act));
+    for (const st of steps) {
+      if (out.length === 2) break;
+      const t = st.formula.terms.find((x) => x.rel !== null && st.formula.chosen.includes(x.key) && !plain(m.gp.rels[x.rel]));
+      if (!t) continue;
+      const r = m.gp.rels[t.rel];
+      out.push(I.t(lang, 'gpr.gantt.note', { id: st.act, t: NR.fmt(lang, m.solution.times[st.act].ES), term: `${r.from} → ${r.to} ${relTag(r, nota, lang)}` }));
+    }
+    return out;
+  }
+
   /** Filas pegadas de una hoja de cálculo (actividad, nombre, duración y predecesoras), como en el taller. */
   function pasteRows(text) {
     return P.parsePasted(text).map((r) => ({ id: str(r.id), name: str(r.name), duration: str(r.duration), links: str(r.links) }));
@@ -277,6 +311,9 @@
       return h('div', { class: 'card gpr-bar' }, [h('div', { class: 'gpr-row' }, [
         h('label', { class: 'gpr-field' }, [tg('project'), ' ', sel]),
         button(tg('fromWork'), fromWork, { id: 'gprFromWork' }),
+        // «Gantt» (T012, tablero 118): se abre a fechas tempranas (qg=1); las tardías se eligen junto al dibujo (qg=2).
+        h('div', { class: 'seg', role: 'group', 'aria-label': tg('gantt.toggle') }, [h('button', { type: 'button', id: 'gprGantt', 'aria-pressed': String(ganttOn()),
+          disabled: !m.solution, onclick: toggleGantt }, [tg('gantt.toggle')])]),
         h('span', { class: 'gpr-push' }),
         // «Paso a paso» (T011): del paso 1 en adelante; volver al paso 0 es volver a la tabla.
         h('div', { class: 'seg', role: 'group', 'aria-label': tg('walk.toggle') }, [h('button', { type: 'button', id: 'gprWalk', 'aria-pressed': String(on), disabled: !m.trace,
@@ -286,6 +323,14 @@
       ])]);
     }
     const walking = () => !!m.trace && state().step > 0;
+    const ganttOn = () => !!m.solution && (state().qg === 1 || state().qg === 2);
+    function toggleGantt() {
+      const on = !ganttOn();
+      go({ qg: on ? 1 : 0 });
+      focus('gprGantt');
+      const card = on && root.document.getElementById('gprGanttCard');
+      if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+    }
     function pickProject(id) {
       if (id === 'own' && !state().qt) { hooks.dispatch({ type: 'gprTable', rows: [Object.assign(blank(), { id: 'A' })] }, { push: true }); focus('gprProj'); return; }
       go({ qe: id }, { push: true });
@@ -466,6 +511,49 @@
             h('thead', {}, [head]), h('tbody', {}, body)])])]);
     }
 
+    // ---------- El Gantt con las relaciones (T012, tablero 118) ----------
+    let ganttTable = false;   // «Ver como tabla»: se queda abierta al cambiar de fechas o de proyecto
+    function ganttBlock() {
+      const late = state().qg === 2;
+      const nt = nota(); const N = I.notation(nt);
+      const c = (x) => code(x, nt);
+      const dates = tg(late ? 'gantt.late' : 'gantt.early');
+      const sol = m.solution;
+      const holder = h('div', { class: 'gpr-gantt-wrap', id: 'gprGanttWrap', tabindex: '0', role: 'region', 'aria-label': tg('gantt.region', { name: m.src.title }) });
+      root.PNL.gprGantt.render(holder, { gp: m.gp, solution: sol, late, numFmt: num, lang: lang(), name: m.src.title,
+        title: (r) => `${r.from} → ${r.to} ${relTag(r, nt, lang())}` });
+      const box = h('div', { id: 'gprGanttTableBox', hidden: !ganttTable }, ganttTable ? [ganttTableEl(late, dates, N)] : []);
+      const chart = h('section', { class: 'card gpr-card', id: 'gprGanttCard', 'aria-labelledby': 'gprGanttHead' }, [
+        h('h2', { id: 'gprGanttHead' }, [tg('gantt.head', { dates })]), holder,
+        h('p', { class: 'gpr-swipe muted small', 'aria-hidden': 'true' }, [tg('gantt.swipe')]), box]);
+      const pick = (v, id, label) => h('button', { type: 'button', id, 'aria-pressed': String(state().qg === v), onclick: () => { go({ qg: v }); focus(id); } }, [label]);
+      const sw = (cls) => h('span', { class: `gpr-sw ${cls}`, 'aria-hidden': 'true' });
+      const notes = late ? [] : ganttNote(m, nt, lang());
+      const read = h('section', { class: 'card gpr-card gpr-help', id: 'gprGanttRead', 'aria-labelledby': 'gprGanttReadHead' }, [
+        h('h2', { id: 'gprGanttReadHead' }, [tg('gantt.read')]),
+        h('div', { class: 'seg', role: 'group', 'aria-label': tg('gantt.dates') }, [pick(1, 'gprGanttEarly', tg('gantt.earlyBtn')), pick(2, 'gprGanttLate', tg('gantt.lateBtn'))]),
+        h('p', { class: 'gpr-legend', id: 'gprGanttLegend' }, [h('span', {}, [sw('c'), tg('gantt.crit')]), h('span', {}, [sw('n'), tg('gantt.float')]),
+          h('span', {}, [sw('f'), tg('gantt.dash')])]),
+        h('p', {}, [tg('gantt.arrows', { fs: c('FS'), ss: c('SS'), sf: c('SF') })]),
+        notes.length ? h('ul', { class: 'gpr-note gpr-gantt-note', id: 'gprGanttNote' }, notes.map((x) => h('li', {}, [x]))) : null,
+        h('button', { type: 'button', class: 'ghost', id: 'gprGanttTableBtn', 'aria-expanded': String(ganttTable), 'aria-controls': 'gprGanttTableBox',
+          onclick: () => { ganttTable = !ganttTable; keepFocus(draw); } }, [tg('gantt.showTable')]),
+      ]);
+      return h('div', { class: 'gpr-gantt-grid' }, [chart, read]);
+    }
+    // La alternativa en texto: cada actividad con su comienzo y su fin a las fechas elegidas, su holgura y lo que le llega.
+    function ganttTableEl(late, dates, N) {
+      const cap = tg('gantt.caption', { name: m.src.title, dates });
+      const head = h('tr', {}, [h('th', { scope: 'col' }, [tg('results.act')]), h('th', { scope: 'col' }, [tg('gantt.col.start')]), h('th', { scope: 'col' }, [tg('gantt.col.finish')]),
+        h('th', { scope: 'col' }, [N.TF, h('span', { class: 'gpr-full' }, [tg('results.tf')])]), h('th', { scope: 'col' }, [tg('gantt.col.arrives')])]);
+      const body = ganttRows(m, late, nota(), lang()).map((r) => h('tr', { class: r.crit ? 'crit' : null, 'data-act': r.id }, [
+        h('th', { scope: 'row' }, [r.id, r.crit ? h('span', { class: 'sr-only' }, [` (${tg('results.crit')})`]) : null]),
+        ...[r.start, r.finish, r.tf].map((v) => h('td', { class: 'num' }, [num(v)])),
+        h('td', { class: 'gpr-mono' }, [r.arrives.length ? r.arrives.join(', ') : '—'])]));
+      return h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': cap }, [
+        h('table', { class: 'data gpr-res', id: 'gprGanttTable' }, [h('caption', { class: 'sr-only' }, [cap]), h('thead', {}, [head]), h('tbody', {}, body)])]);
+    }
+
     // ---------- El paso a paso (tablero 116) ----------
     let lastWalk = '';
     const PR = () => root.PNL.predict;
@@ -567,6 +655,7 @@
     function fillNet() {
       clear(netSlot);
       if (m.solution) netSlot.appendChild(netCard());
+      if (ganttOn()) netSlot.appendChild(ganttBlock());
     }
     function draw() {
       clear(container);
@@ -601,7 +690,7 @@
   }
 
   const api = { FIELDS, code, numTxt, relTag, relText, source, model, issueText, rowMarks, labels, structure, critEdges, pasteRows,
-    walkTrace, asked, askedStep, terms, narration, create };
+    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, create };
   root.PNL = root.PNL || {};
   root.PNL.gprTab = api;
   if (isNode) module.exports = api;

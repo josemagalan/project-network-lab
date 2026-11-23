@@ -98,7 +98,7 @@
     u56: ['js/unc-m56.js'],
     // F5a (plan §4, T010): «Precedencias generalizadas», con su núcleo, sus ejemplos, sus textos, su vista y su hoja; solo con
     // v=gpr (core/aoa ya está en la carga común).
-    gr: ['css/gpr.css', 'js/core/gpr.js', 'js/core/gprpert.js', 'js/core/gprex.js', 'js/i18n-gpr.js', 'js/gpr.js'],
+    gr: ['css/gpr.css', 'js/core/gpr.js', 'js/core/gprpert.js', 'js/core/gprex.js', 'js/i18n-gpr.js', 'js/views/gpr-gantt.js', 'js/gpr.js'],
   };
   const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:

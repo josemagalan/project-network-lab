@@ -62,6 +62,19 @@
       critical: 'Crítica', noLabel: 'Sin etiqueta: {fs} sin desfase',
     },
     results: { title: 'Tiempos y holguras', caption: 'Tiempos y holguras de {name}', act: 'Actividad', tf: 'holgura total', ff: 'holgura libre', crit: 'crítica' },
+    // T012 (tablero 118): el Gantt con las relaciones.
+    gantt: {
+      toggle: 'Gantt', head: 'Gantt · {dates}', early: 'fechas tempranas', late: 'fechas tardías',
+      dates: 'Fechas', earlyBtn: 'Fechas tempranas', lateBtn: 'Fechas tardías',
+      read: 'Cómo leerlo', crit: 'crítica', float: 'con holgura', dash: 'discontinua: holgura total',
+      arrows: 'Cada flecha sale de donde empieza la relación (el comienzo de la barra en {ss} y {sf}, su fin en {fs} y FF) y llega a donde actúa (el comienzo en {fs} y {ss}, el fin en FF y {sf}).',
+      note: '{id} empieza en {t}: manda {term}.',
+      label: 'Diagrama de Gantt de {name} a {dates}: duración {T}; críticas: {crit}. Cada relación es una flecha; «Ver como tabla» las detalla.',
+      region: 'Gantt de {name}', swipe: 'Desliza para ver todo el Gantt →',
+      showTable: 'Ver como tabla',
+      caption: 'Gantt de {name} a {dates}: comienzo, fin, holgura total y relaciones que llegan a cada actividad',
+      col: { start: 'Comienzo', finish: 'Fin', arrives: 'Relaciones que llegan' },
+    },
     walk: {
       toggle: 'Paso a paso', keys: '← → avanzar o retroceder',
       start: 'Inicio', end: 'Fin', head: { term: 'Término', formula: 'Fórmula', value: 'Valor' }, governs: '← manda',
@@ -173,6 +186,18 @@
       critical: 'Critical', noLabel: 'No label: {fs} with no lag',
     },
     results: { title: 'Times and floats', caption: 'Times and floats of {name}', act: 'Activity', tf: 'total float', ff: 'free float', crit: 'critical' },
+    gantt: {
+      toggle: 'Gantt', head: 'Gantt chart · {dates}', early: 'early dates', late: 'late dates',
+      dates: 'Dates', earlyBtn: 'Early dates', lateBtn: 'Late dates',
+      read: 'How to read it', crit: 'critical', float: 'with float', dash: 'dashed: total float',
+      arrows: 'Each arrow leaves from where the relation starts (the start of the bar for {ss} and {sf}, its end for {fs} and FF) and arrives where it acts (start for {fs} and {ss}, end for FF and {sf}).',
+      note: '{id} starts at {t}: {term} governs.',
+      label: 'Gantt chart of {name} at {dates}: duration {T}; critical: {crit}. Each relation is an arrow; “Show as a table” lists them.',
+      region: 'Gantt chart of {name}', swipe: 'Swipe to see the whole chart →',
+      showTable: 'Show as a table',
+      caption: 'Gantt chart of {name} at {dates}: start, finish, total float and incoming relations of each activity',
+      col: { start: 'Start', finish: 'Finish', arrives: 'Incoming relations' },
+    },
     walk: {
       toggle: 'Step by step', keys: '← → step back or forward',
       start: 'Start', end: 'End', head: { term: 'Term', formula: 'Formula', value: 'Value' }, governs: '← governs',

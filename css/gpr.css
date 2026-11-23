@@ -82,3 +82,19 @@ table.data.gpr-res input { width: 5em; height: 28px; padding: 0 5px; }
 @media (max-width: 760px) {
   .gpr-walk { grid-template-columns: minmax(0, 1fr); }
 }
+/* Gantt con las relaciones (T012, tablero 118): el dibujo con su tamaño natural, que se desliza dentro de su marco (P8). */
+.gpr-netslot { display: flex; flex-direction: column; gap: 12px; }
+.gpr-gantt-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); gap: 14px; align-items: start; }
+.gpr-gantt-wrap { overflow-x: auto; }
+.gantt .garr { fill: none; stroke: var(--accent); stroke-width: 1.3; }
+.gantt .garr.crit { stroke: var(--critical); stroke-width: 1.8; }
+.gantt .gmark { fill: var(--accent); }
+.gantt .gmark.crit { fill: var(--critical); }
+.gpr-sw { display: inline-block; width: 22px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.gpr-sw.c { background: var(--critical); }
+.gpr-sw.n { background: var(--accent); }
+.gpr-sw.f { height: 0; border-top: 2px dashed var(--muted); border-radius: 0; vertical-align: 3px; }
+.gpr-gantt-note { margin: 0; padding: 6px 10px 6px 1.6em; background: var(--soft); border-radius: 8px; }
+@media (max-width: 760px) {
+  .gpr-gantt-grid { grid-template-columns: minmax(0, 1fr); }
+}
