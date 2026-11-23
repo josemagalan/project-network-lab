@@ -17,7 +17,7 @@
   // Ejemplos solo de estructura (sin duraciones): no tienen red ROY, así que se abren siempre en PERT.
   const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo'];
   const ENUMS = {
-    v: ['route', 'work', 'm0', 'ex', 'moodle', 'unc'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
+    v: ['route', 'work', 'm0', 'ex', 'moodle', 'unc', 'gpr'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
     tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: ['0', '1'],
     lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
@@ -33,11 +33,13 @@
     // F3d (plan f3d-construir-detectar, §3): tipo de ejercicio y, en el detective, la red y los errores que se buscan.
     xk: ['calc', 'roy', 'pert', 'det', 'tcl', 'mc'], dg: ['aon', 'aoa'], dk: ['net', 'calc', 'all'],
     mv: ['read', 'disc', 'rep'], xo: ['0', '1'],   // F3e: variante de Montecarlo y la otra ruta (TCL)
+    // F5a (plan f5a-precedencias-generalizadas, §3, P5): ejemplo o tabla propia, redes que se ven y Gantt.
+    qe: ['fc', 'cc', 'n16', 'rb', 'rv', 'cl', 'own'], qn: ['roy', 'pert', 'both'], qg: ['0', '1', '2'],
   };
-  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur', 'xo'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur', 'xo', 'qg'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
     'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh',
-    'xk', 'rn', 'dg', 'dk', 'dm', 'mv', 'pa', 'xo'];
+    'xk', 'rn', 'dg', 'dk', 'dm', 'mv', 'pa', 'xo', 'qe', 'qt', 'qn', 'qg', 'qr', 'qw'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -67,7 +69,8 @@
       cx: null, sv: null, xt: 0,
       um: 'm5', ue: 'kl', ut: null, ua: null, uc: 0, ux: 'exam', ud: null, up: null, uk: null, us: null, uw: 0,
       ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c', uh: 't',
-      xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null, mv: 'read', pa: null, xo: 0 };
+      xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null, mv: 'read', pa: null, xo: 0,
+      qe: 'fc', qt: null, qn: 'both', qg: 0, qr: null, qw: null };
   }
 
   // F3d: red ROY del alumno (rn) y marcas del detective (dm) (plan §3; análisis H12). Nodos: actividad, Inicio (_S) o
@@ -557,6 +560,55 @@
     return cleanPa(pa, kind);
   }
 
+  // ---------- F5a: la pestaña de las precedencias generalizadas (v=gpr; plan §3, P5, P6; analyze A4) ----------
+  const GPR_DEFAULTS = { qe: 'fc', qt: null, qn: 'both', qg: 0, qr: null, qw: null };
+  const GPR_RELS = 120;
+  // Tabla propia: filas como texto (id, duración, relaciones, nombre), con los límites del taller; empaquetada como ut.
+  const QT_ROW = (r) => [cut(r.id, LIMITS.id), cut(r.duration, LIMITS.duration), cut(r.links, LIMITS.links), cut(r.name, LIMITS.name)];
+  const qtRowOk = (a) => Array.isArray(a) && a.length === 4 && a.every((x) => typeof x === 'string')
+    && a[0].length <= LIMITS.id && a[1].length <= LIMITS.duration && a[2].length <= LIMITS.links && a[3].length <= LIMITS.name;
+  const qtRow = (a) => ({ id: a[0], name: a[3], duration: a[1], links: a[2] });
+  function cleanQt(rows) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    return rows.slice(0, LIMITS.rows).map((r) => qtRow(QT_ROW(r || {})));
+  }
+  const packQt = (rows) => textpack().compress(JSON.stringify([1, rows.slice(0, LIMITS.rows).map(QT_ROW)]));
+  function unpackQt(packed) {
+    const tp = textpack();
+    const json = tp ? tp.decompress(packed, { max: EX.packed }) : null;
+    if (json === null) return null;
+    let a;
+    try { a = JSON.parse(json); } catch { return null; }
+    if (!Array.isArray(a) || a.length !== 2 || a[0] !== 1 || !Array.isArray(a[1]) || !a[1].length || a[1].length > LIMITS.rows || !a[1].every(qtRowOk)) return null;
+    return a[1].map(qtRow);
+  }
+  const qrOk = (x) => Number.isInteger(x) && x >= 0 && x < GPR_RELS;
+  const qwOk = (w) => Array.isArray(w) && w.length === 2 && typeof w[0] === 'string' && ID_UPPER.test(w[0])
+    && typeof w[1] === 'number' && Number.isFinite(w[1]) && w[1] >= 0 && String(w[1]).length <= LIMITS.duration;
+  function encodeGpr(s, q) {
+    const own = s.qe === 'own' && cleanQt(s.qt);
+    if (s.qe !== 'fc' && ENUMS.qe.includes(s.qe) && (s.qe !== 'own' || own)) q.set('qe', s.qe);
+    if (own) q.set('qt', packQt(own));
+    if (s.qn !== 'both' && ENUMS.qn.includes(s.qn)) q.set('qn', s.qn);
+    if (s.qg === 1 || s.qg === 2) q.set('qg', String(s.qg));
+    if (qrOk(s.qr)) q.set('qr', String(s.qr));
+    if (qwOk(s.qw)) q.set('qw', `${s.qw[0]}:${s.qw[1]}`);
+  }
+  function decodeGpr(q, state) {
+    let bad = false;
+    state.ex = null; state.t = null;
+    if (q.has('qt')) { const qt = unpackQt(q.get('qt')); if (qt) state.qt = qt; else bad = true; }
+    if (state.qe === 'own' && !state.qt) { state.qe = 'fc'; bad = true; }
+    if (state.qe !== 'own') state.qt = null;
+    if (q.has('qr')) { const v = q.get('qr'); const n = /^\d{1,3}$/.test(v) ? Number(v) : NaN; if (qrOk(n)) state.qr = n; else bad = true; }
+    if (q.has('qw')) {
+      const m = q.get('qw').match(/^([A-Z0-9]{1,4}):(\d+(?:\.\d+)?)$/);
+      const w = m ? [m[1], Number(m[2])] : null;
+      if (w && qwOk(w)) state.qw = w; else bad = true;
+    }
+    return bad;
+  }
+
   function encode(state) {
     const s = Object.assign(defaults(), state);
     const q = new URLSearchParams();
@@ -575,6 +627,16 @@
       q.set('nota', s.nota);
       if (s.pred) q.set('pred', '1');
       encodeUnc(s, q);
+      return '#' + q.toString();
+    }
+    // F5a: la pestaña de las precedencias generalizadas tiene su tabla en qt, no la del taller (plan §3).
+    if (s.v === 'gpr') {
+      q.set('step', String(s.step));
+      if (s.lang) q.set('lang', s.lang);
+      q.set('nota', s.nota);
+      if (s.box !== '7') q.set('box', s.box);
+      if (s.pred) q.set('pred', '1');
+      encodeGpr(s, q);
       return '#' + q.toString();
     }
     // graph y min solo se escriben si no valen lo de siempre: los enlaces de la fase 1 no cambian (F2a, P4).
@@ -748,6 +810,8 @@
     else if (state.xt && state.lv === 'custom') { state.xt = 0; malformed = true; }
     // F4a: las claves u* solo cuentan en la pestaña de tres tiempos y el TCL.
     if (state.v === 'unc') { if (decodeUnc(q, state)) malformed = true; } else Object.assign(state, UNC_DEFAULTS);
+    // F5a: las claves q* solo cuentan en la pestaña de las precedencias generalizadas.
+    if (state.v === 'gpr') { if (decodeGpr(q, state)) malformed = true; } else Object.assign(state, GPR_DEFAULTS);
     // F3b: el exportador de Moodle no tiene tabla ni ejemplo.
     if (state.v === 'moodle') { state.ex = null; state.t = null; }
     // F3a: «Ejercicios» (la tabla sale de la semilla: t y ex no se leen).
@@ -804,7 +868,8 @@
 
   const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, MAX_DM: DM_MAX, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
     ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns, DET_TYPES, cleanRn, cleanDm, PA, paKind, cleanPa,
-    UNC: { M6_ONLY: UNC_M6_ONLY, M7_ONLY: UNC_M7_ONLY, cleanUf, cleanUq, pctOk, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk } };
+    UNC: { M6_ONLY: UNC_M6_ONLY, M7_ONLY: UNC_M7_ONLY, cleanUf, cleanUq, pctOk, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk },
+    GPR: { DEFAULTS: GPR_DEFAULTS, cleanQt, qrOk, qwOk } };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

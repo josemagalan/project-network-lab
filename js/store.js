@@ -225,6 +225,40 @@
         if (ut) { if (s.ue !== 'own') resetAsk(s); Object.assign(s, { ue: 'own', ut }); }
         break;
       }
+      // F5a (plan §3): la pestaña de las precedencias generalizadas. Otro proyecto vuelve al paso 0 y borra la relación
+      // elegida y el «¿Y si…?», que son de ese proyecto.
+      case 'gpr': {
+        const G = U.GPR;
+        const qe0 = s.qe;
+        s.v = 'gpr';
+        if (['fc', 'cc', 'n16', 'rb', 'rv', 'cl'].includes(action.qe) || (action.qe === 'own' && s.qt)) s.qe = action.qe;
+        if (s.qe !== qe0) Object.assign(s, { step: 0, qr: null, qw: null });
+        if (['roy', 'pert', 'both'].includes(action.qn)) s.qn = action.qn;
+        if ([0, 1, 2].includes(action.qg)) s.qg = action.qg;
+        if (action.qr === null || G.qrOk(action.qr)) s.qr = action.qr === undefined ? s.qr : action.qr;
+        if (action.qw === null || G.qwOk(action.qw)) s.qw = action.qw === undefined ? s.qw : action.qw;
+        break;
+      }
+      // «Partir del taller»: la tabla del taller con todas las relaciones FS+0 (AC7). Con posteriores, se pasa a
+      // predecesoras si la tabla se lee; si no, se copia sin relaciones. El taller no cambia.
+      case 'gprFromWork': {
+        const P = isNode ? require('./core/project.js') : root.PNL.project;
+        let rows = (action.rows || []).map((r) => ({ id: r.id == null ? '' : String(r.id), name: r.name || '', duration: r.duration == null ? '' : String(r.duration), links: r.links || '' }));
+        if (action.mode === 'succ') {
+          const { project } = P.parse(rows, 'succ');
+          rows = project ? P.toRows(project, 'pred').map((r) => ({ id: r.id, name: r.name || '', duration: r.duration, links: r.links }))
+            : rows.map((r) => Object.assign({}, r, { links: '' }));
+        }
+        const qt = U.GPR.cleanQt(rows);
+        if (!qt) break;
+        Object.assign(s, { v: 'gpr', qe: 'own', qt, step: 0, qr: null, qw: null });
+        break;
+      }
+      case 'gprTable': {
+        const qt = U.GPR.cleanQt(action.rows);
+        if (qt) Object.assign(s, { qe: 'own', qt, qr: null, qw: null });
+        break;
+      }
       case 'whatif': {
         const others = (s.wi || []).filter(([id]) => id !== action.id);
         const d = Number(action.d);
