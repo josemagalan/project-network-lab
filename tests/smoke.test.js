@@ -26,9 +26,30 @@ test('cpm.html solo carga scripts locales que existen, sin módulos ES ni CDN (p
   }
 });
 
-test('D3 es la versión 7 y está en vendor/', () => {
-  const d3 = fs.readFileSync(path.join(ROOT, 'vendor', 'd3.min.js'), 'utf8');
-  assert.match(d3.slice(0, 80), /d3js\.org v7\./);
+// Mantenimiento (presupuesto de 1 MB, principio 27): de D3 v7 solo se sirve su módulo de selección, d3-selection v3
+// (el mismo que va dentro de D3 v7.9.0), con su licencia; D3 completo eran 280 KB en cada vista de cpm.html.
+test('D3: en vendor/ va solo d3-selection v3, con su licencia, y pesa menos de 20 KB', () => {
+  const file = path.join(ROOT, 'vendor', 'd3-selection.min.js');
+  const d3 = fs.readFileSync(file, 'utf8');
+  assert.match(d3.slice(0, 80), /d3js\.org\/d3-selection\/ v3\./);
+  assert.ok(fs.statSync(file).size < 20 * 1024, `${fs.statSync(file).size} bytes`);
+  assert.match(fs.readFileSync(path.join(ROOT, 'vendor', 'd3-selection.LICENSE.txt'), 'utf8'), /Mike Bostock/);
+  assert.equal(fs.existsSync(path.join(ROOT, 'vendor', 'd3.min.js')), false, 'D3 completo ya no se sirve');
+});
+
+test('D3: el código solo usa funciones que trae d3-selection (d3.select, d3.selectAll…)', () => {
+  const sel = require('../vendor/d3-selection.min.js');
+  const used = new Map();
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const f = path.join(dir, e.name);
+      if (e.isDirectory()) walk(f);
+      else if (e.name.endsWith('.js')) for (const m of fs.readFileSync(f, 'utf8').matchAll(/\bd3\.([A-Za-z_$][\w$]*)/g)) used.set(m[1], path.relative(ROOT, f));
+    }
+  };
+  walk(path.join(ROOT, 'js'));
+  assert.ok(used.has('select'), 'las vistas dibujan con d3.select');
+  for (const [name, f] of used) assert.equal(typeof sel[name], 'function', `d3.${name} (${f}) no está en d3-selection`);
 });
 
 test('i18n carga en Node', () => {

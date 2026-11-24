@@ -136,7 +136,7 @@ La portada (`index.html`) presenta los ocho módulos del itinerario, ya todos di
 
 ### Usarlo sin conexión
 
-Descarga el repositorio y abre `index.html` en el navegador. No necesita servidor ni conexión: D3 v7 va incluido en `vendor/`.
+Descarga el repositorio y abre `index.html` en el navegador. No necesita servidor ni conexión: el módulo de selección de D3 v7 (`d3-selection`) va incluido en `vendor/`.
 
 ### Desarrollo
 
@@ -279,7 +279,7 @@ The home page (`index.html`) presents the eight modules of the learning path, al
 
 ### Offline use
 
-Download the repository and open `index.html` in a browser. No server or connection is needed: D3 v7 ships in `vendor/`.
+Download the repository and open `index.html` in a browser. No server or connection is needed: D3 v7’s selection module (`d3-selection`) ships in `vendor/`.
 
 ### Development
 
