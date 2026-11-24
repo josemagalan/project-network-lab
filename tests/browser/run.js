@@ -12539,6 +12539,155 @@ check('F5a T015 · AC13 y AC15: la cabecera con la pestaña nueva cabe en una l�
   }
 });
 
+// ---------- F5a, T016: pruebas de navegador y accesibilidad de la F5a ----------
+
+// Etiquetas de la ROY y de la PERT que se pisan, y flechas que cruzan una etiqueta que no es suya (con data-edge y data-arc).
+const gprClashes = (page) => page.evaluate(() => {
+  const out = [];
+  for (const [view, labSel, edgeSel] of [['ROY', '#gprRoy g.elab-g rect.elab-bg', '#gprRoy path.edge'], ['PERT', '#gprPert text.elabel', '#gprPert path.edge']]) {
+    const labs = [...document.querySelectorAll(labSel)].map((el) => {
+      const g = el.tagName === 'rect' ? el.parentNode : el;
+      return { bb: el.getBBox(), own: g.getAttribute('data-edge') || g.getAttribute('data-arc'), txt: g.textContent };
+    });
+    const edges = [...document.querySelectorAll(edgeSel)];
+    for (let i = 0; i < labs.length; i++) {
+      for (let j = i + 1; j < labs.length; j++) {
+        const a = labs[i].bb; const c = labs[j].bb;
+        if (a.x < c.x + c.width - 1 && c.x < a.x + a.width - 1 && a.y < c.y + c.height - 1 && c.y < a.y + a.height - 1) out.push(`${view}: «${labs[i].txt}» pisa «${labs[j].txt}»`);
+      }
+    }
+    for (const l of labs) {
+      if (!l.own) { out.push(`${view}: «${l.txt}» sin data`); continue; }
+      for (const e of edges) {
+        const mine = e.getAttribute('data-edge') || e.getAttribute('data-arc');
+        if (mine === l.own) continue;
+        const L = e.getTotalLength();
+        for (let t = 0; t <= L; t += 2) {
+          const pt = e.getPointAtLength(t);
+          if (pt.x > l.bb.x + 1 && pt.x < l.bb.x + l.bb.width - 1 && pt.y > l.bb.y + 1 && pt.y < l.bb.y + l.bb.height - 1) { out.push(`${view}: la flecha ${mine} cruza «${l.txt}»`); break; }
+        }
+      }
+    }
+  }
+  return out;
+});
+
+check('F5a T016 · las etiquetas de la ROY y de la PERT no se pisan ni las cruza otra flecha: los seis ejemplos, las seis clases con C = 2, ROSEBUD con la notación española y en inglés', async () => {
+  const page = await gprLab(gprHash({ qe: 'fc', lang: 'es' }));
+  for (const s of [...GPRX.list().map((ex) => ({ qe: ex.id, lang: 'es' })), { qe: 'cl', lang: 'es', qw: ['C', 2] }, { qe: 'rb', lang: 'es', nota: 'es' }, { qe: 'rb', lang: 'en', nota: 'en' }]) {
+    await gprGo(page, s);
+    await page.waitForSelector('#gprPert svg');
+    assert.deepEqual(await gprClashes(page), [], JSON.stringify(s));
+  }
+  await close(page);
+});
+
+check('F5a T016 · con «Las dos» a 1280 px, la ROY y la PERT van a todo lo ancho sin encogerse (la ROY de ROSEBUD, al 86 %) y el panel de la relación va debajo, en dos columnas; a 360 px, en una', async () => {
+  const page = await gprLab(gprHash({ qe: 'fc', lang: 'es' }));
+  for (const ex of GPRX.list()) {
+    await gprGo(page, { qe: ex.id, lang: 'es' });
+    await page.waitForSelector('#gprPert svg');
+    const g = await page.evaluate(() => {
+      const scale = (sel) => { const v = document.querySelector(sel); return v.getBoundingClientRect().width / Number(v.getAttribute('viewBox').split(' ')[2]); };
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      return { roy: scale('#gprRoy svg'), pert: scale('#gprPert svg'), pertBottom: r('gprPert').bottom, panelTop: r('gprRelPanel').top,
+        pick: r('gprRelPick'), sum: r('gprRelSum') };
+    });
+    // La ROY de ROSEBUD (ocho columnas) mide ~1400 px: a 1280 queda al 86 % (antes, al 58 %); las demás, enteras.
+    assert.ok(g.roy > (ex.id === 'rb' ? 0.85 : 0.99) && g.pert > 0.99, `${ex.id}: ROY ${g.roy.toFixed(2)}, PERT ${g.pert.toFixed(2)}`);
+    assert.ok(g.panelTop > g.pertBottom, `${ex.id}: el panel, debajo de la PERT`);
+    assert.ok(Math.abs(g.pick.top - g.sum.top) < 1 && g.sum.left > g.pick.right, `${ex.id}: dos columnas`);
+  }
+  await close(page);
+  const m = await gprLab(gprHash({ qe: 'rb', lang: 'es' }), { width: 360, height: 740 });
+  await m.waitForSelector('#gprRelPanel');
+  const one = await m.evaluate(() => document.getElementById('gprRelSum').getBoundingClientRect().top >= document.getElementById('gprRelPick').getBoundingClientRect().bottom);
+  assert.equal(one, true, 'a 360 px, una columna');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await close(m);
+});
+
+check('F5a T016 · en el paso a paso no sale «Redes» (solo enseña la ROY) y la barra cabe en una línea a 1280 px con «Modo predicción» (ES y EN); al salir, vuelve', async () => {
+  for (const lang of ['es', 'en']) {
+    const s = { qe: 'rb', lang, pred: 1, step: 3 };
+    const page = await gprLab(gprHash(s));
+    await page.waitForSelector('#gprStepCard');
+    assert.equal(await page.locator('#gprNetBoth').count(), 0);
+    const tops = await page.evaluate(() => [...document.querySelectorAll('.gpr-bar .gpr-row > *')].filter((e) => e.offsetParent && e.getBoundingClientRect().width > 0 && !e.classList.contains('gpr-push'))
+      .map((e) => { const r = e.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }));
+    assert.ok(Math.max(...tops) - Math.min(...tops) <= 4, `${lang}: ${tops}`);
+    await page.locator('#gprWalk').click();
+    await page.waitForFunction(() => PNL.app.state().step === 0 && document.getElementById('gprNetBoth'));
+    await close(page);
+  }
+});
+
+check('F5a T016 · teclado: Tab recorre la barra, la tabla de tiempos, las redes, el panel de la relación, el Gantt y el «¿Y si…?» sin quedarse atrapado; Enter y Espacio los usan sin perder el foco, y Esc cierra «Aprende más» y devuelve el foco', async () => {
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es', qg: 1, qw: ['Y', 8] }));
+  await page.waitForSelector('#gprGanttSvg');
+  await page.locator('#gprProj').focus();
+  const seen = [];
+  for (let i = 0; i < 60; i++) {
+    await page.keyboard.press('Tab');
+    const id = await page.evaluate(() => { const a = document.activeElement; return a ? (a.id || `${a.tagName.toLowerCase()}${a.closest('[id]') ? `@${a.closest('[id]').id}` : ''}`) : ''; });
+    seen.push(id);
+  }
+  for (const id of ['gprFromWork', 'gprNetRoy', 'gprNetPert', 'gprNetBoth', 'gprGantt', 'gprWalk', 'gprWhatIfBtn', 'gprLearn', 'gprWiAct', 'gprWiDur', 'gprWiTry', 'gprRoy', 'gprPert', 'gprRel', 'gprGanttWrap', 'gprGanttEarly', 'gprGanttLate', 'gprGanttTableBtn']) {
+    assert.ok(seen.includes(id), `Tab llega a ${id}: ${seen.join(' ')}`);
+  }
+  assert.ok(new Set(seen).size > 20, 'no se queda atrapado');
+  // Espacio y Enter, con el foco donde estaba.
+  await page.locator('#gprNetRoy').focus();
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => PNL.app.state().qn === 'roy');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprNetRoy');
+  await page.locator('#gprGanttLate').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.app.state().qg === 2);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprGanttLate');
+  await page.locator('#gprWiDur').fill('10');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => JSON.stringify(PNL.app.state().qw) === '["Y",10]');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprWiDur');
+  await page.locator('#gprLearn').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.getElementById('learnDialog').open);
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.getElementById('learnDialog').open);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprLearn');
+  await close(page);
+});
+
+check('F5a T016 · todo abierto (ROSEBUD: las dos redes, una relación elegida, «Tiempos y holguras», la PERT como tabla, el Gantt con su tabla y el «¿Y si…?»): axe en claro y oscuro, ES y EN; a 1280 y 360 px sin desplazamiento horizontal; con «Aprende más», por debajo de 1 MB', async () => {
+  const openAll = async (page) => {
+    await page.waitForSelector('#gprGanttSvg');
+    await page.evaluate(() => { for (const id of ['gprResults', 'gprPertTable']) document.getElementById(id).open = true; });
+    await page.locator('#gprGanttTableBtn').click();
+    await page.waitForSelector('#gprGanttTable');
+  };
+  const rel = GPR.parse(GPRX.get('rb').rows).project.rels.findIndex((r) => r.type === 'SS');
+  for (const [lang, scheme, nota] of [['es', 'light', 'es'], ['en', 'dark', 'en']]) {
+    const page = await gprLab(gprHash({ qe: 'rb', lang, nota, qg: 1, qr: rel, qw: ['Y', 10] }), { scheme });
+    await openAll(page);
+    await axe(page, `F5a T016 · todo abierto · ${lang} · ${scheme}`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+    await page.locator('#gprLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open && PNL.learnGpr);
+    await axe(page, `F5a T016 · todo abierto con «Aprende más» · ${lang} · ${scheme}`);
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+    console.log(`    v=gpr todo abierto con «Aprende más» (${lang}): ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${bytes} bytes`);
+    await shot(page, `f5a-t016-todo-${lang}-${scheme}`, true);
+    await close(page);
+  }
+  const m = await gprLab(gprHash({ qe: 'rb', lang: 'es', qg: 1, qr: rel, qw: ['Y', 10] }), { width: 360, height: 740 });
+  await openAll(m);
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5a-t016-todo-360', true);
+  await close(m);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

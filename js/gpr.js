@@ -479,8 +479,9 @@
       return h('div', { class: 'card gpr-bar' }, [h('div', { class: 'gpr-row' }, [
         h('label', { class: 'gpr-field' }, [tg('project'), ' ', sel]),
         button(tg('fromWork'), fromWork, { id: 'gprFromWork' }),
-        // «Redes» (T013, tablero 117): la ROY, la PERT equivalente o las dos (qn, por defecto las dos).
-        h('div', { class: 'seg', role: 'group', 'aria-label': tg('nets.label') }, [h('span', { class: 'gpr-seglab', 'aria-hidden': 'true' }, [tg('nets.label')]),
+        // «Redes» (T013, tablero 117): la ROY, la PERT equivalente o las dos (qn, por defecto las dos). No sale en el paso a paso,
+        // que solo enseña la ROY (T016: así la barra cabe en una línea a 1280 px con «Modo predicción»).
+        on ? null : h('div', { class: 'seg', role: 'group', 'aria-label': tg('nets.label') }, [h('span', { class: 'gpr-seglab', 'aria-hidden': 'true' }, [tg('nets.label')]),
           ...[['roy', 'gprNetRoy'], ['pert', 'gprNetPert'], ['both', 'gprNetBoth']].map(([v, id]) => h('button', { type: 'button', id, 'aria-pressed': String(nets() === v),
             onclick: () => { go({ qn: v }); focus(id); } }, [tg(`nets.${v}`)]))]),
         // «Gantt» (T012, tablero 118): se abre a fechas tempranas (qg=1); las tardías se eligen junto al dibujo (qg=2).
@@ -778,7 +779,7 @@
       };
       const holder = h('div', { class: 'gpr-net', id: 'gprPert', tabindex: '0' });
       root.PNL.pertView.render(holder, { net: b.net, lay: pertLay.lay, revealed: new Map(), step: null, solution: null, lang: lang(), nota: nota(), criticalOn: false,
-        numFmt: num, name: m.src.title, numbered: true, fit: true, minWidth: 640, geo: { colGap: 100, rowGap: 80 }, idPrefix: 'gpr-pk',
+        numFmt: num, name: m.src.title, numbered: true, fit: true, minWidth: 640, geo: { colGap: 100, rowGap: 80 }, idPrefix: 'gpr-pk', declutter: true,
         marks: sel ? sel.pert : null, arcText, zero: new Set(b.pieces.acts.filter((a) => a.zero).map((a) => a.id)), wait: new Set(b.pieces.waits), onSelect });
       const tbl = h('div', { class: 'gpr-scroll', tabindex: '0', role: 'region', 'aria-label': tg('pert.table') });
       root.PNL.pertView.arcTable(tbl, { net: b.net, numFmt: num, lang: lang(), name: m.src.title, durations: Object.fromEntries(b.pieces.acts.map((a) => [a.id, a.d])),
@@ -812,11 +813,12 @@
         h('thead', {}, [h('tr', {}, [h('td', {}, []), h('th', { scope: 'col' }, [tg('nets.roy')]), h('th', { scope: 'col' }, [tg('nets.pert')])])]),
         h('tbody', {}, rows.map(([k, a, b]) => h('tr', { 'data-row': k }, [h('th', { scope: 'row' }, [tg(`sum.${k}`)]),
           h('td', { class: k === 'T' ? 'num strong' : null }, [a]), h('td', { class: k === 'T' ? 'num strong' : null }, [b])])))]);
+      // T016: debajo de las redes, en dos columnas: la relación elegida y su explicación | el resumen de las dos redes.
       return h('section', { class: 'card gpr-card gpr-help', id: 'gprRelPanel', 'aria-labelledby': 'gprRelHead' }, [
         h('h2', { id: 'gprRelHead' }, [tg('rel.title')]),
-        h('label', { class: 'gpr-field' }, [tg('rel.label'), ' ', select]), box,
-        h('div', { class: 'gpr-scroll' }, [table]), h('p', { class: 'muted small' }, [tg('sum.rule')]),
-        pertNote(s), h('p', { class: 'muted small' }, [tg('rel.keys')])]);
+        h('div', { class: 'gpr-relgrid' }, [
+          h('div', { id: 'gprRelPick' }, [h('label', { class: 'gpr-field' }, [tg('rel.label'), ' ', select]), box, h('p', { class: 'muted small' }, [tg('rel.keys')])]),
+          h('div', { id: 'gprRelSum' }, [h('div', { class: 'gpr-scroll' }, [table]), h('p', { class: 'muted small' }, [tg('sum.rule')]), pertNote(s)])])]);
     }
     // Cuando la PERT dura menos que la ROY, por qué; si no, el ejemplo en que pasa (la crítica al revés).
     function pertNote(s) {
@@ -1025,7 +1027,7 @@
       const v = nets();
       if (v === 'roy') netSlot.appendChild(netCard());
       else {
-        netSlot.appendChild(h('div', { class: 'gpr-nets' }, [h('div', { class: 'gpr-nets-main' }, [v === 'both' ? netCard() : null, pertCard()]), relPanel()]));
+        netSlot.appendChild(h('div', { class: 'gpr-nets' }, [v === 'both' ? netCard() : null, pertCard(), relPanel()]));
       }
       if (ganttOn()) netSlot.appendChild(ganttBlock());
     }

@@ -15,7 +15,8 @@
  * F5a (T013, PERT equivalente por piezas): ctx.marks = Map(etiqueta → clase) resalta los arcos de una relación; ctx.zero
  * (trozos de duración 0, en trazo discontinuo como las ficticias) y ctx.wait (esperas) dan clase a su etiqueta;
  * ctx.arcText(etiqueta, ficticia) escribe la etiqueta de un arco y ctx.arcName(etiqueta), su nombre en arcTable
- * (sin ellos, lo de siempre).
+ * (sin ellos, lo de siempre). T016: con ctx.declutter, las etiquetas que se pisan o cruzan otra flecha se corren por su
+ * arco, y los arcos y las etiquetas llevan data-arc.
  */
 (function (root) {
   'use strict';
@@ -24,6 +25,43 @@
   const GEO = { colGap: 150, rowGap: 112, r: 18, pad: 34, top: 30 };
 
   const t = (ctx, k, p) => G.i18n.t(ctx.lang, k, p);
+
+  // T016 (ctx.declutter): una etiqueta que pisa otra o que cruza otra flecha se corre a lo largo de su arco (si es recto),
+  // al primer sitio libre. Las cajas se estiman (12 px en negrita: ~7,6 px por carácter) porque el dibujo aún no está en
+  // la página; los arcos se muestrean cada pocos píxeles.
+  function declutter(items) {
+    const at = (sg, u) => (sg.length === 2 ? { x: sg[0].x + (sg[1].x - sg[0].x) * u, y: sg[0].y + (sg[1].y - sg[0].y) * u }
+      : { x: (1 - u) ** 3 * sg[0].x + 3 * (1 - u) ** 2 * u * sg[1].x + 3 * (1 - u) * u * u * sg[2].x + u ** 3 * sg[3].x,
+        y: (1 - u) ** 3 * sg[0].y + 3 * (1 - u) ** 2 * u * sg[1].y + 3 * (1 - u) * u * u * sg[2].y + u ** 3 * sg[3].y });
+    const samples = items.map((it) => it.segs.flatMap((sg) => Array.from({ length: 41 }, (_, k) => at(sg, k / 40))));
+    const box = (it, c) => {
+      const w = 7.6 * [...it.txt].length + 4;
+      const x0 = c.anchor === 'start' ? c.x - 2 : c.anchor === 'end' ? c.x - w + 2 : c.x - w / 2;
+      return { x0, x1: x0 + w, y0: c.y - 12, y1: c.y + 3 };
+    };
+    // Sitio de la etiqueta en el punto u del arco: encima (o a la derecha si es vertical) con side -1; debajo (o a la izquierda), con 1.
+    const spot = (it, u, side) => {
+      const p = at(it.alt, u);
+      if (it.vertical) return side < 0 ? { x: p.x + 10, y: p.y + 4, anchor: 'start' } : { x: p.x - 10, y: p.y + 4, anchor: 'end' };
+      return { x: p.x, y: side < 0 ? p.y - 7 : p.y + 16, anchor: 'middle' };
+    };
+    const hit = (b, c) => b.x0 < c.x1 && c.x0 < b.x1 && b.y0 < c.y1 && c.y0 < b.y1;
+    const crossed = (b, i) => samples.some((ps, j) => j !== i && ps.some((p) => p.x > b.x0 && p.x < b.x1 && p.y > b.y0 && p.y < b.y1));
+    const placed = [];
+    items.forEach((it, i) => {
+      const free = (b) => !placed.some((c) => hit(b, c)) && !crossed(b, i);
+      let b = box(it, { x: it.x, y: it.y, anchor: it.vertical ? 'start' : 'middle' });
+      if (!free(b) && it.alt) {
+        const cands = [-1, 1].flatMap((side) => [0.5, 0.32, 0.68, 0.22, 0.78].map((u) => spot(it, u, side))).slice(1);
+        for (const c of cands) {
+          const nb = box(it, c);
+          if (free(nb)) { it.label.attr('x', c.x).attr('y', c.y).attr('text-anchor', c.anchor); b = nb; break; }
+        }
+      }
+      placed.push(b);
+    });
+  }
+
 
   // Clases de cada arco según el paso, el camino crítico y la selección.
   function classes(ctx) {
@@ -85,6 +123,7 @@
     const edges = [...net.arcs.map((e) => ({ label: e.act, from: e.from, to: e.to, dummy: false })),
       ...net.dummies.map((d) => ({ label: d.name, from: d.from, to: d.to, dummy: true }))];
     const vis = ctx.visible || null;
+    const items = [];
     for (const e of edges) {
       if (vis && !vis.has(e.label)) continue;
       const a = at(e.from); const b = at(e.to);
@@ -92,11 +131,12 @@
       const curved = lay.curved.includes(e.label);
       // Recorte para que la flecha empiece y acabe en el borde del círculo.
       const clip = (p, q, r) => { const dx = q.x - p.x; const dy = q.y - p.y; const L = Math.hypot(dx, dy) || 1; return { x: p.x + dx * r / L, y: p.y + dy * r / L }; };
-      let d; let mid;
+      let d; let mid; const segs = [];   // tramos (rectos o curvas cúbicas), para apartar etiquetas (T016)
       if (curved) {
         const bow = GG.colGap * 0.35;
         const s = clip(a, { x: a.x + bow, y: a.y }, GG.r); const f = clip(b, { x: b.x + bow, y: b.y }, GG.r + 1);
         d = `M${s.x} ${s.y} C ${a.x + bow} ${a.y}, ${b.x + bow} ${b.y}, ${f.x} ${f.y}`;
+        segs.push([s, { x: a.x + bow, y: a.y }, { x: b.x + bow, y: b.y }, f]);
         mid = { x: a.x + bow * 0.8, y: (a.y + b.y) / 2 };
       } else {
         const s = clip(pts[0], pts[1], GG.r); const f = clip(pts[pts.length - 1], pts[pts.length - 2], GG.r + 1);
@@ -104,7 +144,10 @@
         d = `M${ps[0].x} ${ps[0].y}`;
         for (let i = 1; i < ps.length; i++) {
           const p = ps[i - 1]; const q = ps[i];
-          d += (p.y === q.y || i === ps.length - 1 && ps.length === 2) ? ` L${q.x} ${q.y}` : ` C ${(p.x + q.x) / 2} ${p.y}, ${(p.x + q.x) / 2} ${q.y}, ${q.x} ${q.y}`;
+          if (p.y === q.y || i === ps.length - 1 && ps.length === 2) { d += ` L${q.x} ${q.y}`; segs.push([p, q]); } else {
+            d += ` C ${(p.x + q.x) / 2} ${p.y}, ${(p.x + q.x) / 2} ${q.y}, ${q.x} ${q.y}`;
+            segs.push([p, { x: (p.x + q.x) / 2, y: p.y }, { x: (p.x + q.x) / 2, y: q.y }, q]);
+          }
         }
         const k = Math.floor((ps.length - 1) / 2);
         mid = { x: (ps[k].x + ps[k + 1].x) / 2, y: (ps[k].y + ps[k + 1].y) / 2 };
@@ -118,10 +161,16 @@
       const txt = own != null ? own : e.dummy ? e.label : (dur[e.label] == null ? e.label : `${e.label} = ${numFmt(dur[e.label])}`);
       const label = lg.append('text').attr('class', `elabel${e.dummy ? ' dummy' : ''}${kind}${c ? ` ${c}` : ''}`)
         .attr('x', mid.x + (vertical ? 10 : 0)).attr('y', mid.y + (vertical ? 4 : -7)).attr('text-anchor', vertical ? 'start' : 'middle').text(txt);
+      if (ctx.declutter) {
+        path.attr('data-arc', e.label); label.attr('data-arc', e.label);
+        items.push({ label, txt, vertical, segs, x: mid.x + (vertical ? 10 : 0), y: mid.y + (vertical ? 4 : -7), alt: segs.length === 1 && segs[0].length === 2 ? segs[0] : null });
+      }
       if (onSelect) {
         for (const el of [path, label]) el.style('cursor', 'pointer').on('click', () => onSelect(e.label));
       }
     }
+
+    if (ctx.declutter) declutter(items);
 
     const ng = svg.append('g');
     const active = ctx.step && ctx.step.event;
