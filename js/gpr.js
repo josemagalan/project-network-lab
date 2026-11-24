@@ -297,6 +297,51 @@
     return out;
   }
 
+  /** El Gantt del paso a paso (T014b, petición del autor; plan §4): progresivo, sin revelar lo que se predice. Filas en el
+   *  orden de la pasada (fijas); hacia delante, las barras ya calculadas a fechas tempranas; hacia atrás, las tempranas de
+   *  fondo y las tardías ya calculadas. En cada paso de las pasadas, una flecha por relación de la tabla de términos, con sus
+   *  tiempos exactos (t0 en la predecesora, t1 = t0 + desfase en la sucesora), y el inicio (0) o el fin (T) como línea
+   *  vertical en la fila del paso: la que manda, «chosen»; las demás, «compared». Del fin del proyecto en adelante, todo a
+   *  fechas tempranas con las holguras, y las críticas desde su paso. En el paso 0 (la tabla), null. */
+  function ganttWalk(m, k, hide) {
+    const tr = m.trace; const gp = m.gp; const sol = m.solution;
+    if (!tr || k < 1 || k >= tr.length) return null;
+    const step = tr[k];
+    const order = tr.filter((x) => x.kind === 'gprForward').map((x) => x.act);
+    const done = (kind) => tr.slice(1, k).filter((x) => x.kind === kind).map((x) => x.act);
+    const w = { kind: step.kind, order, late: false, bars: order.slice(), ghosts: false, crit: false, floats: false, values: !hide, act: step.act || null, arrows: [], lines: [] };
+    const tm = sol.times;
+    if (step.formula) {
+      const fwd = step.kind === 'gprForward';
+      w.late = !fwd; w.ghosts = !fwd;
+      w.bars = done(step.kind).concat(hide ? [] : [step.act]);
+      for (const t of step.formula.terms) {
+        const cls = !hide && step.formula.chosen.includes(t.key) ? 'chosen' : 'compared';
+        if (t.rel === null) { w.lines.push({ at: fwd ? 0 : sol.duration, act: step.act, cls }); continue; }
+        const r = gp.rels[t.rel];
+        let t0; let t1;
+        if (fwd) { t0 = tm[r.from][r.type[0] === 'S' ? 'ES' : 'EF']; t1 = t0 + r.lag; } else { t1 = tm[r.to][r.type[1] === 'S' ? 'LS' : 'LF']; t0 = t1 - r.lag; }
+        w.arrows.push({ rel: t.rel, from: r.from, to: r.to, t0, t1, cls });
+      }
+      return w;
+    }
+    if (step.kind === 'gprEnd') {
+      if (!hide) w.lines.push({ at: sol.duration, act: null, cls: 'chosen' });
+      return w;
+    }
+    // Holguras, críticas y clases: el Gantt entero a fechas tempranas; las críticas, desde su paso.
+    w.floats = true;
+    w.crit = k >= tr.findIndex((x) => x.kind === 'gprCritical');
+    const critRels = new Set(sol.critRels);
+    w.arrows = gp.rels.map((r, i) => {
+      const t0 = tm[r.from][r.type[0] === 'S' ? 'ES' : 'EF'];
+      const t1 = tm[r.to][r.type[1] === 'S' ? 'ES' : 'EF'];
+      return { rel: i, from: r.from, to: r.to, t0, t1, cls: w.crit && critRels.has(i) ? 'crit' : '' };
+    });
+    w.values = false;
+    return w;
+  }
+
   // ---------- «¿Y si…?» y las clases (T014, tablero 119) ----------
 
   /** La actividad que propone el «¿Y si…?» al abrirse: la primera crítica que no es normal, o la primera crítica. */
@@ -817,6 +862,27 @@
       ]);
       return h('div', { class: 'gpr-gantt-grid' }, [chart, read]);
     }
+    // El Gantt del paso a paso (T014b): progresivo (ganttWalk), con su leyenda; los valores están en la tabla de términos.
+    function ganttWalkCard(walk) {
+      const w = ganttWalk(m, walk.k, walk.hide);
+      if (!w) return null;
+      const nt = nota();
+      const dates = tg(w.late ? 'gantt.late' : 'gantt.early');
+      const holder = h('div', { class: 'gpr-gantt-wrap', id: 'gprGanttWrap', tabindex: '0', role: 'region', 'aria-label': tg('gantt.region', { name: m.src.title }) });
+      root.PNL.gprGantt.render(holder, { gp: m.gp, solution: m.solution, late: w.late, numFmt: num, lang: lang(), name: m.src.title, walk: w,
+        title: (r) => `${r.from} → ${r.to} ${relTag(r, nt, lang())}` });
+      const sw = (cls) => h('span', { class: `gpr-sw ${cls}`, 'aria-hidden': 'true' });
+      const legend = w.kind === 'gprForward' || w.kind === 'gprBackward'
+        ? [h('span', {}, [sw('w'), tg('gantt.walk.chosen')]), h('span', {}, [sw('k'), tg('gantt.walk.compared')]), h('span', {}, [sw('v'), tg('gantt.walk.line')])]
+          .concat(w.ghosts ? [h('span', {}, [sw('g'), tg('gantt.walk.ghost')])] : [])
+        : [h('span', {}, [sw(w.crit ? 'c' : 'n'), tg(w.crit ? 'gantt.crit' : 'gantt.walk.bar')])].concat(w.crit ? [h('span', {}, [sw('n'), tg('gantt.float')])] : [])
+          .concat(w.floats ? [h('span', {}, [sw('f'), tg('gantt.dash')])] : []);
+      return h('section', { class: 'card gpr-card', id: 'gprGanttCard', 'aria-labelledby': 'gprGanttHead' }, [
+        h('h2', { id: 'gprGanttHead' }, [tg('gantt.head', { dates })]), holder,
+        h('p', { class: 'gpr-swipe muted small', 'aria-hidden': 'true' }, [tg('gantt.swipe')]),
+        h('p', { class: 'gpr-legend', id: 'gprGanttLegend' }, legend),
+        w.values && (w.kind === 'gprForward' || w.kind === 'gprBackward') ? h('p', { class: 'muted small', id: 'gprGanttWalkNote' }, [tg(`gantt.walk.values.${w.kind === 'gprForward' ? 'fwd' : 'bwd'}`, { id: w.act })]) : null]);
+    }
     // La alternativa en texto: cada actividad con su comienzo y su fin a las fechas elegidas, su holgura y lo que le llega.
     function ganttTableEl(late, dates, N) {
       const cap = tg('gantt.caption', { name: m.src.title, dates });
@@ -970,6 +1036,8 @@
       if (walking()) {
         const w = walkCard();
         container.appendChild(h('div', { class: 'gpr-walk' }, [w.card, netCard(w.walk)]));
+        // T014b: con «Gantt», el Gantt del paso, debajo (petición del autor).
+        if (ganttOn()) { const g = ganttWalkCard(w.walk); if (g) container.appendChild(g); }
         return;
       }
       if (m.src.kind === 'own') container.appendChild(h('div', { class: 'gpr-own-grid' }, [ownCard(), helpCard()]));
@@ -996,7 +1064,7 @@
   }
 
   const api = { FIELDS, code, numTxt, relTag, relText, source, model, issueText, rowMarks, labels, structure, critEdges, pasteRows,
-    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, whatIfStart, whatIfText, classRows, relName, pertOf, pertSummary, relMarks, relsOfArc, pickFromArc, pickFromEdge,
+    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, ganttWalk, whatIfStart, whatIfText, classRows, relName, pertOf, pertSummary, relMarks, relsOfArc, pickFromArc, pickFromEdge,
     relOptions, relExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.gprTab = api;

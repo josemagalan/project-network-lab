@@ -94,6 +94,20 @@ table.data.gpr-res input { width: 5em; height: 28px; padding: 0 5px; }
 .gpr-sw.c { background: var(--critical); }
 .gpr-sw.n { background: var(--accent); }
 .gpr-sw.f { height: 0; border-top: 2px dashed var(--muted); border-radius: 0; vertical-align: 3px; }
+/* El Gantt del paso a paso (T014b): la flecha del término que manda, gruesa; las comparadas, discontinuas; inicio y fin del
+   proyecto como líneas verticales; las fechas tempranas de fondo en la pasada hacia atrás. */
+.gantt .garr.compared { stroke-dasharray: 5 4; }
+.gantt .garr.chosen { stroke-width: 3; }
+.gantt .gmark.chosen { fill: var(--accent); }
+.gantt .gline { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.gantt .gline.chosen { stroke-width: 3; stroke-dasharray: none; }
+.gantt .gghost { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.gantt .gval { font-size: 11px; paint-order: stroke; stroke: var(--card); stroke-width: 3px; stroke-linejoin: round; }
+.gantt .gval.chosen { fill: var(--accent); font-weight: 700; }
+.gpr-sw.w { height: 0; border-top: 3px solid var(--accent); border-radius: 0; vertical-align: 3px; }
+.gpr-sw.k { height: 0; border-top: 2px dashed var(--accent); border-radius: 0; vertical-align: 3px; }
+.gpr-sw.v { width: 0; height: 14px; border-left: 3px solid var(--accent); border-radius: 0; margin: 0 8px 0 6px; vertical-align: -3px; }
+.gpr-sw.g { background: none; border: 1.5px dashed var(--muted); }
 .gpr-gantt-note { margin: 0; padding: 6px 10px 6px 1.6em; background: var(--soft); border-radius: 8px; }
 @media (max-width: 760px) {
   .gpr-gantt-grid { grid-template-columns: minmax(0, 1fr); }

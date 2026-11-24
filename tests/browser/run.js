@@ -12045,7 +12045,7 @@ check('F5a T012 · AC13: cada flecha sale del comienzo (SS, SF) o del fin (FS, F
   }
 });
 
-check('F5a T012 · AC13: la alternativa en texto del Gantt: el dibujo dice la duración y las críticas, y «Ver como tabla» enseña comienzo, fin, holgura y relaciones de cada actividad (ES y EN); sin Gantt con errores ni en el paso a paso', async () => {
+check('F5a T012 · AC13: la alternativa en texto del Gantt: el dibujo dice la duración y las críticas, y «Ver como tabla» enseña comienzo, fin, holgura y relaciones de cada actividad (ES y EN); sin Gantt con errores; en el paso a paso, el del paso (T014b)', async () => {
   for (const lang of ['es', 'en']) {
     const page = await gprLab(gprHash({ qe: 'rb', lang, qg: 1 }));
     await page.waitForSelector('#gprGanttSvg');
@@ -12073,9 +12073,10 @@ check('F5a T012 · AC13: la alternativa en texto del Gantt: el dibujo dice la du
   assert.equal(await bad.locator('#gprGantt').isDisabled(), true);
   assert.equal(await bad.locator('#gprGanttCard').count(), 0);
   await close(bad);
+  // T014b: en el paso a paso, el Gantt del paso (sus pruebas, en «F5a T014b»).
   const w = await gprLab(gprHash({ qe: 'rb', lang: 'es', qg: 1, step: 3 }));
   await w.waitForSelector('#gprStepCard');
-  assert.equal(await w.locator('#gprGanttCard').count(), 0, 'el paso a paso no enseña el Gantt');
+  assert.equal(await w.locator('#gprGanttSvg.gpr-gantt-walk').count(), 1, 'en el paso a paso, el Gantt del paso');
   await close(w);
 });
 
@@ -12354,6 +12355,133 @@ check('F5a T014 · axe sin violaciones con el «¿Y si…?» (antes y después d
   const big = await gprLab(gprHash({ qe: 'cl', lang: 'es', qw: ['C', 2] }));
   await big.waitForSelector('#gprWhatIf');
   await shot(big, 'f5a-t014-1280', true);
+  await close(big);
+});
+
+// ---------- F5a, T014b: el Gantt en el paso a paso (petición del autor tras T014, plan §4) ----------
+
+// Lo pintado en el Gantt del paso: barras (y su comienzo), contornos de las fechas tempranas, flechas con su clase, líneas y valores.
+const gprWalkDrawn = (page) => page.evaluate(() => {
+  const q = (s) => [...document.querySelectorAll(`#gprGanttSvg ${s}`)];
+  return {
+    walk: document.getElementById('gprGanttSvg').classList.contains('gpr-gantt-walk'),
+    bars: Object.fromEntries(q('rect.gbar').map((r) => [r.getAttribute('data-act'), { x0: +r.getAttribute('x'), crit: r.classList.contains('bar-c') }])),
+    ghosts: q('rect.gghost').map((r) => r.getAttribute('data-act')),
+    arrows: q('path.garr').map((p) => [+p.getAttribute('data-rel'), [...p.classList].filter((c) => c !== 'garr').join(' ')]),
+    lines: q('line.gline').map((l) => [+l.getAttribute('x1'), [...l.classList].filter((c) => c !== 'gline').join(' ')]),
+    values: q('text.gval').map((t) => t.textContent),
+  };
+});
+const gprWalkGeo = (k, hide) => {
+  const m = GPRT.model(Object.assign(U5.decode('#v=gpr').state, { qe: 'rb' }), 'es');
+  return { m, w: GPRT.ganttWalk(m, k, hide), g: GG5.walkGeometry(m.gp, m.solution, GPRT.ganttWalk(m, k, hide)) };
+};
+
+check('F5a T014b · el Gantt del paso a paso, hacia delante (ROSEBUD, Y): mientras se predice, las barras ya calculadas y las flechas de los términos sin decir cuál manda; al mostrarlo, la barra de Y, la flecha de V → Y FF+6 resaltada y los valores', async () => {
+  const s = { qe: 'rb', lang: 'es', pred: 1, qg: 1 };
+  const page = await gprLab(gprHash(s));
+  const k = gprIdx('rb', (x) => x.kind === 'gprForward' && x.act === 'Y');
+  await gprStepAt(page, s, k);
+  await page.waitForSelector('#gprGanttSvg');
+  assert.equal(await page.locator('#gprGanttHead').innerText(), 'Gantt · fechas tempranas');
+  let d = await gprWalkDrawn(page);
+  assert.equal(d.walk, true);
+  assert.deepEqual(Object.keys(d.bars).sort(), ['G', 'L', 'M', 'Q', 'V']);
+  const { g } = gprWalkGeo(k, true);
+  for (const r of g.rows) if (r.x0 !== null) assert.ok(Math.abs(d.bars[r.id].x0 - r.x0) < 0.01, r.id);
+  assert.ok(Object.values(d.bars).every((b) => !b.crit), 'sin críticas hasta su paso');
+  assert.deepEqual(d.arrows, [[5, 'compared'], [6, 'compared']]);
+  assert.deepEqual(d.lines.map((l) => l[1]), ['compared']);
+  assert.deepEqual(d.values, []);
+  assert.equal(await page.locator('#gprGanttWalkNote').count(), 0);
+  assert.match(await page.locator('#gprGanttSvg').getAttribute('aria-label'), /pasada hacia delante.*llega a Y/);
+  await page.locator('#gprPredShow').click();
+  await page.waitForFunction(() => document.querySelector('#gprGanttSvg rect.gbar[data-act="Y"]'));
+  d = await gprWalkDrawn(page);
+  assert.deepEqual(d.arrows, [[5, 'compared'], [6, 'chosen']]);
+  assert.deepEqual(d.values.sort(), ['0', '12', '22']);
+  assert.equal(await page.locator('#gprGanttWalkNote').innerText(), 'Cada número es lo más pronto que ese término deja empezar o acabar a Y.');
+  // La tabla de términos y el Gantt dicen lo mismo: manda V → Y FF+6.
+  assert.match(await page.locator('#gprTerms tr.chosen').innerText(), /V → Y FF\+6/);
+  await close(page);
+});
+
+check('F5a T014b · el Gantt del paso a paso, hacia atrás (ROSEBUD, Y): las fechas tempranas en contorno, las tardías ya calculadas y la flecha de Y → W FF resaltada; del fin del proyecto en adelante, todo, y las críticas desde su paso (EN)', async () => {
+  const s = { qe: 'rb', lang: 'en', qg: 1 };
+  const page = await gprLab(gprHash(s));
+  const k = gprIdx('rb', (x) => x.kind === 'gprBackward' && x.act === 'Y');
+  await gprStepAt(page, s, k);
+  await page.waitForSelector('#gprGanttSvg');
+  assert.equal(await page.locator('#gprGanttHead').innerText(), 'Gantt chart · late dates');
+  let d = await gprWalkDrawn(page);
+  assert.deepEqual(Object.keys(d.bars).sort(), ['W', 'X', 'Y']);
+  const { g } = gprWalkGeo(k, false);
+  for (const r of g.rows) if (r.x0 !== null) assert.ok(Math.abs(d.bars[r.id].x0 - r.x0) < 0.01, `${r.id}: comienzo tardío`);
+  assert.deepEqual(d.ghosts.sort(), ['G', 'L', 'M', 'Q', 'V'], 'las ya calculadas sin holgura tapan su contorno');
+  assert.deepEqual(d.arrows, [[7, 'compared'], [8, 'chosen']]);
+  assert.deepEqual(d.lines.map((l) => l[1]), ['compared']);
+  assert.match(await page.locator('#gprGanttLegend').innerText(), /the one that governs[\s\S]*early dates/);
+  assert.equal(await page.locator('#gprGanttWalkNote').innerText(), 'Each number is the latest that term lets Y start or finish.');
+  // El fin del proyecto: todas las barras y la línea en T.
+  await gprStepAt(page, s, gprIdx('rb', (x) => x.kind === 'gprEnd'));
+  d = await gprWalkDrawn(page);
+  assert.equal(Object.keys(d.bars).length, 8);
+  assert.deepEqual(d.lines.map((l) => l[1]), ['chosen']);
+  assert.deepEqual(d.values, ['24']);
+  // Las holguras, sin críticas; las críticas, en rojo y con sus flechas.
+  await gprStepAt(page, s, gprIdx('rb', (x) => x.kind === 'gprFloat'));
+  d = await gprWalkDrawn(page);
+  assert.ok(Object.values(d.bars).every((b) => !b.crit));
+  assert.equal(await page.locator('#gprGanttSvg line.float').count(), 2, 'L y Q tienen holgura');
+  await gprStepAt(page, s, gprIdx('rb', (x) => x.kind === 'gprCritical'));
+  d = await gprWalkDrawn(page);
+  assert.deepEqual(Object.entries(d.bars).filter(([, b]) => b.crit).map(([id]) => id).sort(), ['G', 'M', 'V', 'W', 'X', 'Y']);
+  assert.deepEqual(d.arrows.filter((a) => a[1] === 'crit').map((a) => a[0]).sort((a, b) => a - b), gprWalkGeo(1, false).m.solution.critRels);
+  assert.match(await page.locator('#gprGanttSvg').getAttribute('aria-label'), /critical: G, M, V, Y, W and X/);
+  await close(page);
+});
+
+check('F5a T014b · «Gantt» abre y cierra el Gantt también en el paso a paso sin cambiar de paso; sin él, el paso a paso no lo enseña', async () => {
+  const s = { qe: 'rb', lang: 'es' };
+  const page = await gprLab(gprHash(s));
+  await gprStepAt(page, s, 3);
+  assert.equal(await page.locator('#gprGanttCard').count(), 0);
+  await page.locator('#gprGantt').click();
+  await page.waitForFunction(() => PNL.app.state().qg === 1 && document.getElementById('gprGanttSvg'));
+  assert.equal(await page.evaluate(() => PNL.app.state().step), 3);
+  assert.equal((await gprWalkDrawn(page)).walk, true);
+  assert.equal(await page.locator('#gprGanttTableBtn').count(), 0, 'la alternativa en texto del paso es la tabla de términos');
+  await page.locator('#gprGantt').click();
+  await page.waitForFunction(() => PNL.app.state().qg === 0 && !document.getElementById('gprGanttCard'));
+  assert.equal(await page.evaluate(() => PNL.app.state().step), 3);
+  // Fuera del paso a paso, el Gantt de siempre.
+  await gprGo(page, { qe: 'rb', lang: 'es', qg: 1 });
+  await page.waitForSelector('#gprGanttSvg');
+  assert.equal((await gprWalkDrawn(page)).walk, false);
+  await close(page);
+});
+
+check('F5a T014b · axe sin violaciones con el Gantt del paso a paso (ES claro con predicción, EN oscuro hacia atrás); a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [lang, scheme, pred, kind] of [['es', 'light', 1, 'gprForward'], ['en', 'dark', 0, 'gprBackward']]) {
+    const s = { qe: 'rb', lang, pred, qg: 1 };
+    const page = await gprLab(gprHash(s), { scheme });
+    await gprStepAt(page, s, gprIdx('rb', (x) => x.kind === kind && x.act === 'Y'));
+    await page.waitForSelector('#gprGanttSvg');
+    await axe(page, `F5a T014b · Gantt del paso · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const s = { qe: 'rb', lang: 'es', qg: 1 };
+  const m = await gprLab(gprHash(s), { width: 360, height: 740 });
+  await gprStepAt(m, s, gprIdx('rb', (x) => x.kind === 'gprBackward' && x.act === 'Y'));
+  await m.waitForSelector('#gprGanttSvg');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await m.locator('#gprGanttHead').scrollIntoViewIfNeeded();
+  await shot(m, 'f5a-t014b-360', true);
+  await close(m);
+  const big = await gprLab(gprHash(s));
+  await gprStepAt(big, s, gprIdx('rb', (x) => x.kind === 'gprBackward' && x.act === 'Y'));
+  await big.waitForSelector('#gprGanttSvg');
+  await shot(big, 'f5a-t014b-1280', true);
   await close(big);
 });
 

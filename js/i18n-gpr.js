@@ -124,6 +124,17 @@
       showTable: 'Ver como tabla',
       caption: 'Gantt de {name} a {dates}: comienzo, fin, holgura total y relaciones que llegan a cada actividad',
       col: { start: 'Comienzo', finish: 'Fin', arrives: 'Relaciones que llegan' },
+      walk: {
+        label: {
+          fwd: 'Gantt de {name}, pasada hacia delante: las actividades ya calculadas, a fechas tempranas, y una flecha por cada relación que llega a {id}; la tabla de términos da sus fórmulas y sus valores.',
+          bwd: 'Gantt de {name}, pasada hacia atrás: en contorno, las fechas tempranas; en color, las actividades ya calculadas, a fechas tardías, y una flecha por cada relación que sale de {id}; la tabla de términos da sus fórmulas y sus valores.',
+          end: 'Gantt de {name} a fechas tempranas con todas las actividades: el proyecto acaba cuando acaba la última.',
+          rest: 'Gantt de {name} a fechas tempranas, con la holgura total de cada actividad.',
+          crit: 'Gantt de {name} a fechas tempranas, con la holgura total; críticas: {crit}.',
+        },
+        chosen: 'la que manda', compared: 'las que se comparan', line: 'inicio (0) o fin (T) del proyecto', ghost: 'fechas tempranas', bar: 'actividad',
+        values: { fwd: 'Cada número es lo más pronto que ese término deja empezar o acabar a {id}.', bwd: 'Cada número es lo más tarde que ese término deja empezar o acabar a {id}.' },
+      },
     },
     walk: {
       toggle: 'Paso a paso', keys: '← → avanzar o retroceder',
@@ -300,6 +311,17 @@
       showTable: 'Show as a table',
       caption: 'Gantt chart of {name} at {dates}: start, finish, total float and incoming relations of each activity',
       col: { start: 'Start', finish: 'Finish', arrives: 'Incoming relations' },
+      walk: {
+        label: {
+          fwd: 'Gantt chart of {name}, forward pass: the activities already worked out, at early dates, and an arrow for each relation that arrives at {id}; the table of terms gives their formulas and values.',
+          bwd: 'Gantt chart of {name}, backward pass: outlined, the early dates; in colour, the activities already worked out, at late dates, and an arrow for each relation that leaves {id}; the table of terms gives their formulas and values.',
+          end: 'Gantt chart of {name} at early dates with every activity: the project ends when the last one ends.',
+          rest: 'Gantt chart of {name} at early dates, with the total float of each activity.',
+          crit: 'Gantt chart of {name} at early dates, with the total float; critical: {crit}.',
+        },
+        chosen: 'the one that governs', compared: 'those compared', line: 'project start (0) or end (T)', ghost: 'early dates', bar: 'activity',
+        values: { fwd: 'Each number is the earliest that term lets {id} start or finish.', bwd: 'Each number is the latest that term lets {id} start or finish.' },
+      },
     },
     walk: {
       toggle: 'Step by step', keys: '← → step back or forward',

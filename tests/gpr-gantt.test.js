@@ -100,3 +100,61 @@ test('F5a T012: el Gantt cabe en su marco a cualquier duración y las marcas del
     assert.ok(g.ticks.every((t, i) => !i || t.x - g.ticks[i - 1].x >= 24), id);
   }
 });
+
+// ---------- El Gantt en el paso a paso (T014b) ----------
+test('F5a T014b: la geometría del paso a paso: filas en el orden dado, barras solo de lo calculado y flechas con sus tiempos exactos', () => {
+  const { gp, sol } = ex('rb');
+  const order = ['G', 'L', 'M', 'Q', 'V', 'Y', 'W', 'X'];
+  const w = { order, late: false, bars: ['G', 'L', 'M', 'Q', 'V', 'Y'], ghosts: false, crit: false, floats: false, values: true, act: 'Y',
+    arrows: [{ rel: 5, from: 'V', to: 'Y', t0: 10, t1: 12, cls: 'compared' }, { rel: 6, from: 'V', to: 'Y', t0: 16, t1: 22, cls: 'chosen' }],
+    lines: [{ at: 0, act: 'Y', cls: 'compared' }] };
+  const g = GG.walkGeometry(gp, sol, w);
+  const X0 = (v) => g.left + v * g.unit;
+  assert.deepEqual(g.rows.map((r) => r.id), order);
+  assert.equal(g.width, g.left + sol.duration * g.unit + g.right);
+  for (const r of g.rows) {
+    if (w.bars.includes(r.id)) {
+      assert.equal(r.x0, X0(sol.times[r.id].ES));
+      assert.ok(Math.abs(r.x1 - r.x0 - Math.max(GG.MIN_BAR, (sol.times[r.id].EF - sol.times[r.id].ES) * g.unit)) < TOL);
+    } else assert.equal(r.x0, null, `${r.id} aún no se ha calculado`);
+    assert.equal(r.crit, false, 'sin críticas hasta su paso');
+    assert.equal(r.ghost, null);
+    assert.equal(r.float, null);
+  }
+  const row = Object.fromEntries(g.rows.map((r) => [r.id, r]));
+  const [a5, a6] = g.arrows;
+  assert.deepEqual([a5.rel, a5.cls, a6.rel, a6.cls], [5, 'compared', 6, 'chosen']);
+  assert.deepEqual(a5.points[0], [X0(10), row.V.y + g.barH]);
+  assert.deepEqual(a5.points[a5.points.length - 1], [X0(12), row.Y.y]);
+  assert.deepEqual(a6.points[0], [X0(16), row.V.y + g.barH]);
+  assert.deepEqual(a6.points[a6.points.length - 1], [X0(22), row.Y.y]);
+  // El valor de cada flecha es su tiempo en la fila de la actividad del paso (aquí, la llegada).
+  assert.deepEqual(g.arrows.map((a) => a.val), [12, 22]);
+  assert.equal(g.lines.length, 1);
+  assert.equal(g.lines[0].x, X0(0));
+  assert.ok(g.lines[0].y0 < row.Y.y && g.lines[0].y1 > row.Y.y + g.barH, 'la línea cruza la fila de Y');
+  assert.equal(g.lines[0].val, 0);
+});
+
+test('F5a T014b: a fechas tardías, con las tempranas de fondo, holguras y críticas cuando tocan; el fin del proyecto de arriba abajo', () => {
+  const { gp, sol } = ex('rb');
+  const order = ['G', 'L', 'M', 'Q', 'V', 'Y', 'W', 'X'];
+  const g = GG.walkGeometry(gp, sol, { order, late: true, bars: ['X', 'W', 'Y'], ghosts: true, crit: false, floats: false, values: true, act: 'Y',
+    arrows: [{ rel: 7, from: 'Y', to: 'W', t0: 16, t1: 21, cls: 'compared' }], lines: [{ at: 24, act: 'Y', cls: 'compared' }] });
+  const X0 = (v) => g.left + v * g.unit;
+  const row = Object.fromEntries(g.rows.map((r) => [r.id, r]));
+  assert.equal(row.W.x0, X0(21));
+  assert.equal(row.L.x0, null);
+  assert.deepEqual(row.L.ghost, [X0(4), X0(4) + 2 * g.unit], 'L a fechas tempranas, de fondo');
+  assert.equal(row.W.ghost, null, 'W es crítica: su barra tardía tapa la temprana y no se pinta debajo');
+  assert.deepEqual(g.arrows[0].points[0], [X0(16), row.Y.y + g.barH]);
+  assert.equal(g.arrows[0].val, 16, 'en la pasada hacia atrás, el tiempo en la fila de Y (la salida)');
+  assert.equal(g.lines[0].x, X0(24));
+  const all = GG.walkGeometry(gp, sol, { order, late: false, bars: order, ghosts: false, crit: true, floats: true, values: false, act: null, arrows: [],
+    lines: [{ at: 24, act: null, cls: 'chosen' }] });
+  const rowA = Object.fromEntries(all.rows.map((r) => [r.id, r]));
+  assert.equal(rowA.Y.crit, true);
+  assert.equal(rowA.L.crit, false);
+  assert.deepEqual(rowA.L.float, [X0(6), X0(13)]);
+  assert.ok(all.lines[0].y0 <= all.top && all.lines[0].y1 >= all.rows[all.rows.length - 1].y + all.barH, 'de arriba abajo');
+});

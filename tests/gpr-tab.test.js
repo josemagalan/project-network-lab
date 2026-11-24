@@ -306,3 +306,69 @@ test('F5a T014 (AC4): la tabla de las clases de las actividades críticas, con e
   const seen = new Set(['fc', 'cc', 'n16', 'rb', 'rv', 'cl'].flatMap((qe) => T.classRows(T.model(st({ qe }), 'es')).map((r) => r.cls)));
   assert.deepEqual([...seen].sort(), ['bicritical', 'decReverse', 'incNormal', 'neutral', 'normal', 'reverse']);
 });
+
+// ---------- El Gantt en el paso a paso (petición del autor tras T014, plan §4) ----------
+// Progresivo: solo lo calculado; en cada paso de las pasadas, las flechas de los términos de la actividad del paso (la que
+// manda, «chosen»; las demás, «compared») y el inicio o el fin como línea vertical. Mientras se predice, nada dice cuál manda.
+const arrowsOf = (w) => w.arrows.map((a) => [a.rel, a.t0, a.t1, a.cls]);
+test('F5a T014b: el Gantt de la pasada hacia delante (ROSEBUD, Y): barras de lo ya calculado y las flechas de sus términos', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const hid = T.ganttWalk(m, 6, true);
+  assert.deepEqual(hid.order, ['G', 'L', 'M', 'Q', 'V', 'Y', 'W', 'X'], 'filas en el orden de la pasada, fijas en todo el paso a paso');
+  assert.equal(hid.late, false);
+  assert.equal(hid.ghosts, false);
+  assert.equal(hid.crit, false);
+  assert.equal(hid.values, false);
+  assert.equal(hid.act, 'Y');
+  assert.deepEqual(hid.bars, ['G', 'L', 'M', 'Q', 'V'], 'Y no se ve hasta comprobar');
+  // V → Y CC+2 sale del comienzo de V (10) y llega a 12; V → Y FF+6 sale del fin de V (16) y llega a 22 (fin de Y).
+  assert.deepEqual(arrowsOf(hid), [[5, 10, 12, 'compared'], [6, 16, 22, 'compared']]);
+  assert.deepEqual(hid.lines, [{ at: 0, act: 'Y', cls: 'compared' }]);
+  const shown = T.ganttWalk(m, 6, false);
+  assert.deepEqual(shown.bars, ['G', 'L', 'M', 'Q', 'V', 'Y']);
+  assert.equal(shown.values, true);
+  assert.deepEqual(arrowsOf(shown), [[5, 10, 12, 'compared'], [6, 16, 22, 'chosen']]);
+  assert.deepEqual(shown.lines, [{ at: 0, act: 'Y', cls: 'compared' }]);
+  // Sin predecesoras manda el inicio: la línea en 0, resaltada.
+  assert.deepEqual(T.ganttWalk(m, 1, false).lines, [{ at: 0, act: 'G', cls: 'chosen' }]);
+  assert.deepEqual(T.ganttWalk(m, 1, false).arrows, []);
+  // En L, G → L CC+3 llega a su comienzo en 3 y G → L FF a su fin en 6 (comienzo 4): manda FF.
+  assert.deepEqual(arrowsOf(T.ganttWalk(m, 2, false)), [[1, 0, 3, 'compared'], [2, 6, 6, 'chosen']]);
+});
+
+test('F5a T014b: el Gantt de la pasada hacia atrás (ROSEBUD, Y): las tempranas de fondo, las tardías ya calculadas y las flechas de los términos', () => {
+  const m = T.model(st({ qe: 'rb' }), 'es');
+  const w = T.ganttWalk(m, 12, false);
+  assert.equal(w.late, true);
+  assert.equal(w.ghosts, true, 'las fechas tempranas, de fondo');
+  assert.deepEqual(w.bars, ['X', 'W', 'Y']);
+  // Y → W CC+5 llega al comienzo tardío de W (21) desde 16; Y → W FF llega al fin tardío de W (22) desde 22.
+  assert.deepEqual(arrowsOf(w), [[7, 16, 21, 'compared'], [8, 22, 22, 'chosen']]);
+  assert.deepEqual(w.lines, [{ at: 24, act: 'Y', cls: 'compared' }]);
+  const hid = T.ganttWalk(m, 12, true);
+  assert.deepEqual(hid.bars, ['X', 'W']);
+  assert.equal(hid.values, false);
+  assert.ok(hid.arrows.every((a) => a.cls === 'compared') && hid.lines.every((l) => l.cls === 'compared'));
+  // X no tiene sucesoras: manda el fin del proyecto.
+  assert.deepEqual(T.ganttWalk(m, 10, false).lines, [{ at: 24, act: 'X', cls: 'chosen' }]);
+});
+
+test('F5a T014b: el Gantt del fin del proyecto, de las holguras, de las críticas y de las clases', () => {
+  const m = T.model(st({ qe: 'rb' }), 'en');
+  const end = T.ganttWalk(m, 9, false);
+  assert.deepEqual(end.bars, ['G', 'L', 'M', 'Q', 'V', 'Y', 'W', 'X']);
+  assert.deepEqual(end.lines, [{ at: 24, act: null, cls: 'chosen' }]);
+  assert.deepEqual(end.arrows, []);
+  assert.deepEqual(T.ganttWalk(m, 9, true).lines, [], 'mientras se predice T, no hay línea');
+  for (const [k, crit] of [[18, false], [19, false], [20, true], [21, true]]) {
+    const w = T.ganttWalk(m, k, k === 18);
+    assert.equal(w.late, false);
+    assert.equal(w.floats, true);
+    assert.equal(w.crit, crit, `paso ${k}`);
+    assert.equal(w.bars.length, 8);
+    assert.equal(w.arrows.length, m.gp.rels.length, 'todas las relaciones');
+    const critRels = w.arrows.filter((a) => a.cls === 'crit').map((a) => a.rel);
+    assert.deepEqual(critRels, crit ? m.solution.critRels : []);
+  }
+  assert.equal(T.ganttWalk(m, 0, false), null, 'el paso 0 es la tabla');
+});
