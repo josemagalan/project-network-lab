@@ -25,6 +25,7 @@
   const G = req('./core/gpr.js', 'gpr');
   const X = req('./core/gprex.js', 'gprex');
   const GP = req('./core/gprpert.js', 'gprpert');
+  const U = req('./core/urlstate.js', 'urlstate');
   const NR = req('./narrate.js', 'narrate');
   const { START, END } = req('./core/topo.js', 'topo');
 
@@ -126,17 +127,28 @@
 
   // ---------- La red ROY ----------
 
-  /** Etiquetas de los arcos: Map('U>V' → [{ text, title }]), sin las FS+0 (tablero 115). */
+  /** Las relaciones que llevan etiqueta: todas menos una FS+0 que va sola en su flecha (tablero 115). Si comparte flecha
+   *  con otra relación, la lleva: sin ella, la flecha se leería como una sola relación (revisión de cierre, I-F5). */
+  function labelled(gp) {
+    const per = new Map();
+    for (const r of gp.rels) { const k = `${r.from}>${r.to}`; per.set(k, (per.get(k) || 0) + 1); }
+    return (r) => !plain(r) || per.get(`${r.from}>${r.to}`) > 1;
+  }
+  /** Etiquetas de los arcos: Map('U>V' → [{ text, title }]), sin las FS+0 que van solas en su flecha (tablero 115). */
   function labels(gp, nota, lang) {
     const out = new Map();
+    const shown = labelled(gp);
     for (const r of gp.rels) {
-      if (plain(r)) continue;
+      if (!shown(r)) continue;
       const k = `${r.from}>${r.to}`;
       if (!out.has(k)) out.set(k, []);
       out.get(k).push({ rel: gp.rels.indexOf(r), text: relTag(r, nota, lang), title: `${r.from} → ${r.to}: ${I.t(lang, `gpr.relName.${r.type}`)}${r.lag ? ` ${relTag(r, nota, lang).slice(code(r.type, nota).length)}` : ''}` });
     }
     return out;
   }
+
+  /** Las relaciones con etiqueta, en texto (la alternativa de la red ROY). */
+  const relList = (gp, nota, lang) => { const shown = labelled(gp); return gp.rels.filter(shown).map((r) => `${r.from} → ${r.to} ${relTag(r, nota, lang)}`); };
 
   /** La estructura de la red (cada par de actividades relacionadas, una flecha) como proyecto de core/project. */
   const structure = (gp) => G.toCpm(Object.assign({}, gp, { rels: gp.rels.map((r) => Object.assign({}, r, { type: 'FS', lag: 0 })) }));
@@ -253,7 +265,8 @@
     }
     if (step.kind === 'gprCritical') {
       const paths = step.paths.map((p) => p.acts.join('–'));
-      return { title: tw('critTitle'), text: `${tw('critText', { tf: N.TF, list: I.list(lang, step.critical) })} ${tw(paths.length === 1 ? 'pathOne' : 'pathMany', { p: paths.join('; ') })}` };
+      const cut = step.pathsCut ? ` ${tw('pathCut', { n: paths.length })}` : '';
+      return { title: tw('critTitle'), text: `${tw('critText', { tf: N.TF, list: I.list(lang, step.critical) })} ${tw(paths.length === 1 ? 'pathOne' : 'pathMany', { p: paths.join('; ') })}${cut}` };
     }
     return { title: '', text: '' };
     // EF = ES + d (hacia delante) o LF = LS + d (hacia atrás), con las cifras.
@@ -348,6 +361,12 @@
   function whatIfStart(m) {
     const sol = m.solution;
     return sol.critical.find((id) => sol.classes[id] && sol.classes[id].cls && sol.classes[id].cls !== 'normal') || sol.critical[0] || m.gp.activities[0].id;
+  }
+  /** En el paso a paso, con un «¿Y si…?» que cambia una duración, la nota que lo dice (revisión de cierre, I-F3); si no, null. */
+  function walkWhatIfNote(m, lang) {
+    const w = m.whatIf;
+    if (!w || Math.abs(w.d - w.d0) < TOL) return null;
+    return I.t(lang, 'gpr.wi.walkNote', { id: w.id, d: NR.fmt(lang, w.d), d0: NR.fmt(lang, w.d0) });
   }
   /** Lo que dice el «¿Y si…?»: alargar o acortar, cómo cambia la duración del proyecto y qué fechas se mueven. */
   function whatIfText(m, lang) {
@@ -448,6 +467,33 @@
   function pasteRows(text) {
     return P.parsePasted(text).map((r) => ({ id: str(r.id), name: str(r.name), duration: str(r.duration), links: str(r.links) }));
   }
+  /** «Partir del taller»: una predecesora repetida («A, A») la admite el taller, pero en la pestaña son dos relaciones
+   *  iguales (dupRel). Con predecesoras, si la tabla se lee, esas filas pasan a la lista sin repetir; las demás, tal cual
+   *  (revisión de cierre, N-F11). Va aquí y no en store.js, que es de la base: «Ejercicios» está al borde de 1 MB. */
+  function workRows(rows, mode) {
+    if (mode === 'succ') return rows;
+    const { project } = P.parse(rows, 'pred');
+    if (!project) return rows;
+    const toks = (x) => str(x).split(/[\s,;]+/).filter(Boolean).map((v) => v.toUpperCase());
+    return rows.map((r) => {
+      const t = toks(r.links);
+      const id = str(r.id).trim().toUpperCase();
+      return new Set(t).size < t.length && project.preds[id] ? Object.assign({}, r, { links: project.preds[id].join(', ') }) : r;
+    });
+  }
+  /** Largo máximo de cada casilla de la tabla propia: el del enlace (urlstate.LIMITS), que es también su maxlength. */
+  const FIELD_MAX = { id: U.LIMITS.id, name: U.LIMITS.name, duration: U.LIMITS.duration, links: U.LIMITS.links };
+  /** Las filas de ahora con las pegadas, recortadas a lo que cabe en la tabla (filas y largo de cada casilla), y si se ha
+   *  recortado algo: el estado lo recortaría en silencio (revisión de cierre, N-F5 e I-F1). */
+  function pasteFit(now, pasted) {
+    let cut = now.length + pasted.length > U.LIMITS.rows;
+    const rows = now.concat(pasted).slice(0, U.LIMITS.rows).map((r) => {
+      const out = {};
+      for (const f of FIELDS) { const v = str(r[f]); if (v.length > FIELD_MAX[f]) cut = true; out[f] = v.slice(0, FIELD_MAX[f]); }
+      return out;
+    });
+    return { rows, cut };
+  }
 
   // ---------- La vista ----------
 
@@ -501,6 +547,7 @@
     }
     const walking = () => !!m.trace && state().step > 0;
     function toggleWhatIf() {
+      if (!m.whatIf && !m.solution) return;   // revisión de cierre, I-F4: sin solución no hay «¿Y si…?»
       if (m.whatIf) go({ qw: null });
       else { const id = whatIfStart(m); go({ qw: [id, m.gp.activities.find((a) => a.id === id).d] }); }
       focus('gprWhatIfBtn');
@@ -523,7 +570,7 @@
     }
     function fromWork() {
       const w = hooks.workRows();
-      hooks.dispatch({ type: 'gprFromWork', rows: w.rows, mode: w.mode }, { push: true });
+      hooks.dispatch({ type: 'gprFromWork', rows: workRows(w.rows, w.mode), mode: w.mode }, { push: true });
       if (hooks.announce) hooks.announce(tg('fromWorkDone', { fs: code('FS', nota()) }));
       focus('gprProj');
     }
@@ -544,6 +591,7 @@
 
     // ---------- La tabla propia (tablero 120) ----------
     let ownTable = null; let issuesSlot = null;
+    let pasteNote = false;   // N-F5 e I-F1: lo pegado no cabía entero; se dice una vez, en la tabla que sale de pegar
     const COLS = () => [['id', tg('col.id'), 4], ['name', tg('col.name'), 16], ['duration', tg('col.duration'), 5], ['links', tg('col.links'), 18]];
     function readOwn() {
       return [...container.querySelectorAll('#gprOwn tbody tr')].map((tr) => {
@@ -557,7 +605,7 @@
       const typed = () => hooks.dispatch({ type: 'gprTable', rows: readOwn() }, { fromEditor: true });
       const body = m.src.rows.map((r, i) => h('tr', { 'data-row': String(i) }, COLS().map(([f, label, size]) => h('td', {}, [h('input', {
         id: `gprT-${i}-${f}`, value: str(r[f]), size: String(size), class: f === 'links' ? 'gpr-mono' : null, 'aria-label': tg('cell', { col: label, n: i + 1 }),
-        'aria-invalid': 'false', 'data-f': f, oninput: typed, spellcheck: f === 'links' || f === 'id' ? 'false' : null, autocomplete: 'off',
+        'aria-invalid': 'false', 'data-f': f, maxlength: String(FIELD_MAX[f]), oninput: typed, spellcheck: f === 'links' || f === 'id' ? 'false' : null, autocomplete: 'off',
       })])).concat([h('td', { class: 'gpr-msg', 'data-msg': '' }, []), h('td', {}, [button('×', () => { commit(readOwn().filter((_, j) => j !== i)); focus(i > 0 ? `gprDel-${i - 1}` : 'gprAdd'); },
         { class: 'ghost small-btn', id: `gprDel-${i}`, 'aria-label': tg('removeRow', { n: i + 1 }) })])])));
       const head = h('tr', {}, COLS().map(([, label]) => h('th', { scope: 'col' }, [label]))
@@ -566,12 +614,24 @@
       issuesSlot = h('div', { class: 'gpr-issues-slot' });
       const area = h('textarea', { id: 'gprPasteText', rows: '4', 'aria-describedby': 'gprPasteHint' });
       const paste = h('details', { class: 'gpr-paste', id: 'gprPaste' }, [h('summary', {}, [tg('paste')]), h('p', { class: 'muted small', id: 'gprPasteHint' }, [tg('pasteHint')]), area,
-        button(tg('pasteApply'), () => { const rows = pasteRows(area.value); if (rows.length) { commit(readOwn().filter((r) => FIELDS.some((f) => r[f].trim())).concat(rows)); focus('gprAdd'); } }, { id: 'gprPasteApply' })]);
+        button(tg('pasteApply'), () => {
+          const rows = pasteRows(area.value);
+          if (!rows.length) return;
+          const fit = pasteFit(readOwn().filter((r) => FIELDS.some((f) => r[f].trim())), rows);
+          pasteNote = fit.cut;
+          commit(fit.rows);
+          // Con aviso, al aviso; si cabe otra fila, a «Añadir una fila»; si no, a la última fila (r2, F5).
+          focus(fit.cut ? 'gprPasteCut' : fit.rows.length < U.LIMITS.rows ? 'gprAdd' : `gprT-${fit.rows.length - 1}-id`);
+        }, { id: 'gprPasteApply' })]);
+      const cutNote = pasteNote ? h('p', { class: 'gpr-m gpr-m-warn', id: 'gprPasteCut', role: 'status', tabindex: '-1' },
+        [tg('pasteCut', { rows: U.LIMITS.rows, links: U.LIMITS.links })]) : null;
+      pasteNote = false;
       const card = h('section', { class: 'card gpr-card', 'aria-labelledby': 'gprOwnHead' }, [
-        h('h2', { id: 'gprOwnHead' }, [tg('own')]), issuesSlot,
+        h('h2', { id: 'gprOwnHead' }, [tg('own')]), issuesSlot, cutNote,
         h('div', { class: 'gpr-scroll', tabindex: '0' }, [ownTable]),
         h('div', { class: 'gpr-row' }, [
-          button(tg('addRow'), () => { const now = readOwn(); commit(now.concat([blank()])); focus(`gprT-${now.length}-id`); }, { id: 'gprAdd' }),
+          button(tg('addRow'), () => { const now = readOwn(); commit(now.concat([blank()])); focus(`gprT-${now.length}-id`); },
+            { id: 'gprAdd', disabled: m.src.rows.length >= U.LIMITS.rows }),
           button(tg('clear'), () => { commit([blank()]); focus('gprT-0-id'); }, { id: 'gprClear' }),
         ]),
         paste,
@@ -665,11 +725,11 @@
           for (const f of ['TF', 'FF']) revealed.set(`${id}.${f}`, sol.floats[id][f]);
         }
       }
-      const relList = gp.rels.filter((r) => !plain(r)).map((r) => `${r.from} → ${r.to} ${relTag(r, s.nota, lang())}`);
+      const rels = relList(gp, s.nota, lang());
       const holder = h('div', { class: 'gpr-net', id: 'gprRoy', tabindex: '0' });
       root.PNL.royView.render(holder, { project: lay.cp, solution: view, lay: lay.roy, step: stepCtx, revealed, box: s.box, lang: lang(), nota: s.nota,
         criticalOn: critOn, numFmt: num, name: m.src.title, fit: true, minWidth: 640, geo: { gx: 84 }, labels: labs, critEdges: critEdges(gp, sol, lay.cp), edgeMarks,
-        ariaExtra: relList.length ? tg('net.rels', { list: relList.join(', ') }) : '',
+        ariaExtra: rels.length ? tg('net.rels', { list: rels.join(', ') }) : '',
         onEdge: walk ? null : (key, rel) => pick(pickFromEdge(m, key, rel, state().qr)) });
       const N = I.notation(s.nota);
       const legend = h('p', { class: 'gpr-legend', id: 'gprLegend' }, [
@@ -906,7 +966,9 @@
       const ask = askedStep(step);
       const hide = hooks.predicting(ask);
       const nar = narration(step, m, { lang: lang(), nota: nota(), hide });
-      const parts = [h('h2', { id: 'gprStepHead' }, [nar.title]), h('p', { id: 'gprStepText' }, [nar.text])];
+      const wiNote = walkWhatIfNote(m, lang());
+      const parts = [h('h2', { id: 'gprStepHead' }, [nar.title]), wiNote ? h('p', { class: 'gpr-note gpr-m-warn', id: 'gprWalkWi' }, [wiNote]) : null,
+        h('p', { id: 'gprStepText' }, [nar.text])];
       if (step.formula) parts.push(termsTable(step, hide));
       if (step.kind === 'gprFloat') parts.push(floatsTable(step, ask, hide));
       if (step.kind === 'gprClasses') parts.push(classesWalk(step, hide));
@@ -1053,7 +1115,14 @@
       const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && ownTable && ownTable.isConnected && netSlot
         && model.src.rows.length === m.src.rows.length;
       m = model;
-      if (typing) { markOwn(); fillNet(); return; }
+      // La barra sí: «Paso a paso», «Gantt» y «¿Y si…?» dependen de que la tabla se lea (revisión de cierre, I-F4).
+      // El aviso de lo pegado se va con el siguiente cambio de la tabla, también al teclear (r2, F6 y F7).
+      if (typing) {
+        container.replaceChild(bar(), container.firstChild);
+        const cut = root.document.getElementById('gprPasteCut');
+        if (cut) cut.remove();
+        markOwn(); fillNet(); return;
+      }
       keepFocus(draw);
     }
     function debug() {
@@ -1066,7 +1135,7 @@
   }
 
   const api = { FIELDS, code, numTxt, relTag, relText, source, model, issueText, rowMarks, labels, structure, critEdges, pasteRows,
-    walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, ganttWalk, whatIfStart, whatIfText, classRows, relName, pertOf, pertSummary, relMarks, relsOfArc, pickFromArc, pickFromEdge,
+    pasteFit, FIELD_MAX, workRows, relList, walkWhatIfNote, walkTrace, asked, askedStep, terms, narration, ganttRows, ganttNote, ganttWalk, whatIfStart, whatIfText, classRows, relName, pertOf, pertSummary, relMarks, relsOfArc, pickFromArc, pickFromEdge,
     relOptions, relExplain, create };
   root.PNL = root.PNL || {};
   root.PNL.gprTab = api;

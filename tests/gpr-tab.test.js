@@ -372,3 +372,68 @@ test('F5a T014b: el Gantt del fin del proyecto, de las holguras, de las crítica
   }
   assert.equal(T.ganttWalk(m, 0, false), null, 'el paso 0 es la tabla');
 });
+
+// ---------- revisión de cierre (T019, ronda 1) ----------
+
+test('F5a T019 (I-F5): una FS sin desfase que comparte flecha con otra relación lleva etiqueta y sale en el texto alternativo', () => {
+  const gp = G.parse([{ id: 'A', duration: '4', links: '' }, { id: 'B', duration: '3', links: 'A, A FF+1' }]).project;
+  assert.deepEqual(T.labels(gp, 'es', 'es').get('A>B').map((l) => l.text), ['FC', 'FF+1']);
+  assert.deepEqual(T.labels(gp, 'en', 'en').get('A>B').map((l) => l.text), ['FS', 'FF+1']);
+  assert.deepEqual(T.relList(gp, 'en', 'en'), ['A → B FS', 'A → B FF+1']);
+  // Sola en su flecha, sigue sin etiqueta (la leyenda: «Sin etiqueta: FS sin desfase»).
+  const rb = G.parse(X.get('rb').rows).project;
+  assert.deepEqual([...T.labels(rb, 'es', 'es').keys()].sort(), ['G>L', 'V>Y', 'W>X', 'Y>W']);
+  assert.ok(T.relList(rb, 'en', 'en').every((x) => !/ FS$/.test(x)));
+});
+
+test('F5a T019 (N-F3): la narración de las críticas dice cuándo hay más caminos de los que se enseñan', () => {
+  const rowsW = [{ id: 'S', duration: '1', links: '' }];
+  let prev = ['S'];
+  for (let i = 0; i < 6; i++) { rowsW.push({ id: `X${i}`, duration: '1', links: prev.join(', ') }, { id: `Y${i}`, duration: '1', links: prev.join(', ') }); prev = [`X${i}`, `Y${i}`]; }
+  for (const [lang, re] of [['es', /Se muestran los 50 primeros\./], ['en', /Only the first 50 are shown\./]]) {
+    const m = T.model(st({ qe: 'own', qt: rowsW }), lang);
+    const crit = T.walkTrace(m).find((s) => s.kind === 'gprCritical');
+    assert.match(T.narration(crit, m, { lang, nota: lang, hide: false }).text, re);
+  }
+  const rb = T.model(st({ qe: 'rb' }), 'es');
+  assert.doesNotMatch(T.narration(T.walkTrace(rb).find((s) => s.kind === 'gprCritical'), rb, { lang: 'es', nota: 'es', hide: false }).text, /Se muestran/);
+});
+
+test('F5a T019 (I-F3): con un «¿Y si…?» activo, el paso a paso dice que es el del proyecto cambiado', () => {
+  assert.equal(T.walkWhatIfNote(T.model(st({ qe: 'rb', qw: ['Y', 5] }), 'es'), 'es'),
+    'Con el «¿Y si…?», Y dura 5 en lugar de 8: el paso a paso es el del proyecto cambiado.');
+  assert.equal(T.walkWhatIfNote(T.model(st({ qe: 'rv', qw: ['B', 6.5] }), 'en'), 'en'),
+    'With “What if…?”, B lasts 6.5 instead of 6: the walkthrough is that of the changed project.');
+  assert.equal(T.walkWhatIfNote(T.model(st({ qe: 'rb' }), 'es'), 'es'), null);
+  assert.equal(T.walkWhatIfNote(T.model(st({ qe: 'rb', qw: ['Y', 8] }), 'es'), 'es'), null);
+});
+
+test('F5a T019 (N-F5, I-F1): lo pegado que no cabe en la tabla propia (40 filas, largo de cada celda) se recorta y se dice', () => {
+  const row = (i, links) => ({ id: `A${i}`, name: '', duration: '1', links: links || '' });
+  const now = [row(0), row(1)];
+  const fit = T.pasteFit(now, [row(2, 'A0 FF+1')]);
+  assert.deepEqual([fit.rows.length, fit.cut], [3, false]);
+  const many = T.pasteFit(now, Array.from({ length: 45 }, (_, i) => row(i + 2)));
+  assert.deepEqual([many.rows.length, many.cut], [U.LIMITS.rows, true]);
+  const long = Array.from({ length: 22 }, (_, i) => `P${String(i).padStart(2, '0')} FF+10.5`).join(', ');
+  const cutLinks = T.pasteFit(now, [row(9, long)]);
+  assert.deepEqual([cutLinks.rows[2].links.length, cutLinks.cut], [U.LIMITS.links, true]);
+  assert.equal(T.pasteFit(now, [{ id: 'A2', name: 'n'.repeat(81), duration: '1', links: '' }]).cut, true);
+  // Los bordes: justo 40 filas, o una casilla de su largo máximo, caben (r2, F4).
+  assert.equal(T.pasteFit(now, Array.from({ length: U.LIMITS.rows - 2 }, (_, i) => row(i + 2))).cut, false);
+  assert.equal(T.pasteFit(now, [row(9, 'x'.repeat(U.LIMITS.links))]).cut, false);
+  // Los límites de cada campo son los del enlace (maxlength de las casillas).
+  assert.deepEqual(T.FIELD_MAX, { id: U.LIMITS.id, name: U.LIMITS.name, duration: U.LIMITS.duration, links: U.LIMITS.links });
+});
+
+test('F5a T019 (N-F11; r2, F3): «Partir del taller» quita las predecesoras repetidas sin mirar mayúsculas y copia las demás filas tal cual', () => {
+  const t = [{ id: 'a', name: '', duration: '3', links: '' }, { id: 'c', name: '', duration: '1', links: 'A B' },
+    { id: 'b', name: '', duration: '2', links: 'a, A' }, { id: 'D', name: '', duration: '2', links: 'A, A' }];
+  const rows = T.workRows(t, 'pred');
+  assert.deepEqual(rows.map((r) => r.links), ['', 'A B', 'A', 'A']);
+  assert.deepEqual(G.parse(rows).report.errors, []);
+  // Con posteriores, o si la tabla no se lee, tal cual (store.js las pasa a predecesoras o las copia).
+  assert.equal(T.workRows(t, 'succ'), t);
+  const bad = [{ id: 'A', duration: 'x', links: 'A, A' }];
+  assert.equal(T.workRows(bad, 'pred'), bad);
+});

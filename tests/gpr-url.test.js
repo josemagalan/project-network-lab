@@ -103,3 +103,17 @@ test('F5a T008: acción gpr: valores válidos, la tabla propia y el paso', () =>
   rows[0].duration = '5';
   assert.equal(own.qt[0].duration, '1');
 });
+
+test('F5a T019 (N-F7): otro proyecto, «Partir del taller» y una tabla nueva borran la relación elegida y el «¿Y si…?»', () => {
+  const full = (over) => Object.assign(U.defaults(), { v: 'gpr', qe: 'rb', qr: 3, qw: ['Y', 9], step: 2 }, over);
+  let s = S.reduce(full(), { type: 'gpr', qe: 'cc' }, 10);
+  assert.deepEqual([s.qe, s.qr, s.qw, s.step], ['cc', null, null, 0]);
+  // El mismo proyecto no borra nada.
+  s = S.reduce(full(), { type: 'gpr', qe: 'rb' }, 10);
+  assert.deepEqual([s.qr, s.qw], [3, ['Y', 9]]);
+  const t = [{ id: 'A', name: '', duration: '3', links: '' }, { id: 'B', name: '', duration: '2', links: 'A' }];
+  s = S.reduce(full(), { type: 'gprFromWork', rows: t, mode: 'pred' }, 10);
+  assert.deepEqual([s.qe, s.qr, s.qw], ['own', null, null]);
+  s = S.reduce(full({ qe: 'own', qt: t }), { type: 'gprTable', rows: t }, 10);
+  assert.deepEqual([s.qr, s.qw], [null, null]);
+});

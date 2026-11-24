@@ -227,3 +227,45 @@ test('F5a T003: weight y solve rechazan lo que no deben', () => {
   assert.throws(() => G.weight('XX', 1, 1, 0));
   assert.throws(() => G.solve({ activities: [], rels: [] }));
 });
+
+// ---------- revisión de cierre (T019, ronda 1) ----------
+
+test('F5a T019 (N-F1): las cifras de la relación comienzo–fin (CF), con desfase positivo y negativo', () => {
+  const s = G.solve(ok(rows([['A', 4], ['B', 3, 'A SF+5']])));
+  assert.deepEqual([s.times.B.ES, s.times.B.EF, s.duration], [2, 5, 5]);
+  assert.deepEqual(s.times.A, { ES: 0, EF: 4, LS: 0, LF: 4 });   // A manda por su comienzo: crítica
+  // Con CF−1, B podría empezar en −4: empieza en 0 y no manda.
+  const n = G.solve(ok(rows([['A', 4], ['B', 3, 'A SF-1']])));
+  assert.deepEqual([n.times.B.ES, n.duration], [0, 4]);
+  // CF que manda sobre una FS: C (2) con «A FS, B SF+9»: ES(C) = máx(4, 0 + 9 − 2) = 7.
+  const c = G.solve(ok(rows([['A', 4], ['B', 1], ['C', 2, 'A, B SF+9']])));
+  assert.deepEqual([c.times.C.ES, c.duration], [7, 9]);
+});
+
+test('F5a T019 (N-F2, N-F3): caminos críticos por actividades: varios, los que acaban en una actividad con sucesoras, sin repetir y con el recorte dicho', () => {
+  const paths = (spec, o) => G.solve(ok(rows(spec)), o);
+  const two = paths([['A', 5], ['B', 3, 'A'], ['C', 3, 'A'], ['D', 2, 'B, C']]);
+  assert.deepEqual(two.paths.map((p) => p.acts.join('')), ['ABD', 'ACD']);
+  assert.equal(two.pathsCut, false);
+  const cut = paths([['A', 5], ['B', 3, 'A'], ['C', 3, 'A'], ['D', 2, 'B, C']], { pathLimit: 1 });
+  assert.deepEqual([cut.paths.map((p) => p.acts.join('')), cut.pathsCut], [['ABD'], true]);
+  // A (10) acaba en T y además le sigue B (10) con CC: los caminos son A, A–B y B.
+  assert.deepEqual(paths([['A', 10], ['B', 10, 'A SS']]).paths.map((p) => p.acts.join('')), ['A', 'AB', 'B']);
+  // Dos relaciones que mandan entre las mismas actividades: un solo camino, con las dos relaciones.
+  const dbl = paths([['A', 4], ['B', 4, 'A SS+2, A FF+2']]);
+  assert.deepEqual(dbl.paths.map((p) => p.acts), [['A', 'B']]);
+  assert.deepEqual(dbl.paths[0].rels, [0, 1]);
+  // 14 eslabones dobles encadenados: un camino, sin recorte (antes, 50 copias del mismo).
+  const chain = [['A0', 2]];
+  for (let i = 1; i <= 14; i++) chain.push([`A${i}`, 2, `A${i - 1} SS+1, A${i - 1} FF+1`]);
+  const ch = paths(chain);
+  assert.deepEqual([ch.paths.length, ch.pathsCut], [1, false]);
+  // 2⁶ = 64 caminos distintos: se dan 50 y se dice que hay más.
+  const wide = [['S', 1]];
+  let prev = ['S'];
+  for (let i = 0; i < 6; i++) { wide.push([`X${i}`, 1, prev.join(', ')], [`Y${i}`, 1, prev.join(', ')]); prev = [`X${i}`, `Y${i}`]; }
+  const w = paths(wide);
+  assert.deepEqual([w.paths.length, w.pathsCut, new Set(w.paths.map((p) => p.acts.join())).size], [50, true, 50]);
+  // La traza lleva el recorte al paso de las críticas.
+  assert.equal(G.trace(ok(rows(wide)), w).find((x) => x.kind === 'gprCritical').pathsCut, true);
+});

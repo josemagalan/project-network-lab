@@ -116,3 +116,25 @@ test('F5a T006: en 3000 tablas al azar se cumplen las postcondiciones (AC9)', ()
   }
   assert.ok(equal > 500 && less > 20 && omitted > 50, JSON.stringify({ equal, less, omitted }));
 });
+
+test('F5a T019 (N-F4): un adelanto que cabe se representa, y una actividad no se parte si no hace falta', () => {
+  const two = (links) => ok([{ id: 'A', duration: '4', links: '' }, { id: 'B', duration: '3', links }]);
+  for (const links of ['A FS-4', 'A FF-4']) {
+    const gp = two(links);
+    const b = GP.build(gp);
+    assert.deepEqual([b.omitted, b.gaps, b.Tpert], [[], [], G.solve(gp).duration], links);
+  }
+  // FF+3: B empieza en 4 y acaba en 7; no hace falta partirla.
+  const b = GP.build(two('A FF+3'));
+  assert.deepEqual([b.omitted, b.gaps, b.Tpert], [[], [], 7]);
+  assert.deepEqual(b.pieces.pieceAt.B.length, 1);
+});
+
+test('F5a T019 r2 (F1): los bordes de lo representable: un desfase igual a la duración se representa', () => {
+  const two = (da, links) => ok([{ id: 'A', duration: String(da), links: '' }, { id: 'B', duration: '3', links }]);
+  for (const [da, links, T] of [[4, 'A SS+4', 7], [2, 'A FS-3', 3], [4, 'A FF-3', 4]]) {
+    const gp = two(da, links);
+    const b = GP.build(gp);
+    assert.deepEqual([b.omitted, b.Tpert, G.solve(gp).duration], [[], T, T], links);
+  }
+});

@@ -12688,6 +12688,88 @@ check('F5a T016 · todo abierto (ROSEBUD: las dos redes, una relación elegida, 
   await close(m);
 });
 
+// ---------- F5a T019: revisión de cierre, ronda 1 ----------
+
+check('F5a T019 · I-F4: al teclear en la tabla propia, «Paso a paso», «Gantt» y «¿Y si…?» se habilitan con la tabla válida y se deshabilitan con la tabla rota, sin errores de consola', async () => {
+  const page = await gprLab(gprHash({ qe: 'own', qt: [{ id: 'A', duration: '', links: '' }], lang: 'es' }));
+  const dis = () => page.evaluate(() => ['gprWalk', 'gprGantt', 'gprWhatIfBtn'].map((id) => document.getElementById(id).disabled));
+  assert.deepEqual(await dis(), [true, true, true]);
+  await page.locator('#gprT-0-duration').fill('3');
+  await page.waitForSelector('#gprRoy svg');
+  assert.deepEqual(await dis(), [false, false, false]);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprT-0-duration', 'el foco sigue en la casilla');
+  await page.locator('#gprT-0-duration').fill('x');
+  await page.waitForFunction(() => !document.querySelector('#gprRoy'));
+  assert.deepEqual(await dis(), [true, true, true]);
+  await page.locator('#gprT-0-duration').fill('3');
+  await page.waitForSelector('#gprRoy svg');
+  await page.locator('#gprWhatIfBtn').click();
+  await page.waitForSelector('#gprWhatIf');
+  await close(page);
+});
+
+check('F5a T019 · N-F5 e I-F1: las casillas de la tabla propia tienen el largo del enlace; lo pegado que no cabe se recorta y se dice; con 40 filas no se añaden más', async () => {
+  const L = U5.LIMITS;
+  const page = await gprLab(gprHash({ qe: 'own', qt: [{ id: 'A', duration: '1', links: '' }], lang: 'es' }));
+  assert.deepEqual(await page.evaluate(() => ['id', 'name', 'duration', 'links'].map((f) => Number(document.getElementById(`gprT-0-${f}`).maxLength))),
+    [L.id, L.name, L.duration, L.links]);
+  await page.locator('#gprPaste summary').click();
+  const lines = Array.from({ length: 45 }, (_, i) => `B${i}\t\t1\tA`).join('\n');
+  await page.locator('#gprPasteText').fill(lines);
+  await page.locator('#gprPasteApply').click();
+  assert.equal(await page.locator('#gprOwn tbody tr').count(), L.rows);
+  assert.match(await page.locator('#gprPasteCut').innerText(), /No cabía todo lo pegado: la tabla admite 40 filas/);
+  assert.equal(await page.locator('#gprAdd').isDisabled(), true);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'gprPasteCut');
+  // Teclear es un cambio de la tabla: el aviso se va (r2, F6 y F7).
+  await page.locator('#gprT-1-duration').fill('2');
+  await page.waitForFunction(() => !document.getElementById('gprPasteCut'));
+  await page.locator('#gprDel-39').click();
+  assert.equal(await page.locator('#gprAdd').isDisabled(), false);
+  // Lo que cabe no avisa (r2, F2); si llena justo las 40 filas, el foco va a la última fila (r2, F5).
+  await page.locator('#gprPaste summary').click();
+  await page.locator('#gprPasteText').fill('Z\t\t1\tA');
+  await page.locator('#gprPasteApply').click();
+  assert.equal(await page.locator('#gprOwn tbody tr').count(), L.rows);
+  assert.equal(await page.locator('#gprPasteCut').count(), 0);
+  assert.equal(await page.evaluate(() => document.activeElement.id), `gprT-${L.rows - 1}-id`);
+  await page.locator('#gprDel-39').click();
+  await page.locator('#gprPaste summary').click();
+  await page.locator('#gprPasteText').fill('Y\t\t1\tA');
+  await page.locator('#gprPasteApply').click();
+  assert.equal(await page.locator('#gprPasteCut').count(), 0);
+  assert.equal(await page.evaluate(() => document.activeElement.id), `gprT-${L.rows - 1}-id`);
+  await close(page);
+});
+
+check('F5a T019 · I-F3 e I-F5: con un «¿Y si…?» activo, el paso a paso lo dice; una FC sin desfase que comparte flecha con otra relación lleva su etiqueta', async () => {
+  const page = await gprLab(gprHash({ qe: 'rb', lang: 'es', qw: ['Y', 5], step: 1 }));
+  await page.waitForSelector('#gprStepCard');
+  assert.equal(await page.locator('#gprWalkWi').innerText(), 'Con el «¿Y si…?», Y dura 5 en lugar de 8: el paso a paso es el del proyecto cambiado.');
+  const plain = await gprLab(gprHash({ qe: 'rb', lang: 'es', step: 1 }));
+  await plain.waitForSelector('#gprStepCard');
+  assert.equal(await plain.locator('#gprWalkWi').count(), 0);
+  await close(plain);
+  await close(page);
+  const two = await gprLab(gprHash({ qe: 'own', qt: [{ id: 'A', duration: '4', links: '' }, { id: 'B', duration: '3', links: 'A, A FF+1' }], lang: 'en' }));
+  await two.waitForSelector('#gprRoy svg');
+  assert.deepEqual(await gprRoyLabels(two), ['FF+1', 'FS']);
+  assert.match(await two.locator('#gprRoy svg').getAttribute('aria-label'), /A → B FS, A → B FF\+1/);
+  await close(two);
+});
+
+check('F5a T019 · N-F11: «Partir del taller» con una predecesora repetida («A, A», que el taller admite) la copia una vez y calcula', async () => {
+  const w = await lab(U5.encode({ v: 'work', t: [{ id: 'A', duration: '3', links: '' }, { id: 'B', duration: '2', links: 'A, A' }], mode: 'pred', lang: 'es' }).slice(1));
+  await w.evaluate(() => document.getElementById('navGpr').click());
+  await w.waitForFunction(() => PNL.gprTab && PNL.gprTab.state && PNL.gprTab.state());
+  await w.locator('#gprFromWork').click();
+  await w.waitForFunction(() => PNL.gprTab.state().src.kind === 'own');
+  assert.equal(await w.locator('#gprT-1-links').inputValue(), 'A');
+  await w.waitForSelector('#gprRoy svg');
+  assert.equal((await gprSt(w)).duration, 5);
+  await close(w);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

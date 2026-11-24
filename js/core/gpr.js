@@ -208,17 +208,28 @@
       const r = gp.rels[k];
       return crit.has(r.from) && crit.has(r.to) && Math.abs(ES[r.from] + w(r) - ES[r.to]) < TOL;
     });
-    // Caminos críticos: del Inicio (ES = 0) al Fin (EF = T) por actividades y relaciones críticas.
+    // Caminos críticos: del Inicio (ES = 0) al Fin (EF = T) por actividades críticas unidas por relaciones críticas. Un
+    // camino es una sucesión de actividades: si entre dos mandan varias relaciones, es el mismo camino y lleva todas
+    // (revisión de cierre, N-F3). Como mucho pathLimit; pathsCut dice si había más.
     const paths = [];
+    let pathsCut = false;
+    const next = (id) => {
+      const by = new Map();
+      for (const k of critRels) if (gp.rels[k].from === id) { const to = gp.rels[k].to; if (!by.has(to)) by.set(to, []); by.get(to).push(k); }
+      return [...by];
+    };
     const go = (id, acc, rl) => {
-      if (paths.length >= pathLimit) return;
-      if (Math.abs(times[id].EF - dur) < TOL) paths.push({ acts: acc, rels: rl });
-      for (const k of critRels.filter((x) => gp.rels[x].from === id)) go(gp.rels[k].to, [...acc, gp.rels[k].to], [...rl, k]);
+      if (pathsCut) return;
+      if (Math.abs(times[id].EF - dur) < TOL) {
+        if (paths.length >= pathLimit) { pathsCut = true; return; }
+        paths.push({ acts: acc, rels: rl });
+      }
+      for (const [to, ks] of next(id)) go(to, [...acc, to], [...rl, ...ks]);
     };
     for (const id of critical) if (Math.abs(ES[id]) < TOL) go(id, [id], []);
     const end = order.filter((id) => Math.abs(times[id].EF - dur) < TOL);
     return {
-      duration: dur, times, floats, critical, critRels, paths, binding, classes: classes(gp, critical),
+      duration: dur, times, floats, critical, critRels, paths, pathsCut, binding, classes: classes(gp, critical),
       endBy: end, notFinal: end.filter((id) => out[id].length > 0),
     };
   }
@@ -269,7 +280,7 @@
     for (const f of ['TF', 'FF']) {
       steps.push({ kind: 'gprFloat', float: f, reveals: order.map((id) => ({ act: id, field: f, value: s.floats[id][f] })) });
     }
-    steps.push({ kind: 'gprCritical', reveals: [], critical: s.critical, critRels: s.critRels, paths: s.paths });
+    steps.push({ kind: 'gprCritical', reveals: [], critical: s.critical, critRels: s.critRels, paths: s.paths, pathsCut: !!s.pathsCut });
     steps.push({ kind: 'gprClasses', reveals: [], classes: s.classes });
     return steps;
   }
