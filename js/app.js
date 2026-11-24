@@ -18,7 +18,7 @@
  *   Todavía sin pestaña (P9). Los scripts de M0 y de «Ejercicios» se cargan al entrar en su vista (P10, puerta T001):
  *   antes de decodificar la URL se mira v en el enlace y, si hace falta, se cargan antes de arrancar.
  * F5a: con v=gpr, «Precedencias generalizadas» (js/gpr, grupo gr) ocupa la página: tabla y red ROY con las relaciones
- *   (T010). Todavía sin pestaña en la barra (GPR_PUBLIC, P9): solo se llega escribiendo la URL.
+ *   (T010). La pestaña se publica en la barra en T015 (GPR_PUBLIC, P9).
  */
 (function () {
   'use strict';
@@ -54,7 +54,7 @@
   let uncc = null;          // controlador de «Duraciones inciertas» (F4a)
   const UNC_PUBLIC = true;  // F4a: la pestaña se publica en T013
   let gprc = null;          // controlador de «Precedencias generalizadas» (F5a)
-  const GPR_PUBLIC = false; // F5a (P9): la pestaña se publica en T015
+  const GPR_PUBLIC = true; // F5a (P9): publicada en T015
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
   // Los scripts que solo usan M0 y «Ejercicios» no van en cpm.html: se añaden con <script> (también en file://) al

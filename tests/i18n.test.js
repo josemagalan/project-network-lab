@@ -217,8 +217,9 @@ test('F5a T010: los textos de «Precedencias generalizadas» (i18n-gpr) están e
   assert.deepEqual(keysDeep(IG.es), keysDeep(IG.en));
   for (const k of keysDeep(IG.es)) assert.deepEqual(params(get(IG.es, k)), params(get(IG.en, k)), `gpr.${k}`);
   for (const lang of I.languages) assert.equal(I.dict[lang].gpr, IG[lang]);
-  assert.equal(I.t('es', 'nav.gpr'), 'Precedencias generalizadas');
-  assert.equal(I.t('en', 'nav.gpr'), 'Generalized precedences');
+  // T015: en la barra, el nombre corto (tablero 114): con el completo, a 1280 px la cabecera en español no cabe en una línea.
+  assert.equal(I.t('es', 'nav.gpr'), 'Desfases');
+  assert.equal(I.t('en', 'nav.gpr'), 'Lags');
   // Un nombre por cada tipo de relación y un texto por cada error de core/gpr que va en una fila.
   for (const lang of I.languages) {
     for (const type of G.TYPES) assert.ok(I.dict[lang].gpr.relName[type], `${lang} relName.${type}`);

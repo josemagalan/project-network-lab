@@ -2473,7 +2473,7 @@ check('F2c T020 · P10: la pestaña «Del enunciado a la tabla» va la primera d
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
     const tabs = await page.locator('header nav a:visible').allInnerTexts();
     assert.deepEqual(tabs.map((x) => x.trim())[0], label);
-    assert.equal(tabs.length, 5, 'con «Duraciones inciertas» (F4a, T013)');
+    assert.equal(tabs.length, 6, 'con «Duraciones inciertas» (F4a, T013) y «Desfases» (F5a, T015)');
     assert.equal(await page.locator('#navM0').getAttribute('aria-current'), 'false');
     await page.locator('#navM0').click();
     await page.waitForFunction(() => PNL.app.state().v === 'm0' && PNL.m0.state().st);
@@ -3668,7 +3668,7 @@ check('F3a P10 · un enlace pegado carga lo que falta: M0 desde «Ejercicios» y
 // ---------- F3a, T017: publicación (pestaña, barra, portada y «Tabla al azar» visible) ----------
 
 check('F3a T017 · P11: la pestaña «Ejercicios» va la última de la barra, abre un ejercicio con semilla y «Atrás» vuelve', async () => {
-  for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Duraciones inciertas', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Uncertain durations', 'Exercises']]]) {
+  for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Desfases', 'Duraciones inciertas', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Lags', 'Uncertain durations', 'Exercises']]]) {
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
     assert.deepEqual((await page.locator('header nav a:visible').allInnerTexts()).map((x) => x.trim()), labels);
     assert.equal(await page.locator('#navEx').getAttribute('aria-current'), 'false');
@@ -11629,11 +11629,11 @@ const GPR_OWN120 = [
   { id: 'E', name: 'Paint', duration: '5', links: 'A SS+10' },
 ];
 
-check('F5a T010 · AC5 y AC16: cada ejemplo abre con su tabla de solo lectura, su fuente, la ROY con las relaciones en los arcos y sus tiempos (ES y EN); la pestaña sigue oculta', async () => {
+check('F5a T010 · AC5 y AC16: cada ejemplo abre con su tabla de solo lectura, su fuente, la ROY con las relaciones en los arcos y sus tiempos (ES y EN); la pestaña, publicada desde T015', async () => {
   for (const lang of ['es', 'en']) {
     const page = await gprLab(`v=gpr&lang=${lang}`);
     assert.equal(await page.locator('#gprView').isVisible(), true);
-    assert.equal(await page.locator('#navGpr').isVisible(), false, 'pestaña oculta hasta T015');
+    assert.equal(await page.locator('#navGpr').isVisible(), true, 'pestaña publicada (T015)');
     assert.equal(await page.locator('#stage').isVisible(), false);
     for (const ex of GPRX.list()) {
       await gprGo(page, { qe: ex.id, lang });
@@ -12483,6 +12483,60 @@ check('F5a T014b · axe sin violaciones con el Gantt del paso a paso (ES claro c
   await big.waitForSelector('#gprGanttSvg');
   await shot(big, 'f5a-t014b-1280', true);
   await close(big);
+});
+
+// ---------- F5a, T015: la publicación (P9) ----------
+
+check('F5a T015 · AC15: la pestaña «Desfases» («Lags»; nombre corto del tablero 114) se ve después de «Taller» y abre las precedencias generalizadas; la tarjeta de la portada abre la pestaña en ES y EN', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await lab(`v=work&lang=${lang}`);
+    const tabs = await page.locator('nav.tabs a:visible').allInnerTexts();
+    assert.deepEqual(tabs.slice(2, 5), lang === 'es' ? ['Taller', 'Desfases', 'Duraciones inciertas'] : ['Workshop', 'Lags', 'Uncertain durations']);
+    await page.locator('#navGpr').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'gpr' && document.getElementById('gprProj'));
+    assert.equal(await page.locator('#navGpr').getAttribute('aria-current'), 'page');
+    await close(page);
+    const home = await open('index.html', { locale: lang === 'es' ? 'en-US' : 'es-ES' });
+    await home.locator(`[data-lang="${lang}"]`).click();
+    const card = home.locator('article.module-card').filter({ has: home.locator('a[data-lab="gpr"]') });
+    assert.equal(await card.locator('.card-num').innerText(), 'F5a');
+    assert.equal(await card.locator('h4').innerText(), lang === 'es' ? 'Precedencias generalizadas' : 'Generalized precedences');
+    const href = await card.locator('a[data-lab="gpr"]').getAttribute('href');
+    assert.equal(href, `cpm.html#v=gpr&lang=${lang}`);
+    await close(home);
+    const p2 = await gprLab(href.split('#')[1]);
+    assert.equal(await p2.evaluate(() => PNL.app.state().lang), lang);
+    assert.equal(await p2.locator('#gprProj').isVisible(), true);
+    await close(p2);
+  }
+});
+
+check('F5a T015 · AC13 y AC15: la cabecera con la pestaña nueva cabe en una línea a 1280×720 y no desborda a 360 px; la portada con la tarjeta nueva pasa axe en claro y oscuro y no desborda', async () => {
+  for (const [w, h] of [[1280, 720], [360, 740]]) {
+    for (const lang of ['es', 'en']) {
+      const page = await lab(`v=gpr&lang=${lang}`, { width: w, height: h });
+      await page.waitForSelector('#gprProj');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `${w} px ${lang}`);
+      if (w === 1280) {
+        // Las pestañas, el nombre del laboratorio y «Ajustes», en una sola línea.
+        const tops = await page.evaluate(() => [...document.querySelectorAll('nav.tabs a'), document.getElementById('settings')]
+          .filter((a) => !a.hidden).map((a) => { const r = a.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }));
+        assert.ok(Math.max(...tops) - Math.min(...tops) <= 4, `la cabecera en una línea (${lang}): ${tops}`);
+      }
+      if (lang === 'es') await shot(page, `f5a-t015-bar-${w}`);
+      await close(page);
+    }
+  }
+  for (const [scheme, lang, w] of [['light', 'es', 1280], ['dark', 'en', 360]]) {
+    const home = await open('index.html', { scheme, width: w, height: 800 });
+    await home.locator(`[data-lang="${lang}"]`).click();
+    const card = home.locator('article.module-card').filter({ has: home.locator('a[data-lab="gpr"]') });
+    await card.scrollIntoViewIfNeeded();
+    await axe(home, `F5a T015 · portada · ${lang} · ${scheme} · ${w}`);
+    assert.equal(await home.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+    await shot(home, `f5a-t015-home-${lang}-${w}`, true);
+    await close(home);
+  }
 });
 
 // ---------- Ejecución ----------
