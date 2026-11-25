@@ -296,3 +296,66 @@ test('F5b T006: el atajo llega a la duración mínima y nunca baja del óptimo (
   assert.equal(sc.above, true);
   assert.ok(sc.cost > sc.opt);
 });
+
+// ---------- Traza y corrección del conjunto (T007: AC4, AC7; plan P9, `analyze` B3) ----------
+
+test('F5b T007: traza de Klastorin: tabla, cuatro pasos con su conjunto y su coste, fin y costes totales', () => {
+  const p = ex('kl'); const tr = K.trace(p, X.get('kl').k);
+  assert.deepEqual(tr.map((s) => s.kind), ['ctTable', 'ctStep', 'ctStep', 'ctStep', 'ctStep', 'ctEnd', 'ctTotals']);
+  assert.deepEqual([tr[0].T, tr[0].cost, tr[0].paths], [22, 320, [['A', 'C']]]);
+  const s1 = tr[1];
+  assert.deepEqual([s1.from, s1.T, s1.set, s1.stepCost, s1.cost], [22, 21, ['A'], 8, 328]);
+  assert.deepEqual(s1.cand, [{ id: 'A', b: 8, can: true }, { id: 'C', b: 10, can: true }]);
+  assert.deepEqual(s1.reveals.map((r) => r.field), ['ct.set', 'ct.cost']);
+  assert.deepEqual(s1.reveals[0].value, ['A']); assert.equal(s1.reveals[1].value, 8);
+  assert.deepEqual(tr[2].paths, [['A', 'C'], ['B', 'C']]);  // a 21 semanas, dos caminos críticos
+  assert.deepEqual(tr[4].reached, ['A']);          // B queda en 5 (su urgente es 4)
+  assert.deepEqual([tr[5].T, tr[5].cost, tr[5].path], [18, 361, ['A', 'C']]);
+  assert.deepEqual(tr[6].best, [19]);
+  assert.equal(tr[6].rows.find((x) => x.T === 19).total, 481);
+  // Sin costes del proyecto no hay paso de totales.
+  assert.deepEqual(K.trace(ex('rf'), {}).map((s) => s.kind).slice(-2), ['ctStep', 'ctEnd']);
+});
+
+test('F5b T007: traza de la regla que falla: el paso de 9 a 8 lleva el aviso y el movimiento; el de 8 a 7, solo la marca', () => {
+  const tr = K.trace(ex('rf'), {});
+  const s8 = tr.find((s) => s.kind === 'ctStep' && s.T === 8); const s7 = tr.find((s) => s.kind === 'ctStep' && s.T === 7);
+  assert.equal(s8.above, true); assert.deepEqual(s8.move, { shorten: ['B', 'E'], lengthen: ['C'], cost: 8 });
+  assert.equal(s8.opt, 83); assert.equal(s8.cost, 85);
+  assert.equal(s7.above, true); assert.equal(s7.move, undefined); assert.equal(s7.opt, 93);
+  assert.equal(s8.unique, false); assert.deepEqual(s8.other, ['B', 'E']);
+});
+
+test('F5b T007: setCheck: acierto con cualquiera de los empatados; no crítica, en su punto urgente, camino sin cortar y más caro', () => {
+  const p = ex('kl');
+  // A 21 semanas (A en 6): caminos A–C y B–C. Lo más barato: C (10); A y B cuestan 13.
+  const d21 = { A: 6, B: 6, C: 15, D: 10 };
+  assert.deepEqual(K.checkSet(p, d21, ['C']), { ok: true, cost: 10 });
+  assert.deepEqual(K.checkSet(p, d21, ['D']), { ok: false, reason: 'notCritical', ids: ['D'] });
+  assert.deepEqual(K.checkSet(p, d21, ['B']), { ok: false, reason: 'pathUncut', path: ['A', 'C'] });
+  assert.deepEqual(K.checkSet(p, d21, ['A', 'B']), { ok: false, reason: 'dearer', cost: 13, best: 10 });
+  assert.deepEqual(K.checkSet(p, d21, []), { ok: false, reason: 'pathUncut', path: ['A', 'C'] });
+  // En su punto urgente: a 19 semanas C ya está en 13.
+  assert.deepEqual(K.checkSet(p, { A: 6, B: 6, C: 13, D: 10 }, ['C']), { ok: false, reason: 'atLimit', ids: ['C'] });
+  // Empate (la regla que falla, de 9 a 8): A y B o B y E, los dos valen.
+  const rf = ex('rf'); const d9 = { A: 5, B: 4, C: 1, D: 5, E: 4 };
+  assert.deepEqual(K.checkSet(rf, d9, ['A', 'B']), { ok: true, cost: 10 });
+  assert.deepEqual(K.checkSet(rf, d9, ['B', 'E']), { ok: true, cost: 10 });
+  // setCheck trabaja con los datos del paso (lo que usa predict).
+  const step = K.trace(rf, {}).find((s) => s.kind === 'ctStep' && s.T === 8);
+  assert.deepEqual(K.setCheck(step.reveals[0].check, ['E', 'B']), { ok: true, cost: 10 });
+  assert.deepEqual(K.setCheck(step.reveals[0].check, ['B']), { ok: false, reason: 'pathUncut', path: ['A', 'E'] });
+});
+
+test('F5b T007: en 1000 tablas al azar, el conjunto de la regla siempre acierta y quitarle una actividad nunca', () => {
+  const r = R.mulberry32(333);
+  for (let i = 0; i < 1000; i++) {
+    const p = randomTable(r, 3, 7);
+    for (const s of K.trace(p, {}).filter((x) => x.kind === 'ctStep')) {
+      const chk = s.reveals[0].check;
+      assert.equal(K.setCheck(chk, s.set).ok, true, `tabla ${i}, T ${s.T}`);
+      if (!s.unique) assert.equal(K.setCheck(chk, s.other).ok, true, `tabla ${i}, T ${s.T}: el empatado`);
+      for (const id of s.set) if (p.byId[id].b > 0) assert.equal(K.setCheck(chk, s.set.filter((x) => x !== id)).ok, false, `tabla ${i}: sin ${id}`);
+    }
+  }
+});

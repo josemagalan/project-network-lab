@@ -11,6 +11,8 @@
  *   move(p, base, T) → { shorten, lengthen, cost }                       P4: ±1 alrededor de base
  *   rule(p) → pasos de la regla, con el óptimo de cada duración y el movimiento en la primera que queda por encima
  *   shortcut(p) → atajo de Nicholas (P5) · totals(p, k) · best(p, k) → duraciones de coste total mínimo (§0)
+ *   trace(p, k) → pasos del reproductor (P9) · stepData(p, d) y setCheck(data, set) → corrección del conjunto que
+ *       predice el alumno (`analyze` B3); checkSet(p, d, set) = setCheck(stepData(p, d), set)
  * Duraciones enteras; costes con decimales, redondeados a 10⁻⁹. Sin DOM ni azar.
  */
 (function (root) {
@@ -205,7 +207,11 @@
     const opt = new Map(curve(p).map((o) => [o.T, o.cost]));
     let sch = schedule(p, d);
     const steps = [];
+    // Tope: cada paso quita al menos una unidad a alguna actividad (defensa ante un corte mal hecho, que si no daría
+    // vueltas sin fin).
+    const limit = p.activities.reduce((t, a) => t + a.dn - a.dc, 0);
     for (;;) {
+      if (steps.length > limit) throw new Error('crash.rule: más pasos que unidades que se pueden quitar');
       const cut = ruleCut(p, d, sch);
       if (!cut) { steps.push({ end: true, T: sch.T, cost: directCost(p, d), path: stuckPath(p, d, sch), d: Object.assign({}, d) }); break; }
       const from = sch.T; const before = sch.criticalPaths.map((x) => x.join());
@@ -226,6 +232,44 @@
     }
     return steps;
   }
+
+  // ---------- Corrección del conjunto que predice el alumno (P9; `analyze` B3) ----------
+  // Los datos del paso (lo que guarda la traza y usa predict): críticas, arcos ajustados entre críticas, las que
+  // empiezan y acaban el proyecto, pendientes de las que se pueden acortar y el coste del corte mínimo.
+  function stepData(p, d, sch, cut) {
+    sch = sch || schedule(p, d);
+    cut = cut === undefined ? ruleCut(p, d, sch) : cut;
+    const tm = sch.times; const crit = p.activities.map((a) => a.id).filter((id) => sch.critical.includes(id));
+    const edges = {}; const slopes = {};
+    for (const id of crit) {
+      edges[id] = p.succs[id].filter((x) => crit.includes(x) && Math.abs(tm[x].ES - tm[id].EF) < EPS);
+      if (d[id] > p.byId[id].dc) slopes[id] = p.byId[id].b;
+    }
+    return { crit, edges, starts: crit.filter((id) => tm[id].ES < EPS), ends: crit.filter((id) => Math.abs(tm[id].EF - sch.T) < EPS),
+      slopes, min: cut ? cut.cost : null };
+  }
+
+  // { ok, cost } o { ok: false, reason: notCritical | atLimit | pathUncut | dearer, … }, en ese orden.
+  function setCheck(data, set) {
+    const ids = [...new Set(set)];
+    const notCrit = ids.filter((id) => !data.crit.includes(id));
+    if (notCrit.length) return { ok: false, reason: 'notCritical', ids: data.crit.concat(notCrit).filter((x) => notCrit.includes(x)) };
+    const atLimit = data.crit.filter((id) => ids.includes(id) && !(id in data.slopes));
+    if (atLimit.length) return { ok: false, reason: 'atLimit', ids: atLimit };
+    const inSet = new Set(ids);
+    const go = (id) => {
+      if (inSet.has(id)) return null;
+      if (data.ends.includes(id)) return [id];
+      for (const x of data.edges[id]) { const r = go(x); if (r) return [id].concat(r); }
+      return null;
+    };
+    for (const s of data.starts) { const path = go(s); if (path) return { ok: false, reason: 'pathUncut', path }; }
+    const cost = rnd(ids.reduce((t, id) => t + data.slopes[id], 0));
+    if (data.min != null && cost > data.min + EPS) return { ok: false, reason: 'dearer', cost, best: data.min };
+    return { ok: true, cost };
+  }
+
+  const checkSet = (p, d, set) => setCheck(stepData(p, d), set);
 
   // ---------- Atajo de Nicholas (P5) ----------
   // Todo urgente; de una en una, se alarga una unidad la actividad de mayor pendiente que no alarga el proyecto
@@ -251,6 +295,29 @@
 
   // ---------- Costes totales (§0) ----------
 
+  // ---------- Traza para el reproductor (P9) ----------
+  // ctTable (duración y coste normales) → ctStep por cada unidad (caminos críticos de partida, candidatas con su
+  // pendiente, conjunto, coste, óptimo, aviso; predicción de ct.set y ct.cost) → ctEnd (por qué termina) → ctTotals
+  // (si hay costes del proyecto).
+  function trace(p, k) {
+    const steps = rule(p); const d0 = normalD(p); const sch0 = schedule(p, d0);
+    const out = [{ kind: 'ctTable', reveals: [], T: sch0.T, cost: directCost(p, d0), paths: sch0.criticalPaths, critical: sch0.critical }];
+    let d = d0; let sch = sch0;
+    for (const s of steps) {
+      if (s.end) { out.push({ kind: 'ctEnd', reveals: [], T: s.T, cost: s.cost, path: s.path, d: s.d }); break; }
+      const check = stepData(p, d, sch);
+      const cand = check.crit.map((id) => ({ id, b: p.byId[id].b, can: id in check.slopes }));
+      out.push(Object.assign({ kind: 'ctStep', paths: sch.criticalPaths, critical: sch.critical, cand, dBefore: d }, s, {
+        reveals: [{ field: 'ct.set', value: s.set, check }, { field: 'ct.cost', value: s.stepCost }],
+      }));
+      d = s.d; sch = schedule(p, d);
+    }
+    if (hasCosts(k)) { const rows = totals(p, k); out.push({ kind: 'ctTotals', reveals: [], rows, best: best(p, k, null, rows) }); }
+    return out;
+  }
+
+  const hasCosts = (k) => !!k && ['fixed', 'perUnit', 'due', 'penalty', 'bonus'].some((x) => k[x] != null && k[x] !== '' && Number(k[x]) !== 0);
+
   const val = (v) => (v == null || v === '' || !Number.isFinite(Number(v)) ? 0 : Number(v));
   function totals(p, k, cur) {
     k = k || {};
@@ -263,12 +330,12 @@
     });
   }
 
-  function best(p, k, cur) {
-    const t = totals(p, k, cur); const min = Math.min(...t.map((x) => x.total));
+  function best(p, k, cur, rows) {
+    const t = rows || totals(p, k, cur); const min = Math.min(...t.map((x) => x.total));
     return t.filter((x) => x.total <= min + EPS).map((x) => x.T).sort((a, b) => a - b);
   }
 
-  const api = { EPS, parse, schedule, directCost, ruleCut, reduction, optimum, curve, move, rule, shortcut, totals, best, normalD, crashD };
+  const api = { EPS, parse, schedule, directCost, ruleCut, reduction, optimum, curve, move, rule, shortcut, totals, best, trace, stepData, setCheck, checkSet, normalD, crashD };
   root.PNL = root.PNL || {};
   root.PNL.crash = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
