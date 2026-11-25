@@ -3,7 +3,7 @@
  * T010: la barra (proyecto y «Partir del taller»), la tabla del proyecto (de solo lectura en los ejemplos, con la
  * pendiente; editable con «Tabla propia», con el error o el aviso de cada fila) y los costes del proyecto. La tabla de la
  * compresión, la curva, las redes y el Gantt (T011), el paso a paso (T012), el atajo (T013) y «Aprende más» (T014) llegan
- * con sus tareas. La pestaña no se ve en la barra hasta T015.
+ * con sus tareas. Se entra por la pestaña «Extensiones», con el selector «Desfases | Coste–tiempo» de su barra (T015, P14).
  *
  * La parte sin DOM (source, model, costs, issueText, rowMarks, workRows, pasteRows, parseCost) se prueba en Node
  * (tests/ct-tab.test.js); create() pinta la vista. Para las pruebas de navegador, PNL.ctTab.state() da lo pintado.
@@ -274,6 +274,8 @@
       const seg = (kn) => h('button', { type: 'button', class: 'ghost', id: `ctNets-${kn}`, 'aria-pressed': String(s.kn === kn), disabled: !m.p,
         onclick: () => { go({ kn }); focus(`ctNets-${kn}`); } }, [tc(`bar.${kn}`)]);
       return h('div', { class: 'card ct-bar' }, [h('div', { class: 'ct-row' }, [
+        // T015 (P14): el selector de «Extensiones» (Desfases | Coste–tiempo).
+        hooks.ext ? hooks.ext('ct') : null,
         h('label', { class: 'ct-field' }, [tc('project'), ' ', sel]),
         button(tc('fromWork'), fromWork, { id: 'ctFromWork' }),
         h('div', { class: 'seg', role: 'group', 'aria-label': tc('bar.nets') }, [h('span', { class: 'ct-seg-label', 'aria-hidden': 'true' }, [tc('bar.nets')]),

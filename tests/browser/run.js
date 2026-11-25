@@ -3668,7 +3668,7 @@ check('F3a P10 · un enlace pegado carga lo que falta: M0 desde «Ejercicios» y
 // ---------- F3a, T017: publicación (pestaña, barra, portada y «Tabla al azar» visible) ----------
 
 check('F3a T017 · P11: la pestaña «Ejercicios» va la última de la barra, abre un ejercicio con semilla y «Atrás» vuelve', async () => {
-  for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Desfases', 'Duraciones inciertas', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Lags', 'Uncertain durations', 'Exercises']]]) {
+  for (const [lang, labels] of [['es', ['Del enunciado a la tabla', 'Ruta guiada', 'Taller', 'Extensiones', 'Duraciones inciertas', 'Ejercicios']], ['en', ['From statement to table', 'Guided tour', 'Workshop', 'Extensions', 'Uncertain durations', 'Exercises']]]) {
     const page = await lab(`v=route&ex=ej6&step=3&lang=${lang}`);
     assert.deepEqual((await page.locator('header nav a:visible').allInnerTexts()).map((x) => x.trim()), labels);
     assert.equal(await page.locator('#navEx').getAttribute('aria-current'), 'false');
@@ -12487,11 +12487,11 @@ check('F5a T014b · axe sin violaciones con el Gantt del paso a paso (ES claro c
 
 // ---------- F5a, T015: la publicación (P9) ----------
 
-check('F5a T015 · AC15: la pestaña «Desfases» («Lags»; nombre corto del tablero 114) se ve después de «Taller» y abre las precedencias generalizadas; la tarjeta de la portada abre la pestaña en ES y EN', async () => {
+check('F5a T015 · AC15: la pestaña de las precedencias generalizadas («Extensiones» desde la F5b, P14) se ve después de «Taller» y las abre; la tarjeta de la portada abre la pestaña en ES y EN', async () => {
   for (const lang of ['es', 'en']) {
     const page = await lab(`v=work&lang=${lang}`);
     const tabs = await page.locator('nav.tabs a:visible').allInnerTexts();
-    assert.deepEqual(tabs.slice(2, 5), lang === 'es' ? ['Taller', 'Desfases', 'Duraciones inciertas'] : ['Workshop', 'Lags', 'Uncertain durations']);
+    assert.deepEqual(tabs.slice(2, 5), lang === 'es' ? ['Taller', 'Extensiones', 'Duraciones inciertas'] : ['Workshop', 'Extensions', 'Uncertain durations']);
     await page.locator('#navGpr').click();
     await page.waitForFunction(() => PNL.app.state().v === 'gpr' && document.getElementById('gprProj'));
     assert.equal(await page.locator('#navGpr').getAttribute('aria-current'), 'page');
@@ -12853,8 +12853,10 @@ check('F5b T010 · AC8: la tabla propia (tablero 126) marca cada fila con su err
 check('F5b T010 · AC9: «Partir del taller» copia actividades, predecesoras y duraciones normales; la urgente y los costes, vacíos (aviso en cada fila); el taller no cambia', async () => {
   const t = [{ id: 'A', name: 'Uno', duration: '3', links: '' }, { id: 'B', name: '', duration: '2', links: 'A' }, { id: 'C', name: '', duration: '4', links: 'A' }];
   const page = await lab(U5.encode({ v: 'work', t, mode: 'pred', lang: 'es' }).slice(1));
-  // Hasta T015 no hay selector a la vista: el enlace oculto navCt entra conservando el taller, como lo hará el selector.
-  await page.evaluate(() => document.getElementById('navCt').click());
+  // T015 (P14): «Extensiones» y, en su barra, «Coste–tiempo»; las dos entradas conservan el taller.
+  await page.locator('#navGpr').click();
+  await page.waitForSelector('#gprExtCt');
+  await page.locator('#gprExtCt').click();
   await page.waitForFunction(() => PNL.ctTab && PNL.ctTab.state && PNL.ctTab.state());
   await page.locator('#ctFromWork').click();
   await page.waitForFunction(() => PNL.ctTab.state().src.kind === 'own');
@@ -13292,6 +13294,83 @@ check('F5b T014 · axe sin violaciones con «Aprende más» abierto (ES claro, E
     await axe(page, `F5b T014 · Aprende más · ${lang} · ${scheme}`);
     await close(page);
   }
+});
+
+// ---------- F5b, T015: publicación (P10, P14): «Extensiones» con su selector y la tarjeta de la portada ----------
+
+check('F5b T015 · P14: la pestaña «Extensiones» abre «Desfases»; el selector de su barra pasa a coste–tiempo y vuelve, conservando el taller, con el foco en el botón elegido (ES y EN)', async () => {
+  const t = [{ id: 'A', name: '', duration: '3', links: '' }, { id: 'B', name: '', duration: '2', links: 'A' }];
+  for (const lang of ['es', 'en']) {
+    const page = await lab(U5.encode({ v: 'work', t, mode: 'pred', lang }).slice(1));
+    assert.equal(await page.locator('#navGpr').innerText(), lang === 'es' ? 'Extensiones' : 'Extensions');
+    await page.locator('#navGpr').click();
+    await page.waitForSelector('#gprExtGpr');
+    assert.deepEqual(await page.locator('#gprView .ext-switch button').allInnerTexts(), lang === 'es' ? ['Desfases', 'Coste–tiempo'] : ['Lags', 'Time–cost']);
+    assert.equal(await page.locator('#gprExtGpr').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('#gprView .ext-switch').getAttribute('aria-label'), lang === 'es' ? 'Extensión' : 'Extension');
+    await page.locator('#gprExtCt').click();
+    await page.waitForFunction(() => PNL.ctTab && PNL.ctTab.state && PNL.ctTab.state() && PNL.app.state().v === 'ct');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'ctExtCt');
+    assert.equal(await page.locator('#ctExtCt').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('#navGpr').getAttribute('aria-current'), 'page');
+    assert.match(await page.locator('#navGpr').getAttribute('href'), /v=ct/);
+    // La pestaña, pulsada desde coste–tiempo, no cambia de extensión.
+    await page.locator('#navGpr').click();
+    await page.waitForTimeout(150);
+    assert.equal(await page.evaluate(() => PNL.app.state().v), 'ct');
+    await page.locator('#ctExtGpr').click();
+    await page.waitForFunction(() => PNL.app.state().v === 'gpr' && document.getElementById('gprProj'));
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'gprExtGpr');
+    assert.deepEqual((await state(page)).t, t);
+    // «Atrás» vuelve a coste–tiempo.
+    await page.goBack();
+    await page.waitForFunction(() => PNL.app.state().v === 'ct');
+    await close(page);
+  }
+});
+
+check('F5b T015 · la tarjeta «Coste–tiempo» de la portada (F5b) va junto a la de «Precedencias generalizadas» y abre la pestaña en ES y EN; con todo publicado, ni la portada ni la pestaña desbordan a 360 px', async () => {
+  for (const lang of ['es', 'en']) {
+    const home = await open('index.html', { locale: lang === 'es' ? 'en-US' : 'es-ES' });
+    await home.locator(`[data-lang="${lang}"]`).click();
+    const card = home.locator('article.module-card').filter({ has: home.locator('a[data-lab="ct"]') });
+    assert.equal(await card.locator('.card-num').innerText(), 'F5b');
+    assert.equal(await card.locator('h4').innerText(), lang === 'es' ? 'Coste–tiempo' : 'Time–cost');
+    const nums = await home.locator('article.module-card .card-num').allInnerTexts();
+    assert.equal(nums.indexOf('F5b'), nums.indexOf('F5a') + 1);
+    const href = await card.locator('a[data-lab="ct"]').getAttribute('href');
+    assert.equal(href, `cpm.html#v=ct&lang=${lang}`);
+    await close(home);
+    const p2 = await ctLab(href.split('#')[1]);
+    assert.equal(await p2.evaluate(() => PNL.app.state().lang), lang);
+    assert.equal(await p2.locator('#ctExtCt').getAttribute('aria-pressed'), 'true');
+    await close(p2);
+  }
+  for (const target of ['index.html', 'cpm.html#v=ct&ke=kl&lang=es']) {
+    const p = await open(target, { width: 360, height: 740 });
+    await p.waitForTimeout(300);
+    assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, target);
+    await close(p);
+  }
+});
+
+check('F5b T015 · AC12: la cabecera con «Extensiones» cabe en una línea a 1280×720 en las dos extensiones (ES y EN); la barra de coste–tiempo con el selector, también a 360 px', async () => {
+  for (const lang of ['es', 'en']) {
+    for (const v of ['gpr', 'ct']) {
+      const page = await lab(`v=${v}&lang=${lang}`, { width: 1280, height: 720 });
+      await page.waitForSelector(`#${v}ExtGpr`);
+      const tops = await page.evaluate(() => [...document.querySelectorAll('nav.tabs a'), document.getElementById('settings')]
+        .filter((a) => !a.hidden).map((a) => { const r = a.getBoundingClientRect(); return Math.round(r.top + r.height / 2); }));
+      assert.ok(Math.max(...tops) - Math.min(...tops) <= 4, `la cabecera en una línea (${v}, ${lang}): ${tops}`);
+      if (lang === 'es') await shot(page, `f5b-t015-${v}-1280`);
+      await close(page);
+    }
+  }
+  const m = await lab('v=ct&ke=kl&lang=es', { width: 360, height: 740 });
+  await m.waitForSelector('#ctExtCt');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5b-t015-ct-360', true);
+  await close(m);
 });
 
 // ---------- Ejecución ----------

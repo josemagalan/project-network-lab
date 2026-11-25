@@ -5,10 +5,11 @@
 .gpr p { margin: 0; }
 .gpr-bar { padding: 8px 14px; }
 .gpr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.gpr-bar > .gpr-row { column-gap: 8px; }
 .gpr button.ghost { min-height: 32px; padding: 4px 12px; }
 .gpr-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
 .gpr-field select { min-height: 32px; max-width: 100%; min-width: 0; }
-.gpr-bar #gprProj { width: 16rem; }
+.gpr-bar #gprProj { width: 15rem; }
 .gpr-card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gpr-mono, .gpr-code { font-family: var(--mono); }
 /* Tabla de un ejemplo: fichas de solo lectura (tablero 115). */

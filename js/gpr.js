@@ -523,6 +523,8 @@
           .concat([h('option', { value: 'own', selected: m.src.kind === 'own' }, [tg('own')])]));
       const on = walking();
       return h('div', { class: 'card gpr-bar' }, [h('div', { class: 'gpr-row' }, [
+        // F5b (P14): el selector de «Extensiones» (Desfases | Coste–tiempo).
+        hooks.ext ? hooks.ext('gpr') : null,
         h('label', { class: 'gpr-field' }, [tg('project'), ' ', sel]),
         button(tg('fromWork'), fromWork, { id: 'gprFromWork' }),
         // «Redes» (T013, tablero 117): la ROY, la PERT equivalente o las dos (qn, por defecto las dos). No sale en el paso a paso,

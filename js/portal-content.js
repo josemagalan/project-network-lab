@@ -48,6 +48,9 @@
       gprQuestion: '¿Y si B puede empezar antes de que acabe A?', gprTitle: 'Precedencias generalizadas',
       gprDesc: 'Relaciones fin–comienzo, comienzo–comienzo, fin–fin y comienzo–fin con desfase, en la red ROY y en su red PERT equivalente. Tiempos paso a paso, holguras y actividades críticas que no se comportan como siempre.',
       gprTopics: 'FC · CC · FF · CF · Desfases · Gantt · Clases de críticas', gprOpen: 'Abrir precedencias generalizadas',
+      ctQuestion: '¿Cuánto cuesta acabar antes?', ctTitle: 'Coste–tiempo',
+      ctDesc: 'Compresión de proyectos: qué actividades acortar para ganar cada semana al menor coste, la regla de los libros frente al óptimo exacto, y los costes indirectos, las penalizaciones y las primas con la duración de coste mínimo.',
+      ctTopics: 'Pendiente · Corte mínimo · Óptimo · Coste total · Atajo', ctOpen: 'Abrir coste–tiempo',
       fitTitle: 'Así encajan', fitNote: 'La misma tabla de principio a fin', fitKnown: 'Duraciones conocidas', fitUncertain: 'Duraciones inciertas',
       fitTable: 'Enunciado → tabla', fitTableSub: 'M0 · precedencias', fitRoy: 'Red ROY', fitOr: 'o', fitPert: 'Red PERT',
       fitNetSub: 'M1 · M2 · dos dibujos de la misma tabla', fitTimes: 'Tiempos', fitTimesSub: 'M3 · hacia delante y hacia atrás',
@@ -133,6 +136,9 @@
       gprQuestion: 'What if B can start before A finishes?', gprTitle: 'Generalized precedences',
       gprDesc: 'Finish-to-start, start-to-start, finish-to-finish and start-to-finish relations with lags, in the AON network and its equivalent AOA network. Step-by-step times, floats and critical activities that do not behave as usual.',
       gprTopics: 'FS · SS · FF · SF · Lags · Gantt · Critical classes', gprOpen: 'Open generalized precedences',
+      ctQuestion: 'How much does finishing earlier cost?', ctTitle: 'Time–cost',
+      ctDesc: 'Project crashing: which activities to shorten to gain each week at the lowest cost, the textbook rule against the exact optimum, and indirect costs, penalties and bonuses with the minimum-cost duration.',
+      ctTopics: 'Slope · Minimum cut · Optimum · Total cost · Shortcut', ctOpen: 'Open time–cost',
       fitTitle: 'How they fit together', fitNote: 'The same table from start to finish', fitKnown: 'Known durations', fitUncertain: 'Uncertain durations',
       fitTable: 'Statement → table', fitTableSub: 'M0 · precedences', fitRoy: 'Activity on node', fitOr: 'or', fitPert: 'Activity on arrow',
       fitNetSub: 'M1 · M2 · two drawings of the same table', fitTimes: 'Times', fitTimesSub: 'M3 · forward and backward',
@@ -195,7 +201,7 @@
   // semilla: la elige la interfaz al abrir.
   const TARGETS = {
     m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
-    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', m7: 'v=unc&um=m7', gpr: 'v=gpr', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle', exam: '',
+    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', m7: 'v=unc&um=m7', gpr: 'v=gpr', ct: 'v=ct', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle', exam: '',
   };
   // F3e (T017, P2) y F3f (T016, P5): el exportador y el examen imprimible tienen su página; examen.html solo necesita el idioma.
   const PAGES = { moodle: 'moodle.html', exam: 'examen.html' };

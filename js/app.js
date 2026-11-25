@@ -309,21 +309,30 @@
   }
   // Entrada a «Precedencias generalizadas»: lo que hubiera (ejemplo o tabla propia); por defecto, el primer ejemplo.
   const gprEntry = () => Object.assign({}, state, { v: 'gpr', step: 0 });
-  function toGpr() {
+  // F5b (P14, T015): la pestaña «Extensiones» abre la extensión en la que se estaba (o «Desfases»); el selector de su barra
+  // cambia de una a otra conservando el taller, y deja el foco en el botón elegido. fid: el id del botón que se enfoca.
+  function toGpr(fid) {
     stopPlay();
     if (state.v === 'gpr') return;
-    if (!READY.gr()) { need('gr').then(toGpr, noop); return; }
+    if (!READY.gr()) { need('gr').then(() => toGpr(fid), noop); return; }
     dispatch({ type: 'gpr' }, { push: true });
-    window.scrollTo(0, 0);
+    if (typeof fid === 'string' && $(fid)) $(fid).focus(); else window.scrollTo(0, 0);
+  }
+  // Las dos vistas guardan su barra al ocultarse, así que los ids llevan el prefijo de la vista (gprExtCt, ctExtGpr…); al cambiar,
+  // el foco va al botón de la extensión elegida en la barra de la vista nueva.
+  function extSwitch(current) {
+    const pick = (k, go) => h('button', { type: 'button', id: `${current}Ext${k === 'gpr' ? 'Gpr' : 'Ct'}`, 'aria-pressed': String(current === k),
+      onclick: () => { if (current !== k) go(`${k}Ext${k === 'gpr' ? 'Gpr' : 'Ct'}`); } }, [t(`nav.ext.${k}`)]);
+    return h('div', { class: 'seg ext-switch', role: 'group', 'aria-label': t('nav.ext.label') }, [pick('gpr', toGpr), pick('ct', toCt)]);
   }
   // Entrada a coste–tiempo (F5b): lo que hubiera (ejemplo o tabla propia), conservando el taller para «Partir del taller».
   const ctEntry = () => Object.assign({}, state, { v: 'ct', step: 0 });
-  function toCt() {
+  function toCt(fid) {
     stopPlay();
     if (state.v === 'ct') return;
-    if (!READY.ct()) { need('ct').then(toCt, noop); return; }
+    if (!READY.ct()) { need('ct').then(() => toCt(fid), noop); return; }
     dispatch({ type: 'ct' }, { push: true });
-    window.scrollTo(0, 0);
+    if (typeof fid === 'string' && $(fid)) $(fid).focus(); else window.scrollTo(0, 0);
   }
   function toEx() {
     stopPlay();
@@ -413,12 +422,10 @@
     // F4a: la pestaña se ve al publicarse (T013); hasta entonces solo se llega por enlace.
     $('navUnc').hidden = !UNC_PUBLIC;
     $('navUnc').href = U.encode(uncEntry());
-    $('navGpr').setAttribute('aria-current', state.v === 'gpr' ? 'page' : 'false');
+    // «Extensiones» (F5b, P14): «Desfases» y coste–tiempo comparten pestaña; el selector va en la barra de cada una.
+    $('navGpr').setAttribute('aria-current', state.v === 'gpr' || state.v === 'ct' ? 'page' : 'false');
     $('navGpr').hidden = !GPR_PUBLIC;
-    $('navGpr').href = U.encode(gprEntry());
-    // F5b: sin pestaña propia (P14): se entra con el selector de «Extensiones» (T015); hasta entonces, por enlace.
-    $('navCt').setAttribute('aria-current', state.v === 'ct' ? 'page' : 'false');
-    $('navCt').href = U.encode(ctEntry());
+    $('navGpr').href = U.encode(state.v === 'ct' ? ctEntry() : gprEntry());
     $('navM0').href = U.encode(m0Entry());
     $('navRoute').href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: state.ex || 'ej6', step: 0, wi: null }));
     $('navWork').href = U.encode(Object.assign({}, state, { v: 'work', step: 0 }));
@@ -1222,8 +1229,7 @@
     $('navM0').addEventListener('click', (e) => { e.preventDefault(); toM0(); });
     $('navEx').addEventListener('click', (e) => { e.preventDefault(); toEx(); });
     $('navUnc').addEventListener('click', (e) => { e.preventDefault(); toUnc(); });
-    $('navGpr').addEventListener('click', (e) => { e.preventDefault(); toGpr(); });
-    $('navCt').addEventListener('click', (e) => { e.preventDefault(); toCt(); });
+    $('navGpr').addEventListener('click', (e) => { e.preventDefault(); if (state.v !== 'ct') toGpr(); });
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch(Object.assign({ type: 'work' }, model.rows ? { rows: workRows(model.rows), mode: model.mode } : workSource())); });
     // F4a (T013): el desplegable «Ajustes» se cierra con Esc (el foco vuelve a su botón) y al pulsar fuera de él.
@@ -1341,6 +1347,7 @@
         predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
         predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
         learn: openGprLearn,
+        ext: extSwitch,
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
       });
       G.gprTab.state = () => gprc.debug();
@@ -1351,6 +1358,7 @@
         // «Partir del taller» (AC9): la tabla del taller (o el ejemplo que muestra) con su forma.
         workRows: workSource,
         learn: openCtLearn,
+        ext: extSwitch,
         // Paso a paso (T012): la predicción de la página, como en «Desfases».
         pred: () => pred, predicting,
         predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },

@@ -9,6 +9,7 @@
 .ct-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
 .ct-field select { min-height: 32px; max-width: 100%; min-width: 0; }
 .ct-bar #ctProj { width: 18rem; }
+.ct-bar > .ct-row { column-gap: 8px; }
 .ct-card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ct-mono { font-family: var(--mono); }
 .ct .small { font-size: 13px; }

@@ -66,11 +66,11 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
   assert.throws(() => labHref('m1', 'fr'));
 });
 
-test('ocho módulos y una extensión, todos disponibles; ids únicos y anclas que existen', () => {
-  assert.equal((html.match(/class="module-card tone-/g) || []).length, 9);
-  for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'F5a']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  // F3f (T016): y el examen imprimible; F5a (T015): y las precedencias generalizadas.
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 13, 'M0–M7, F5a, el taller, los ejercicios generados, el banco de Moodle y el examen imprimible');
+test('ocho módulos y dos extensiones, todos disponibles; ids únicos y anclas que existen', () => {
+  assert.equal((html.match(/class="module-card tone-/g) || []).length, 10);
+  for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'F5a', 'F5b']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
+  // F3f (T016): y el examen imprimible; F5a (T015): y las precedencias generalizadas; F5b (T015): y coste–tiempo.
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 14, 'M0–M7, F5a, F5b, el taller, los ejercicios generados, el banco de Moodle y el examen imprimible');
   assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 0, 'la fase 2 ya no tiene nada en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
@@ -95,11 +95,9 @@ test('F4a T013 y F4b T013: M5, M6 y M7 disponibles abren su apartado en ambos id
 test('F4a T013 y F5a T015: la barra publica Duraciones inciertas entre Taller y Ejercicios, y Precedencias generalizadas después de Taller (P12), sin pestañas ocultas', () => {
   const lab = fs.readFileSync(path.join(ROOT, 'cpm.html'), 'utf8');
   const nav = lab.match(/<nav\b[\s\S]*?<\/nav>/)[0];
-  // F5b: navCt es la entrada oculta de coste–tiempo mientras se construye (T010–T014); T015 la quita y la publica
-  // dentro de «Extensiones» (P14), y entonces esta excepción desaparece.
-  const ids = [...nav.matchAll(/id="(nav\w+)"/g)].map((m) => m[1]).filter((id) => id !== 'navCt');
-  assert.deepEqual(ids, ['navM0', 'navRoute', 'navWork', 'navGpr', 'navUnc', 'navEx']);
-  assert.deepEqual([...nav.matchAll(/<a\b[^>]*\bhidden\b[^>]*>/g)].map((m) => (m[0].match(/id="(\w+)"/) || [])[1]), ['navCt']);
+  // F5b T015 (P14): coste–tiempo no tiene pestaña propia; se entra por «Extensiones» (navGpr) con el selector de su barra.
+  assert.deepEqual([...nav.matchAll(/id="(nav\w+)"/g)].map((m) => m[1]), ['navM0', 'navRoute', 'navWork', 'navGpr', 'navUnc', 'navEx']);
+  assert.deepEqual([...nav.matchAll(/<a\b[^>]*\bhidden\b[^>]*>/g)], []);
 });
 
 test('scripts, estilos, iconos y logotipos son locales y existen; sin CDN ni innerHTML', () => {
@@ -280,4 +278,22 @@ test('F5a T015 · AC15: la tarjeta «Precedencias generalizadas» va en un grupo
     assert.ok(messages.es[k] && messages.en[k], k);
   }
   assert.equal(messages.en.gprTitle, 'Generalized precedences');
+});
+
+test('F5b T015 · la tarjeta «Coste–tiempo» va en el grupo de extensiones, después de «Precedencias generalizadas», y abre la pestaña en el idioma elegido, sin avisos', () => {
+  for (const lang of ['es', 'en']) {
+    const { state, warning } = U.decode('#' + labHref('ct', lang).split('#')[1]);
+    assert.equal(warning, undefined);
+    assert.deepEqual([state.v, state.step, state.lang], ['ct', 0, lang]);
+  }
+  const modules = html.slice(html.indexOf('id="modules-title"'), html.indexOf('class="fit-section"'));
+  const group = modules.slice(modules.indexOf('data-i18n="groupExt"'));
+  assert.ok(group.indexOf('<span class="card-num">F5b</span>') > group.indexOf('<span class="card-num">F5a</span>'));
+  assert.match(group, /data-lab="ct"><span data-i18n="ctOpen">Abrir coste–tiempo<\/span>/);
+  for (const k of ['ctQuestion', 'ctTitle', 'ctDesc', 'ctTopics', 'ctOpen']) {
+    assert.ok(group.includes(`data-i18n="${k}"`), k);
+    assert.ok(messages.es[k] && messages.en[k], k);
+  }
+  assert.equal(messages.es.ctTitle, 'Coste–tiempo');
+  assert.equal(messages.en.ctTitle, 'Time–cost');
 });

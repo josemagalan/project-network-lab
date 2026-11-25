@@ -217,9 +217,11 @@ test('F5a T010: los textos de «Precedencias generalizadas» (i18n-gpr) están e
   assert.deepEqual(keysDeep(IG.es), keysDeep(IG.en));
   for (const k of keysDeep(IG.es)) assert.deepEqual(params(get(IG.es, k)), params(get(IG.en, k)), `gpr.${k}`);
   for (const lang of I.languages) assert.equal(I.dict[lang].gpr, IG[lang]);
-  // T015: en la barra, el nombre corto (tablero 114): con el completo, a 1280 px la cabecera en español no cabe en una línea.
-  assert.equal(I.t('es', 'nav.gpr'), 'Desfases');
-  assert.equal(I.t('en', 'nav.gpr'), 'Lags');
+  // T015: en la barra, el nombre corto (tablero 114); F5b T015 (P14): la pestaña pasa a «Extensiones» y «Desfases» queda en su
+  // selector, junto a coste–tiempo.
+  assert.equal(I.t('es', 'nav.gpr'), 'Extensiones');
+  assert.equal(I.t('en', 'nav.gpr'), 'Extensions');
+  assert.deepEqual([I.t('es', 'nav.ext.gpr'), I.t('es', 'nav.ext.ct'), I.t('en', 'nav.ext.gpr'), I.t('en', 'nav.ext.ct')], ['Desfases', 'Coste–tiempo', 'Lags', 'Time–cost']);
   // Un nombre por cada tipo de relación y un texto por cada error de core/gpr que va en una fila.
   for (const lang of I.languages) {
     for (const type of G.TYPES) assert.ok(I.dict[lang].gpr.relName[type], `${lang} relName.${type}`);
