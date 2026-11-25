@@ -120,3 +120,10 @@ table.data.ct-cand input[type="checkbox"] { width: 18px; height: 18px; accent-co
 .ct-fb-wrong { color: var(--critical-text); }
 .ct-walknav { gap: 8px 12px; }
 .ct-step p { font-size: 14.5px; line-height: 1.5; }
+/* T013: el atajo de Nicholas (tablero 128). */
+.ct-short { display: grid; grid-template-columns: minmax(0, 540px) minmax(0, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .ct-short { grid-template-columns: minmax(0, 1fr); } }
+.ct-short-gantts { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ct-h3 { margin: 4px 0 0; font-size: 13.5px; }
+.ct-steps { margin: 0; padding-left: 1.6em; font-size: 14px; line-height: 1.6; }
+table.data.ct-cand tr.chosen td strong.ct-set { color: var(--accent); }

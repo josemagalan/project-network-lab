@@ -174,6 +174,23 @@
     return out;
   }
 
+  // ---------- El atajo de Nicholas (T013; tablero 128) ----------
+
+  let scCache = { key: null, val: null };
+  /** crash.shortcut con las duraciones del óptimo a la misma duración (para explicar cuándo queda por encima). */
+  function shortcut(m) {
+    if (!m.p) return null;
+    const key = JSON.stringify(m.p.activities.map((a) => [a.id, a.dn, a.dc, a.cn, a.cc, m.p.preds[a.id]]));
+    if (scCache.key !== key) {
+      const sc = K.shortcut(m.p);
+      scCache = { key, val: Object.assign({}, sc, { optD: K.optimum(m.p, sc.T).d }) };
+    }
+    return scCache.val;
+  }
+
+  /** Una fila por actividad: urgente, pendiente, unidades que se alarga y duración al final. */
+  const shortcutRows = (m, sc) => m.p.activities.map((a) => ({ id: a.id, dc: a.dc, b: a.b, ext: sc.units[a.id] || 0, final: sc.d[a.id], can: a.dn > a.dc }));
+
   // ---------- Errores y avisos ----------
 
   /** El texto de un error o un aviso de la tabla, sin «Fila n» (va en su fila, o en la lista si no tiene fila). */
@@ -263,6 +280,9 @@
           seg('roy'), seg('pert'), seg('both')]),
         h('div', { class: 'seg' }, [h('button', { type: 'button', class: 'ghost', id: 'ctGanttBtn', 'aria-pressed': String(s.kg === 1), disabled: !m.p,
           onclick: () => { go({ kg: s.kg === 1 ? 0 : 1 }); focus('ctGanttBtn'); } }, [tc('bar.gantt')])]),
+        // «Atajo» (T013, tablero 128): el atajo de Nicholas en lugar de la compresión (ka); fuera del paso a paso.
+        h('div', { class: 'seg' }, [h('button', { type: 'button', class: 'ghost', id: 'ctShortBtn', 'aria-pressed': String(s.ka === 1 && !walking()), disabled: !m.p,
+          onclick: () => { if (walking()) hooks.dispatch({ type: 'go', n: 0 }); go({ ka: s.ka === 1 && !walking() ? 0 : 1 }); focus('ctShortBtn'); } }, [tc('short.toggle')])]),
         h('span', { class: 'ct-push' }),
         // «Paso a paso» (T012): del paso 1 en adelante; volver al paso 0 es volver a la tabla y la curva.
         h('div', { class: 'seg' }, [h('button', { type: 'button', class: 'ghost', id: 'ctWalk', 'aria-pressed': String(walking()), disabled: !m.trace,
@@ -641,9 +661,39 @@
         hide ? h('span', { class: 'muted small' }, [I.t(lang(), 'predict.hidden')]) : null]);
     }
 
+    function shortcutBlock() {
+      const ts = (k, q) => tc(`short.${k}`, q);
+      const sc = shortcut(m);
+      const rows = shortcutRows(m, sc);
+      const head = h('tr', {}, ['act', 'dc', 'slope', 'ext', 'final'].map((k) => h('th', { scope: 'col' }, [ts(`col.${k}`)])));
+      const body = rows.map((r) => h('tr', { 'data-act': r.id, class: r.ext ? 'chosen' : null }, [h('th', { scope: 'row' }, [r.id]), h('td', { class: 'num' }, [num(r.dc)]),
+        h('td', { class: 'num' }, [r.can ? num(r.b) : '—']), h('td', { class: 'num' }, [r.ext ? h('strong', { class: 'ct-set' }, [`+${r.ext}`]) : '—']),
+        h('td', { class: 'num' }, [h('strong', {}, [num(r.final)])])]));
+      const parts = [h('h2', { id: 'ctShortHead' }, [ts('title')]),
+        h('p', { id: 'ctShortIntro' }, [ts('intro', { T: tT(sc.T), cost: num(sc.crashCost) })]),
+        h('div', { class: 'ct-scroll', tabindex: '0', role: 'region', 'aria-label': ts('tableLabel', { name: m.src.title }) }, [
+          h('table', { class: 'data ct-cand', id: 'ctShortTable' }, [h('thead', {}, [head]), h('tbody', {}, body)])]),
+        h('h3', { class: 'ct-h3' }, [ts('stepsTitle')]),
+        sc.steps.length ? h('ol', { class: 'ct-steps', id: 'ctShortSteps' }, sc.steps.map((x) => h('li', {}, [ts('step', { id: x.id, v: num(x.saving) })])))
+          : h('p', { id: 'ctShortSteps' }, [ts('none')])];
+      if (sc.above) {
+        parts.push(h('div', { class: 'ct-note ct-note-warn', id: 'ctShortEnd' }, [h('p', {}, [h('strong', {}, [ts('above', { cost: num(sc.cost), T: tT(sc.T), opt: num(sc.opt), diff: num(sc.cost - sc.opt) })])]),
+          h('p', {}, [ts('aboveWhy', { list: list(m.p.activities.map((a) => `${a.id} ${num(sc.optD[a.id])}`)) })])]));
+      } else parts.push(h('p', { class: 'ct-note ct-note-ok', id: 'ctShortEnd' }, [ts('ok', { cost: num(sc.cost), T: tT(sc.T), opt: num(sc.opt) })]));
+      parts.push(h('p', { class: 'muted small' }, [ts('note')]));
+      const gantt = (id, key, d, cost) => {
+        const holder = h('div', { class: 'ct-gantt', id });
+        root.PNL.gantt.render(holder, { solution: K.schedule(m.p, d).solution, lang: lang(), late: false });
+        return h('section', { class: 'card ct-card', 'aria-labelledby': `${id}Head` }, [h('h2', { id: `${id}Head` }, [ts(key, { T: tT(sc.T), cost: num(cost) })]), holder]);
+      };
+      return h('div', { class: 'ct-short' }, [h('section', { class: 'card ct-card ct-step', id: 'ctShort', 'aria-labelledby': 'ctShortHead' }, parts),
+        h('div', { class: 'ct-short-gantts' }, [gantt('ctShortG0', 'ganttCrash', K.crashD(m.p), sc.crashCost), gantt('ctShortG1', 'ganttEnd', sc.d, sc.cost)])]);
+    }
+
     function fillLower() {
       clear(lower);
       if (!m.p) return;
+      if (state().ka === 1) { lower.appendChild(shortcutBlock()); return; }
       const c = compression(m);
       const T = chosenT(state(), c);
       const key = `${m.src.id}|${T}`;
@@ -684,13 +734,14 @@
       const c = m.p ? compression(m) : null;
       return { src: { kind: m.src.kind, id: m.src.id }, errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => FIELD[c]),
         ok: !!m.p, k: m.k, T: c ? chosenT(state(), c) : null, rows: c ? c.rows.map((r) => r.T) : [], best: c ? c.best : [], opt: optView,
+        short: !walking() && state().ka === 1,
         walk: walking() ? { k: state().step, kind: m.trace[Math.min(state().step, m.trace.length - 1)].kind, n: m.trace.length - 1 } : null };
     }
     function leave() { /* T010: nada que parar */ }
     return { render, debug, leave };
   }
 
-  const api = { FIELDS, KC, source, costs, model, compression, chosenT, moveTerms, netTags, curveSpec, trace, walkNets, feedback, issueText, rowMarks, workRows, pasteRows, parseCost, create };
+  const api = { FIELDS, KC, source, costs, model, compression, chosenT, moveTerms, netTags, curveSpec, trace, walkNets, feedback, shortcut, shortcutRows, issueText, rowMarks, workRows, pasteRows, parseCost, create };
   root.PNL = root.PNL || {};
   root.PNL.ctTab = api;
   if (isNode) module.exports = api;

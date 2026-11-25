@@ -13195,6 +13195,68 @@ check('F5b T012 · axe sin violaciones en el paso a paso (al predecir y con la c
   await close(m);
 });
 
+// ---------- F5b, T013: el atajo de Nicholas (tablero 128) ----------
+
+// La tabla de la semilla 370 de tests/crash.test.js: el atajo queda por encima del óptimo (66 frente a 56).
+const CT_SEED370 = [['A', '', '6', '3', '7', '25'], ['B', 'A', '3', '0', '1', '16'], ['C', 'A', '3', '0', '2', '20'], ['D', 'C', '4', '1', '4', '4'], ['E', '', '6', '6', '18', '18']]
+  .map(([id, links, dn, dc, cn, cc]) => ({ id, name: '', links, dn, dc, cn, cc }));
+
+check('F5b T013 · AC5: el atajo de Nicholas (ka): todo urgente (104), los alargamientos en orden (D, B, B, B, E y E) y el coste final igual al óptimo (86), con los dos Gantt', async () => {
+  const page = await ctLab('v=ct&ke=ni&lang=es');
+  await page.locator('#ctShortBtn').click();
+  await page.waitForFunction(() => PNL.ctTab.state().short === true);
+  assert.equal((await ctHashNow(page)).ka, 1);
+  assert.equal(await page.locator('#ctShortBtn').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctShortBtn');
+  assert.equal(await page.locator('#ctCmp').count(), 0);
+  assert.match(await page.locator('#ctShortIntro').innerText(), /dura 15 semanas y cuesta 104/);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#ctShortTable tbody tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((c) => c.textContent.trim())));
+  assert.deepEqual(rows.map((r) => [r[0], r[3], r[4]]), [['A', '—', '6'], ['B', '+3', '8'], ['C', '—', '4'], ['D', '+1', '7'], ['E', '+2', '5'], ['F', '—', '5'], ['G', '—', '2']]);
+  assert.deepEqual(await page.locator('#ctShortSteps li').allInnerTexts(), ['D', 'B', 'B', 'B', 'E', 'E'].map((id, i) => `Alargar ${id} una unidad: ahorra ${[5, 3, 3, 3, 2, 2][i]}.`));
+  assert.equal(await page.locator('#ctShortEnd').innerText(), 'Coste final: 86, igual que el óptimo a 15 semanas (86).');
+  assert.equal(await page.locator('#ctShortG0Head').innerText(), 'Gantt con todo urgente (15 semanas, 104)');
+  assert.equal(await page.locator('#ctShortG1Head').innerText(), 'Gantt al final del atajo (15 semanas, 86)');
+  assert.equal(await page.locator('#ctShortG1 rect.bar-c, #ctShortG1 rect.bar-n').count(), 7);
+  // El enlace abre el atajo; el mismo botón vuelve a la compresión.
+  const hash = await page.evaluate(() => location.hash);
+  const again = await ctLab(hash.slice(1));
+  assert.equal((await ctSt(again)).short, true);
+  await close(again);
+  await page.locator('#ctShortBtn').click();
+  await page.waitForSelector('#ctCmp');
+  assert.equal((await ctHashNow(page)).ka, 0);
+  // Desde el paso a paso, el atajo sale a la vista de la pestaña.
+  await page.locator('#ctWalk').click();
+  await page.waitForFunction(() => PNL.ctTab.state().walk);
+  await page.locator('#ctShortBtn').click();
+  await page.waitForFunction(() => PNL.ctTab.state().short === true && !PNL.ctTab.state().walk);
+  await close(page);
+});
+
+check('F5b T013 · AC5: cuando el atajo queda por encima (semilla 370), el aviso con la diferencia y las duraciones del óptimo', async () => {
+  const page = await ctLab(ctHash({ ke: 'own', kt: CT_SEED370, ka: 1, lang: 'es' }));
+  await page.waitForSelector('#ctShortEnd');
+  const end = await page.locator('#ctShortEnd').innerText();
+  assert.match(end, /Coste final: 66; el óptimo a 6 cuesta 56: el atajo se queda 10 por encima\./);
+  assert.match(end, /Duraciones del óptimo: A 3, B 3, C 2, D 1 y E 6\./);
+  assert.deepEqual(await page.locator('#ctShortSteps li').allInnerTexts(), ['Alargar A una unidad: ahorra 6.', 'Alargar A una unidad: ahorra 6.', 'Alargar B una unidad: ahorra 5.']);
+  await close(page);
+});
+
+check('F5b T013 · axe sin violaciones en el atajo (claro y oscuro, ES y EN; con el aviso); a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [hash, scheme, label] of [['v=ct&ke=ni&ka=1&lang=es', 'light', 'Nicholas · es'], [ctHash({ ke: 'own', kt: CT_SEED370, ka: 1, lang: 'en' }), 'dark', 'semilla 370 · en']]) {
+    const page = await ctLab(hash, { scheme });
+    await page.waitForSelector('#ctShortEnd');
+    await axe(page, `F5b T013 · atajo, ${label} · ${scheme}`);
+    await close(page);
+  }
+  const m = await ctLab('v=ct&ke=ni&ka=1&lang=es', { width: 360, height: 740 });
+  await m.waitForSelector('#ctShortEnd');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5b-t013-ni-360', true);
+  await close(m);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

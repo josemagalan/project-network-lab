@@ -187,3 +187,27 @@ test('F5b T012 · las redes del paso: antes de comprobar, las duraciones de part
   assert.deepEqual(T.walkNets(m, tr[5], false).T, 18);
   assert.deepEqual(T.walkNets(m, tr[6], false).T, 18);
 });
+
+// ---------- T013: el atajo de Nicholas (AC5; tablero 128) ----------
+
+// La tabla de la semilla 370 de tests/crash.test.js (randomTable(mulberry32(370), 4, 7)): el atajo queda por encima.
+const SEED370 = [row('A', '', '6', '3', '7', '25'), row('B', 'A', '3', '0', '1', '16'), row('C', 'A', '3', '0', '2', '20'), row('D', 'C', '4', '1', '4', '4'),
+  row('E', '', '6', '6', '18', '18')];
+
+test('F5b T013 · AC5: el atajo de Nicholas: 104 → 86 con D, B, B, B, E y E, igual que el óptimo; la tabla por actividad (Nicholas, §7.1)', () => {
+  const m = T.model(st({ ke: 'ni' }), 'es');
+  const sc = T.shortcut(m);
+  assert.deepEqual([sc.T, sc.crashCost, sc.cost, sc.opt, sc.above], [15, 104, 86, 86, false]);
+  assert.deepEqual(sc.steps.map((s) => s.id), ['D', 'B', 'B', 'B', 'E', 'E']);
+  assert.equal(T.shortcut(T.model(st({ ke: 'ni' }), 'en')), sc);
+  assert.deepEqual(T.shortcutRows(m, sc).map((r) => [r.id, r.dc, r.b, r.ext, r.final]),
+    [['A', 6, 2, 0, 6], ['B', 5, 3, 3, 8], ['C', 4, 1, 0, 4], ['D', 6, 5, 1, 7], ['E', 3, 2, 2, 5], ['F', 5, 0, 0, 5], ['G', 2, 5, 0, 2]]);
+});
+
+test('F5b T013 · AC5: cuando el atajo queda por encima (semilla 370): 66 frente a 56, con las duraciones del óptimo', () => {
+  const m = T.model(st({ ke: 'own', kt: SEED370 }), 'es');
+  const sc = T.shortcut(m);
+  assert.deepEqual([sc.T, sc.crashCost, sc.cost, sc.opt, sc.above], [6, 83, 66, 56, true]);
+  assert.deepEqual(sc.optD, { A: 3, B: 3, C: 2, D: 1, E: 6 });
+  assert.equal(T.shortcut(T.model(st({ ke: 'own', kt: [row('A', '', '3', '5', '1', '2')] }), 'es')), null);
+});
