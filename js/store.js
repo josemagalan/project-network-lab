@@ -254,6 +254,45 @@
         Object.assign(s, { v: 'gpr', qe: 'own', qt, step: 0, qr: null, qw: null });
         break;
       }
+      // F5b (plan §3, P7): la pestaña de coste–tiempo. Otro proyecto empieza de cero: paso, duración elegida y costes
+      // del proyecto (los del ejemplo valen mientras kc sea null).
+      case 'ct': {
+        const C = U.CT;
+        const ke0 = s.ke;
+        s.v = 'ct';
+        if (['kl', 'ni', 'nip', 'rf'].includes(action.ke) || (action.ke === 'own' && s.kt)) s.ke = action.ke;
+        if (s.ke !== ke0) Object.assign(s, { step: 0, kd: null, kc: null });
+        if (['roy', 'pert', 'both'].includes(action.kn)) s.kn = action.kn;
+        if ([0, 1].includes(action.kg)) s.kg = action.kg;
+        if ([0, 1].includes(action.ka)) s.ka = action.ka;
+        if (action.kd === null || C.kdOk(action.kd)) s.kd = action.kd === undefined ? s.kd : action.kd;
+        break;
+      }
+      // «Partir del taller» (AC9): actividades, predecesoras y duraciones (como normales); la urgente y los costes, vacíos.
+      // Con posteriores, se pasa a predecesoras si la tabla se lee; si no, se copia sin relaciones. El taller no cambia.
+      case 'ctFromWork': {
+        const P = isNode ? require('./core/project.js') : root.PNL.project;
+        let rows = (action.rows || []).map((r) => ({ id: r.id == null ? '' : String(r.id), name: r.name || '', duration: r.duration == null ? '' : String(r.duration), links: r.links || '' }));
+        if (action.mode === 'succ') {
+          const { project } = P.parse(rows, 'succ');
+          rows = project ? P.toRows(project, 'pred').map((r) => ({ id: r.id, name: r.name || '', duration: r.duration, links: r.links }))
+            : rows.map((r) => Object.assign({}, r, { links: '' }));
+        }
+        const kt = U.CT.cleanKt(rows.map((r) => ({ id: r.id, name: r.name, links: r.links, dn: r.duration, dc: '', cn: '', cc: '' })));
+        if (!kt) break;
+        Object.assign(s, { v: 'ct', ke: 'own', kt, step: 0, kd: null, kc: null });
+        break;
+      }
+      case 'ctTable': {
+        const kt = U.CT.cleanKt(action.rows);
+        if (kt) Object.assign(s, { ke: 'own', kt, kd: null });
+        break;
+      }
+      case 'ctCosts': {
+        const kc = U.CT.cleanKc(action.kc);
+        if (kc !== undefined) s.kc = kc;
+        break;
+      }
       case 'gprTable': {
         const qt = U.GPR.cleanQt(action.rows);
         if (qt) Object.assign(s, { qe: 'own', qt, qr: null, qw: null });
