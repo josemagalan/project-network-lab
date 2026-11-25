@@ -13373,6 +13373,79 @@ check('F5b T015 · AC12: la cabecera con «Extensiones» cabe en una línea a 12
   await close(m);
 });
 
+// ---------- F5b, T016: navegador y accesibilidad (AC12): alternativa en texto de las redes y el Gantt, y teclado ----------
+
+const ctTimes = (page) => page.evaluate(() => [...document.querySelectorAll('#ctTimesTable tbody tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((c) => c.textContent.replace(/\s+/g, ' ').trim())));
+
+check('F5b T016 · AC12: las redes y el Gantt tienen su alternativa en texto: los tiempos, la holgura y las marcas de cada actividad a la duración elegida, también en el paso a paso (ES y EN)', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es&kg=1');
+  assert.equal(await page.locator('#ctTimes').evaluate((d) => d.open), false);
+  assert.equal(await page.locator('#ctTimes summary').innerText(), 'Tiempos y holguras a 19 semanas');
+  await page.locator('#ctTimes summary').click();
+  const rows = await ctTimes(page);
+  assert.deepEqual(rows.map((r) => r.slice(0, 7)), [['A (crítica)', '6', '0', '6', '0', '6', '0'], ['B (crítica)', '6', '0', '6', '0', '6', '0'],
+    ['C (crítica)', '13', '6', '19', '6', '19', '0'], ['D', '10', '6', '16', '9', '19', '3']]);
+  assert.deepEqual(rows.map((r) => r[7]), ['—', '—', '−1 · mín.', '—']);
+  // Abierta, sigue abierta al elegir otra duración, y cambia con ella.
+  await page.locator('#ctKd-22').check();
+  await page.waitForFunction(() => PNL.ctTab.state().T === 22);
+  assert.equal(await page.locator('#ctTimes').evaluate((d) => d.open), true);
+  assert.deepEqual((await ctTimes(page)).map((r) => r[1]), ['7', '6', '15', '10']);
+  // En el paso a paso, mientras se predice, la tabla es la de partida.
+  await setHash(page, ctHash({ ke: 'kl', lang: 'en', step: 2, pred: 1 }));
+  await page.waitForSelector('#ctPick-A');
+  assert.equal(await page.locator('#ctTimes summary').innerText(), 'Times and floats at 21 weeks');
+  await close(page);
+});
+
+check('F5b T016 · AC12: todo con el teclado: las flechas recorren las duraciones de la compresión; en el paso a paso, la barra espaciadora marca las actividades e Intro comprueba', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es');
+  await page.locator('#ctKd-19').focus();
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => PNL.ctTab.state().T === 18);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctKd-18');
+  await page.keyboard.press('ArrowUp');
+  await page.waitForFunction(() => PNL.ctTab.state().T === 19);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctKd-19');
+  // Paso a paso con predicción, solo con el teclado.
+  await page.locator('#ctWalk').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.ctTab.state().walk && PNL.ctTab.state().walk.k === 1);
+  await page.locator('#ctPred').focus();
+  await page.keyboard.press('Space');
+  await page.waitForSelector('#ctPick-A');
+  await page.locator('#ctPick-A').focus();
+  await page.keyboard.press('Space');
+  assert.equal(await page.locator('#ctPick-A').isChecked(), true);
+  await page.locator('#ctPredCost').focus();
+  await page.keyboard.type('8');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#ctPredFb');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctPredFb');
+  assert.match(await page.locator('#ctPredFb').innerText(), /Acierto: A acorta todos los caminos críticos y cuesta 8\./);
+  await page.locator('#ctNext').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.ctTab.state().walk.k === 2);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctPick-A');
+  await close(page);
+});
+
+check('F5b T016 · AC12: axe sin violaciones con la tabla de tiempos abierta (ES claro, EN oscuro) y, a 360 px, en el paso a paso y en el atajo; la página no se desplaza en horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await ctLab(`v=ct&ke=rf&kd=8&kg=1&lang=${lang}`, { scheme });
+    await page.locator('#ctTimes summary').click();
+    await axe(page, `F5b T016 · tiempos y holguras · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  for (const [hash, label] of [['v=ct&ke=kl&lang=es&step=2&pred=1', 'paso a paso'], ['v=ct&ke=ni&ka=1&lang=en', 'atajo']]) {
+    const m = await ctLab(hash, { width: 360, height: 740, scheme: 'dark' });
+    await m.waitForTimeout(200);
+    await axe(m, `F5b T016 · ${label} a 360 px · oscuro`);
+    assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, label);
+    await close(m);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

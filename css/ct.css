@@ -128,3 +128,7 @@ table.data.ct-cand input[type="checkbox"] { width: 18px; height: 18px; accent-co
 .ct-h3 { margin: 4px 0 0; font-size: 13.5px; }
 .ct-steps { margin: 0; padding-left: 1.6em; font-size: 14px; line-height: 1.6; }
 table.data.ct-cand tr.chosen td strong.ct-set { color: var(--accent); }
+/* T016: la alternativa en texto de las redes y del Gantt. */
+.ct-times summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.ct-times[open] summary { margin-bottom: 6px; }
+table.data.ct-cand tr.crit th { color: var(--critical-text); }

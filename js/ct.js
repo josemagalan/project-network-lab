@@ -547,8 +547,9 @@
           h('p', { class: 'ct-legend', id: 'ctPertLegend' }, [tc('net.pertLegend')])]));
       }
       out.push(h('div', { class: `ct-nets${cards.length === 2 ? ' two' : ''}` }, cards));
+      out.push(timesTable(T, d, sol, tagsOf, tagText));
       if (s.kg === 1) {
-        const holder = h('div', { class: 'ct-gantt', id: 'ctGantt' });
+        const holder = h('div', { class: 'ct-gantt', id: 'ctGantt', tabindex: '0' });
         root.PNL.gantt.render(holder, { solution: sol, lang: lang(), late: false });
         out.push(h('section', { class: 'card ct-card', 'aria-labelledby': 'ctGanttHead' }, [h('h2', { id: 'ctGanttHead' }, [head('gantt')]), holder]));
       }
@@ -686,12 +687,37 @@
       } else parts.push(h('p', { class: 'ct-note ct-note-ok', id: 'ctShortEnd' }, [ts('ok', { cost: num(sc.cost), T: tT(sc.T), opt: num(sc.opt) })]));
       parts.push(h('p', { class: 'muted small' }, [ts('note')]));
       const gantt = (id, key, d, cost) => {
-        const holder = h('div', { class: 'ct-gantt', id });
+        // A 360 px el Gantt se desliza dentro de su marco: se enfoca con el teclado (T016).
+        const holder = h('div', { class: 'ct-gantt', id, tabindex: '0' });
         root.PNL.gantt.render(holder, { solution: K.schedule(m.p, d).solution, lang: lang(), late: false });
         return h('section', { class: 'card ct-card', 'aria-labelledby': `${id}Head` }, [h('h2', { id: `${id}Head` }, [ts(key, { T: tT(sc.T), cost: num(cost) })]), holder]);
       };
       return h('div', { class: 'ct-short' }, [h('section', { class: 'card ct-card ct-step', id: 'ctShort', 'aria-labelledby': 'ctShortHead' }, parts),
         h('div', { class: 'ct-short-gantts' }, [gantt('ctShortG0', 'ganttCrash', K.crashD(m.p), sc.crashCost), gantt('ctShortG1', 'ganttEnd', sc.d, sc.cost)])]);
+    }
+
+    // La alternativa en texto de las redes y del Gantt (T016, AC12): tiempos, holgura total y marcas de cada actividad a la
+    // duración que se ve; cerrada al empezar y, abierta, sigue abierta al cambiar de duración o de paso.
+    let timesOpen = false;
+    function timesTable(T, d, sol, tagsOf, tagText) {
+      const N = I.notation(state().nota);
+      const F = ['ES', 'EF', 'LS', 'LF', 'TF'];
+      const crit = new Set(sol.critical);
+      const head = h('tr', {}, [h('th', { scope: 'col' }, [tc('net.timesCol.act')]), h('th', { scope: 'col' }, ['d'])]
+        .concat(F.map((f) => h('th', { scope: 'col' }, [N[f]]))).concat([h('th', { scope: 'col' }, [tc('net.timesCol.marks')])]));
+      const body = m.p.activities.map((a) => {
+        const tm = sol.times[a.id]; const ks = tagsOf.get(a.id) || [];
+        return h('tr', { class: crit.has(a.id) ? 'crit' : null, 'data-act': a.id }, [
+          h('th', { scope: 'row' }, [a.id, crit.has(a.id) ? h('span', { class: 'sr-only' }, [` (${tc('net.critSr')})`]) : null]),
+          ...[d[a.id], tm.ES, tm.EF, tm.LS, tm.LF, sol.floats[a.id].TF].map((v) => h('td', { class: 'num' }, [num(v)])),
+          h('td', {}, [ks.length ? ks.map((k) => tagText[k]).join(' · ') : '—'])]);
+      });
+      const title = tc('net.times', { T: tT(T) });
+      return h('details', { class: 'card ct-card ct-times', id: 'ctTimes', open: timesOpen, ontoggle: (e) => { timesOpen = e.target.open; } }, [
+        h('summary', {}, [title]),
+        h('div', { class: 'ct-scroll', tabindex: '0', role: 'region', 'aria-label': title }, [
+          h('table', { class: 'data ct-cand', id: 'ctTimesTable' }, [h('caption', { class: 'sr-only' }, [tc('net.timesCaption', { name: m.src.title, T: tT(T) })]),
+            h('thead', {}, [head]), h('tbody', {}, body)])])]);
     }
 
     function fillLower() {

@@ -74,6 +74,8 @@
       crit: 'Crítica', short: '−1: se acorta en ese paso', min: 'mín.: en su duración urgente', shortTag: '−1', minTag: 'mín.',
       pertLegend: 'En cada arco, la actividad y su duración en esa fila; −1 si se acorta en ese paso y «mín.» si está en su duración urgente.',
       swipe: 'La red se desliza dentro de su marco →',
+      times: 'Tiempos y holguras a {T}', timesCaption: '{name}: tiempos, holgura total y marcas de cada actividad a {T} (la alternativa en texto de las redes y del Gantt)',
+      timesCol: { act: 'Actividad', marks: 'Marcas' }, critSr: 'crítica',
     },
     walk: {
       toggle: 'Paso a paso', keys: '← → avanzar o retroceder', counter: '{c} · de {from} a {T}',
@@ -187,6 +189,8 @@
       crit: 'Critical', short: '−1: shortened in that step', min: 'min: at its crash duration', shortTag: '−1', minTag: 'min',
       pertLegend: 'On each arc, the activity and its duration in that row; −1 if it is shortened in that step and “min” if it is at its crash duration.',
       swipe: 'The network slides inside its frame →',
+      times: 'Times and floats at {T}', timesCaption: '{name}: times, total float and marks of each activity at {T} (the text alternative of the networks and the Gantt)',
+      timesCol: { act: 'Activity', marks: 'Marks' }, critSr: 'critical',
     },
     walk: {
       toggle: 'Step by step', keys: '← → move forward or back', counter: '{c} · from {from} to {T}',
