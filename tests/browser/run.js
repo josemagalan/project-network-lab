@@ -12770,6 +12770,163 @@ check('F5a T019 · N-F11: «Partir del taller» con una predecesora repetida («
   await close(w);
 });
 
+// ---------- F5b, T010: la pestaña de coste–tiempo (oculta), la tabla del proyecto y los costes del proyecto ----------
+
+const CTK = require(path.join(ROOT, 'js', 'core', 'crash.js'));
+const CTX = require(path.join(ROOT, 'js', 'core', 'crashex.js'));
+const ctHash = (s) => U5.encode(Object.assign({ v: 'ct' }, s)).slice(1);
+async function ctLab(hash, opts) {
+  const page = await lab(hash, opts);
+  await page.waitForFunction(() => PNL.ctTab && PNL.ctTab.state && PNL.ctTab.state());
+  return page;
+}
+const ctSt = (page) => page.evaluate(() => PNL.ctTab.state());
+const ctGo = async (page, s) => {
+  await setHash(page, ctHash(s));
+  await page.waitForFunction((id) => PNL.ctTab.state().src.id === id, s.ke || 'kl');
+};
+// La tabla propia del tablero 126 (EN): B con la urgente mayor que la normal, C con el coste urgente menor que el normal y D
+// sin punto urgente (aviso).
+const CT_OWN126 = [
+  { id: 'A', name: '', links: '', dn: '7', dc: '5', cn: '60', cc: '76' },
+  { id: 'B', name: '', links: '', dn: '6', dc: '7', cn: '85', cc: '95' },
+  { id: 'C', name: '', links: 'A, B', dn: '15', dc: '13', cn: '55', cc: '45' },
+  { id: 'D', name: '', links: 'B', dn: '10', dc: '', cn: '', cc: '' },
+];
+const ctCells = (page) => page.evaluate(() => [...document.querySelectorAll('#ctProjTable tbody tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((td) => td.textContent.trim())));
+
+check('F5b T010 · AC8 y AC9: cada ejemplo abre con su tabla de solo lectura (dos puntos y pendiente), su fuente y sus costes del proyecto (ES y EN); la pestaña no está en la barra hasta T015', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await ctLab(`v=ct&lang=${lang}`);
+    assert.equal(await page.locator('#ctView').isVisible(), true);
+    assert.equal(await page.locator('#stage').isVisible(), false);
+    assert.equal(await page.locator('#gprView').isVisible(), false);
+    for (const ex of CTX.list()) {
+      await ctGo(page, { ke: ex.id, lang });
+      const p = CTK.parse(ex.rows).project;
+      assert.equal(await page.locator('#ctProj').inputValue(), ex.id);
+      const cells = await ctCells(page);
+      assert.equal(cells.length, p.activities.length, ex.id);
+      p.activities.forEach((a, i) => {
+        assert.equal(cells[i][0], a.id);
+        assert.deepEqual(cells[i].slice(2, 7), [a.dn, a.dc, a.cn, a.cc].map((v) => NR5.fmt(lang, v)).concat([a.dn > a.dc ? NR5.fmt(lang, a.b) : '—']), `${ex.id} · ${a.id}`);
+      });
+      assert.ok((await page.locator('#ctSource').innerText()).includes(ex.source[lang]), `${ex.id}: fuente`);
+      assert.ok((await page.locator('#ctSource').innerText()).includes(ex.costUnit[lang]), `${ex.id}: unidad de coste`);
+      assert.equal(await page.locator('#ctOwn').count(), 0, 'sin tabla editable en los ejemplos');
+      for (const k of ['fixed', 'perUnit', 'due', 'penalty', 'bonus']) {
+        assert.equal(await page.locator(`#ctCost-${k}`).inputValue(), ex.k[k] == null ? '' : NR5.fmt(lang, ex.k[k]), `${ex.id}.${k}`);
+      }
+      assert.deepEqual((await ctSt(page)).errors, []);
+    }
+    await close(page);
+  }
+});
+
+check('F5b T010 · AC8: la tabla propia (tablero 126) marca cada fila con su error, avisa de la fila sin punto urgente y no calcula; al corregir, se calcula y el enlace guarda la tabla', async () => {
+  const page = await ctLab(ctHash({ ke: 'own', kt: CT_OWN126, lang: 'en' }));
+  assert.equal(await page.locator('#ctProjTable').count(), 0);
+  let st = await ctSt(page);
+  assert.deepEqual([st.src.kind, st.errors, st.warnings, st.ok], ['own', ['badCrash', 'costOrder'], ['noCrash'], false]);
+  assert.equal(await page.locator('#ctOwn tbody tr.bad').count(), 2);
+  assert.equal(await page.locator('#ctT-1-dc').getAttribute('aria-invalid'), 'true');
+  assert.equal(await page.locator('#ctT-2-cc').getAttribute('aria-invalid'), 'true');
+  assert.equal(await page.locator('#ctT-1-dn').getAttribute('aria-invalid'), 'false');
+  assert.ok(await page.locator('#ctT-3-dc').evaluate((e) => e.classList.contains('ct-warn')));
+  assert.match(await page.locator('#ctIssues').innerText(), /2/);
+  await page.locator('#ctT-1-dc').fill('4');
+  await page.locator('#ctT-2-cc').fill('75');
+  await page.waitForFunction(() => PNL.ctTab.state().ok);
+  st = await ctSt(page);
+  assert.deepEqual([st.errors, st.warnings], [[], ['noCrash']]);
+  assert.equal(await page.locator('#ctIssues').count(), 0);
+  const hash = await page.evaluate(() => location.hash);
+  assert.deepEqual(U5.decode(hash).state.kt.map((r) => [r.dc, r.cc]), [['5', '76'], ['4', '95'], ['13', '75'], ['', '']]);
+  // Añadir y quitar filas.
+  await page.locator('#ctAdd').click();
+  assert.equal(await page.locator('#ctOwn tbody tr').count(), 5);
+  await page.locator('#ctDel-4').click();
+  assert.equal(await page.locator('#ctOwn tbody tr').count(), 4);
+  await close(page);
+});
+
+check('F5b T010 · AC9: «Partir del taller» copia actividades, predecesoras y duraciones normales; la urgente y los costes, vacíos (aviso en cada fila); el taller no cambia', async () => {
+  const t = [{ id: 'A', name: 'Uno', duration: '3', links: '' }, { id: 'B', name: '', duration: '2', links: 'A' }, { id: 'C', name: '', duration: '4', links: 'A' }];
+  const page = await lab(U5.encode({ v: 'work', t, mode: 'pred', lang: 'es' }).slice(1));
+  // Hasta T015 no hay selector a la vista: el enlace oculto navCt entra conservando el taller, como lo hará el selector.
+  await page.evaluate(() => document.getElementById('navCt').click());
+  await page.waitForFunction(() => PNL.ctTab && PNL.ctTab.state && PNL.ctTab.state());
+  await page.locator('#ctFromWork').click();
+  await page.waitForFunction(() => PNL.ctTab.state().src.kind === 'own');
+  const st = await ctSt(page);
+  assert.deepEqual([st.errors, st.warnings], [[], ['noCrash', 'noCrash', 'noCrash']]);
+  assert.deepEqual([await page.locator('#ctT-0-id').inputValue(), await page.locator('#ctT-1-links').inputValue(), await page.locator('#ctT-2-dn').inputValue(), await page.locator('#ctT-2-dc').inputValue()], ['A', 'A', '4', '']);
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app && PNL.app.state().v === 'ct' && PNL.ctTab.state().src.kind === 'example');
+  await setHash(page, U5.encode({ v: 'work', t, mode: 'pred', lang: 'es' }).slice(1));
+  await page.waitForFunction(() => PNL.app.state().v === 'work');
+  assert.deepEqual((await state(page)).t, t);
+  await close(page);
+});
+
+check('F5b T010 · costes del proyecto: lo escrito va al enlace (kc); un valor no válido se marca y no cambia nada; otro proyecto vuelve a los de su ejemplo', async () => {
+  const page = await ctLab(ctHash({ ke: 'kl', lang: 'es' }));
+  await page.locator('#ctCost-fixed').fill('12,5');
+  await page.locator('#ctCost-fixed').press('Tab');
+  await page.waitForFunction(() => /kc=/.test(location.hash));
+  assert.deepEqual(U5.decode(await page.evaluate(() => location.hash)).state.kc, { fixed: 12.5, perUnit: 7, due: 19, penalty: 5, bonus: null });
+  await page.locator('#ctCost-due').fill('x');
+  await page.locator('#ctCost-due').press('Tab');
+  assert.equal(await page.locator('#ctCost-due').getAttribute('aria-invalid'), 'true');
+  assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.kc.due, 19);
+  await ctGo(page, { ke: 'ni', lang: 'es' });
+  assert.equal(await page.locator('#ctCost-fixed').inputValue(), '10');
+  assert.equal(await page.locator('#ctCost-due').inputValue(), '');
+  await close(page);
+});
+
+check('F5b T010 · AC13: el grupo ct solo con v=ct (al abrir y al ir por enlace); la pestaña con su hoja y por debajo de 1 MB', async () => {
+  for (const hash of ['v=route&ex=ej6&step=0&lang=es', 'v=work&lang=es', 'v=unc&lang=es', 'v=gpr&lang=es', 'v=ex&lang=es&sd=7', 'v=m0&lang=es']) {
+    const p = await lab(hash);
+    await p.waitForTimeout(150);
+    assert.equal(await p.evaluate(() => !!PNL.ctTab || !!PNL.crash || !!PNL.lp || [...document.scripts].some((s) => /(\/ct\.js|crash|\/lp\.js)/.test(s.getAttribute('src') || ''))
+      || !!document.querySelector('link[href="css/ct.css"]')), false, hash);
+    await close(p);
+  }
+  const r = await lab('v=route&ex=ej6&step=0&lang=es');
+  await setHash(r, 'v=ct&ke=ni&lang=es');
+  await r.waitForFunction(() => PNL.ctTab && PNL.ctTab.state && PNL.ctTab.state());
+  assert.equal(await r.locator('#ctView').isVisible(), true);
+  assert.equal(await r.locator('#stage').isVisible(), false);
+  await close(r);
+  for (const hash of ['v=ct&ke=kl&lang=es', ctHash({ ke: 'own', kt: CT_OWN126, lang: 'en' })]) {
+    const page = await ctLab(hash);
+    assert.equal(await page.evaluate(() => !!document.querySelector('link[href="css/ct.css"]')), true);
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+    console.log(`    cpm.html#${hash.slice(0, 40)}: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${hash}: ${bytes} bytes`);
+    await close(page);
+  }
+});
+
+check('F5b T010 · axe sin violaciones (claro y oscuro, ES y EN) con un ejemplo y con la tabla propia con errores; a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await ctLab(ctHash({ ke: 'kl', lang }), { scheme });
+    await axe(page, `F5b · Klastorin · ${lang} · ${scheme}`);
+    await ctGo(page, { ke: 'own', kt: CT_OWN126, lang });
+    await page.waitForSelector('#ctOwn');
+    await axe(page, `F5b · tabla propia con errores · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  for (const s of [{ ke: 'ni', lang: 'es' }, { ke: 'own', kt: CT_OWN126, lang: 'en' }]) {
+    const m = await ctLab(ctHash(s), { width: 360, height: 740 });
+    assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `${s.ke}: sin desbordar a lo ancho`);
+    await shot(m, `f5b-t010-${s.ke}-360`, true);
+    await close(m);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

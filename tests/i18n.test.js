@@ -227,6 +227,19 @@ test('F5a T010: los textos de «Precedencias generalizadas» (i18n-gpr) están e
   }
 });
 
+test('F5b T010: los textos de coste–tiempo (i18n-ct) están en los dos idiomas, con los mismos parámetros, y cada error de core/crash tiene el suyo', () => {
+  const IC = require('../js/i18n-ct.js');
+  const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();
+  const get = (o, k) => k.split('.').reduce((a, p) => a[p], o);
+  assert.deepEqual(keysDeep(IC.es), keysDeep(IC.en));
+  for (const k of keysDeep(IC.es)) assert.deepEqual(params(get(IC.es, k)), params(get(IC.en, k)), `ct.${k}`);
+  for (const lang of I.languages) assert.equal(I.dict[lang].ct, IC[lang]);
+  for (const lang of I.languages) {
+    for (const c of ['badId', 'reservedId', 'duplicateId', 'unknownRef', 'tooMany', 'badDuration', 'badCrash', 'badCost', 'costOrder', 'noCrash']) assert.ok(I.dict[lang].ct.issue[c], `${lang} issue.${c}`);
+    for (const c of ['fixed', 'perUnit', 'due', 'penalty', 'bonus']) assert.ok(I.dict[lang].ct.costs[c], `${lang} costs.${c}`);
+  }
+});
+
 test('F4b T010: los textos de M7 están en los dos idiomas, con los mismos parámetros', () => {
   const I7 = require('../js/i18n-m7.js');
   const params = (v) => (String(v).match(/\{\w+\}/g) || []).sort();

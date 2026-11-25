@@ -95,8 +95,11 @@ test('F4a T013 y F4b T013: M5, M6 y M7 disponibles abren su apartado en ambos id
 test('F4a T013 y F5a T015: la barra publica Duraciones inciertas entre Taller y Ejercicios, y Precedencias generalizadas después de Taller (P12), sin pestañas ocultas', () => {
   const lab = fs.readFileSync(path.join(ROOT, 'cpm.html'), 'utf8');
   const nav = lab.match(/<nav\b[\s\S]*?<\/nav>/)[0];
-  assert.deepEqual([...nav.matchAll(/id="(nav\w+)"/g)].map((m) => m[1]), ['navM0', 'navRoute', 'navWork', 'navGpr', 'navUnc', 'navEx']);
-  assert.deepEqual([...nav.matchAll(/<a\b[^>]*\bhidden\b[^>]*>/g)], []);
+  // F5b: navCt es la entrada oculta de coste–tiempo mientras se construye (T010–T014); T015 la quita y la publica
+  // dentro de «Extensiones» (P14), y entonces esta excepción desaparece.
+  const ids = [...nav.matchAll(/id="(nav\w+)"/g)].map((m) => m[1]).filter((id) => id !== 'navCt');
+  assert.deepEqual(ids, ['navM0', 'navRoute', 'navWork', 'navGpr', 'navUnc', 'navEx']);
+  assert.deepEqual([...nav.matchAll(/<a\b[^>]*\bhidden\b[^>]*>/g)].map((m) => (m[0].match(/id="(\w+)"/) || [])[1]), ['navCt']);
 });
 
 test('scripts, estilos, iconos y logotipos son locales y existen; sin CDN ni innerHTML', () => {
