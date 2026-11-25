@@ -13,6 +13,8 @@
  * 'compared') marca los términos del paso, y una etiqueta con cls propio (la relación que manda) no toma el de su flecha.
  * T013: ctx.onEdge('U>V', rel) al pulsar una flecha (rel = null) o una etiqueta (rel = su relación). T016: con ctx.labels, las
  * flechas y las etiquetas llevan data-edge, y las etiquetas de una flecha que sube van debajo de ella.
+ * F5b (coste–tiempo, T011): ctx.tags = Map(id → [{ text, cls, title }]) pone marcas en la esquina de la caja (−1 si se
+ * acorta en el paso, «mín.» si está en su duración urgente).
  * Sin ellos, la red de siempre.
  */
 (function (root) {
@@ -189,6 +191,19 @@
         txt(c / 2, r - 7, 'ES'); txt(1.5 * c, r - 7, 'd'); txt(2.5 * c, r - 7, 'EF');
         txt(p.w / 2, 2 * r - 6, 'id');
         txt(c / 2, p.h - 7, 'LS'); txt(1.5 * c, p.h - 7, 'TF'); txt(2.5 * c, p.h - 7, 'LF');
+      }
+      // F5b (T011): marcas en la esquina de arriba a la derecha de la caja, en el orden de lectura.
+      if (ctx.tags && ctx.tags.has(id)) {
+        const list = ctx.tags.get(id);
+        const wOf = (tg) => 10 + tg.text.length * 7;
+        let x = p.w - list.reduce((a, tg) => a + wOf(tg) + 2, 0);
+        for (const tg of list) {
+          const w = wOf(tg);
+          const tgEl = gg.append('g').attr('class', `ntag ${tg.cls}`).attr('transform', `translate(${x},-9)`);
+          tgEl.append('rect').attr('width', w).attr('height', 16).attr('rx', 8);
+          tgEl.append('text').attr('x', w / 2).attr('y', 12).attr('text-anchor', 'middle').text(tg.text).append('title').text(tg.title);
+          x += w + 2;
+        }
       }
     }
   }

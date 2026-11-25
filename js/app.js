@@ -103,7 +103,7 @@
     // v=gpr (core/aoa ya está en la carga común).
     gr: ['css/gpr.css', 'js/core/gpr.js', 'js/core/gprpert.js', 'js/core/gprex.js', 'js/i18n-gpr.js', 'js/views/gpr-gantt.js', 'js/gpr.js'],
     // F5b (plan §4): v=ct, coste–tiempo, con su núcleo (símplex, compresión y ejemplos), textos, controlador y hoja.
-    ct: ['css/ct.css', 'js/core/lp.js', 'js/core/crash.js', 'js/core/crashex.js', 'js/i18n-ct.js', 'js/ct.js'],
+    ct: ['css/ct.css', 'js/core/lp.js', 'js/core/crash.js', 'js/core/crashex.js', 'js/i18n-ct.js', 'js/views/ct-chart.js', 'js/ct.js'],
   };
   const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:

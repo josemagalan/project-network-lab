@@ -9,7 +9,8 @@
  *   ruleCut(p, d) → { set, cost, unique, other } | null                  P2: corte mínimo de la subred crítica
  *   optimum(p, T) → { d, cost } | null · curve(p) → [{ T, d, cost }]     P3: modelo lineal de Klastorin (core/lp)
  *   move(p, base, T) → { shorten, lengthen, cost }                       P4: ±1 alrededor de base
- *   rule(p) → pasos de la regla, con el óptimo de cada duración y el movimiento en la primera que queda por encima
+ *   rule(p, cur?) → pasos de la regla, con el óptimo de cada duración (de cur, la curva ya calculada, si se da) y el
+ *       movimiento en la primera que queda por encima
  *   shortcut(p) → atajo de Nicholas (P5) · totals(p, k) · best(p, k) → duraciones de coste total mínimo (§0)
  *   trace(p, k) → pasos del reproductor (P9) · stepData(p, d) y setCheck(data, set) → corrección del conjunto que
  *       predice el alumno (`analyze` B3); checkSet(p, d, set) = setCheck(stepData(p, d), set)
@@ -202,9 +203,9 @@
 
   // ---------- La regla paso a paso ----------
 
-  function rule(p) {
+  function rule(p, cur) {
     const d = normalD(p); let prevD = Object.assign({}, d);
-    const opt = new Map(curve(p).map((o) => [o.T, o.cost]));
+    const opt = new Map((cur || curve(p)).map((o) => [o.T, o.cost]));
     let sch = schedule(p, d);
     const steps = [];
     // Tope: cada paso quita al menos una unidad a alguna actividad (defensa ante un corte mal hecho, que si no daría

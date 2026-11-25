@@ -12927,6 +12927,156 @@ check('F5b T010 · axe sin violaciones (claro y oscuro, ES y EN) con un ejemplo 
   }
 });
 
+// ---------- F5b, T011: la tabla de la compresión, la curva y la duración elegida (redes y Gantt) ----------
+
+const ctCmp = (page) => page.evaluate(() => [...document.querySelectorAll('#ctCmp tbody tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((td) => td.textContent.replace(/\s+/g, ' ').trim())));
+const ctHashNow = async (page) => U5.decode(await page.evaluate(() => location.hash)).state;
+const ctRoyBox = (page, id) => page.evaluate((a) => {
+  // El texto sin su <title>.
+  const own = (t) => t.firstChild ? t.firstChild.nodeValue : '';
+  const g = [...document.querySelectorAll('#ctRoy g.node')].find((n) => [...n.querySelectorAll('text.nid')].some((t) => own(t) === a));
+  return g ? { vals: [...g.querySelectorAll('text.val')].map(own), tags: [...g.querySelectorAll('.ntag text')].map(own),
+    crit: !!g.querySelector('rect.crit') } : null;
+}, id);
+
+check('F5b T011 · AC6 y AC10: Klastorin abre con la compresión (regla, óptimo y totales) y elegida la duración de coste total mínimo (19), con las redes a 19 y sus marcas (tablero 123)', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es');
+  const rows = await ctCmp(page);
+  assert.deepEqual(rows.map((r) => r[0]), ['22', '21', '20', '19', '18']);
+  assert.deepEqual(rows.map((r) => r[4]), ['320', '328', '338', '348', '361']);
+  assert.deepEqual(rows.map((r) => r[5]), ['320', '328', '338', '348', '361']);
+  assert.deepEqual(rows.map((r) => r[8].replace(/\s*●.*$/, '')), ['489', '485', '483', '481', '487']);
+  assert.deepEqual(rows.map((r) => r[2]), ['—', 'A', 'C', 'C', 'A y B']);
+  assert.equal(await page.locator('#ctKd-19').isChecked(), true);
+  assert.match(await page.locator('#ctBest').innerText(), /19 semanas: 481/);
+  assert.match(await page.locator('#ctEnd').innerText(), /A–C/);
+  assert.equal(await page.locator('#ctRoyHead').innerText(), 'Red ROY a 19 semanas');
+  assert.equal(await page.locator('#ctPertHead').innerText(), 'Red PERT a 19 semanas');
+  // A 19 semanas, C en 13 (su urgente) y acortada en el paso; A en 6; la ROY con sus tiempos (C: 6 · 13 · 19).
+  const c = await ctRoyBox(page, 'C');
+  assert.deepEqual(c.tags, ['−1', 'mín.']);
+  assert.deepEqual(c.vals.slice(0, 3), ['6', '13', '19']);
+  assert.equal(c.crit, true);
+  assert.deepEqual((await ctRoyBox(page, 'A')).tags, []);
+  assert.equal((await ctRoyBox(page, 'D')).crit, false);
+  assert.ok((await page.locator('#ctPert').innerText()).includes('C = 13 −1 mín.'));
+  // La curva: un punto por duración, el mínimo marcado.
+  assert.equal(await page.locator('#ctCurve g.ctc-pt').count(), 5);
+  assert.deepEqual(await page.locator('#ctCurve g.ctc-pt.best').evaluateAll((g) => g.map((x) => x.getAttribute('data-t'))), ['19']);
+  assert.match(await page.locator('#ctCurve svg').getAttribute('aria-label'), /481/);
+  await close(page);
+});
+
+check('F5b T011 · AC10 y AC11: elegir una fila o un punto de la curva lleva las redes a esa duración y lo guarda en el enlace (kd); el enlace abre lo mismo', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es');
+  await page.locator('#ctKd-21').check();
+  await page.waitForFunction(() => PNL.ctTab.state().T === 21);
+  assert.equal((await ctHashNow(page)).kd, 21);
+  assert.equal(await page.locator('#ctRoyHead').innerText(), 'Red ROY a 21 semanas');
+  assert.deepEqual((await ctRoyBox(page, 'A')).tags, ['−1']);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctKd-21');
+  await page.locator('#ctCurve g.ctc-pt[data-t="18"]').dispatchEvent('click');
+  await page.waitForFunction(() => PNL.ctTab.state().T === 18);
+  assert.equal((await ctHashNow(page)).kd, 18);
+  assert.equal(await page.locator('#ctKd-18').isChecked(), true);
+  assert.deepEqual(Object.fromEntries(await Promise.all(['A', 'B', 'C'].map(async (id) => [id, (await ctRoyBox(page, id)).tags]))), { A: ['−1', 'mín.'], B: ['−1'], C: ['mín.'] });
+  const hash = await page.evaluate(() => location.hash);
+  await close(page);
+  const again = await ctLab(hash.slice(1));
+  assert.equal((await ctSt(again)).T, 18);
+  assert.equal(await again.locator('#ctRoyHead').innerText(), 'Red ROY a 18 semanas');
+  // Un kd fuera de [mínima, normal] se ajusta al extremo más cercano.
+  await ctGo(again, { ke: 'kl', kd: 40, lang: 'es' });
+  assert.equal((await ctSt(again)).T, 22);
+  await close(again);
+});
+
+check('F5b T011 · redes (kn) y Gantt (kg): ROY, PERT o las dos; el Gantt a la duración elegida; los dos en el enlace', async () => {
+  const page = await ctLab('v=ct&ke=ni&lang=en');
+  assert.equal((await ctSt(page)).T, 20);
+  assert.equal(await page.locator('#ctRoy').count(), 1);
+  assert.equal(await page.locator('#ctPert').count(), 1);
+  assert.equal(await page.locator('#ctGantt').count(), 0);
+  await page.locator('#ctNets-roy').click();
+  await page.waitForFunction(() => PNL.app.state().kn === 'roy');
+  assert.equal(await page.locator('#ctPert').count(), 0);
+  assert.equal(await page.locator('#ctNets-roy').getAttribute('aria-pressed'), 'true');
+  await page.locator('#ctNets-pert').click();
+  await page.waitForFunction(() => PNL.app.state().kn === 'pert');
+  assert.equal(await page.locator('#ctRoy').count(), 0);
+  assert.equal(await page.locator('#ctPertHead').innerText(), 'AOA network at 20 weeks');
+  await page.locator('#ctGanttBtn').click();
+  await page.waitForFunction(() => PNL.app.state().kg === 1);
+  assert.equal(await page.locator('#ctGanttHead').innerText(), 'Gantt at 20 weeks');
+  assert.equal(await page.locator('#ctGantt rect.bar-c, #ctGantt rect.bar-n').count(), 7);
+  const st = await ctHashNow(page);
+  assert.deepEqual([st.kn, st.kg], ['pert', 1]);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctGanttBtn');
+  await close(page);
+});
+
+check('F5b T011 · AC4 y P8: la regla que falla (tablero 125): marca ▲ en 8 y 7, aviso con el movimiento (6 + 4 − 2 = 8) y el conmutador de las redes a las duraciones del óptimo', async () => {
+  const page = await ctLab(ctHash({ ke: 'rf', kd: 8, lang: 'es' }));
+  const rows = await ctCmp(page);
+  assert.equal(rows[0].length, 6, 'sin costes del proyecto, sin columnas de totales');
+  assert.deepEqual(rows.map((r) => r[4].replace(/la regla.*$/, '').trim()), ['60', '63', '68', '75', '85 ▲ +2', '95 ▲ +2']);
+  assert.match(await page.locator('#ctBest').innerText(), /normal \(12 periodos\)/);
+  const fail = await page.locator('#ctFail').innerText();
+  assert.match(fail, /A 8 periodos, la regla no da el mínimo/);
+  assert.match(fail, /acorta B y E y vuelve a alargar C: 6 \+ 4 − 2 = 8/);
+  assert.equal(await page.locator('#ctDurRule').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual((await ctRoyBox(page, 'C')).vals[1], '1');
+  await page.locator('#ctDurOpt').click();
+  await page.waitForFunction(() => PNL.ctTab.state().opt === true);
+  assert.equal(await page.locator('#ctRoyHead').innerText(), 'Red ROY a 8 periodos, con las duraciones del óptimo');
+  assert.deepEqual(await Promise.all(['B', 'C', 'D', 'E'].map(async (id) => (await ctRoyBox(page, id)).vals[1])), ['3', '2', '5', '3']);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctDurOpt');
+  // A 7 la regla sigue por encima: la otra nota; en una fila sin marca, sin conmutador.
+  await page.locator('#ctKd-7').check();
+  await page.waitForFunction(() => PNL.ctTab.state().T === 7);
+  assert.equal((await ctSt(page)).opt, false);
+  assert.match(await page.locator('#ctFailLater').innerText(), /95 frente a 93/);
+  await page.locator('#ctKd-10').check();
+  await page.waitForFunction(() => PNL.ctTab.state().T === 10);
+  assert.equal(await page.locator('#ctDurRule').count(), 0);
+  assert.equal(await page.locator('#ctFailLater').count(), 0);
+  // La curva lleva la regla como cuarta serie cuando difiere.
+  assert.equal(await page.locator('#ctCurve polyline.ctc-rule').count(), 1);
+  await close(page);
+});
+
+check('F5b T011 · la tabla propia: con errores no hay compresión; al corregir, aparece sin rehacer la tabla (el foco sigue en la celda)', async () => {
+  const kt = [{ id: 'A', name: '', links: '', dn: '4', dc: '2', cn: '10', cc: '14' }, { id: 'B', name: '', links: 'A', dn: '3', dc: '5', cn: '5', cc: '8' }];
+  const page = await ctLab(ctHash({ ke: 'own', kt, lang: 'es' }));
+  assert.equal(await page.locator('#ctCmp').count(), 0);
+  await page.locator('#ctT-1-dc').fill('2');
+  await page.waitForFunction(() => PNL.ctTab.state().ok && document.getElementById('ctCmp'));
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctT-1-dc');
+  assert.deepEqual((await ctCmp(page)).map((r) => r[0]), ['7', '6', '5', '4']);
+  assert.equal(await page.locator('#ctRoyHead').innerText(), 'Red ROY a 7');
+  await close(page);
+});
+
+check('F5b T011 · axe sin violaciones con la compresión, la curva, las redes y el Gantt (claro y oscuro, ES y EN; con el aviso de la regla que falla); a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [hash, scheme, label] of [['v=ct&ke=kl&kg=1&lang=es', 'light', 'Klastorin con Gantt · es'], ['v=ct&ke=nip&kg=1&lang=en', 'dark', 'Nicholas 7.7 con Gantt · en'],
+    [ctHash({ ke: 'rf', kd: 8, lang: 'es' }), 'dark', 'la regla que falla · es']]) {
+    const page = await ctLab(hash, { scheme });
+    await axe(page, `F5b T011 · ${label} · ${scheme}`);
+    if (label.startsWith('la regla')) {
+      await page.locator('#ctDurOpt').click();
+      await page.waitForFunction(() => PNL.ctTab.state().opt === true);
+      await axe(page, `F5b T011 · la regla que falla, redes del óptimo · ${scheme}`);
+    }
+    await close(page);
+  }
+  for (const hash of ['v=ct&ke=kl&kg=1&lang=es', ctHash({ ke: 'rf', kd: 8, lang: 'en' })]) {
+    const m = await ctLab(hash, { width: 360, height: 740 });
+    assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `${hash}: sin desbordar a lo ancho`);
+    await shot(m, `f5b-t011-${hash.includes('rf') ? 'rf' : 'kl'}-360`, true);
+    await close(m);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

@@ -54,6 +54,85 @@
     return { src, p: project, report, empty: !project && !report.errors.length, k: costs(state, src), edited: !!state.kc };
   }
 
+  // ---------- La compresión (T011; tableros 123, 125 y 127) ----------
+
+  const hasCosts = (k) => KC.some((x) => k[x] != null && Number(k[x]) !== 0);
+  let cmpCache = { key: null, val: null };
+
+  /**
+   * La tabla de la compresión: una fila por duración, de la normal a la mínima, con la regla (conjunto, coste del paso,
+   * coste directo, duraciones, empate), el óptimo (coste y duraciones), los totales con los costes del proyecto y la marca
+   * de la regla que queda por encima. `first` es la primera fila por encima (con el movimiento, AC4); `best`, las
+   * duraciones de coste total mínimo. Se guarda la última: cambiar de idioma o de fila no la recalcula.
+   */
+  function compression(m) {
+    if (!m.p) return null;
+    const key = JSON.stringify([m.p.activities.map((a) => [a.id, a.dn, a.dc, a.cn, a.cc, m.p.preds[a.id]]), m.k]);
+    if (cmpCache.key === key) return cmpCache.val;
+    const cur = K.curve(m.p);
+    const steps = K.rule(m.p, cur);
+    const tot = new Map(K.totals(m.p, m.k, cur).map((x) => [x.T, x]));
+    const opt = new Map(cur.map((o) => [o.T, o]));
+    const d0 = K.normalD(m.p);
+    const sch0 = K.schedule(m.p, d0);
+    const row = (T, extra) => Object.assign({ T, opt: opt.get(T).cost, optD: opt.get(T).d, tot: tot.get(T) }, extra);
+    const rows = [row(sch0.T, { paths: sch0.criticalPaths, set: [], stepCost: null, rule: K.directCost(m.p, d0), d: d0, above: false })];
+    for (const x of steps) {
+      if (x.end) break;
+      rows.push(row(x.T, { paths: K.schedule(m.p, x.d).criticalPaths, set: x.set, stepCost: x.stepCost, rule: x.cost, d: x.d, above: x.above,
+        unique: x.unique, other: x.other, move: x.move || null, from: x.from }));
+    }
+    const val = { rows, best: K.best(m.p, m.k, cur), hasCosts: hasCosts(m.k), normalT: rows[0].T, minT: rows[rows.length - 1].T,
+      first: rows.find((r) => r.above) || null, end: steps[steps.length - 1] };
+    cmpCache = { key, val };
+    return val;
+  }
+
+  /** La duración elegida (AC10): kd dentro de [mínima, normal]; sin kd, la primera de coste total mínimo. */
+  function chosenT(state, c) {
+    const kd = state.kd;
+    if (kd == null) return c.best[0];
+    return Math.max(c.minT, Math.min(c.normalT, kd));
+  }
+
+  /** Las cuentas del movimiento: las pendientes de las que se acortan, menos las de las que se vuelven a alargar. */
+  function moveTerms(m, mv, lang) {
+    const b = (id) => NR.fmt(lang, m.p.byId[id].b);
+    return mv.shorten.map(b).join(' + ') + mv.lengthen.map((id) => ` − ${b(id)}`).join('');
+  }
+
+  /** Marcas de las redes: 'short' (se acorta en el paso) y 'min' (en su duración urgente, si se puede acortar). */
+  function netTags(p, d, set) {
+    const out = new Map();
+    for (const a of p.activities) {
+      const t = [];
+      if (set.includes(a.id)) t.push('short');
+      if (a.dn > a.dc && d[a.id] <= a.dc) t.push('min');
+      if (t.length) out.set(a.id, t);
+    }
+    return out;
+  }
+
+  /** Lo que dibuja views/ct-chart: con costes del proyecto, total, directo e indirecto (con penalización y prima); sin
+   * ellos, solo el directo; la regla, si se queda por encima en alguna duración. */
+  function curveSpec(m, c, chosen, lang, width) {
+    const rows = c.rows.slice().reverse();
+    const pts = (f) => rows.map((r) => [r.T, f(r)]);
+    const series = [];
+    if (c.hasCosts) series.push({ key: 'total', pts: pts((r) => r.tot.total), cls: 'ctc-total' });
+    series.push({ key: 'direct', pts: pts((r) => r.opt), cls: 'ctc-direct' });
+    if (c.hasCosts) series.push({ key: 'extra', pts: pts((r) => r.tot.ind + r.tot.pen - r.tot.bonus), cls: 'ctc-extra', dash: '6 4' });
+    if (c.rows.some((r) => r.above)) series.push({ key: 'rule', pts: pts((r) => r.rule), cls: 'ctc-rule', dash: '2 3' });
+    const tc = (k, q) => I.t(lang, `ct.curve.${k}`, q);
+    const main = series[0];
+    const min = Math.min(...main.pts.map((q) => q[1]));
+    // A 360 px la curva se dibuja a su ancho (tablero 129), para que las cifras se lean.
+    const w = Math.round(Math.max(300, Math.min(500, width || 500)));
+    return { w, h: w < 420 ? 210 : 250, ts: rows.map((r) => r.T), series, best: c.best, chosen, pick: main.key, fmt: (v) => NR.fmt(lang, v),
+      xLabel: tc('x'), label: tc('label', { name: m.src.title, what: tc(main.key), v: NR.fmt(lang, min), list: I.list(lang, c.best.map(String)) }),
+      pointTitle: (T, v) => tc('point', { T, what: tc(main.key), v: NR.fmt(lang, v) }) };
+  }
+
   // ---------- Errores y avisos ----------
 
   /** El texto de un error o un aviso de la tabla, sin «Fila n» (va en su fila, o en la lista si no tiene fila). */
@@ -133,9 +212,16 @@
       const sel = h('select', { id: 'ctProj', onchange: (e) => pickProject(e.target.value) },
         X.list().map((ex) => h('option', { value: ex.id, selected: m.src.id === ex.id }, [ex.title[lang()]]))
           .concat([h('option', { value: 'own', selected: m.src.kind === 'own' }, [tc('own')])]));
+      const s = state();
+      const seg = (kn) => h('button', { type: 'button', class: 'ghost', id: `ctNets-${kn}`, 'aria-pressed': String(s.kn === kn), disabled: !m.p,
+        onclick: () => { go({ kn }); focus(`ctNets-${kn}`); } }, [tc(`bar.${kn}`)]);
       return h('div', { class: 'card ct-bar' }, [h('div', { class: 'ct-row' }, [
         h('label', { class: 'ct-field' }, [tc('project'), ' ', sel]),
         button(tc('fromWork'), fromWork, { id: 'ctFromWork' }),
+        h('div', { class: 'seg', role: 'group', 'aria-label': tc('bar.nets') }, [h('span', { class: 'ct-seg-label', 'aria-hidden': 'true' }, [tc('bar.nets')]),
+          seg('roy'), seg('pert'), seg('both')]),
+        h('button', { type: 'button', class: 'ghost', id: 'ctGanttBtn', 'aria-pressed': String(s.kg === 1), disabled: !m.p,
+          onclick: () => { go({ kg: s.kg === 1 ? 0 : 1 }); focus('ctGanttBtn'); } }, [tc('bar.gantt')]),
       ])]);
     }
     function pickProject(id) {
@@ -263,11 +349,159 @@
       ]);
     }
 
+    // ---------- La compresión, la curva, las redes y el Gantt (T011; tableros 123, 125, 127 y 129) ----------
+    let lower = null;
+    let optView = false;   // P8: en una fila en que la regla queda por encima, las redes con las duraciones del óptimo
+    let optKey = null;
+    const tT = (T) => (m.src.unit ? `${T} ${m.src.unit}` : String(T));
+    const list = (ids) => I.list(lang(), ids);
+    const sr = (text) => h('span', { class: 'sr-only' }, [text]);
+
+    function cmpCard(c, T) {
+      const cols = ['T', 'paths', 'set', 'step', 'rule', 'opt'].concat(c.hasCosts ? ['ind', 'pb', 'total'] : []);
+      const best = new Set(c.best);
+      const head = h('tr', {}, cols.map((k) => h('th', { scope: 'col' }, [tc(`cmp.col.${k}`)])));
+      const body = c.rows.map((r) => {
+        const radio = h('input', { type: 'radio', name: 'ctKd', id: `ctKd-${r.T}`, value: String(r.T), checked: r.T === T, 'aria-label': tc('cmp.pick', { T: tT(r.T) }),
+          onchange: () => { go({ kd: r.T }); focus(`ctKd-${r.T}`); } });
+        const set = r.set.length ? [h('strong', { class: 'ct-set' }, [list(r.set)])].concat(r.unique === false ? [' ', h('span', { class: 'muted' }, [tc('cmp.other', { list: list(r.other) })])] : []) : ['—'];
+        const rule = [num(r.rule)].concat(r.above ? [' ', h('span', { class: 'ct-above' }, [h('span', { 'aria-hidden': 'true' }, [`▲ +${num(r.rule - r.opt)}`]),
+          sr(tc('cmp.above', { d: num(r.rule - r.opt) }))])] : []);
+        const cells = [
+          h('th', { scope: 'row' }, [h('label', { class: 'ct-pick' }, [radio, h('strong', {}, [String(r.T)])])]),
+          h('td', { class: 'ct-mono' }, [r.paths.map((x) => x.join('–')).join(', ')]),
+          h('td', {}, set),
+          h('td', { class: 'num' }, [r.stepCost == null ? '—' : num(r.stepCost)]),
+          h('td', { class: 'num' }, rule),
+          h('td', { class: 'num' }, [num(r.opt)]),
+        ];
+        if (c.hasCosts) {
+          const t = r.tot;
+          cells.push(h('td', { class: 'num' }, [num(t.ind)]),
+            h('td', { class: 'num' }, [t.pen ? `+${num(t.pen)}` : t.bonus ? `−${num(t.bonus)}` : '—']),
+            h('td', { class: 'num' }, [h('strong', { class: best.has(r.T) ? 'ct-best' : null }, [num(t.total)].concat(best.has(r.T) ? [h('span', { 'aria-hidden': 'true' }, [' ●']), sr(` (${tc('cmp.best')})`)] : []))]));
+        }
+        return h('tr', { class: [r.T === T ? 'chosen' : '', r.above ? 'above' : ''].join(' ').trim() || null, 'data-t': String(r.T) }, cells);
+      });
+      const v = c.hasCosts ? c.rows.find((r) => r.T === c.best[0]).tot.total : null;
+      const notes = [h('p', { class: c.hasCosts ? 'ct-note ct-note-ok' : 'ct-note', id: 'ctBest' }, [c.hasCosts
+        ? (c.best.length === 1 ? tc('cmp.bestOne', { T: tT(c.best[0]), v: num(v) }) : tc('cmp.bestMany', { list: list(c.best.map(String)) + (m.src.unit ? ` ${m.src.unit}` : ''), v: num(v) }))
+        : tc('cmp.noCosts', { T: tT(c.normalT) }), ' ', tc('cmp.pickHint')])];
+      notes.push(h('p', { class: 'muted small', id: 'ctEnd' }, [tc('cmp.end', { T: tT(c.minT), path: c.end.path.join('–') })]));
+      const f = c.first;
+      if (f && f.move) {
+        notes.push(h('div', { class: 'ct-note ct-note-warn', id: 'ctFail' }, [
+          h('p', {}, [h('strong', {}, [tc('cmp.failTitle', { T: tT(f.T) })])]),
+          h('p', {}, [tc('cmp.fail', { rule: num(f.rule), opt: num(f.opt), from: tT(f.from), step: num(f.stepCost),
+            set: list(f.set) + (f.unique === false ? ` ${tc('cmp.other', { list: list(f.other) })}` : ''),
+            shorten: list(f.move.shorten), lengthen: list(f.move.lengthen), terms: moveTerms(m, f.move, lang()), cost: num(f.move.cost) })]),
+          h('p', {}, [tc('cmp.failWhy')]),
+        ]));
+      }
+      const r = c.rows.find((x) => x.T === T);
+      if (r.above && (!f || r.T !== f.T)) notes.push(h('p', { class: 'ct-note ct-note-warn', id: 'ctFailLater' }, [tc('cmp.failLater', { T: tT(T), rule: num(r.rule), opt: num(r.opt) })]));
+      return h('section', { class: 'card ct-card', 'aria-labelledby': 'ctCmpHead' }, [
+        h('h2', { id: 'ctCmpHead' }, [tc('cmp.title')]),
+        h('div', { class: 'ct-scroll', tabindex: '0', role: 'region', 'aria-label': tc('cmp.label', { name: m.src.title }) }, [
+          h('table', { class: 'data ct-cmp', id: 'ctCmp' }, [h('thead', {}, [head]), h('tbody', {}, body)])]),
+      ].concat(notes));
+    }
+
+    function curveCard(c, T) {
+      const holder = h('div', { class: 'ct-curve', id: 'ctCurve' });
+      const vw = root.innerWidth || 1280;
+      const spec = curveSpec(m, c, T, lang(), vw < 1100 ? vw - 64 : 500);
+      spec.onPick = (t) => { go({ kd: t }); focus(`ctKd-${t}`); };
+      root.PNL.ctChart.render(holder, spec);
+      const sw = (cls, text) => h('span', {}, [h('span', { class: `ct-sw ${cls}`, 'aria-hidden': 'true' }), text]);
+      const legend = h('p', { class: 'ct-legend', id: 'ctCurveLegend' }, spec.series.map((x) => sw(x.cls, tc(`curve.${x.key}`)))
+        .concat([sw('ct-sw-best', tc(c.hasCosts ? 'curve.best' : 'curve.bestDirect'))]));
+      return h('section', { class: 'card ct-card', 'aria-labelledby': 'ctCurveHead' }, [h('h2', { id: 'ctCurveHead' }, [tc('curve.title')]), holder, legend]);
+    }
+
+    // Las redes y el Gantt a la duración elegida, con las duraciones de la regla en esa fila o, con el conmutador, las
+    // del óptimo (P8).
+    function netsBlock(c, T) {
+      const s = state();
+      const r = c.rows.find((x) => x.T === T);
+      const useOpt = optView && r.above;
+      const d = useOpt ? r.optD : r.d;
+      const set = useOpt ? [] : r.set;
+      const proj = { activities: m.p.activities.map((a) => ({ id: a.id, name: a.name, d: d[a.id] })), preds: m.p.preds, succs: m.p.succs };
+      const sol = K.schedule(m.p, d).solution;
+      const head = (k) => (useOpt ? tc('net.ofOpt', { head: tc(`net.${k}`, { T: tT(T) }) }) : tc(`net.${k}`, { T: tT(T) }));
+      const tagsOf = netTags(m.p, d, set);
+      const tagTitle = { short: tc('net.short'), min: tc('net.min') };
+      const tagText = { short: tc('net.shortTag'), min: tc('net.minTag') };
+      const out = [];
+      if (r.above) {
+        const pick = (on, id, key) => h('button', { type: 'button', class: 'ghost', id, 'aria-pressed': String(optView === on),
+          onclick: () => { optView = on; keepFocus(draw); } }, [tc(`net.${key}`)]);
+        out.push(h('div', { class: 'seg ct-durs', role: 'group', 'aria-label': tc('net.durs') }, [h('span', { class: 'ct-seg-label', 'aria-hidden': 'true' }, [tc('net.durs')]),
+          pick(false, 'ctDurRule', 'fromRule'), pick(true, 'ctDurOpt', 'fromOpt')]));
+      }
+      const cards = [];
+      if (s.kn !== 'pert') {
+        const revealed = new Map();
+        for (const a of m.p.activities) {
+          for (const f of ['ES', 'EF', 'LS', 'LF']) revealed.set(`${a.id}.${f}`, sol.times[a.id][f]);
+          for (const f of ['TF', 'FF']) revealed.set(`${a.id}.${f}`, sol.floats[a.id][f]);
+        }
+        const holder = h('div', { class: 'ct-net', id: 'ctRoy', tabindex: '0' });
+        const tags = new Map([...tagsOf].map(([id, ks]) => [id, ks.map((k) => ({ text: tagText[k], cls: `ntag-${k}`, title: tagTitle[k] }))]));
+        root.PNL.royView.render(holder, { project: proj, solution: sol, lay: root.PNL.layout.layout(sol, proj), step: null, revealed, box: '7', lang: lang(), nota: s.nota,
+          criticalOn: true, numFmt: num, name: m.src.title, fit: true, minWidth: 560, tags });
+        const N = I.notation(s.nota);
+        cards.push(h('section', { class: 'card ct-card', 'aria-labelledby': 'ctRoyHead' }, [h('h2', { id: 'ctRoyHead' }, [head('roy')]), holder,
+          h('p', { class: 'ct-swipe muted small', 'aria-hidden': 'true' }, [tc('net.swipe')]),
+          h('p', { class: 'ct-legend', id: 'ctRoyLegend' }, [h('span', {}, [tc('net.box', N)]), h('span', { class: 'ct-l-crit' }, [tc('net.crit')]),
+            h('span', { class: 'ct-l-short' }, [tc('net.short')]), h('span', { class: 'ct-l-min' }, [tc('net.min')])])]));
+      }
+      if (s.kn !== 'roy') {
+        const net = root.PNL.aoa.build(proj, { solution: sol });
+        const tm = root.PNL.aoa.times(net, sol);
+        const revealed = new Map();
+        for (const ev of net.events) { revealed.set(`${ev.n}.TE`, tm.TE[ev.n]); revealed.set(`${ev.n}.TL`, tm.TL[ev.n]); }
+        const holder = h('div', { class: 'ct-net', id: 'ctPert', tabindex: '0' });
+        const arcText = (label, dummy) => {
+          if (dummy || d[label] == null) return null;
+          const ks = tagsOf.get(label) || [];
+          return [`${label} = ${num(d[label])}`].concat(ks.map((k) => tagText[k])).join(' ');
+        };
+        root.PNL.pertView.render(holder, { net, lay: root.PNL.aoaLayout.layout(net), revealed, step: null, solution: sol, lang: lang(), nota: s.nota, criticalOn: true,
+          numFmt: num, name: m.src.title, numbered: true, fit: true, minWidth: 560, idPrefix: 'ct-pk', declutter: true, durations: d, arcText });
+        cards.push(h('section', { class: 'card ct-card', 'aria-labelledby': 'ctPertHead' }, [h('h2', { id: 'ctPertHead' }, [head('pert')]), holder,
+          h('p', { class: 'ct-swipe muted small', 'aria-hidden': 'true' }, [tc('net.swipe')]),
+          h('p', { class: 'ct-legend', id: 'ctPertLegend' }, [tc('net.pertLegend')])]));
+      }
+      out.push(h('div', { class: `ct-nets${cards.length === 2 ? ' two' : ''}` }, cards));
+      if (s.kg === 1) {
+        const holder = h('div', { class: 'ct-gantt', id: 'ctGantt' });
+        root.PNL.gantt.render(holder, { solution: sol, lang: lang(), late: false });
+        out.push(h('section', { class: 'card ct-card', 'aria-labelledby': 'ctGanttHead' }, [h('h2', { id: 'ctGanttHead' }, [head('gantt')]), holder]));
+      }
+      return out;
+    }
+
+    function fillLower() {
+      clear(lower);
+      if (!m.p) return;
+      const c = compression(m);
+      const T = chosenT(state(), c);
+      const key = `${m.src.id}|${T}`;
+      if (key !== optKey) { optView = false; optKey = key; }
+      lower.appendChild(h('div', { class: 'ct-mid' }, [cmpCard(c, T), curveCard(c, T)]));
+      for (const el of netsBlock(c, T)) lower.appendChild(el);
+    }
+
     function draw() {
       clear(container);
       ownTable = null; issuesSlot = null;
       container.appendChild(bar());
       container.appendChild(h('div', { class: 'ct-top' }, [m.src.kind === 'own' ? ownCard() : exampleCard(), costsCard()]));
+      lower = h('div', { class: 'ct-lower', id: 'ctLower' });
+      container.appendChild(lower);
+      fillLower();
     }
     function render(model, opts) {
       // Al teclear en la tabla propia no se rehace la tabla: se marcan las filas.
@@ -277,20 +511,21 @@
       if (typing) {
         const cut = root.document.getElementById('ctPasteCut');
         if (cut) cut.remove();
-        markOwn(); return;
+        markOwn(); fillLower(); return;
       }
       keepFocus(draw);
     }
     function debug() {
       if (!m) return null;
+      const c = m.p ? compression(m) : null;
       return { src: { kind: m.src.kind, id: m.src.id }, errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => FIELD[c]),
-        ok: !!m.p, k: m.k };
+        ok: !!m.p, k: m.k, T: c ? chosenT(state(), c) : null, rows: c ? c.rows.map((r) => r.T) : [], best: c ? c.best : [], opt: optView };
     }
     function leave() { /* T010: nada que parar */ }
     return { render, debug, leave };
   }
 
-  const api = { FIELDS, KC, source, costs, model, issueText, rowMarks, workRows, pasteRows, parseCost, create };
+  const api = { FIELDS, KC, source, costs, model, compression, chosenT, moveTerms, netTags, curveSpec, issueText, rowMarks, workRows, pasteRows, parseCost, create };
   root.PNL = root.PNL || {};
   root.PNL.ctTab = api;
   if (isNode) module.exports = api;

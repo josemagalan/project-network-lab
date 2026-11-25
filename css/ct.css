@@ -37,3 +37,70 @@ table.data.ct-own tr.bad { background: var(--critical-soft); }
 .ct-costs { gap: 8px 16px; }
 .ct-costs input { width: 6em; height: 30px; padding: 0 6px; font-size: 13px; }
 .ct-costs input[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
+/* T011: barra (redes y Gantt), tabla de la compresión, curva, redes y Gantt (tableros 123, 125, 127 y 129). */
+.ct-seg-label { align-self: center; font-size: 14px; margin-right: 2px; }
+.ct .seg button { padding: 4px 12px; min-height: 32px; }
+.ct-lower { display: flex; flex-direction: column; gap: 12px; }
+.ct-mid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 520px); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .ct-mid { grid-template-columns: minmax(0, 1fr); } }
+table.data.ct-cmp { font-size: 13px; }
+table.data.ct-cmp th, table.data.ct-cmp td { padding: 3px 8px; }
+table.data.ct-cmp td.num { text-align: right; white-space: nowrap; }
+table.data.ct-cmp tr.chosen { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: -2px; }
+.ct-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.ct-pick input { margin: 0; accent-color: var(--accent); width: 16px; height: 16px; }
+.ct-set { color: var(--accent); }
+.ct-above { color: var(--critical-text); font-weight: 700; }
+.ct-best { color: var(--ok); }
+.ct-note { font-size: 14px; border-radius: 10px; padding: 6px 12px; background: var(--soft); border: 1px solid var(--line); }
+.ct-note-ok { background: var(--ok-soft); border-color: var(--ok); }
+.ct-note-warn { background: var(--warn-soft); border-color: var(--warn-line); display: flex; flex-direction: column; gap: 4px; }
+.ct-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); }
+.ct-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.ct-sw { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--ink); }
+.ct-sw.ctc-direct { border-top-color: var(--accent); border-top-width: 2px; }
+.ct-sw.ctc-extra { border-top: 2px dashed var(--muted); }
+.ct-sw.ctc-rule { border-top: 2px dotted var(--critical); }
+.ct-sw.ct-sw-best { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--ok); }
+.ct-l-crit { color: var(--critical-text); font-weight: 600; }
+.ct-l-short { color: var(--accent); font-weight: 600; }
+.ct-l-min { color: var(--warn); font-weight: 600; }
+.ct-nets { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.ct-nets.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 1100px) { .ct-nets.two { grid-template-columns: minmax(0, 1fr); } }
+.ct-net, .ct-gantt { overflow-x: auto; }
+.ct-swipe { display: none; }
+@media (max-width: 640px) { .ct-swipe { display: block; } }
+.ct-durs { flex-wrap: wrap; }
+/* Marcas de la red ROY (views/roy-view, ctx.tags). */
+.ct .ntag rect { stroke-width: 1.2; }
+.ct .ntag text { font-size: 11px; font-weight: 700; }
+.ct .ntag-short rect { fill: var(--accent); stroke: var(--accent); }
+.ct .ntag-short text { fill: var(--accent-ink); }
+.ct .ntag-min rect { fill: var(--card); stroke: var(--warn-line); }
+.ct .ntag-min text { fill: var(--warn); }
+/* Curva (views/ct-chart). */
+.ctc { display: block; overflow: visible; }
+.ctc-band { fill: var(--accent-soft); }
+.ctc-grid { stroke: var(--line); stroke-width: 1; }
+.ctc-tick, .ctc-axis { fill: var(--muted); font-size: 11px; }
+.ctc-best { stroke: var(--ok); stroke-width: 1.5; }
+.ctc-line { fill: none; stroke-width: 2; }
+.ctc-line.ctc-total { stroke: var(--ink); stroke-width: 2.6; }
+.ctc-line.ctc-direct { stroke: var(--accent); }
+.ctc-line.ctc-extra { stroke: var(--muted); }
+.ctc-line.ctc-rule { stroke: var(--critical); stroke-width: 1.6; }
+.ctc-dot.ctc-direct { fill: var(--accent); }
+.ctc-dot.ctc-extra { fill: var(--muted); }
+.ctc-dot.ctc-rule { fill: var(--critical); }
+.ctc-pt { cursor: pointer; }
+.ctc-hit { fill: transparent; }
+.ctc-mark { fill: var(--card); stroke-width: 2; }
+.ctc-mark.ctc-total { stroke: var(--ink); }
+.ctc-mark.ctc-direct { stroke: var(--accent); }
+.ctc-pt.best .ctc-mark { fill: var(--ok); stroke: var(--ok); }
+.ctc-pt.chosen .ctc-mark { stroke-width: 3; }
+.ctc-val { fill: var(--ink); font-size: 11px; }
+.ctc-pt.best .ctc-val { fill: var(--ok); font-weight: 700; }
+table.data.ct-cmp td.ct-mono { white-space: nowrap; }
+.ct-gantt svg.gantt { min-width: 480px; }
