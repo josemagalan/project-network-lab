@@ -13257,6 +13257,43 @@ check('F5b T013 · axe sin violaciones en el atajo (claro y oscuro, ES y EN; con
   await close(m);
 });
 
+// ---------- F5b, T014: «Aprende más» de coste–tiempo (grupo cl) ----------
+
+check('F5b T014 · «Aprende más» carga su grupo (cl) solo al abrirlo y cuenta la recta, los caminos, la regla que falla, el modelo lineal, los costes, el atajo y los métodos citados (ES y EN), con sus referencias', async () => {
+  const L = require(path.join(ROOT, 'js', 'learn-ct.js'));
+  for (const lang of ['es', 'en']) {
+    const page = await ctLab(`v=ct&ke=kl&lang=${lang}`);
+    assert.equal(await page.evaluate(() => !!PNL.learnCt || [...document.scripts].some((x) => /learn-ct/.test(x.getAttribute('src') || ''))), false);
+    await page.locator('#ctLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open);
+    assert.equal(await page.evaluate(() => !!PNL.learnCt), true);
+    assert.equal(await page.locator('#learnTitle').innerText(), L[lang].title);
+    assert.equal(await page.locator('#learnBody h3').count(), L[lang].sections.length + 1);
+    assert.equal(await page.locator('#learnBody li').count(), L.refs[lang].length);
+    assert.match(await page.locator('#learnBody').innerText(), /6 \+ 4 − 2 = 8/);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('learnDialog').open);
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'ctLearn');
+    // Con todo abierto (paso a paso, Gantt y «Aprende más»), la vista sigue por debajo de 1 MB.
+    await ctStepTo(page, 2);
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+    console.log(`    cpm.html#v=ct (${lang}) + «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${bytes} bytes`);
+    await close(page);
+  }
+});
+
+check('F5b T014 · axe sin violaciones con «Aprende más» abierto (ES claro, EN oscuro)', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await ctLab(`v=ct&ke=kl&lang=${lang}`, { scheme });
+    await page.locator('#ctLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open);
+    await axe(page, `F5b T014 · Aprende más · ${lang} · ${scheme}`);
+    await close(page);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

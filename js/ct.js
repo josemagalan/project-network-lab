@@ -289,6 +289,8 @@
           onclick: () => { hooks.dispatch({ type: 'go', n: walking() ? 0 : 1 }); focus('ctWalk'); } }, [tc('walk.toggle')])]),
         walking() ? h('label', { class: 'ct-check' }, [h('input', { type: 'checkbox', id: 'ctPred', checked: !!s.pred,
           onchange: (e) => { hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }); focus('ctPred'); } }), ' ', I.t(lang(), 'predict.toggle')]) : null,
+        // «Aprende más» (T014): el diálogo de la página, con learn-ct (grupo cl) cargado al abrirlo.
+        hooks.learn ? button(I.t(lang(), 'learn.button'), () => hooks.learn(), { id: 'ctLearn' }) : null,
       ])]);
     }
     function pickProject(id) {

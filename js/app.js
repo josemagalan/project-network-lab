@@ -75,6 +75,8 @@
     ul: ['js/learn-unc.js'],
     // F5a (T014): «Aprende más» de «Precedencias generalizadas», al abrirlo.
     gl: ['js/learn-gpr.js'],
+    // F5b (T014): «Aprende más» de coste–tiempo, al abrirlo.
+    cl: ['js/learn-ct.js'],
     // F4b (plan P4, T012): «Aprende más» de M7, aparte de M5 y M6 y de la vista de M7 (grupo u7).
     l7: ['js/learn-m7.js'],
     // F4b (plan P4, T002): el comparador, el reto y el dibujo progresivo de la F2b, solo con view=cmp, view=reto o m=prog
@@ -105,7 +107,7 @@
     // F5b (plan §4): v=ct, coste–tiempo, con su núcleo (símplex, compresión y ejemplos), textos, controlador y hoja.
     ct: ['css/ct.css', 'js/core/lp.js', 'js/core/crash.js', 'js/core/crashex.js', 'js/i18n-ct.js', 'js/views/ct-chart.js', 'js/ct.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -1095,9 +1097,12 @@
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   }
   // «Aprende más» de «Precedencias generalizadas» (F5a, T014): su grupo (gl) se carga al abrirlo.
-  function openGprLearn() {
-    const LG = G.learnGpr;
-    if (!LG) { need('gl').then(openGprLearn, noop); return; }
+  // «Aprende más» de coste–tiempo (F5b, T014): el mismo diálogo, con learn-ct (grupo cl).
+  function openCtLearn() { openSectionsLearn('learnCt', 'cl', openCtLearn); }
+  function openGprLearn() { openSectionsLearn('learnGpr', 'gl', openGprLearn); }
+  function openSectionsLearn(name, group, again) {
+    const LG = G[name];
+    if (!LG) { need(group).then(again, noop); return; }
     const c = LG[lang()];
     const body = clear($('learnBody'));
     $('learnTitle').textContent = c.title;
@@ -1345,6 +1350,7 @@
         state: () => state, lang, dispatch,
         // «Partir del taller» (AC9): la tabla del taller (o el ejemplo que muestra) con su forma.
         workRows: workSource,
+        learn: openCtLearn,
         // Paso a paso (T012): la predicción de la página, como en «Desfases».
         pred: () => pred, predicting,
         predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
