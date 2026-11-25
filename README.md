@@ -8,6 +8,8 @@
 
 Proyecto hermano de / Sister project of [Genetic Algorithms Lab](https://josemagalan.github.io/genetic-algorithms-lab/).
 
+Libro complementario, en preparación / Companion book, in progress (Spanish): [Proyectos a la vista](https://josemagalan.github.io/project-network-lab-book/).
+
 ## Español
 
 ### Qué hay ya (fase 1: CPM determinista con la red ROY)
