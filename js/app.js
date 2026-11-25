@@ -207,7 +207,7 @@
     // «Precedencias generalizadas» (F5a): su tabla (un ejemplo o la propia), lo leído, la solución y la traza (T011).
     if (state.v === 'gpr') { model = Object.assign(G.gprTab.model(state, lang()), { gprm: true }); return; }
     // Coste–tiempo (F5b): su tabla (un ejemplo o la propia), lo leído y los costes del proyecto (T010).
-    if (state.v === 'ct') { model = Object.assign(G.ctTab.model(state, lang()), { ctm: true }); return; }
+    if (state.v === 'ct') { model = Object.assign(G.ctTab.model(state, lang()), { ctm: true }); model.trace = G.ctTab.trace(model); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
@@ -1236,12 +1236,13 @@
       // F4a (T011): el paso a paso de «Duraciones inciertas» usa el reproductor de la página con su propia botonera.
       const uncRoute = state.v === 'unc' && !!trace();
       // F5a (T011): el paso a paso de «Precedencias generalizadas» va del paso 1 en adelante (el 0 es la tabla); sin reproducir.
-      const gprWalk = state.v === 'gpr' && state.step > 0 && !!trace();
+      const gprWalk = (state.v === 'gpr' || state.v === 'ct') && state.step > 0 && !!trace();
       if (['input', 'select', 'textarea'].includes(tag) || $('learnDialog').open || ($('stage').hidden && !m0Route && !uncRoute && !gprWalk) || !$('cmpView').hidden || !$('retoView').hidden || !$('royRetoView').hidden) return;
       // El texto en modo «Subrayar» y la matriz de M0 usan las flechas para moverse (F2c, plan §0).
       if (e.target.closest && e.target.closest('[data-own-keys]')) return;
       if ((tag === 'button' || tag === 'summary') && (e.key === ' ' || e.key === 'Enter')) return;   // «Ajustes» es un summary (F4a, T013)
-      const nextOff = gprWalk ? state.step >= total() - 1 || predicting(G.gprTab.askedStep(trace()[state.step]))
+      // F5b (T012): el paso a paso de coste–tiempo, como el de «Desfases»; se predice todo lo que lleva el paso.
+      const nextOff = gprWalk ? state.step >= total() - 1 || predicting(state.v === 'ct' ? trace()[state.step] : G.gprTab.askedStep(trace()[state.step]))
         : uncRoute ? state.step >= total() - 1 || predicting(trace()[state.step]) : $('btnNext').disabled;
       if (e.key === 'ArrowRight' && !nextOff) { e.preventDefault(); dispatch({ type: 'next' }); }
       else if (e.key === 'ArrowLeft' && !(gprWalk && state.step <= 1)) { e.preventDefault(); dispatch({ type: 'prev' }); }
@@ -1344,6 +1345,10 @@
         state: () => state, lang, dispatch,
         // «Partir del taller» (AC9): la tabla del taller (o el ejemplo que muestra) con su forma.
         workRows: workSource,
+        // Paso a paso (T012): la predicción de la página, como en «Desfases».
+        pred: () => pred, predicting,
+        predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
+        predShow: () => { pred.step = state.step; pred.done = true; pred.result = null; render(); },
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
       });
       G.ctTab.state = () => ctc.debug();

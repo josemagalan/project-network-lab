@@ -13077,6 +13077,124 @@ check('F5b T011 · axe sin violaciones con la compresión, la curva, las redes y
   }
 });
 
+// ---------- F5b, T012: el paso a paso con predicción (tablero 124) ----------
+
+const ctWalkSt = (page) => page.evaluate(() => PNL.ctTab.state().walk);
+async function ctCheck(page, set, cost) {
+  for (const id of set) await page.locator(`#ctPick-${id}`).check();
+  await page.locator('#ctPredCost').fill(cost);
+  await page.locator('#ctPredCheck').click();
+  await page.waitForSelector('#ctPredFb');
+  return page.locator('#ctPredFb').innerText();
+}
+async function ctStepTo(page, k) {
+  await page.evaluate((n) => PNL.app.go(n), k);
+  await page.waitForFunction((n) => PNL.ctTab.state().walk && PNL.ctTab.state().walk.k === n, k);
+}
+
+check('F5b T012 · AC7: el paso a paso sin predicción: un paso por unidad con lo que se acorta y por qué, las redes a la duración nueva, el fin y los costes totales; flechas del teclado', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es');
+  await page.locator('#ctWalk').click();
+  await page.waitForFunction(() => PNL.ctTab.state().walk && PNL.ctTab.state().walk.k === 1);
+  assert.equal(await page.locator('#ctWalk').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#ctCmp').count(), 0, 'en el paso a paso no está la tabla de la compresión');
+  assert.equal(await page.locator('#ctStepHead').innerText(), 'De 22 semanas a 21 semanas: se acorta A');
+  assert.match(await page.locator('#ctStepText').innerText(), /un camino crítico: A–C\. Se acorta A por 8: .*pasa a 21 semanas y el coste directo, a 328\./);
+  assert.equal(await page.locator('#ctRoyHead').innerText(), 'Red ROY a 21 semanas');
+  assert.deepEqual((await ctRoyBox(page, 'A')).tags, ['−1']);
+  assert.match(await page.locator('#ctCounter').innerText(), /Paso 1 de 6 · de 22 semanas a 21 semanas/);
+  await page.locator('#ctNext').click();
+  await page.waitForFunction(() => PNL.ctTab.state().walk.k === 2);
+  assert.match(await page.locator('#ctStepText').innerText(), /2 caminos críticos: A–C y B–C/);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctNext');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => PNL.ctTab.state().walk.k === 3);
+  assert.match(await page.locator('#ctStepText').innerText(), /C llega a su duración urgente/);
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(() => PNL.ctTab.state().walk.k === 2);
+  await ctStepTo(page, 5);
+  assert.equal((await ctWalkSt(page)).kind, 'ctEnd');
+  assert.match(await page.locator('#ctStepText').innerText(), /El camino A–C ya está entero en su duración urgente.*Coste directo: 361/);
+  await ctStepTo(page, 6);
+  assert.equal(await page.locator('#ctStepHead').innerText(), 'Costes totales');
+  assert.match(await page.locator('#ctStepText').innerText(), /19 semanas: 481/);
+  assert.equal(await page.locator('#ctNext').isDisabled(), true);
+  assert.equal((await ctHashNow(page)).step, 6);
+  // Volver a la tabla.
+  await page.locator('#ctWalk').click();
+  await page.waitForSelector('#ctCmp');
+  assert.equal((await ctHashNow(page)).step, 0);
+  await close(page);
+});
+
+check('F5b T012 · AC7: con predicción, cada mensaje (camino sin acortar, más caro, no crítica, en su urgente) y el acierto con el coste; «Siguiente» espera a comprobar o a mostrar (tablero 124)', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es&step=2&pred=1');
+  await page.waitForSelector('#ctPick-A');
+  assert.equal(await page.locator('#ctStepHead').innerText(), '¿Qué se acorta para pasar de 21 semanas a 20 semanas?');
+  assert.equal(await page.locator('#ctNext').isDisabled(), true);
+  assert.equal(await page.locator('#ctRoyHead').innerText(), 'Red ROY a 21 semanas');
+  assert.deepEqual((await ctRoyBox(page, 'C')).tags, []);
+  // Sin actividades, no se comprueba.
+  await page.locator('#ctPredCheck').click();
+  assert.equal(await page.locator('#ctPredEmpty').isVisible(), true);
+  assert.match(await ctCheck(page, ['B'], '5'), /el camino A–C no se acorta: sigue en 21 semanas/);
+  assert.match(await page.locator('#ctPredFb').innerText(), /El coste del paso es 10\./);
+  assert.equal(await page.locator('#ctNext').isDisabled(), false);
+  assert.equal(await page.locator('#ctRoyHead').innerText(), 'Red ROY a 20 semanas');
+  const again = async (set, cost) => { await ctStepTo(page, 1); await ctStepTo(page, 2); await page.waitForSelector('#ctPick-A'); return ctCheck(page, set, cost); };
+  assert.match(await again(['A', 'B'], '13'), /cuesta 13; hay un conjunto de 10/);
+  assert.match(await again(['D'], '4'), /D no es crítica: acortarla no acorta el proyecto/);
+  const ok = await again(['C'], '10');
+  assert.match(ok, /Acierto: C acorta todos los caminos críticos y cuesta 10\./);
+  assert.match(ok, /El coste del paso, 10: bien\./);
+  // De 19 a 18: C ya está en su urgente.
+  await ctStepTo(page, 4);
+  await page.waitForSelector('#ctPick-C');
+  assert.equal(await page.locator('#ctCand tr[data-act="C"] td.num').innerText(), 'mín.');
+  assert.match(await ctCheck(page, ['C'], '10'), /C ya está en su duración urgente: no se puede acortar más/);
+  // «Mostrar la solución» también deja seguir.
+  await ctStepTo(page, 3);
+  await page.locator('#ctPredShow').click();
+  await page.waitForFunction(() => !document.getElementById('ctPick-A'));
+  assert.equal(await page.locator('#ctNext').isDisabled(), false);
+  assert.equal(await page.locator('#ctPredFb').count(), 0);
+  await close(page);
+});
+
+check('F5b T012 · AC4: la regla que falla en el paso a paso: el empate de 9 a 8 vale con los dos conjuntos y el aviso enseña el movimiento del óptimo', async () => {
+  const page = await ctLab(ctHash({ ke: 'rf', lang: 'es' }));
+  const k8 = 4;   // 12 → 11, 11 → 10, 10 → 9 y 9 → 8
+  for (const set of [['A', 'B'], ['B', 'E']]) {
+    await setHash(page, ctHash({ ke: 'rf', lang: 'es', step: 1, pred: 1 }));
+    await ctStepTo(page, k8);
+    await page.waitForSelector('#ctPick-A');
+    assert.match(await page.locator('#ctStepHead').innerText(), /de 9 periodos a 8 periodos/);
+    assert.match(await ctCheck(page, set, '10'), /^✓ Acierto/m, set.join());
+    assert.match(await page.locator('#ctStepText').innerText(), /Había otro conjunto igual de barato/);
+    assert.match(await page.locator('#ctStepFail').innerText(), /acorta B y E y vuelve a alargar C: 6 \+ 4 − 2 = 8/);
+  }
+  await ctStepTo(page, 5);
+  await page.locator('#ctPredShow').click();
+  assert.match(await page.locator('#ctStepAbove').innerText(), /la regla cuesta 95 y el óptimo a 7 periodos, 93/);
+  await close(page);
+});
+
+check('F5b T012 · axe sin violaciones en el paso a paso (al predecir y con la corrección; claro y oscuro, ES y EN); a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await ctLab(`v=ct&ke=kl&lang=${lang}&step=2&pred=1&kg=1`, { scheme });
+    await page.waitForSelector('#ctPick-A');
+    await axe(page, `F5b T012 · paso a paso, al predecir · ${lang} · ${scheme}`);
+    await ctCheck(page, ['A', 'B'], '13');
+    await axe(page, `F5b T012 · paso a paso, corregido · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await ctLab('v=ct&ke=kl&lang=es&step=2&pred=1', { width: 360, height: 740 });
+  await m.waitForSelector('#ctPick-A');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5b-t012-kl-360', true);
+  await close(m);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

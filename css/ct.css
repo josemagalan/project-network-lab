@@ -104,3 +104,19 @@ table.data.ct-cmp tr.chosen { background: var(--accent-soft); outline: 2px solid
 .ctc-pt.best .ctc-val { fill: var(--ok); font-weight: 700; }
 table.data.ct-cmp td.ct-mono { white-space: nowrap; }
 .ct-gantt svg.gantt { min-width: 480px; }
+/* T012: el paso a paso con predicción (tablero 124). */
+.ct-push { margin-left: auto; }
+.ct-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.ct-step { max-width: 980px; }
+table.data.ct-cand { font-size: 13.5px; width: auto; }
+table.data.ct-cand th, table.data.ct-cand td { padding: 3px 10px; }
+table.data.ct-cand td.num { text-align: right; }
+table.data.ct-cand tr.chosen { background: var(--accent-soft); }
+table.data.ct-cand input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.ct-predict { display: flex; flex-direction: column; gap: 6px; }
+.ct-predict input { width: 6em; height: 32px; padding: 0 6px; }
+.ct-fb { margin: 0; padding: 6px 12px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.ct-fb-ok { color: var(--ok); }
+.ct-fb-wrong { color: var(--critical-text); }
+.ct-walknav { gap: 8px 12px; }
+.ct-step p { font-size: 14.5px; line-height: 1.5; }

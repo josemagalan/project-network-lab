@@ -131,3 +131,59 @@ test('F5b T011 · la curva (views/ct-chart): series, mínimos y escalas, sin DOM
   assert.ok(sc.Y(481) > sc.Y(489));
   assert.ok(sc.lo <= 0 && sc.top >= 489);
 });
+
+// ---------- T012: el paso a paso con predicción (AC4, AC7; tablero 124; `analyze` B3) ----------
+
+const PRD = require('../js/predict.js');
+
+const klTrace = () => T.trace(T.model(st({ ke: 'kl' }), 'es'));
+const answers = (set, cost) => new Map([['ct.set', new Set(set)], ['ct.cost', cost]]);
+
+test('F5b T012 · la traza de la pestaña: tabla, un paso por unidad, fin y totales; se guarda con la compresión', () => {
+  const tr = klTrace();
+  assert.deepEqual(tr.map((s) => s.kind), ['ctTable', 'ctStep', 'ctStep', 'ctStep', 'ctStep', 'ctEnd', 'ctTotals']);
+  assert.deepEqual(tr.filter((s) => s.kind === 'ctStep').map((s) => [s.from, s.T, s.set.join()]), [[22, 21, 'A'], [21, 20, 'C'], [20, 19, 'C'], [19, 18, 'A,B']]);
+  assert.equal(klTrace(), tr);
+  assert.equal(T.trace(T.model(st({ ke: 'own', kt: [row('A', '', '3', '5', '1', '2')] }), 'es')), null);
+});
+
+test('F5b T012 · AC7: predict corrige ct.set con crash.setCheck (cualquiera de los empatados) y ct.cost como un número', () => {
+  const s = klTrace()[2];   // de 21 a 20: C (10); A y B costarían 13
+  assert.equal(PRD.key(s.reveals[0]), 'ct.set');
+  assert.equal(PRD.hasPrediction(s), true);
+  const res = (set, cost) => Object.fromEntries(PRD.check(s, answers(set, cost)));
+  assert.deepEqual(res(['C'], '10'), { 'ct.set': 'ok', 'ct.cost': 'ok' });
+  assert.deepEqual(res(['A', 'B'], '13'), { 'ct.set': 'wrong', 'ct.cost': 'wrong' });
+  assert.deepEqual(res(['B'], ''), { 'ct.set': 'wrong', 'ct.cost': 'empty' });
+  assert.deepEqual(res([], '10'), { 'ct.set': 'empty', 'ct.cost': 'ok' });
+  // La regla que falla, de 9 a 8: A y B o B y E (empate), los dos valen.
+  const rf = T.trace(T.model(st({ ke: 'rf' }), 'es')).find((x) => x.kind === 'ctStep' && x.T === 8);
+  for (const set of [['A', 'B'], ['B', 'E']]) assert.equal(PRD.check(rf, answers(set, '10')).get('ct.set'), 'ok', set.join());
+});
+
+test('F5b T012 · AC7: los mensajes de la predicción: acierto, no crítica, en su urgente, camino sin acortar, más caro y el coste', () => {
+  const m = T.model(st({ ke: 'kl' }), 'es');
+  const tr = T.trace(m);
+  const fb = (k, set, cost, lang) => T.feedback(m, tr[k], answers(set, cost), lang || 'es');
+  assert.deepEqual(fb(2, ['C'], '10').map((x) => x.kind), ['ok', 'ok']);
+  assert.match(fb(2, ['C'], '10')[0].text, /^Acierto: C acorta todos los caminos críticos y cuesta 10\./);
+  assert.match(fb(2, ['D'], '4')[0].text, /^D no es crítica/);
+  assert.match(fb(2, ['B'], '5')[0].text, /el camino A–C no se acorta: sigue en 21 semanas/);
+  assert.match(fb(2, ['A', 'B'], '13')[0].text, /cuesta 13; hay un conjunto de 10/);
+  assert.match(fb(2, ['A', 'B'], '13')[1].text, /El coste del paso es 10/);
+  assert.match(fb(4, ['C'], '10')[0].text, /^C ya está en su duración urgente/);
+  assert.match(fb(2, ['C'], '')[1].text, /no ha escrito el coste del paso; es 10/i);
+  for (const x of fb(2, ['D', 'B'], '9', 'en')) assert.ok(x.text && !/[{}]/.test(x.text), x.text);
+  assert.match(fb(2, ['D', 'B'], '9', 'en')[0].text, /^D is not critical/);
+});
+
+test('F5b T012 · las redes del paso: antes de comprobar, las duraciones de partida sin marcas; después, las nuevas con −1 y «mín.»', () => {
+  const m = T.model(st({ ke: 'kl' }), 'es');
+  const tr = T.trace(m);
+  const before = T.walkNets(m, tr[3], true);
+  assert.deepEqual([before.T, before.d, before.set], [20, { A: 6, B: 6, C: 14, D: 10 }, []]);
+  const after = T.walkNets(m, tr[3], false);
+  assert.deepEqual([after.T, after.d.C, after.set], [19, 13, ['C']]);
+  assert.deepEqual(T.walkNets(m, tr[5], false).T, 18);
+  assert.deepEqual(T.walkNets(m, tr[6], false).T, 18);
+});

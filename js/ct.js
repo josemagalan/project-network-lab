@@ -19,6 +19,7 @@
   const X = req('./core/crashex.js', 'crashex');
   const U = req('./core/urlstate.js', 'urlstate');
   const NR = req('./narrate.js', 'narrate');
+  const PRD = () => req('./predict.js', 'predict');
 
   const FIELDS = ['id', 'name', 'links', 'dn', 'dc', 'cn', 'cc'];
   const KC = ['fixed', 'perUnit', 'due', 'penalty', 'bonus'];
@@ -133,6 +134,46 @@
       pointTitle: (T, v) => tc('point', { T, what: tc(main.key), v: NR.fmt(lang, v) }) };
   }
 
+  // ---------- El paso a paso (T012; tablero 124) ----------
+
+  let trCache = { key: null, val: null };
+  /** La traza del reproductor (crash.trace): tabla, un paso por unidad, fin y totales; null si la tabla no se lee. */
+  function trace(m) {
+    if (!m.p) return null;
+    const key = JSON.stringify([m.p.activities.map((a) => [a.id, a.dn, a.dc, a.cn, a.cc, m.p.preds[a.id]]), m.k]);
+    if (trCache.key !== key) trCache = { key, val: K.trace(m.p, m.k) };
+    return trCache.val;
+  }
+
+  /** Las redes de un paso: antes de comprobar, las duraciones de partida sin marcas; después, las del paso con lo acortado. */
+  function walkNets(m, step, hide) {
+    if (step.kind === 'ctStep') return hide ? { T: step.from, d: step.dBefore, set: [] } : { T: step.T, d: step.d, set: step.set };
+    if (step.kind === 'ctTable') return { T: step.T, d: K.normalD(m.p), set: [] };
+    const tr = trace(m);
+    const end = tr.find((x) => x.kind === 'ctEnd');
+    return { T: end.T, d: end.d, set: [] };
+  }
+
+  /** Lo que se le dice al alumno al comprobar un paso: el conjunto (acierto o por qué no sirve) y el coste del paso. */
+  function feedback(m, step, answers, lang) {
+    const tw = (k, q) => I.t(lang, `ct.walk.${k}`, q);
+    const num = (v) => NR.fmt(lang, v);
+    const tT = (T) => (m.src.unit ? `${T} ${m.src.unit}` : String(T));
+    const given = [...(answers.get('ct.set') || [])];
+    const order = m.p.activities.map((a) => a.id).filter((id) => given.includes(id));
+    const out = [];
+    const r = K.setCheck(step.reveals[0].check, order);
+    if (r.ok) out.push({ kind: 'ok', text: tw('ok', { set: I.list(lang, order), cost: num(r.cost) }) });
+    else if (r.reason === 'notCritical' || r.reason === 'atLimit') out.push({ kind: 'wrong', text: tw(r.ids.length === 1 ? `${r.reason}One` : r.reason, { list: I.list(lang, r.ids) }) });
+    else if (r.reason === 'pathUncut') out.push({ kind: 'wrong', text: tw('pathUncut', { path: r.path.join('–'), from: tT(step.from) }) });
+    else out.push({ kind: 'wrong', text: tw('dearer', { cost: num(r.cost), best: num(r.best) }) });
+    const c = PRD().parseAnswer(answers.get('ct.cost'));
+    const v = num(step.stepCost);
+    if (c === null) out.push({ kind: 'wrong', text: tw('costEmpty', { v }) });
+    else out.push(PRD().check(step, answers).get('ct.cost') === 'ok' ? { kind: 'ok', text: tw('costOk', { v }) } : { kind: 'wrong', text: tw('costWrong', { v }) });
+    return out;
+  }
+
   // ---------- Errores y avisos ----------
 
   /** El texto de un error o un aviso de la tabla, sin «Fila n» (va en su fila, o en la lista si no tiene fila). */
@@ -220,8 +261,14 @@
         button(tc('fromWork'), fromWork, { id: 'ctFromWork' }),
         h('div', { class: 'seg', role: 'group', 'aria-label': tc('bar.nets') }, [h('span', { class: 'ct-seg-label', 'aria-hidden': 'true' }, [tc('bar.nets')]),
           seg('roy'), seg('pert'), seg('both')]),
-        h('button', { type: 'button', class: 'ghost', id: 'ctGanttBtn', 'aria-pressed': String(s.kg === 1), disabled: !m.p,
-          onclick: () => { go({ kg: s.kg === 1 ? 0 : 1 }); focus('ctGanttBtn'); } }, [tc('bar.gantt')]),
+        h('div', { class: 'seg' }, [h('button', { type: 'button', class: 'ghost', id: 'ctGanttBtn', 'aria-pressed': String(s.kg === 1), disabled: !m.p,
+          onclick: () => { go({ kg: s.kg === 1 ? 0 : 1 }); focus('ctGanttBtn'); } }, [tc('bar.gantt')])]),
+        h('span', { class: 'ct-push' }),
+        // «Paso a paso» (T012): del paso 1 en adelante; volver al paso 0 es volver a la tabla y la curva.
+        h('div', { class: 'seg' }, [h('button', { type: 'button', class: 'ghost', id: 'ctWalk', 'aria-pressed': String(walking()), disabled: !m.trace,
+          onclick: () => { hooks.dispatch({ type: 'go', n: walking() ? 0 : 1 }); focus('ctWalk'); } }, [tc('walk.toggle')])]),
+        walking() ? h('label', { class: 'ct-check' }, [h('input', { type: 'checkbox', id: 'ctPred', checked: !!s.pred,
+          onchange: (e) => { hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }); focus('ctPred'); } }), ' ', I.t(lang(), 'predict.toggle')]) : null,
       ])]);
     }
     function pickProject(id) {
@@ -422,11 +469,12 @@
     // Las redes y el Gantt a la duración elegida, con las duraciones de la regla en esa fila o, con el conmutador, las
     // del óptimo (P8).
     function netsBlock(c, T) {
-      const s = state();
       const r = c.rows.find((x) => x.T === T);
       const useOpt = optView && r.above;
-      const d = useOpt ? r.optD : r.d;
-      const set = useOpt ? [] : r.set;
+      return netsFor({ T, d: useOpt ? r.optD : r.d, set: useOpt ? [] : r.set, useOpt, toggle: r.above });
+    }
+    function netsFor({ T, d, set, useOpt, toggle }) {
+      const s = state();
       const proj = { activities: m.p.activities.map((a) => ({ id: a.id, name: a.name, d: d[a.id] })), preds: m.p.preds, succs: m.p.succs };
       const sol = K.schedule(m.p, d).solution;
       const head = (k) => (useOpt ? tc('net.ofOpt', { head: tc(`net.${k}`, { T: tT(T) }) }) : tc(`net.${k}`, { T: tT(T) }));
@@ -434,7 +482,7 @@
       const tagTitle = { short: tc('net.short'), min: tc('net.min') };
       const tagText = { short: tc('net.shortTag'), min: tc('net.minTag') };
       const out = [];
-      if (r.above) {
+      if (toggle) {
         const pick = (on, id, key) => h('button', { type: 'button', class: 'ghost', id, 'aria-pressed': String(optView === on),
           onclick: () => { optView = on; keepFocus(draw); } }, [tc(`net.${key}`)]);
         out.push(h('div', { class: 'seg ct-durs', role: 'group', 'aria-label': tc('net.durs') }, [h('span', { class: 'ct-seg-label', 'aria-hidden': 'true' }, [tc('net.durs')]),
@@ -483,6 +531,116 @@
       return out;
     }
 
+    // ---------- El paso a paso (T012; tablero 124) ----------
+    const walking = () => !!m.trace && state().step > 0;
+    let lastWalk = '';
+    const tw = (k, q) => tc(`walk.${k}`, q);
+    const pathList = (paths) => list(paths.map((x) => x.join('–')));
+    function walkCard() {
+      const tr = m.trace; const k = Math.min(state().step, tr.length - 1); const step = tr[k];
+      const hide = hooks.predicting(step);
+      const parts = [];
+      let title; let text = [];
+      if (step.kind === 'ctStep') {
+        title = hide ? tw('askTitle', { from: tT(step.from), T: tT(step.T) }) : tw('stepTitle', { from: tT(step.from), T: tT(step.T), set: list(step.set) });
+        text.push(tw(step.paths.length === 1 ? 'pathsOne' : 'paths', { from: tT(step.from), n: step.paths.length, list: pathList(step.paths) }));
+        if (hide) text.push(tw('ask'));
+        else {
+          text.push(tw('did', { set: list(step.set), cost: num(step.stepCost), T: tT(step.T), direct: num(step.cost) }));
+          if (step.unique === false) text.push(tw('tie', { list: list(step.other) }));
+          if (step.reached.length) text.push(tw(step.reached.length === 1 ? 'reachedOne' : 'reached', { list: list(step.reached) }));
+          if (step.newCrit.length) text.push(tw(step.newCrit.length === 1 ? 'newCritOne' : 'newCrit', { list: pathList(step.newCrit) }));
+        }
+      } else if (step.kind === 'ctEnd') {
+        title = tw('endTitle', { T: tT(step.T) });
+        text = [tw('endText', { path: step.path.join('–'), cost: num(step.cost) })];
+      } else {
+        title = tw('totalsTitle');
+        const c = compression(m);
+        const v = c.rows.find((r) => r.T === c.best[0]).tot.total;
+        text = [c.best.length === 1 ? tc('cmp.bestOne', { T: tT(c.best[0]), v: num(v) }) : tc('cmp.bestMany', { list: list(c.best.map(String)) + (m.src.unit ? ` ${m.src.unit}` : ''), v: num(v) }),
+          tw('totalsText')];
+      }
+      parts.push(h('h2', { id: 'ctStepHead' }, [title]), h('p', { id: 'ctStepText' }, [text.join(' ')]));
+      if (step.kind === 'ctStep') {
+        if (!hide && step.move) {
+          const f = step;
+          parts.push(h('div', { class: 'ct-note ct-note-warn', id: 'ctStepFail' }, [
+            h('p', {}, [h('strong', {}, [tc('cmp.failTitle', { T: tT(f.T) })])]),
+            h('p', {}, [tc('cmp.fail', { rule: num(f.cost), opt: num(f.opt), from: tT(f.from), step: num(f.stepCost),
+              set: list(f.set) + (f.unique === false ? ` ${tc('cmp.other', { list: list(f.other) })}` : ''),
+              shorten: list(f.move.shorten), lengthen: list(f.move.lengthen), terms: moveTerms(m, f.move, lang()), cost: num(f.move.cost) })]),
+            h('p', {}, [tc('cmp.failWhy')])]));
+        } else if (!hide && step.above) parts.push(h('p', { class: 'ct-note ct-note-warn', id: 'ctStepAbove' }, [tw('above', { rule: num(step.cost), T: tT(step.T), opt: num(step.opt) })]));
+        parts.push(candTable(step, hide), predictBox(step, hide));
+      }
+      parts.push(walkNav(tr, k, hide, step, title, text.join(' ')));
+      return { card: h('section', { class: 'card ct-card ct-step', id: 'ctStepCard', 'aria-labelledby': 'ctStepHead' }, parts), step, hide };
+    }
+    // Las actividades del paso: pendiente (o «mín.» si ya está en su urgente) y los caminos críticos en que están; con
+    // predicción, una casilla en cada una (también en las no críticas: el error es parte de la lección).
+    function candTable(step, hide) {
+      const pred = hooks.pred();
+      const chosen = pred.answers.get('ct.set') || new Set();
+      const ask = hide;
+      const crit = new Set(step.critical);
+      const cols = ['pick', 'act', 'slope', 'paths'];
+      const body = m.p.activities.map((a) => {
+        const on = step.paths.filter((x) => x.includes(a.id));
+        const atLimit = a.dn > a.dc && step.dBefore[a.id] <= a.dc;
+        const pickCell = ask
+          ? h('td', {}, [h('input', { type: 'checkbox', id: `ctPick-${a.id}`, checked: chosen.has(a.id), 'aria-label': tw('pickLabel', { id: a.id }),
+            onchange: (e) => { const set = new Set(pred.answers.get('ct.set') || []); if (e.target.checked) set.add(a.id); else set.delete(a.id); pred.answers.set('ct.set', set); } })])
+          : h('td', {}, [!hide && step.set.includes(a.id) ? h('strong', { class: 'ct-set' }, [tw('shortCell')]) : '']);
+        return h('tr', { class: [crit.has(a.id) ? 'crit' : '', !hide && step.set.includes(a.id) ? 'chosen' : ''].join(' ').trim() || null, 'data-act': a.id }, [
+          pickCell, h('th', { scope: 'row' }, [a.id]),
+          h('td', { class: 'num' }, [a.dn > a.dc ? (atLimit ? h('span', { class: 'ct-l-min', title: tc('net.min') }, [tw('atLimitCell')]) : num(a.b)) : '—']),
+          h('td', { class: crit.has(a.id) ? 'ct-mono' : 'muted' }, [crit.has(a.id) ? pathList(on) : tw('notCritCell')]),
+        ]);
+      });
+      return h('div', { class: 'ct-scroll', tabindex: '0', role: 'region', 'aria-label': tw('tableLabel', { from: tT(step.from) }) }, [
+        h('table', { class: 'data ct-cand', id: 'ctCand' }, [h('thead', {}, [h('tr', {}, cols.map((x) => h('th', { scope: 'col' }, [tw(`col.${x}`)])))]), h('tbody', {}, body)])]);
+    }
+    function predictBox(step, hide) {
+      if (!state().pred) return null;
+      const pred = hooks.pred();
+      if (hide) {
+        const msg = h('p', { class: 'ct-m ct-m-err', id: 'ctPredEmpty', hidden: true }, [tw('empty')]);
+        const check = () => {
+          const set = pred.answers.get('ct.set');
+          if (!set || !set.size) { msg.hidden = false; focus(`ctPick-${m.p.activities[0].id}`); return; }
+          hooks.predCheck(step);
+          focus('ctPredFb');
+        };
+        return h('div', { class: 'ct-predict' }, [h('div', { class: 'ct-row' }, [
+          h('label', { class: 'ct-field', for: 'ctPredCost' }, [tw('cost')]),
+          h('input', { id: 'ctPredCost', value: pred.answers.get('ct.cost') || '', size: '7', inputmode: 'decimal', autocomplete: 'off', 'aria-describedby': 'ctPredEmpty',
+            oninput: (e) => { pred.answers.set('ct.cost', e.target.value); }, onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); check(); } } }),
+          h('button', { type: 'button', class: 'primary', id: 'ctPredCheck', onclick: check }, [I.t(lang(), 'predict.check')]),
+          button(I.t(lang(), 'predict.show'), () => { hooks.predShow(); focus('ctNext'); }, { id: 'ctPredShow' }),
+        ]), msg]);
+      }
+      if (!(pred.done && pred.step === state().step && pred.result)) return null;
+      const fb = feedback(m, step, pred.answers, lang());
+      return h('div', { class: 'ct-fb', id: 'ctPredFb', tabindex: '-1', role: 'status' }, fb.map((x) => h('p', { class: `ct-fb-${x.kind}` }, [
+        h('span', { 'aria-hidden': 'true' }, [x.kind === 'ok' ? '✓ ' : '✕ ']), x.text])));
+    }
+    function walkNav(tr, k, hide, step, title, text) {
+      const n = tr.length - 1;
+      const wkey = `${m.src.id}|${lang()}|${k}|${n}|${hide}`;
+      if (wkey !== lastWalk) { lastWalk = wkey; if (hooks.announce) hooks.announce(`${I.t(lang(), 'player.counter', { i: k, n })}. ${title}. ${hide ? I.t(lang(), 'predict.hidden') : text}`); }
+      const c = I.t(lang(), 'player.counter', { i: k, n });
+      return h('div', { class: 'ct-row ct-walknav' }, [
+        h('button', { type: 'button', class: 'ghost', id: 'ctPrev', disabled: k <= 1, onclick: () => { hooks.dispatch({ type: 'prev' }); focus('ctPrev'); } }, [`← ${I.t(lang(), 'player.prev')}`]),
+        h('button', { type: 'button', class: 'ghost', id: 'ctNext', disabled: k >= n || hide, onclick: () => {
+          hooks.dispatch({ type: 'next' });
+          const st = m.trace[Math.min(state().step, n)];
+          focus(hooks.predicting(st) ? `ctPick-${m.p.activities[0].id}` : 'ctNext');
+        } }, [`${I.t(lang(), 'player.next')} →`]),
+        h('span', { class: 'muted small', id: 'ctCounter' }, [`${step.kind === 'ctStep' ? tw('counter', { c, from: tT(step.from), T: tT(step.T) }) : c} · ${tw('keys')}`]),
+        hide ? h('span', { class: 'muted small' }, [I.t(lang(), 'predict.hidden')]) : null]);
+    }
+
     function fillLower() {
       clear(lower);
       if (!m.p) return;
@@ -496,8 +654,14 @@
 
     function draw() {
       clear(container);
-      ownTable = null; issuesSlot = null;
+      ownTable = null; issuesSlot = null; lower = null;
       container.appendChild(bar());
+      if (walking()) {
+        const w = walkCard();
+        container.appendChild(w.card);
+        for (const el of netsFor(walkNets(m, w.step, w.hide))) container.appendChild(el);
+        return;
+      }
       container.appendChild(h('div', { class: 'ct-top' }, [m.src.kind === 'own' ? ownCard() : exampleCard(), costsCard()]));
       lower = h('div', { class: 'ct-lower', id: 'ctLower' });
       container.appendChild(lower);
@@ -505,7 +669,7 @@
     }
     function render(model, opts) {
       // Al teclear en la tabla propia no se rehace la tabla: se marcan las filas.
-      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && ownTable && ownTable.isConnected
+      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && ownTable && ownTable.isConnected && lower
         && model.src.rows.length === m.src.rows.length;
       m = model;
       if (typing) {
@@ -519,13 +683,14 @@
       if (!m) return null;
       const c = m.p ? compression(m) : null;
       return { src: { kind: m.src.kind, id: m.src.id }, errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => FIELD[c]),
-        ok: !!m.p, k: m.k, T: c ? chosenT(state(), c) : null, rows: c ? c.rows.map((r) => r.T) : [], best: c ? c.best : [], opt: optView };
+        ok: !!m.p, k: m.k, T: c ? chosenT(state(), c) : null, rows: c ? c.rows.map((r) => r.T) : [], best: c ? c.best : [], opt: optView,
+        walk: walking() ? { k: state().step, kind: m.trace[Math.min(state().step, m.trace.length - 1)].kind, n: m.trace.length - 1 } : null };
     }
     function leave() { /* T010: nada que parar */ }
     return { render, debug, leave };
   }
 
-  const api = { FIELDS, KC, source, costs, model, compression, chosenT, moveTerms, netTags, curveSpec, issueText, rowMarks, workRows, pasteRows, parseCost, create };
+  const api = { FIELDS, KC, source, costs, model, compression, chosenT, moveTerms, netTags, curveSpec, trace, walkNets, feedback, issueText, rowMarks, workRows, pasteRows, parseCost, create };
   root.PNL = root.PNL || {};
   root.PNL.ctTab = api;
   if (isNode) module.exports = api;

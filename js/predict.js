@@ -16,6 +16,9 @@
  * En «Réplica a réplica» de M7 (F4b, T011), el camino crítico de la réplica (M7_PATH): uno de los críticos (rv.ok).
  * En las precedencias generalizadas (F5a T014, A6), la clase de una actividad crítica (GPR_CLS): una de las seis de Valls y
  * Lino (GPR_CLASSES), igual que la del núcleo.
+ * En la compresión coste–tiempo (F5b T012, `analyze` B3), el conjunto de actividades que se acortan en el paso (CT_SET, un
+ * conjunto): vale cualquiera que corte todos los caminos críticos al coste mínimo, según core/crash.setCheck con los datos
+ * del paso (rv.check). Un valor sin actividad ni suceso (ct.set, ct.cost) tiene por clave su campo.
  */
 (function (root) {
   'use strict';
@@ -30,7 +33,7 @@
   }
 
   // Valores de actividad (A.ES) o de suceso de la red PERT (3.TE): ningún campo se repite entre los dos.
-  const key = (rv) => `${rv.act != null ? rv.act : rv.event}.${rv.field}`;
+  const key = (rv) => (rv.act == null && rv.event == null ? rv.field : `${rv.act != null ? rv.act : rv.event}.${rv.field}`);
 
   const RULE_ACTS = 'rule.acts';
   const RULE_COUNT = 'rule.count';
@@ -43,6 +46,9 @@
   // F5a (T014): la clase de Valls y Lino de una actividad crítica, elegida entre las seis.
   const GPR_CLS = 'gpr.cls';
   const GPR_CLASSES = ['normal', 'reverse', 'neutral', 'bicritical', 'incNormal', 'decReverse'];
+  // F5b (T012): el conjunto que se acorta en un paso de la compresión; lo corrige core/crash (grupo ct, ya cargado).
+  const CT_SET = 'ct.set';
+  const crash = () => root.PNL.crash || (typeof module !== 'undefined' && module.exports ? require('./core/crash.js') : null);
   const byId = (a, b) => a.localeCompare(b, 'en', { numeric: true });
 
   // Qué precedentes marcadas sobran y cuáles faltan respecto a las que llevan ficticia de dependencia.
@@ -105,6 +111,11 @@
         out.set(key(rv), given == null || given === '' ? 'empty' : (given === rv.value ? 'ok' : 'wrong'));
         continue;
       }
+      if (rv.field === CT_SET) {
+        const given = answers.get(key(rv));
+        out.set(key(rv), !given || !given.size ? 'empty' : (crash().setCheck(rv.check, [...given]).ok ? 'ok' : 'wrong'));
+        continue;
+      }
       if (rv.field === M7_PATH) {
         const given = answers.get(key(rv));
         out.set(key(rv), given == null || given === '' ? 'empty' : (rv.ok.includes(given) ? 'ok' : 'wrong'));
@@ -127,7 +138,7 @@
   const hasPrediction = (step) => !!step && (step.kind === 'progAct' || !!step.rule || (step.kind === 'm0Frag' && !!step.fields)
     || (!!step.reveals && step.reveals.length > 0));
 
-  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, m0Diff, M0_GIVES, M7_PATH, GPR_CLS, GPR_CLASSES, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
+  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, m0Diff, M0_GIVES, M7_PATH, GPR_CLS, CT_SET, GPR_CLASSES, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
   root.PNL = root.PNL || {};
   root.PNL.predict = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
