@@ -13980,6 +13980,110 @@ check('F5c T010 · AC12: alternativas en texto (comienzos y perfil por periodo),
   await close(page);
 });
 
+// ---------- F5c, T011: recursos limitados (la regla, la comparación, Baker, el óptimo, a mano y la cadena crítica) ----------
+
+const rsRules = (page) => page.evaluate(() => [...document.querySelectorAll('#rsRules tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent.trim())));
+
+check('F5c T011 · AC4 y AC7: Klastorin 8.5: la regla da 17 (Baker 13, óptimo 14 demostrado), la tabla de 7 reglas × 4 esquemas elige el calendario, y la cadena crítica en el Gantt y en la ROY (ES y EN)', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await rsLab(rsHash({ we: 'k85', lang }));
+    await page.waitForSelector('#rsGantt svg');
+    assert.equal(await page.locator('#rsCal').inputValue(), 'sgs');
+    assert.equal(await page.locator('#rsScheme').inputValue(), 'sf');
+    assert.equal(await page.locator('#rsRule').inputValue(), 'slk');
+    let st = await rsSt(page);
+    assert.deepEqual([st.cal, st.T, st.chains], ['sgs', 17, [['B', 'D', 'A', 'C', 'E']]]);
+    assert.equal(await page.locator('#rsDurBaker').innerText(), '13');
+    assert.match(await page.locator('#rsDurOpt').innerText(), /14/);
+    assert.match(await page.locator('#rsBakerText').innerText(), /101/);
+    const p = RSR.parse(RSX.get('k85').rows, [{ name: 'W', cap: '9' }], 'lim').project;
+    const cmp = RSR.compare(p);
+    const rows = await rsRules(page);
+    assert.equal(rows.length, 7);
+    RSR.RULES.forEach((r, i) => ['sf', 'sb', 'pf', 'pb'].forEach((sc, j) => {
+      assert.equal(rows[i][j], String(cmp.find((x) => x.rule === r && x.scheme === sc[0] && x.dir === sc[1]).T), `${r} ${sc}`);
+    }));
+    assert.equal(await page.locator('#rsGantt .rsg-bar.chain').count(), 5);
+    assert.equal(await page.locator('#rsGantt .rsg-cap').count(), 1);
+    assert.equal(await page.locator('#rsRoy .box.sel').count(), 5);
+    assert.ok(await page.locator('#rsRoy .edge.wait').count() >= 1, 'A espera a D por los trabajadores');
+    // Elegir la celda «menor fin tardío, serie hacia delante» (14).
+    await page.locator('#rsRule-lft-sf').click();
+    await page.waitForFunction(() => PNL.rsTab.state().T === 14);
+    const h = U5.decode(await page.evaluate(() => location.hash)).state;
+    assert.deepEqual([h.ws, h.wp], ['sf', 'lft']);
+    // El óptimo.
+    await page.locator('#rsCal').selectOption('opt');
+    await page.waitForFunction(() => PNL.rsTab.state().cal === 'opt');
+    assert.equal((await rsSt(page)).T, 14);
+    assert.equal(await page.locator('#rsScheme').count(), 0);
+    await close(page);
+  }
+});
+
+check('F5c T011 · AC7: LOGON con un inspector: el óptimo de 49 con sus dos cadenas críticas y las esperas por el inspector en la ROY', async () => {
+  const page = await rsLab(rsHash({ we: 'lgi', wc: 'opt', lang: 'es' }));
+  await page.waitForSelector('#rsRoy svg');
+  const st = await rsSt(page);
+  assert.deepEqual([st.T, st.chains.length], [49, 2]);
+  assert.match(await page.locator('#rsChainNote').innerText(), /H → J → K → P/);
+  assert.ok(await page.locator('#rsRoy .edge.wait').count() >= 2);
+  await close(page);
+});
+
+check('F5c T011 · AC6 y C2: a mano con recursos limitados (GUMBY): empieza vacío; se colocan de una en una; cada motivo para no colocar; con todas, su duración frente a la mejor regla y al óptimo', async () => {
+  const page = await rsLab(rsHash({ we: 'gb', wc: 'man', lang: 'es' }));
+  await page.waitForSelector('#rsPlaceAct');
+  assert.equal(await page.locator('#rsGantt .rsg-bar').count(), 0);
+  const place = async (id, s) => { await page.locator('#rsPlaceAct').selectOption(id); await page.locator('#rsPlaceStart').fill(String(s)); await page.locator('#rsPlace').click(); };
+  await place('J', 0);
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 1);
+  await place('M', 6);
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 2);
+  await place('L', 6);
+  await page.waitForSelector('#rsPlaceBad');
+  assert.match(await page.locator('#rsPlaceBad').innerText(), /periodo 7 harían falta 10 analistas y hay 8/);
+  await place('Y', 12);
+  await page.waitForFunction(() => /necesita a V/.test(document.getElementById('rsPlaceBad').textContent));
+  for (const [id, s] of [['L', 10], ['V', 10], ['Q', 12], ['Y', 16], ['Z', 24]]) {
+    await place(id, s);
+    await page.waitForFunction((x) => PNL.rsTab.state().moves.some(([i, t]) => i === x[0] && t === x[1]), [id, s]);
+  }
+  assert.equal((await rsSt(page)).T, 26);
+  assert.match(await page.locator('#rsPlaceDone').innerText(), /26/);
+  assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wq.length, 7);
+  // Quitar una y empezar de nuevo.
+  await page.locator('#rsPlaceAct').selectOption('Z');
+  await page.locator('#rsRemove').click();
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 6);
+  await page.locator('#rsPlaceReset').click();
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 0);
+  await close(page);
+});
+
+check('F5c T011 · AC12: axe sin violaciones (claro y oscuro, ES y EN) con la regla, el óptimo y a mano; a 360 px sin desbordar; por debajo de 1 MB', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await rsLab(rsHash({ we: 'n723', lang }), { scheme });
+    await page.waitForSelector('#rsGantt svg');
+    await axe(page, `F5c T011 · Nicholas 7.23 · ${lang} · ${scheme}`);
+    await rsGo(page, { we: 'gb', wc: 'man', wq: [['J', 0], ['M', 6]], lang });
+    await page.waitForSelector('#rsPlaceAct');
+    await axe(page, `F5c T011 · GUMBY a mano · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await rsLab(rsHash({ we: 'k85', lang: 'es' }), { width: 360, height: 740 });
+  await m.waitForSelector('#rsGantt svg');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5c-t011-k85-360', true);
+  await close(m);
+  const page = await rsLab(rsHash({ we: 'lgi', wc: 'opt', lang: 'es' }));
+  await page.waitForSelector('#rsGantt svg');
+  const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+  console.log(`    cpm.html#v=rs&we=lgi&wc=opt: ${(bytes / 1024).toFixed(0)} KB`);
+  assert.ok(bytes <= BUDGET);
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

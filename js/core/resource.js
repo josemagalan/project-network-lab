@@ -9,7 +9,7 @@
  *       sin fila, badCap; aviso noUse (todos los usos vacíos: valen 0).
  *   profile(p, S, k) → uso del recurso k en cada periodo 1 … T' (T' = fin del calendario S; S = { id: comienzo })
  *   stats(u) → { peak, ssq, work }
- *   check(p, S, mode, id?) → { ok: true } | { ok: false, reason: pred | succ | late | over, … } (P3)
+ *   check(p, S, mode, id?) → { ok: true } | { ok: false, reason: unplaced | pred | succ | late | over, … } (P3; S puede estar a medias, C2)
  *   baker(p) → { list: [{ k, W, wasteStart, wasteEnd, Dmin, Rmin }], bound } (Klastorin, figuras 8.6 y 8.7)
  *   burgess(p, k) → { S, steps: [{ id, from, to, window, options: [{ s, ssq }], before, after }], passes } (P4)
  *   minPeak(p, k, budget?) → { peak, S, lb, proved, nodes } (P5, P6; tope BUDGET nodos)
@@ -95,7 +95,9 @@
 
   // ---------- Perfiles (P2) ----------
 
-  const end = (p, S) => Math.max(0, ...p.activities.map((a) => S[a.id] + a.d));
+  // El fin de un calendario: el de las actividades colocadas (en el calendario a mano con recursos limitados, C2, puede
+  // haber actividades sin colocar).
+  const end = (p, S) => Math.max(0, ...p.activities.filter((a) => S[a.id] != null).map((a) => S[a.id] + a.d));
 
   function profile(p, S, k, T) {
     const u = new Array(T == null ? end(p, S) : T).fill(0);
@@ -108,11 +110,17 @@
   // ---------- Comprobación de un calendario (P3) ----------
   // Sin id, todo el calendario; con id, solo lo que toca a esa actividad (un movimiento a mano). Orden de los motivos:
   // predecesora sin acabar, sucesora adelantada, fin después de T (nivelación) y periodo que se pasa (recursos limitados).
+  // Un calendario a medias (C2) solo mira las colocadas: una predecesora sin colocar es «unplaced»; una sucesora sin
+  // colocar no cuenta.
   function check(p, S, mode, id) {
-    const acts = id ? [p.byId[id]] : p.activities;
+    const placed = (x) => S[x] != null;
+    const acts = id ? [p.byId[id]] : p.activities.filter((a) => placed(a.id));
     for (const a of acts) {
-      for (const x of p.preds[a.id]) if (S[a.id] < S[x] + p.byId[x].d) return { ok: false, reason: 'pred', ids: [x, a.id] };
-      if (id) for (const x of p.succs[a.id]) if (S[x] < S[a.id] + a.d) return { ok: false, reason: 'succ', ids: [a.id, x] };
+      for (const x of p.preds[a.id]) {
+        if (!placed(x)) return { ok: false, reason: 'unplaced', ids: [x, a.id] };
+        if (S[a.id] < S[x] + p.byId[x].d) return { ok: false, reason: 'pred', ids: [x, a.id] };
+      }
+      if (id) for (const x of p.succs[a.id]) if (placed(x) && S[x] < S[a.id] + a.d) return { ok: false, reason: 'succ', ids: [a.id, x] };
     }
     if (mode === 'lev') {
       for (const a of acts) if (S[a.id] + a.d > p.T) return { ok: false, reason: 'late', ids: [a.id] };

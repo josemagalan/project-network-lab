@@ -15,6 +15,8 @@
  * flechas y las etiquetas llevan data-edge, y las etiquetas de una flecha que sube van debajo de ella.
  * F5b (coste–tiempo, T011): ctx.tags = Map(id → [{ text, cls, title }]) pone marcas en la esquina de la caja (−1 si se
  * acorta en el paso, «mín.» si está en su duración urgente).
+ * F5c (recursos, T011): ctx.marked = Set(id) marca las cajas de la cadena crítica como la selección (naranja), y ctx.waits =
+ * [[u, v]] dibuja una espera por un recurso (sin precedencia) como un arco naranja a trazos por encima de las cajas.
  * Sin ellos, la red de siempre.
  */
 (function (root) {
@@ -127,6 +129,16 @@
       if (ctx.onEdge) ep.style('cursor', 'pointer').on('click', () => ctx.onEdge(`${u}>${v}`, null));
     }
 
+    // F5c (T011): las esperas por un recurso, de lado a lado, curvadas por encima.
+    for (const [u, v] of ctx.waits || []) {
+      const a = pos[u]; const b = pos[v];
+      if (!a || !b) continue;
+      const x1 = a.x + a.w / 2; const y1 = a.y; const x2 = b.x + b.w / 2; const y2 = b.y;
+      // Sin salir del dibujo por arriba (el margen es pad).
+      const top = Math.max(4, Math.min(y1, y2) - Math.max(24, Math.abs(x2 - x1) / 6));
+      eg.append('path').attr('d', `M${x1} ${y1} C ${x1} ${top}, ${x2} ${top}, ${x2} ${y2}`).attr('class', 'edge wait').attr('marker-end', 'url(#pnl-mk-s)');
+    }
+
     if (tags.length) {
       const lg = svg.append('g').attr('class', 'elabs');
       for (const q of tags) {
@@ -164,7 +176,7 @@
         continue;
       }
       const active = step && step.act === id;
-      const cls = `box${active ? ' active' : ''}${!active && crit.has(id) ? ' crit' : ''}${ctx.selected === id ? ' sel' : ''}`;
+      const cls = `box${active ? ' active' : ''}${!active && crit.has(id) ? ' crit' : ''}${ctx.selected === id || (ctx.marked && ctx.marked.has(id)) ? ' sel' : ''}`;
       gg.attr('class', 'node');
       if (ctx.onSelect) gg.style('cursor', 'pointer').on('click', () => ctx.onSelect(id));
       const txt = (x, y, f, k) => gg.append('text').attr('class', f === 'id' ? 'nid' : `val${val(id, f) === '·' ? ' hidden' : ''}`)

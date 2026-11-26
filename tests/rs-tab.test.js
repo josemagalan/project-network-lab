@@ -140,3 +140,60 @@ test('F5c T010: movimientos a mano: entre ES y LS; una predecesora o una sucesor
   assert.deepEqual(T.withMove(m, man.moves, 'P', S0.P), [['T', S0.T + 2], ['Q', S0.Q + 2]]);
   assert.deepEqual(T.withMove(m, man.moves, 'R', 22), [['T', S0.T + 2], ['Q', S0.Q + 2], ['P', S0.P + 2], ['R', 22]]);
 });
+
+// ---------- T011: recursos limitados (tableros 135, 138 y 140) ----------
+
+test('F5c T011: Klastorin 8.5: la regla (serie, menor holgura) da 17, Baker 13, el óptimo 14 demostrado; la comparación, 7 reglas × 4 esquemas', () => {
+  const m = T.model(st({ we: 'k85' }), 'es');
+  const c = T.limCalendar(m, st({ we: 'k85' }));
+  assert.deepEqual([c.wc, c.T, c.chains], ['sgs', 17, [['B', 'D', 'A', 'C', 'E']]]);
+  const ld = T.limData(m);
+  assert.deepEqual([ld.bound.bound, ld.opt.T, ld.opt.proved, ld.cmp.length], [13, 14, true, 28]);
+  assert.equal(T.limCalendar(m, st({ we: 'k85', wc: 'sgs', ws: 'sf', wp: 'lft' })).T, 14);
+  assert.equal(T.limCalendar(m, st({ we: 'k85', wc: 'opt' })).T, 14);
+  // Un calendario de la nivelación (también el temprano, el de siempre), con recursos limitados, es el de la regla.
+  for (const wc of ['es', 'ls', 'bur', 'min']) assert.equal(T.limCalendar(m, st({ we: 'k85', wc })).wc, 'sgs');
+  // Hacia atrás, la cadena se lee igual (de la que empieza en 0 a la que acaba al final).
+  const back = T.limCalendar(m, st({ we: 'k85', ws: 'sb', wp: 'slk' }));
+  assert.equal(back.T, 14);
+  for (const ch of back.chains) assert.equal(back.S[ch[0]], 0);
+});
+
+test('F5c T011: LOGON con un inspector: óptimo 49 con dos cadenas críticas; sus esperas por el inspector', () => {
+  const m = T.model(st({ we: 'lgi' }), 'es');
+  const c = T.limCalendar(m, st({ we: 'lgi', wc: 'opt' }));
+  assert.equal(c.T, 49);
+  assert.equal(c.chains.length, 2);
+  const w = T.chainMarks(m, c.chains);
+  assert.ok(w.waits.some(([u, v]) => u === 'K' && v === 'P'));
+  assert.ok(w.edges.has('H>J'));
+  assert.ok(w.nodes.has('Z'));
+});
+
+test('F5c T011: a mano con recursos limitados (C2): empieza vacío; se coloca una a una con cada motivo; los de wq que ya no valen se descartan', () => {
+  const m = T.model(st({ we: 'gb' }), 'es');
+  let man = T.manualLim(m, null);
+  assert.deepEqual([man.S, man.complete], [{}, false]);
+  man = T.manualLim(m, [['J', 0], ['M', 6]]);
+  assert.deepEqual(man.S, { J: 0, M: 6 });
+  assert.deepEqual(T.placeCheck(m, man.S, 'L', 6), { ok: false, reason: 'over', id: 'L', res: 0, period: 7, use: 10, cap: 8 });
+  assert.deepEqual(T.placeCheck(m, man.S, 'Y', 12), { ok: false, reason: 'unplaced', id: 'Y', other: 'V' });
+  assert.deepEqual(T.placeCheck(m, man.S, 'L', 4), { ok: false, reason: 'pred', id: 'L', other: 'J', end: 6, start: 4 });
+  assert.deepEqual(T.placeCheck(m, Object.assign({}, man.S, { V: 10 }), 'M', 8), { ok: false, reason: 'succ', id: 'M', other: 'V', end: 12, start: 10 });
+  assert.deepEqual(T.placeCheck(m, man.S, 'L', 10), { ok: true });
+  for (const lang of ['es', 'en']) {
+    for (const c of [T.placeCheck(m, man.S, 'L', 6), T.placeCheck(m, man.S, 'Y', 12), T.placeCheck(m, man.S, 'L', 4), T.placeCheck(m, Object.assign({}, man.S, { V: 10 }), 'M', 8)]) {
+      const text = T.placeText(c, lang, m);
+      assert.ok(text && !/\{|undefined|^rs\./.test(text), text);
+    }
+  }
+  assert.match(T.placeText(T.placeCheck(m, man.S, 'L', 6), 'es', m), /periodo 7.*10 analistas.*8/i);
+  // wq con uno que ya no vale (L encima de M) y uno que no existe: se descartan.
+  man = T.manualLim(m, [['J', 0], ['M', 6], ['L', 6], ['ZZ', 1], ['L', 10]]);
+  assert.deepEqual(man.moves, [['J', 0], ['M', 6], ['L', 10]]);
+  // Todas colocadas: el calendario está completo y tiene su duración.
+  const all = T.manualLim(m, [['J', 0], ['M', 6], ['L', 10], ['V', 10], ['Q', 12], ['Y', 16], ['Z', 24]]);
+  assert.deepEqual([all.complete, all.T], [true, 26]);
+  assert.deepEqual(T.withPlace(all.moves, 'Q', null).map(([id]) => id), ['J', 'M', 'L', 'V', 'Y', 'Z']);
+  assert.deepEqual(T.withPlace([['J', 0]], 'J', 2), [['J', 2]]);
+});

@@ -159,6 +159,22 @@ test('F5c T003: check: predecesora sin acabar, sucesora adelantada, fin después
 
 // ---------- Cota de Baker (Klastorin, figuras 8.6 y 8.7) ----------
 
+test('F5c T011: check con un calendario a medias (a mano con recursos limitados, C2): solo cuentan las colocadas; una predecesora sin colocar se dice', () => {
+  const k85 = ex('k85');
+  // Solo B y D colocadas: A cabe en 8 (antes, con D, pasa de 9), y el resto no se mira.
+  const S = { B: 0, D: 3 };
+  assert.deepEqual(K.check(k85, S, 'lim'), { ok: true });
+  assert.deepEqual(K.check(k85, Object.assign({}, S, { A: 8 }), 'lim', 'A'), { ok: true });
+  assert.deepEqual(K.check(k85, Object.assign({}, S, { A: 3 }), 'lim', 'A'), { ok: false, reason: 'over', res: 0, period: 4, use: 11, cap: 9 });
+  // C sin A colocada: su predecesora no está.
+  assert.deepEqual(K.check(k85, Object.assign({}, S, { C: 9 }), 'lim', 'C'), { ok: false, reason: 'unplaced', ids: ['A', 'C'] });
+  // Una sucesora sin colocar no cuenta; una colocada, sí.
+  assert.deepEqual(K.check(k85, { B: 0 }, 'lim', 'B'), { ok: true });
+  assert.deepEqual(K.check(k85, { B: 2, D: 3 }, 'lim', 'B'), { ok: false, reason: 'succ', ids: ['B', 'D'] });
+  // Con todas colocadas, como siempre; se puede pasar del final del CPM (el proyecto se alarga).
+  assert.deepEqual(K.check(k85, { A: 0, B: 0, C: 4, D: 5, E: 30 }, 'lim', 'E'), { ok: true });
+});
+
 test('F5c T003: Baker en Klastorin 8.5: 101 de trabajo, 3 y 8 desperdiciados, al menos 13 semanas y, en 12, al menos 10 trabajadores', () => {
   const p = ex('k85');
   assert.deepEqual(K.baker(p), { list: [{ k: 0, W: 101, wasteStart: 3, wasteEnd: 8, Dmin: 13, Rmin: 10 }], bound: 13 });

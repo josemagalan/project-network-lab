@@ -137,6 +137,72 @@
   }
 
 
+  // ---------- Recursos limitados (T011; tableros 135, 138 y 140) ----------
+
+  const LIM = ['sgs', 'opt', 'man'];
+  const SCHEME = { sf: { scheme: 's', dir: 'f' }, sb: { scheme: 's', dir: 'b' }, pf: { scheme: 'p', dir: 'f' }, pb: { scheme: 'p', dir: 'b' } };
+  let limCache = { key: null, val: null };
+  /** La cota de Baker, el óptimo (con su tope) y la comparación de las 7 reglas × 4 esquemas; se guarda la última. */
+  function limData(m, budget) {
+    const key = JSON.stringify([pkey(m.p), budget == null ? null : budget]);
+    if (limCache.key === key) return limCache.val;
+    const val = { bound: R.baker(m.p), opt: R.optimum(m.p, budget), cmp: R.compare(m.p) };
+    limCache = { key, val };
+    return val;
+  }
+
+  /** ¿Se puede colocar id en s con lo ya colocado (P3, C2)? Sus predecesoras colocadas y acabadas, sin adelantar a una sucesora colocada y sin pasar de lo disponible. */
+  function placeCheck(m, S, id, s) {
+    const c = R.check(m.p, Object.assign({}, S, { [id]: s }), 'lim', id);
+    if (c.ok) return { ok: true };
+    if (c.reason === 'unplaced') return { ok: false, reason: 'unplaced', id, other: c.ids[0] };
+    if (c.reason === 'pred') { const x = c.ids[0]; return { ok: false, reason: 'pred', id, other: x, end: S[x] + m.p.byId[x].d, start: s }; }
+    if (c.reason === 'succ') { const y = c.ids[1]; return { ok: false, reason: 'succ', id, other: y, end: s + m.p.byId[id].d, start: S[y] }; }
+    return { ok: false, reason: 'over', id, res: c.res, period: c.period, use: c.use, cap: c.cap };
+  }
+  /** El motivo de una colocación que no se hace (con el nombre del recurso, en minúscula, si se pasa de lo disponible). */
+  const placeText = (c, lang, m) => I.t(lang, `rs.place.bad.${c.reason}`, Object.assign({}, c, c.reason === 'over' ? { res: m.res[c.res].label.toLowerCase() } : {}));
+  /** El calendario a mano con recursos limitados (C2): empieza vacío; las colocaciones de wq, en orden; las que ya no valen se descartan. */
+  function manualLim(m, wq) {
+    const S = {}; const moves = [];
+    for (const [id, s] of wq || []) {
+      if (!m.p.byId[id] || id in S || !placeCheck(m, S, id, s).ok) continue;
+      S[id] = s; moves.push([id, s]);
+    }
+    const complete = moves.length === m.p.activities.length;
+    return { S, moves, complete, T: complete ? Math.max(0, ...m.p.activities.map((a) => S[a.id] + a.d)) : null };
+  }
+  /** La lista de colocaciones con id en s (s = null: se quita). */
+  function withPlace(moves, id, s) {
+    const i = moves.findIndex(([x]) => x === id);
+    if (s == null) return moves.filter(([x]) => x !== id);
+    if (i < 0) return moves.concat([[id, s]]);
+    return moves.map((x, j) => (j === i ? [id, s] : x));
+  }
+
+  /** El calendario que se ve con recursos limitados: el de la regla (esquema y sentido; también con wc de la nivelación), el óptimo o a mano, con su duración y sus cadenas críticas. */
+  function limCalendar(m, state) {
+    const wc = LIM.includes(state.wc) ? state.wc : 'sgs';
+    if (wc === 'man') { const x = manualLim(m, state.wq); return Object.assign({ wc, chains: x.complete ? R.chains(m.p, x.S, 'f') : [] }, x); }
+    if (wc === 'opt') { const o = limData(m).opt; return { wc, S: o.S, T: o.T, chains: R.chains(m.p, o.S, 'f'), info: o }; }
+    const sc = SCHEME[state.ws] || SCHEME.sf; const rule = R.RULES.includes(state.wp) ? state.wp : 'slk';
+    const r = R.sgs(m.p, Object.assign({ rule }, sc));
+    return { wc, S: r.S, T: r.T, chains: R.chains(m.p, r.S, sc.dir), scheme: sc, rule };
+  }
+  /** Las marcas de la cadena crítica en la ROY: sus actividades, los arcos que siguen una precedencia y las esperas por un recurso. */
+  function chainMarks(m, chains) {
+    const nodes = new Set(); const edges = new Set(); const waits = []; const seen = new Set();
+    for (const c of chains) {
+      c.forEach((id, i) => {
+        nodes.add(id);
+        if (!i) return;
+        const u = c[i - 1]; const k = `${u}>${id}`;
+        if (m.p.preds[id].includes(u)) edges.add(k); else if (!seen.has(k)) { seen.add(k); waits.push([u, id]); }
+      });
+    }
+    return { nodes, edges, waits };
+  }
+
   // ---------- Los recursos de la tabla propia (tablero 139) ----------
 
   /** Las tres filas del editor de recursos, con lo escrito (texto). */
@@ -254,6 +320,16 @@
           m.mode === 'lev' ? h('label', { class: 'rs-field' }, [tr('bar.cal'), ' ', h('select', { id: 'rsCal', disabled: !m.p,
             onchange: (e) => { bad = null; go({ wc: e.target.value }, { push: true }); focus('rsCal'); } },
             LEV.map((k) => h('option', { value: k, selected: k === levCal() }, [tr(`cals.${k}`)])))]) : null,
+          // Recursos limitados (T011): el calendario y, con el de la regla, el esquema y la regla.
+          m.mode === 'lim' ? h('label', { class: 'rs-field' }, [tr('bar.cal'), ' ', h('select', { id: 'rsCal', disabled: !m.p,
+            onchange: (e) => { bad = null; go({ wc: e.target.value }, { push: true }); focus('rsCal'); } },
+            LIM.map((k) => h('option', { value: k, selected: k === limCal() }, [tr(`cals.${k}`)])))]) : null,
+          m.mode === 'lim' && limCal() === 'sgs' ? h('label', { class: 'rs-field' }, [tr('bar.scheme'), ' ', h('select', { id: 'rsScheme', disabled: !m.p,
+            onchange: (e) => { go({ ws: e.target.value }, { push: true }); focus('rsScheme'); } },
+            Object.keys(SCHEME).map((k) => h('option', { value: k, selected: k === schemeOf() }, [tr(`schemes.${k}`)])))]) : null,
+          m.mode === 'lim' && limCal() === 'sgs' ? h('label', { class: 'rs-field' }, [tr('bar.rule'), ' ', h('select', { id: 'rsRule', disabled: !m.p,
+            onchange: (e) => { go({ wp: e.target.value }, { push: true }); focus('rsRule'); } },
+            R.RULES.map((k) => h('option', { value: k, selected: k === ruleOf(), title: tr(`rules.${k}`) }, [tr(`rulesShort.${k}`)])))]) : null,
         ]),
       ]);
     }
@@ -533,11 +609,144 @@
       return [box('rsTimes', timesOpen, (v) => { timesOpen = v; }, tr('alt.times'), tr('alt.timesCaption', { cal: calName }), 'rsTimesTable', tHead, tBody),
         box('rsProfile', profOpen, (v) => { profOpen = v; }, tr('alt.profile'), tr('alt.profileCaption', { cal: calName }), 'rsProfileTable', pHead, pBody)];
     }
+    // ---------- Recursos limitados (T011; tableros 135, 138 y 140) ----------
+    const limCal = () => (LIM.includes(state().wc) ? state().wc : 'sgs');
+    const schemeOf = () => (SCHEME[state().ws] ? state().ws : 'sf');
+    const ruleOf = () => (R.RULES.includes(state().wp) ? state().wp : 'slk');
+    const tU = (T) => (m.src.unit ? `${num(T)} ${m.src.unit}` : num(T));
+    function limGanttCard(cal) {
+      const p = m.p; const S = cal.S;
+      const T = Math.max(p.T, cal.T || 0, ...p.activities.filter((a) => S[a.id] != null).map((a) => S[a.id] + a.d)) + (cal.wc === 'man' ? 3 : 0);
+      const U = unitOf(T); const chainIds = new Set(cal.chains.flat());
+      const rows = p.table.map((id) => {
+        const a = p.byId[id]; const t = p.times[id];
+        return { id, s: S[id] == null ? null : S[id], d: a.d, r: a.r.map(num), es: t.ES, lf: t.LF, crit: false, chain: chainIds.has(id), moved: false,
+          label: S[id] == null ? `${id}: ${tr('place.empty')}` : tr('gantt.bar', { id, s: num(S[id]), f: num(S[id] + a.d), uses: resUses(a) }) };
+      });
+      const res = m.res.map((r, k) => {
+        const u = R.profile(p, S, k, T); const x = R.stats(u);
+        return { label: r.label, cap: r.cap, u, aria: tr('gantt.profile', { res: r.label, peak: num(x.peak), ssq: num(x.ssq), work: num(x.work) }),
+          statsText: [tr('gantt.peak', { v: num(x.peak) }), tr('gantt.ssq', { v: num(x.ssq) }), tr('gantt.work', { v: num(x.work) })] };
+      });
+      const holder = h('div', { class: 'rs-gantt', id: 'rsGantt' });
+      const title = cal.wc === 'sgs' ? tr('lim.titleRule', { scheme: tr(`schemes.${schemeOf()}`), rule: tr(`rules.${ruleOf()}`).toLowerCase(), T: tU(cal.T) })
+        : cal.wc === 'opt' ? tr('lim.titleOpt', { T: tU(cal.T) })
+          : cal.complete ? tr('lim.titleMan', { T: tU(cal.T) }) : tr('lim.titleManPart', { n: num(cal.moves.length), all: num(p.activities.length) });
+      root.PNL.rsGantt.render(holder, { T, Tcpm: p.T, unit: U, rows, res, window: false, caps: true, sel: cal.wc === 'man' ? sel : null, emptyText: tr('place.empty'),
+        label: tr('gantt.label', { cal: tr(`cals.${cal.wc}`), name: m.src.title }), capText: (v) => tr('gantt.cap', { v: num(v) }),
+        onMove: cal.wc === 'man' ? (id, s) => place(cal, id, s) : null, onSelect: cal.wc === 'man' ? (id) => { sel = id; bad = null; keepFocus(drawLower); } : null });
+      const leg = h('p', { class: 'rs-legend', id: 'rsGanttLegend' }, [cal.chains.length ? h('span', { class: 'rs-l-chain' }, [tr('lim.chain')]) : null,
+        h('span', { class: 'rs-l-cap' }, [tr('lim.cap')]), h('span', { class: 'rs-l-over' }, [tr('lim.over')]), h('span', {}, [tr('gantt.use')])]);
+      const chainNote = cal.chains.length ? h('p', { class: 'rs-note', id: 'rsChainNote' }, [tr('lim.chainNote', { list: cal.chains.map((c) => c.join(' → ')).join('; ') })]) : null;
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsGanttHead' }, [h('h2', { id: 'rsGanttHead' }, [title]),
+        h('div', { class: 'rs-scroll rs-gantt-wrap', tabindex: cal.wc === 'man' ? null : '0', role: 'region', 'aria-label': tr('gantt.label', { cal: tr(`cals.${cal.wc}`), name: m.src.title }) }, [holder]),
+        h('p', { class: 'rs-swipe muted small', 'aria-hidden': 'true' }, [tr('gantt.swipe')]), leg, chainNote]);
+    }
+    function durCard() {
+      const p = m.p; const ld = limData(m); const o = ld.opt; const man = manualLim(m, state().wq);
+      const rule = R.sgs(p, Object.assign({ rule: ruleOf() }, SCHEME[schemeOf()]));
+      const bk = ld.bound.list;
+      const dl = h('dl', { class: 'rs-dur' }, [
+        h('dt', {}, [tr('lim.cpm')]), h('dd', { id: 'rsDurCpm' }, [num(p.T)]),
+        h('dt', {}, [tr('lim.baker')]), h('dd', { id: 'rsDurBaker' }, [num(ld.bound.bound)]),
+        h('dt', {}, [tr('lim.opt')]), h('dd', { id: 'rsDurOpt', class: o.proved ? 'ok' : null }, [o.proved ? tr('lim.proved', { T: num(o.T) }) : tr('lim.notProved', { T: num(o.T), lb: num(o.lb) })]),
+        h('dt', {}, [tr('lim.rule', { rule: tr(`rulesShort.${ruleOf()}`), scheme: tr(`schemesShort.${schemeOf()}`) })]), h('dd', { id: 'rsDurRule' }, [num(rule.T)]),
+        h('dt', {}, [tr('lim.man')]), h('dd', { id: 'rsDurMan' }, [man.complete ? num(man.T) : man.moves.length ? tr('lim.manPart', { n: num(man.moves.length), all: num(p.activities.length) }) : tr('lim.manNone')]),
+      ]);
+      const text = bk.length ? bk.map((b) => tr('lim.bakerText', { res: m.res[b.k].label, W: num(b.W), ws: num(b.wasteStart), we: num(b.wasteEnd), w: num(b.wasteStart + b.wasteEnd),
+        cap: num(m.res[b.k].cap), D: num(b.Dmin), T: num(p.T), R: num(b.Rmin) })).join(' ') : tr('lim.bakerNone');
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsDurHead' }, [h('h2', { id: 'rsDurHead' }, [tr('lim.dur')]), dl,
+        h('details', { class: 'rs-baker', open: true }, [h('summary', {}, [tr('lim.bakerTitle')]), h('p', { id: 'rsBakerText' }, [text])])]);
+    }
+    function rulesCard(cal) {
+      const ld = limData(m); const best = ld.opt.T;
+      const keys = Object.keys(SCHEME);
+      const head = h('tr', {}, [h('th', { scope: 'col' }, [tr('lim.cmpRule')])].concat(keys.map((k) => h('th', { scope: 'col' }, [tr(`schemesShort.${k}`)]))));
+      const body = R.RULES.map((r) => h('tr', {}, [h('th', { scope: 'row' }, [tr(`rules.${r}`)])].concat(keys.map((k) => {
+        const sc = SCHEME[k]; const T = ld.cmp.find((x) => x.rule === r && x.scheme === sc.scheme && x.dir === sc.dir).T;
+        const on = cal.wc === 'sgs' && r === ruleOf() && k === schemeOf();
+        return h('td', {}, [h('button', { type: 'button', id: `rsRule-${r}-${k}`, class: T === best ? 'best' : null, 'aria-pressed': String(on),
+          'aria-label': `${tr('lim.cmpPick', { rule: tr(`rules.${r}`), scheme: tr(`schemes.${k}`), T: num(T) })}${T === best ? ` (${tr('lim.cmpBest')})` : ''}`,
+          onclick: () => { go({ wc: 'sgs', ws: k, wp: r }, { push: true }); focus(`rsRule-${r}-${k}`); } }, [num(T)])]);
+      }))));
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsRulesHead' }, [h('h2', { id: 'rsRulesHead' }, [tr('lim.cmpTitle')]),
+        h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': `${tr('lim.cmpTitle')} · ${m.src.title}` }, [h('table', { class: 'data rs-rules', id: 'rsRules' }, [h('thead', {}, [head]), h('tbody', {}, body)])]),
+        h('p', { class: 'muted small' }, [tr('lim.cmpNote')])]);
+    }
+    // Colocar a mano (C2): si vale, va al enlace (wq); si no, se dice el motivo y no se coloca.
+    function place(cal, id, s) {
+      sel = id;
+      if (!(s >= 0)) return;
+      const rest = Object.assign({}, cal.S); delete rest[id];
+      const c = placeCheck(m, rest, id, s);
+      if (!c.ok) { bad = placeText(c, lang(), m); keepFocus(drawLower); return; }
+      bad = null;
+      hooks.dispatch({ type: 'rsStarts', value: withPlace(cal.moves, id, s) });
+      if (hooks.announce) hooks.announce(tr('place.placed', { id, s: num(s) }));
+    }
+    function placeCard(cal) {
+      const ids = m.p.table;
+      if (!sel || !m.p.byId[sel]) sel = ids.find((id) => cal.S[id] == null) || ids[0];
+      const act = h('select', { id: 'rsPlaceAct', onchange: (e) => { sel = e.target.value; bad = null; keepFocus(drawLower); } },
+        ids.map((id) => h('option', { value: id, selected: id === sel }, [cal.S[id] == null ? id : `${id} (${num(cal.S[id])})`])));
+      const start = h('input', { id: 'rsPlaceStart', value: cal.S[sel] == null ? '' : String(cal.S[sel]), size: '4', inputmode: 'numeric', autocomplete: 'off' });
+      const apply = () => { const v = start.value.trim(); if (/^\d{1,5}$/.test(v)) place(cal, sel, Number(v)); };
+      start.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
+      const ld = limData(m); const best = Math.min(...ld.cmp.map((x) => x.T));
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsPlaceHead' }, [
+        h('h2', { id: 'rsPlaceHead' }, [tr('place.title')]),
+        h('p', { class: 'small' }, [tr('place.hint')]),
+        h('div', { class: 'rs-row' }, [h('label', { class: 'rs-field' }, [tr('place.act'), ' ', act]), h('label', { class: 'rs-field' }, [tr('place.start'), ' ', start]),
+          button(tr('place.place'), apply, { id: 'rsPlace' }),
+          button(tr('place.remove'), () => { bad = null; hooks.dispatch({ type: 'rsStarts', value: withPlace(cal.moves, sel, null) }); if (hooks.announce) hooks.announce(tr('place.removed', { id: sel })); focus('rsRemove'); },
+            { id: 'rsRemove', disabled: cal.S[sel] == null }),
+          button(tr('place.reset'), () => { bad = null; hooks.dispatch({ type: 'rsStarts', value: null }); focus('rsPlaceReset'); }, { id: 'rsPlaceReset', disabled: !cal.moves.length })]),
+        bad ? h('p', { class: 'rs-m rs-m-err rs-bad', id: 'rsPlaceBad', role: 'alert' }, [h('strong', {}, [tr('place.notPlaced')]), ' ', bad]) : null,
+        cal.complete ? h('p', { class: 'rs-note rs-note-ok', id: 'rsPlaceDone', role: 'status' }, [tr('place.done', { T: tU(cal.T), best: tU(best), opt: tU(ld.opt.T) })]) : null,
+      ]);
+    }
+    function limRoyCard(cal) {
+      const p = m.p;
+      const proj = { activities: p.activities.map((a) => ({ id: a.id, name: a.name, d: a.d })), preds: p.preds, succs: p.succs };
+      const sol = root.PNL.cpm.solve(proj);
+      const revealed = new Map();
+      for (const a of p.activities) if (cal.S[a.id] != null) { revealed.set(`${a.id}.ES`, cal.S[a.id]); revealed.set(`${a.id}.EF`, cal.S[a.id] + a.d); }
+      const mk = chainMarks(m, cal.chains);
+      const holder = h('div', { class: 'rs-net', id: 'rsRoy', tabindex: '0' });
+      root.PNL.royView.render(holder, { project: proj, solution: sol, lay: root.PNL.layout.layout(sol, proj), step: null, revealed, box: '7', lang: lang(), nota: state().nota,
+        criticalOn: true, numFmt: num, name: m.src.title, fit: true, minWidth: 560, marked: mk.nodes, edgeMarks: new Map([...mk.edges].map((k) => [k, 'sel'])), waits: mk.waits });
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsRoyHead' }, [h('h2', { id: 'rsRoyHead' }, [tr('roy.titleCal')]), holder,
+        h('p', { class: 'rs-swipe muted small', 'aria-hidden': 'true' }, [tr('gantt.swipe')]),
+        h('p', { class: 'rs-legend', id: 'rsRoyLegend' }, [tr('lim.royLegend')])]);
+    }
+    function limAltTables(cal) {
+      const p = m.p; const calName = tr(`cals.${cal.wc}`); const T = Math.max(p.T, cal.T || 0);
+      const tHead = h('tr', {}, [tr('alt.act'), tr('alt.d'), tr('alt.start'), tr('alt.end')].concat(m.res.map((r) => r.label)).map((c) => h('th', { scope: 'col' }, [c])));
+      const tBody = p.table.map((id) => { const a = p.byId[id]; const s0 = cal.S[id];
+        return h('tr', {}, [h('th', { scope: 'row' }, [id])].concat([num(a.d), s0 == null ? '—' : num(s0), s0 == null ? '—' : num(s0 + a.d), ...a.r.map(num)].map((v) => h('td', { class: 'num' }, [v])))); });
+      const us = m.res.map((_, k) => R.profile(p, cal.S, k, T));
+      const pHead = h('tr', {}, [tr('alt.period')].concat(m.res.map((r) => (r.cap == null ? r.label : `${r.label} (${num(r.cap)})`))).map((c) => h('th', { scope: 'col' }, [c])));
+      const pBody = Array.from({ length: T }, (_, q) => h('tr', {}, [h('th', { scope: 'row' }, [num(q + 1)])].concat(us.map((u, k) => h('td', { class: `num${m.res[k].cap != null && u[q] > m.res[k].cap ? ' rs-over' : ''}` }, [num(u[q])])))));
+      const box = (id, open, setOpen, title, caption, tid, head, body) => h('details', { class: 'card rs-card rs-alt', id, open, ontoggle: (e) => setOpen(e.target.open) }, [h('summary', {}, [title]),
+        h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': title }, [h('table', { class: 'data rs-cmp', id: tid }, [h('caption', { class: 'sr-only' }, [caption]), h('thead', {}, [head]), h('tbody', {}, body)])])]);
+      return [box('rsTimes', timesOpen, (v) => { timesOpen = v; }, tr('alt.times'), tr('alt.timesCaption', { cal: calName }), 'rsTimesTable', tHead, tBody),
+        box('rsProfile', profOpen, (v) => { profOpen = v; }, tr('alt.profile'), tr('alt.profileCaption', { cal: calName }), 'rsProfileTable', pHead, pBody)];
+    }
+
     let shown = null;
     function drawLower() {
       if (!lower) return;
       clear(lower); shown = null;
-      if (!m.p || m.mode !== 'lev') return;
+      if (!m.p) return;
+      if (m.mode === 'lim') {
+        const cal = limCalendar(m, state());
+        shown = cal;
+        lower.appendChild(h('div', { class: 'rs-lev' }, [limGanttCard(cal), h('div', { class: 'rs-side' }, [durCard(), cal.wc === 'man' ? placeCard(cal) : null, rulesCard(cal)])]));
+        lower.appendChild(limRoyCard(cal));
+        for (const el of limAltTables(cal)) lower.appendChild(el);
+        return;
+      }
+      if (m.mode !== 'lev') return;
       const cal = calendar(m, state());
       shown = cal;
       lower.appendChild(h('div', { class: 'rs-lev' }, [ganttCard(cal), h('div', { class: 'rs-side' }, [compareCard(), cal.wc === 'man' ? manualCard(cal) : null])]));
@@ -574,13 +783,14 @@
       if (!m) return null;
       return { src: { kind: m.src.kind, id: m.src.id }, mode: m.mode, res: m.res.map((r) => ({ label: r.label, cap: r.cap })),
         errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => c === 'noUse'), ok: !!m.p,
-        cal: shown ? shown.wc : null, k: m.p ? levelK(m, state()) : null, moves: shown && shown.moves ? shown.moves : [], unit: m.p ? unitOf(m.p.T) : null };
+        cal: shown ? shown.wc : null, k: m.p ? levelK(m, state()) : null, moves: shown && shown.moves ? shown.moves : [], unit: m.p ? unitOf(m.p.T) : null,
+        T: shown && shown.T != null ? shown.T : null, chains: shown && shown.chains ? shown.chains : [] };
     }
     function leave() { /* T009: nada que parar */ }
     return { render, debug, leave };
   }
 
-  const api = { FIELDS, LEV, source, resources, model, levelK, stats, levData, moveCheck, moveText, manual, withMove, calendar, compareRows, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows, create };
+  const api = { FIELDS, LEV, source, resources, model, levelK, stats, levData, moveCheck, moveText, manual, withMove, calendar, compareRows, LIM, limData, placeCheck, placeText, manualLim, withPlace, limCalendar, chainMarks, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows, create };
   root.PNL = root.PNL || {};
   root.PNL.rsTab = api;
   if (isNode) module.exports = api;

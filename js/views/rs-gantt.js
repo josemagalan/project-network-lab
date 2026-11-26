@@ -6,7 +6,7 @@
  * cuadrados y trabajo. Con spec.onMove, cada barra se arrastra con el ratón o se mueve con las flechas.
  * Como views/ct-chart: sin innerHTML (constitución, 22), elementos con createElementNS y colores en clases (css/rs.css),
  * así que valen en claro y oscuro. La alternativa en texto son las tablas de comienzos y del perfil (js/rs.js).
- * spec = { T, Tcpm, unit, rows: [{ id, s, d, r: [..], es, lf, crit, moved, label }], res: [{ label, cap, u: [..], stats, statsText: [..] }],
+ * spec = { T, Tcpm, unit, emptyText, rows: [{ id, s, d, r: [..], es, lf, crit, chain, moved, label }], res: [{ label, cap, u: [..], stats, statsText: [..] }],
  *          window, caps, sel, label, capText(v), onMove(id, s), onSelect(id) }
  */
 (function (root) {
@@ -43,7 +43,7 @@
       grid.appendChild(el('line', { class: 'rsg-grid', x1: X(t), y1: TOP - 6, x2: X(t), y2: h - 8 }));
       grid.appendChild(el('text', { class: 'rsg-tick', x: X(t), y: TOP - 10, 'text-anchor': 'middle' }, String(t)));
     }
-    if (spec.window && spec.Tcpm != null) {
+    if (spec.Tcpm != null) {
       grid.appendChild(el('line', { class: 'rsg-end', x1: X(spec.Tcpm), y1: TOP - 6, x2: X(spec.Tcpm), y2: ganttH }));
       grid.appendChild(el('text', { class: 'rsg-tick', x: X(spec.Tcpm) + 4, y: TOP + 4 }, `T = ${spec.Tcpm}`));
     }
@@ -55,9 +55,9 @@
       bars.appendChild(el('text', { class: 'rsg-id', x: LEFT - 8, y: y + 4, 'text-anchor': 'end', 'aria-hidden': 'true' }, r.id));
       if (spec.window) bars.appendChild(el('rect', { class: 'rsg-window', x: X(r.es), y: y - 10, width: Math.max(1, (r.lf - r.es) * U), height: 20, rx: 3, 'aria-hidden': 'true' }));
       if (r.moved) bars.appendChild(el('rect', { class: 'rsg-ghost', x: X(r.es), y: y - 7, width: Math.max(2, r.d * U), height: 14, rx: 3, 'aria-hidden': 'true' }));
-      if (r.s == null) return;
+      if (r.s == null) { if (spec.emptyText) bars.appendChild(el('text', { class: 'rsg-empty', x: LEFT + 6, y: y + 4 }, spec.emptyText)); return; }
       const wd = Math.max(r.d ? 2 : 0, r.d * U);
-      const g = el('g', { class: `rsg-bar${r.crit ? ' crit' : ''}${spec.sel === r.id ? ' sel' : ''}${spec.onMove ? ' movable' : ''}`, 'data-act': r.id, id: spec.onMove ? `rsBar-${r.id}` : null });
+      const g = el('g', { class: `rsg-bar${r.chain ? ' chain' : r.crit ? ' crit' : ''}${spec.sel === r.id ? ' sel' : ''}${spec.onMove ? ' movable' : ''}`, 'data-act': r.id, id: spec.onMove ? `rsBar-${r.id}` : null });
       g.appendChild(el('rect', { class: 'rsg-box', x: X(r.s), y: y - 7, width: wd, height: 14, rx: 3 }));
       if (r.d === 0) g.appendChild(el('path', { class: 'rsg-box', d: `M${X(r.s)} ${y - 7}l6 7l-6 7l-6 -7z` }));
       if (wd >= 18) g.appendChild(el('text', { class: 'rsg-use', x: X(r.s) + wd / 2, y: y + 4, 'text-anchor': 'middle', 'aria-hidden': 'true' }, r.r.join(' · ')));
@@ -105,7 +105,7 @@
         for (const r of spec.rows) {
           if (r.s == null || !(r.s <= q && q < r.s + r.d) || !r.r[j]) continue;
           const hh = r.r[j] * sc; const yy = base - h0 - hh;
-          g.appendChild(el('rect', { class: `rsg-seg${over ? ' over' : ''}`, x: X(q) + 1, y: yy.toFixed(1), width: U - 2, height: hh.toFixed(1) }));
+          g.appendChild(el('rect', { class: `rsg-seg${over ? ' over' : r.chain ? ' chain' : ''}`, x: X(q) + 1, y: yy.toFixed(1), width: U - 2, height: hh.toFixed(1) }));
           if (hh >= 12 && U >= 14) g.appendChild(el('text', { class: 'rsg-segid', x: X(q) + U / 2, y: (yy + hh / 2 + 3.5).toFixed(1), 'text-anchor': 'middle' }, r.id));
           h0 += hh;
         }

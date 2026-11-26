@@ -100,3 +100,26 @@ table.data.rs-cmp th.rs-cmp-res { text-align: center; border-bottom: 1px solid v
 .rsg-captext { fill: var(--critical-text); font-size: 10.5px; }
 .rsg-stat { fill: var(--ink); font-size: 11px; }
 .rsg-stat.peak { font-weight: 700; }
+/* T011: recursos limitados (tableros 135, 138 y 140): cadena crítica en naranja (--select), disponibilidad, comparación de reglas. */
+.rsg-bar.chain .rsg-box { fill: var(--select); fill-opacity: 0.9; }
+.rsg-bar.chain .rsg-use { fill: var(--accent-ink); }
+.rsg-seg.chain { fill: var(--select); fill-opacity: 0.55; }
+.rsg-empty { fill: var(--muted); font-size: 11px; font-style: italic; }
+.rs .net .edge.wait { fill: none; stroke: var(--select); stroke-width: 2.4; stroke-dasharray: 6 4; }
+.rs-l-chain::before { background: var(--select); }
+.rs-l-cap::before { border-top: 2px dashed var(--critical); height: 0 !important; margin-top: 4px; }
+.rs-l-over::before { background: var(--critical); }
+.rs-dur { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; margin: 0; }
+.rs-dur dt { color: var(--muted); }
+.rs-dur dd { margin: 0; font-weight: 700; }
+.rs-dur dd.ok { color: var(--ok); }
+.rs-baker summary { cursor: pointer; font-size: 13.5px; font-weight: 600; }
+.rs-baker p { font-size: 13px; line-height: 1.5; margin-top: 4px; }
+table.data.rs-rules { font-size: 13px; width: auto; }
+table.data.rs-rules th, table.data.rs-rules td { padding: 2px 6px; }
+table.data.rs-rules tbody th { text-align: left; font-weight: 600; }
+table.data.rs-rules td { text-align: center; }
+table.data.rs-rules td button { min-height: 28px; min-width: 2.6em; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
+table.data.rs-rules td button.best { color: var(--ok); font-weight: 700; border-color: var(--ok); }
+table.data.rs-rules td button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; background: var(--accent-soft); }
+table.data.rs-cmp td.rs-over { color: var(--critical-text); font-weight: 700; }
