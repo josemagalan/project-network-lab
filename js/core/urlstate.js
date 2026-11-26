@@ -17,7 +17,7 @@
   // Ejemplos solo de estructura (sin duraciones): no tienen red ROY, así que se abren siempre en PERT.
   const STRUCTURE_ONLY = ['ej1', 'ej2', 'ej3', 'kim2008', 'cs2007', 'syslo1981', 'tipo'];
   const ENUMS = {
-    v: ['route', 'work', 'm0', 'ex', 'moodle', 'unc', 'gpr', 'ct'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
+    v: ['route', 'work', 'm0', 'ex', 'moodle', 'unc', 'gpr', 'ct', 'rs'], view: ['net', 'matrix', 'side', 'cmp', 'reto'], m: ['rules', 'prog'], lang: ['es', 'en'], nota: ['en', 'es'],
     box: ['4', '7', 'c'], mode: ['pred', 'succ'], pred: ['0', '1'], graph: ['aon', 'aoa'], min: ['0', '1'],
     tv: ['list', 'matrix'], mm: ['practice', 'route', 'prepare'], sol: ['0', '1'],
     lv: ['easy', 'medium', 'hard', 'custom'], xm: ['practice', 'exam'], xd: ['0', '1'],   // F3a: «Ejercicios»
@@ -37,11 +37,15 @@
     qe: ['fc', 'cc', 'n16', 'rb', 'rv', 'cl', 'own'], qn: ['roy', 'pert', 'both'], qg: ['0', '1', '2'],
     // F5b (plan f5b-coste-tiempo, §3, P7): ejemplo o tabla propia, redes que se ven, Gantt y atajo.
     ke: ['kl', 'ni', 'nip', 'rf', 'own'], kn: ['roy', 'pert', 'both'], kg: ['0', '1'], ka: ['0', '1'],
+    // F5c (plan f5c-recursos, §3, P12): ejemplo o tabla propia, modo, recurso que se nivela, calendario, esquema y regla.
+    we: ['k81', 'k85', 'lg', 'lgi', 'gb', 'n723', 'own'], wm: ['lev', 'lim'], wk: ['0', '1', '2'],
+    wc: ['es', 'ls', 'man', 'bur', 'min', 'sgs', 'opt'], ws: ['sf', 'sb', 'pf', 'pb'], wp: ['slk', 'lft', 'spt', 'res', 'act', 'esf', 'lsf'],
   };
-  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur', 'xo', 'qg', 'kg', 'ka'];
+  const NUMERIC = ['pred', 'min', 'sol', 'xd', 'xt', 'uc', 'uw', 'ur', 'xo', 'qg', 'kg', 'ka', 'wk'];
   const KEYS = ['v', 'ex', 't', 'step', 'view', 'lang', 'nota', 'box', 'mode', 'pred', 'wi', 'graph', 'min', 'm', 'ms', 'pair', 'sn', 'sp', 'st', 'own', 'mk', 'tv', 'mm', 'sol', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt',
     'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uk', 'us', 'uw', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh',
-    'xk', 'rn', 'dg', 'dk', 'dm', 'mv', 'pa', 'xo', 'qe', 'qt', 'qn', 'qg', 'qr', 'qw', 'ke', 'kt', 'kc', 'kd', 'kn', 'kg', 'ka'];
+    'xk', 'rn', 'dg', 'dk', 'dm', 'mv', 'pa', 'xo', 'qe', 'qt', 'qn', 'qg', 'qr', 'qw', 'ke', 'kt', 'kc', 'kd', 'kn', 'kg', 'ka',
+    'we', 'wt', 'wr', 'wm', 'wk', 'wc', 'ws', 'wp', 'wq'];
   // F2c: enunciados de M0 (core/statements) y límites de los subrayados y del enunciado propio.
   const STATEMENTS = ['ej1', 'ej2', 'ej3', 'ej4', 'ej5', 'ej6', 'ej7', 'cocina', 'congreso', 'mudanza', 'lanzamiento'];
   const DEFAULT_ST = 'ej5';
@@ -73,7 +77,8 @@
       ug: 'pert', uf: null, uq: null, ur: 4, uv: 95, uo: 'p', uy: 'dist', ui: 'cr', uz: 'c', uh: 't',
       xk: 'calc', rn: null, dg: 'aon', dk: 'all', dm: null, mv: 'read', pa: null, xo: 0,
       qe: 'fc', qt: null, qn: 'both', qg: 0, qr: null, qw: null,
-      ke: 'kl', kt: null, kc: null, kd: null, kn: 'both', kg: 0, ka: 0 };
+      ke: 'kl', kt: null, kc: null, kd: null, kn: 'both', kg: 0, ka: 0,
+      we: 'k81', wt: null, wr: null, wm: null, wk: 0, wc: 'es', ws: 'sf', wp: 'slk', wq: null };
   }
 
   // F3d: red ROY del alumno (rn) y marcas del detective (dm) (plan §3; análisis H12). Nodos: actividad, Inicio (_S) o
@@ -678,6 +683,110 @@
     return bad;
   }
 
+  // ---------- F5c: la vista de recursos (v=rs; plan §3, P12) ----------
+  // wm = null es el modo del ejemplo («cada uno abre en su modo»); con tabla propia, nivelación. wr = null son los recursos
+  // del ejemplo (con tabla propia, uno sin límite); en wr, un nombre vacío es el del ejemplo o «Recurso n».
+  const RS_DEFAULTS = { we: 'k81', wt: null, wr: null, wm: null, wk: 0, wc: 'es', ws: 'sf', wp: 'slk', wq: null };
+  const RS = { res: 3, name: 40, cap: 9999, start: 99999 };
+  // Tabla propia: filas como texto (id, predecesoras, d, r1, r2, r3, nombre), con los límites del taller.
+  const WT_ROW = (r) => [cut(r.id, LIMITS.id), cut(r.links, LIMITS.links), cut(r.d, LIMITS.duration), cut(r.r1, LIMITS.duration),
+    cut(r.r2, LIMITS.duration), cut(r.r3, LIMITS.duration), cut(r.name, LIMITS.name)];
+  const WT_MAX = [LIMITS.id, LIMITS.links, LIMITS.duration, LIMITS.duration, LIMITS.duration, LIMITS.duration, LIMITS.name];
+  const wtRowOk = (a) => Array.isArray(a) && a.length === 7 && a.every((x, i) => typeof x === 'string' && x.length <= WT_MAX[i]);
+  const wtRow = (a) => ({ id: a[0], name: a[6], links: a[1], d: a[2], r1: a[3], r2: a[4], r3: a[5] });
+  function cleanWt(rows) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    return rows.slice(0, LIMITS.rows).map((r) => wtRow(WT_ROW(r || {})));
+  }
+  const packWt = (rows) => textpack().compress(JSON.stringify([1, rows.slice(0, LIMITS.rows).map(WT_ROW)]));
+  function unpackWt(packed) {
+    const tp = textpack();
+    const json = tp ? tp.decompress(packed, { max: EX.packed }) : null;
+    if (json === null) return null;
+    let a;
+    try { a = JSON.parse(json); } catch { return null; }
+    if (!Array.isArray(a) || a.length !== 2 || a[0] !== 1 || !Array.isArray(a[1]) || !a[1].length || a[1].length > LIMITS.rows || !a[1].every(wtRowOk)) return null;
+    return a[1].map(wtRow);
+  }
+  // Recursos: de 1 a 3, { name, cap }, con cap entero de 1 a 9999 o null (sin límite). El nombre se recorta a 40 y sin
+  // espacios a los lados; la disponibilidad puede venir como texto («3», «»). Algo no válido → null.
+  function cleanWr(wr) {
+    if (!Array.isArray(wr) || !wr.length || wr.length > RS.res) return null;
+    const out = [];
+    for (const r of wr) {
+      if (!r || typeof r !== 'object') return null;
+      const name = String(r.name == null ? '' : r.name).trim().slice(0, RS.name);
+      const c = r.cap == null ? '' : String(r.cap).trim();
+      if (c !== '' && !/^\d{1,4}$/.test(c)) return null;
+      const cap = c === '' ? null : Number(c);
+      if (cap !== null && (cap < 1 || cap > RS.cap)) return null;
+      out.push({ name, cap });
+    }
+    return out;
+  }
+  const escWr = (x) => x.replace(/%/g, '%25').replace(/;/g, '%3B').replace(/:/g, '%3A');
+  const encodeWr = (wr) => wr.map((r) => `${escWr(r.name)}:${r.cap === null ? '' : r.cap}`).join(';');
+  function decodeWr(text) {
+    const out = [];
+    for (const part of String(text).split(';')) {
+      const f = part.split(':');
+      if (f.length !== 2) return null;
+      let name;
+      try { name = decodeURIComponent(f[0]); } catch { return null; }
+      out.push({ name, cap: f[1] });
+    }
+    return cleanWr(out);
+  }
+  // Comienzos a mano: [[id, s]], ids distintos (en mayúsculas, como «¿Y si…?») y s entero de 0 a 99999; como mucho 40.
+  function cleanWq(wq) {
+    if (!Array.isArray(wq) || wq.length > LIMITS.rows) return undefined;
+    const seen = new Set();
+    const out = [];
+    for (const p of wq) {
+      if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== 'string' || !ID_RE.test(p[0])) return undefined;
+      const id = p[0].toUpperCase();
+      if (seen.has(id) || !Number.isInteger(p[1]) || p[1] < 0 || p[1] > RS.start) return undefined;
+      seen.add(id);
+      out.push([id, p[1]]);
+    }
+    return out.length ? out : null;
+  }
+  const encodeWq = (wq) => wq.map(([id, t]) => `${id}:${t}`).join(';');
+  function decodeWq(text) {
+    if (text === '') return null;
+    const out = [];
+    for (const part of String(text).split(';')) {
+      const m = part.match(/^([^:]+):(\d{1,5})$/);
+      if (!m) return undefined;
+      out.push([m[1], Number(m[2])]);
+    }
+    return cleanWq(out);
+  }
+  function encodeRs(s, q) {
+    const own = s.we === 'own' && cleanWt(s.wt);
+    if (s.we !== 'k81' && ENUMS.we.includes(s.we) && (s.we !== 'own' || own)) q.set('we', s.we);
+    if (own) q.set('wt', packWt(own));
+    const wr = cleanWr(s.wr);
+    if (wr) q.set('wr', encodeWr(wr));
+    if (ENUMS.wm.includes(s.wm)) q.set('wm', s.wm);
+    if (s.wk === 1 || s.wk === 2) q.set('wk', String(s.wk));
+    if (s.wc !== 'es' && ENUMS.wc.includes(s.wc)) q.set('wc', s.wc);
+    if (s.ws !== 'sf' && ENUMS.ws.includes(s.ws)) q.set('ws', s.ws);
+    if (s.wp !== 'slk' && ENUMS.wp.includes(s.wp)) q.set('wp', s.wp);
+    const wq = s.wq ? cleanWq(s.wq) : null;
+    if (wq) q.set('wq', encodeWq(wq));
+  }
+  function decodeRs(q, state) {
+    let bad = false;
+    state.ex = null; state.t = null;
+    if (q.has('wt')) { const wt = unpackWt(q.get('wt')); if (wt) state.wt = wt; else bad = true; }
+    if (state.we === 'own' && !state.wt) { state.we = 'k81'; bad = true; }
+    if (state.we !== 'own') state.wt = null;
+    if (q.has('wr')) { const wr = decodeWr(q.get('wr')); if (wr) state.wr = wr; else bad = true; }
+    if (q.has('wq')) { const wq = decodeWq(q.get('wq')); if (wq === undefined) bad = true; else state.wq = wq; }
+    return bad;
+  }
+
   function encode(state) {
     const s = Object.assign(defaults(), state);
     const q = new URLSearchParams();
@@ -716,6 +825,16 @@
       if (s.box !== '7') q.set('box', s.box);
       if (s.pred) q.set('pred', '1');
       encodeCt(s, q);
+      return '#' + q.toString();
+    }
+    // F5c: la vista de recursos tiene su tabla en wt (plan §3).
+    if (s.v === 'rs') {
+      q.set('step', String(s.step));
+      if (s.lang) q.set('lang', s.lang);
+      q.set('nota', s.nota);
+      if (s.box !== '7') q.set('box', s.box);
+      if (s.pred) q.set('pred', '1');
+      encodeRs(s, q);
       return '#' + q.toString();
     }
     // graph y min solo se escriben si no valen lo de siempre: los enlaces de la fase 1 no cambian (F2a, P4).
@@ -893,6 +1012,8 @@
     if (state.v === 'gpr') { if (decodeGpr(q, state)) malformed = true; } else Object.assign(state, GPR_DEFAULTS);
     // F5b: las claves k* solo cuentan en la pestaña de coste–tiempo.
     if (state.v === 'ct') { if (decodeCt(q, state)) malformed = true; } else Object.assign(state, CT_DEFAULTS);
+    // F5c: las claves w* (menos wi, del taller) solo cuentan en la vista de recursos.
+    if (state.v === 'rs') { if (decodeRs(q, state)) malformed = true; } else Object.assign(state, RS_DEFAULTS);
     // F3b: el exportador de Moodle no tiene tabla ni ejemplo.
     if (state.v === 'moodle') { state.ex = null; state.t = null; }
     // F3a: «Ejercicios» (la tabla sale de la semilla: t y ex no se leen).
@@ -950,7 +1071,8 @@
   const api = { EXAMPLES, STRUCTURE_ONLY, METHODS, LIMITS, MAX_MARKS: MK.marks, MAX_DM: DM_MAX, STATEMENTS, DEFAULT_ST, defaults, encode, encodeSafe, decode, cleanMarks,
     ASK, DEFAULT_ASK, EX, STMT_VERSION, cleanGp, cleanAsk, cleanAns, DET_TYPES, cleanRn, cleanDm, PA, paKind, cleanPa,
     UNC: { M6_ONLY: UNC_M6_ONLY, M7_ONLY: UNC_M7_ONLY, cleanUf, cleanUq, pctOk, cleanUk, cleanUt, deadlineOk, probOk, actOk, seedOk },
-    GPR: { DEFAULTS: GPR_DEFAULTS, cleanQt, qrOk, qwOk }, CT: { DEFAULTS: CT_DEFAULTS, cleanKt, cleanKc, kdOk } };
+    GPR: { DEFAULTS: GPR_DEFAULTS, cleanQt, qrOk, qwOk }, CT: { DEFAULTS: CT_DEFAULTS, cleanKt, cleanKc, kdOk },
+    RS: { DEFAULTS: RS_DEFAULTS, LIMITS: RS, cleanWt, cleanWr, cleanWq } };
   root.PNL = root.PNL || {};
   root.PNL.urlstate = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

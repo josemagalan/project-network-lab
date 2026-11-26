@@ -293,6 +293,57 @@
         if (kc !== undefined) s.kc = kc;
         break;
       }
+      // F5c (plan §3, P12): la vista de recursos. Otro proyecto empieza de cero (paso, recursos, modo del ejemplo, recurso,
+      // calendario y movimientos); el esquema y la regla se quedan. Otro modo vuelve al calendario temprano sin movimientos.
+      // El paso vuelve a 0 cuando cambia lo que se reproduce: proyecto, modo, recurso, calendario y, si se ve el de la regla,
+      // el esquema y la regla.
+      case 'rs': {
+        const E = U.RS;
+        const sig = (x) => [x.we, x.wm, x.wk, x.wc, x.wc === 'sgs' ? x.ws : '', x.wc === 'sgs' ? x.wp : ''].join('|');
+        const before = sig(s);
+        s.v = 'rs';
+        if (['k81', 'k85', 'lg', 'lgi', 'gb', 'n723'].includes(action.we) || (action.we === 'own' && s.wt)) {
+          if (action.we !== s.we) Object.assign(s, E.DEFAULTS, { we: action.we, wt: s.wt, ws: s.ws, wp: s.wp });
+        }
+        if (['lev', 'lim'].includes(action.wm) && action.wm !== s.wm) Object.assign(s, { wm: action.wm, wc: 'es', wq: null });
+        if ([0, 1, 2].includes(action.wk)) s.wk = action.wk;
+        if (['es', 'ls', 'man', 'bur', 'min', 'sgs', 'opt'].includes(action.wc)) s.wc = action.wc;
+        if (['sf', 'sb', 'pf', 'pb'].includes(action.ws)) s.ws = action.ws;
+        if (['slk', 'lft', 'spt', 'res', 'act', 'esf', 'lsf'].includes(action.wp)) s.wp = action.wp;
+        if (sig(s) !== before) s.step = 0;
+        break;
+      }
+      // «Partir del taller» (AC9): actividades, predecesoras y duraciones; los usos, vacíos. Con posteriores, se pasa a
+      // predecesoras si la tabla se lee; si no, se copia sin relaciones. El taller no cambia.
+      case 'rsFromWork': {
+        const P = isNode ? require('./core/project.js') : root.PNL.project;
+        let rows = (action.rows || []).map((r) => ({ id: r.id == null ? '' : String(r.id), name: r.name || '', duration: r.duration == null ? '' : String(r.duration), links: r.links || '' }));
+        if (action.mode === 'succ') {
+          const { project } = P.parse(rows, 'succ');
+          rows = project ? P.toRows(project, 'pred').map((r) => ({ id: r.id, name: r.name || '', duration: r.duration, links: r.links }))
+            : rows.map((r) => Object.assign({}, r, { links: '' }));
+        }
+        const wt = U.RS.cleanWt(rows.map((r) => ({ id: r.id, name: r.name, links: r.links, d: r.duration, r1: '', r2: '', r3: '' })));
+        if (!wt) break;
+        Object.assign(s, U.RS.DEFAULTS, { v: 'rs', we: 'own', wt, ws: s.ws, wp: s.wp, step: 0 });
+        break;
+      }
+      // Los movimientos que ya no valen con la tabla nueva se descartan en la vista, sin aviso (plan §3).
+      case 'rsTable': {
+        const wt = U.RS.cleanWt(action.rows);
+        if (wt) Object.assign(s, { we: 'own', wt, step: 0 });
+        break;
+      }
+      case 'rsRes': {
+        const wr = action.wr === null ? null : U.RS.cleanWr(action.wr);
+        if (wr || action.wr === null) { s.wr = wr; s.step = 0; }   // algo que no vale no cambia nada
+        break;
+      }
+      case 'rsStarts': {
+        const wq = action.value === null ? null : U.RS.cleanWq(action.value);
+        if (wq !== undefined) s.wq = wq;
+        break;
+      }
       case 'gprTable': {
         const qt = U.GPR.cleanQt(action.rows);
         if (qt) Object.assign(s, { qe: 'own', qt, qr: null, qw: null });
