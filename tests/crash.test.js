@@ -359,3 +359,174 @@ test('F5b T007: en 1000 tablas al azar, el conjunto de la regla siempre acierta 
     }
   }
 });
+
+// ---------- Revisión de nivel 2 de la F5b (T019, ronda 1) ----------
+
+test('F5b T019 · N-F4: duraciones de 0 a 999 y como mucho 150 duraciones en la compresión; un enlace enorme no cuelga', () => {
+  assert.deepEqual(codes([row('A', '', 1000, 0, 1, 2)]), ['badDuration']);
+  assert.deepEqual(codes([row('A', '', '999999999999', 0, 1, 2)]), ['badDuration']);
+  assert.deepEqual(codes([row('A', '', 149, 0, 1, 2)]), []);                       // 150 duraciones: vale
+  const { project, report } = K.parse([row('A', '', 150, 0, 1, 2)]);
+  assert.equal(project, null);
+  assert.deepEqual(report.errors, [{ code: 'wide', row: null, ids: [], from: 150, to: 0, n: 151, max: 150 }]);
+  assert.deepEqual(codes([row('A', '', 999, 900, 1, 2)]), []);                     // 999 vale (100 duraciones)
+  // Por la URL: la tabla llega tal cual y la lectura la rechaza sin calcular nada.
+  const U = require('../js/core/urlstate.js');
+  const kt = [{ id: 'A', name: '', links: '', dn: '999999999999', dc: '0', cn: '1', cc: '2' }];
+  const back = U.decode(U.encode(Object.assign(U.defaults(), { v: 'ct', ke: 'own', kt }))).state.kt;
+  assert.deepEqual(codes(back), ['badDuration']);
+  // 30 actividades en cadena con 149 unidades que quitar: 150 duraciones (el tope), en poco tiempo.
+  const chain = Array.from({ length: 30 }, (_, i) => row(`A${i}`, i ? `A${i - 1}` : '', 10, i ? 5 : 6, 10, 10 + (i % 7) + 1));
+  const p = ok(chain);
+  const t1 = Date.now();
+  assert.equal(K.curve(p).length, 150);
+  assert.ok(Date.now() - t1 < 5000, `curva: ${Date.now() - t1} ms`);
+});
+
+test('F5b T019 · N-F1: costes con decimales: pendientes de 0,05 y 0,08, la regla, el «más caro» y la curva a 10⁻⁴', () => {
+  let p = ok([row('A', '', 3, 1, 0, '0,10'), row('B', 'A', 3, 1, 0, '0,16')]);
+  assert.deepEqual(K.rule(p).map((s) => (s.end ? ['fin', s.T] : [s.T, s.set.join(), s.stepCost, s.cost])),
+    [[5, 'A', 0.05, 0.05], [4, 'A', 0.05, 0.1], [3, 'B', 0.08, 0.18], [2, 'B', 0.08, 0.26], ['fin', 2]]);
+  assert.deepEqual(K.checkSet(p, { A: 3, B: 3 }, ['B']), { ok: false, reason: 'dearer', cost: 0.08, best: 0.05 });
+  assert.deepEqual(K.checkSet(p, { A: 3, B: 3 }, ['A']), { ok: true, cost: 0.05 });
+  p = ok([row('A', '', 3, 1, 0, '0.0018'), row('B', 'A', 3, 1, 0, '0.0008')]);
+  assert.deepEqual(K.curve(p).map((o) => [o.T, o.cost]), [[6, 0], [5, 0.0004], [4, 0.0008], [3, 0.0017], [2, 0.0026]]);
+  assert.equal(K.directCost(ok([row('A', '', 3, 0, 0, 1)]), { A: 0 }), 1);
+  assert.equal(K.directCost(ok([row('A', '', 1, 1, '0.0000004', '0.0000004')]), { A: 1 }), 4e-7);   // costes a 10⁻⁹
+  // Pendientes que se diferencian en 5 diezmilésimas: el óptimo acorta antes la más barata.
+  p = ok([row('A', '', 3, 1, 0, 2), row('B', 'A', 3, 1, 0, '2.001')]);
+  assert.deepEqual(K.curve(p).map((o) => [o.T, o.cost]), [[6, 0], [5, 1], [4, 2], [3, 3.0005], [2, 4.001]]);
+});
+
+test('F5b T019 · N-F5 y N-F7: pendientes en tercios y séptimos: la regla no queda «por encima» por el redondeo y el empate se acepta', () => {
+  // Con aritmética exacta, la regla es óptima en las 12 duraciones (el redondeo de la pendiente la ponía por encima).
+  let p = ok([row('A', '', 4, 1, 2, 4), row('B', '', 7, 1, 0, 1), row('C', 'A, B', 6, 0, 9, 14), row('D', '', 7, 1, 9, 12)]);
+  const steps = K.rule(p, K.curve(p)).filter((s) => !s.end);
+  assert.equal(steps.length, 12);
+  assert.deepEqual(steps.filter((s) => s.above).map((s) => s.T), []);
+  assert.ok(steps.every((s) => !s.move));
+  // C (pendiente 10) frente a A1…A7 tras C (10/7 cada una): los dos cortes cuestan 10.
+  const rs = [row('C', '', 4, 3, 0, 10)];
+  for (let i = 1; i <= 7; i++) rs.push(row(`A${i}`, 'C', 9, 2, 0, 10));
+  p = ok(rs);
+  const all = rs.slice(1).map((r) => r.id);
+  assert.deepEqual(K.checkSet(p, normal(p), all), { ok: true, cost: 10 });
+  const cut = K.ruleCut(p, normal(p));
+  assert.deepEqual([cut.set, cut.unique, cut.other], [['C'], false, all]);
+  assert.equal(K.best(p, { fixed: 1 }).length, 1);
+});
+
+test('F5b T019 · N-F9: con costes de millones, la curva, la regla y el atajo salen como con los mismos costes en unidades', () => {
+  const t = [['A', '', 3, 0, 36, 58], ['B', 'A', 5, 4, 14, 15], ['C', '', 4, 0, 29, 57], ['D', 'A, B, C', 5, 4, 34, 54], ['E', 'D', 2, 2, 18, 30], ['F', 'A, D', 3, 0, 24, 50]];
+  const small = ok(t.map((r) => row(...r)));
+  for (const f of [1e6, 1e7, 1e8, 1e9]) {
+    const big = ok(t.map(([id, l, dn, dc, cn, cc]) => row(id, l, dn, dc, cn * f, cc * f)));
+    const cs = K.curve(small); const cb = K.curve(big);
+    assert.deepEqual(cb.map((o) => o.d), cs.map((o) => o.d), `× ${f}`);
+    cb.forEach((o, i) => assert.ok(Math.abs(o.cost / f - cs[i].cost) < 1e-6, `× ${f}, T ${o.T}`));
+    assert.deepEqual(K.rule(big, cb).map((s) => s.set || s.path), K.rule(small, cs).map((s) => s.set || s.path));
+    assert.deepEqual(K.shortcut(big).d, K.shortcut(small).d);
+  }
+});
+
+test('F5b T019 · N-F2: el camino que explica el fin es uno que no se puede acortar, también con varios caminos críticos', () => {
+  // A–B y A–Z son críticos de 5; B todavía se puede acortar, Z no: el fin lo explica A–Z.
+  const p = ok([row('A', '', 2, 2, 0, 0), row('B', 'A', 3, 1, 0, 2), row('Z', 'A', 3, 3, 0, 0)]);
+  const end = K.rule(p).at(-1);
+  assert.deepEqual([end.end, end.T, end.path], [true, 5, ['A', 'Z']]);
+  assert.deepEqual(['kl', 'ni', 'rf'].map((id) => K.rule(ex(id)).at(-1).path), [['A', 'C'], ['A', 'C', 'F'], ['B', 'D']]);
+});
+
+test('F5b T019 · N-F3: el movimiento con pendientes en cuartos llega al óptimo (ε por unidad movida, pequeño frente a las pendientes)', () => {
+  const p = ok([row('A', '', 1, 1, 5, 5), row('B', 'A', 6, 3, 8, 11), row('C', '', 6, 3, 6, 9), row('D', 'C', 4, 1, 0, '1.5'),
+    row('E', 'A, B, C, D', 7, 4, 17, '20.75'), row('F', 'A, C', 7, 4, 19, '23.5'), row('G', 'A, B, C, D, E, F', 4, 2, 0, 5)]);
+  const f = K.rule(p).find((s) => s.above);
+  assert.deepEqual([f.T, f.cost, f.opt], [16, 59.75, 59.5]);
+  assert.deepEqual(f.move, { shorten: ['C', 'E'], lengthen: ['D'], cost: 1.75 });
+  assert.equal(f.cost - f.stepCost + f.move.cost, f.opt);
+  // Con los costes en cienmilésimas (diferencias de 2,5·10⁻⁶), el ε del movimiento, relativo a la menor pendiente, sigue
+  // sin pesar (ronda 2).
+  const t = [['A', '', 1, 1, 5, 5], ['B', 'A', 6, 3, 8, 11], ['C', '', 6, 3, 6, 9], ['D', 'C', 4, 1, 0, 1.5], ['E', 'A, B, C, D', 7, 4, 17, 20.75], ['F', 'A, C', 7, 4, 19, 23.5], ['G', 'A, B, C, D, E, F', 4, 2, 0, 5]];
+  const small = K.rule(ok(t.map(([id, l, dn, dc, cn, cc]) => row(id, l, dn, dc, cn / 1e5, cc / 1e5)))).find((s) => s.above);
+  assert.deepEqual([small.T, small.move.shorten, small.move.lengthen, small.move.cost], [16, ['C', 'E'], ['D'], 0.0000175]);
+});
+
+// ---------- Revisión de nivel 2 de la F5b (T019, ronda 2: los arreglos) ----------
+
+test('F5b T019 r2: una actividad de pendiente enorme no estropea el óptimo ni el movimiento de las demás (tolerancia del símplex por columna)', () => {
+  const rf = X.get('rf').rows;
+  const base = K.rule(ex('rf')).filter((x) => !x.end);
+  for (const cc of ['2500000', '9999999', '100000000', '10000000000', '999999999999']) {
+    const p = ok(rf.concat([row('Z', '', 1, 0, 0, cc)]));
+    assert.deepEqual(K.curve(p).map((o) => o.cost), [60, 63, 68, 75, 83, 93], cc);
+    const f = K.rule(p).find((x) => x.above);
+    assert.deepEqual([f.T, f.cost, f.opt, f.move], [8, 85, 83, { shorten: ['B', 'E'], lengthen: ['C'], cost: 8 }], cc);
+    assert.deepEqual(K.rule(p).filter((x) => !x.end).map((x) => x.set), base.map((x) => x.set), cc);
+  }
+  const p = ok([row('A', '', 3, 1, 0, 1), row('B', 'A', 3, 1, 0, '1.2'), row('H', '', 1, 0, 0, '999999999')]);
+  assert.deepEqual(K.curve(p).map((o) => o.cost), [0, 0.5, 1, 1.6, 2.2]);
+  assert.deepEqual(K.best(p, { perUnit: 0.5 }), [4, 5, 6]);   // 3, 3, 3 y 3,1: empate exacto
+  // La tabla de N-F3 con una actividad aparte de pendiente 10⁶: el mismo movimiento.
+  const q = ok([row('A', '', 1, 1, 5, 5), row('B', 'A', 6, 3, 8, 11), row('C', '', 6, 3, 6, 9), row('D', 'C', 4, 1, 0, '1.5'),
+    row('E', 'A, B, C, D', 7, 4, 17, '20.75'), row('F', 'A, C', 7, 4, 19, '23.5'), row('G', 'A, B, C, D, E, F', 4, 2, 0, 5), row('H', '', 1, 0, 0, '1000000')]);
+  assert.deepEqual(K.rule(q).find((x) => x.above).move, { shorten: ['C', 'E'], lengthen: ['D'], cost: 1.75 });
+  // En la misma cadena que una de pendiente 10¹¹: C (1,67 por unidad) antes que B (2,33) y D, la última.
+  const c = ok([row('A', '', 5, 3, 27, '29.5'), row('B', '', 6, 4, 23, '27.6667'), row('C', 'B', 4, 2, 10, '13.3333'), row('D', 'C', 5, 4, 11, '100000000011')]);
+  assert.deepEqual(K.curve(c).map((o) => [o.T, o.cost]), [[15, 71], [14, 72.66665], [13, 74.3333], [12, 76.66665], [11, 79], [10, 100000000079]]);
+  // El corte con una crítica de pendiente ~10¹²: Q (0,1) antes que P (0,9); la predicción de Q, bien.
+  const r = ok([row('H', '', 2, 1, 0, '999999999999'), row('P', 'H', 3, 1, 0, '1.8'), row('Q', 'P', 3, 1, 0, '0.2')]);
+  assert.deepEqual(K.ruleCut(r, normal(r)), { set: ['Q'], cost: 0.1, unique: true, other: ['Q'] });
+  assert.deepEqual(K.checkSet(r, normal(r), ['Q']), { ok: true, cost: 0.1 });
+});
+
+test('F5b T019 r2: tolerancias fijadas: el ruido con costes de 10⁹ no es «por encima», 0,055 sí es más caro que 0,05 y el empate en séptimos con costes de 10¹⁰', () => {
+  // Pendientes no decimales con costes de mil millones: ningún paso «por encima».
+  const p = ok([row('A', '', 6, 4, 1000000000, '1228571428.5714'), row('B', '', 6, 5, 100000000, '157142857.1429'), row('C', 'B', 3, 0, 900000000, '1033333333.3333'),
+    row('D', 'C', 5, 3, 300000000, '314285714.2857'), row('E', 'B, C, D', 4, 3, 0, 1600000000), row('F', 'B, D', 7, 5, 600000000, '714285714.2857')]);
+  assert.deepEqual(K.rule(p).filter((x) => x.above).map((x) => x.T), []);
+  const q = ok([row('A', '', 3, 1, 0, '0,10'), row('B', 'A', 3, 1, 0, '0,11')]);
+  assert.deepEqual(K.checkSet(q, normal(q), ['B']), { ok: false, reason: 'dearer', cost: 0.055, best: 0.05 });
+  assert.equal(K.over(1.000001, 1), true);
+  assert.equal(K.over(1e9 + 1e-4, 1e9), false);
+  const rs = [row('C', '', 4, 3, 0, '10000000000')];
+  for (let i = 1; i <= 7; i++) rs.push(row(`A${i}`, 'C', 9, 2, 0, '10000000000'));
+  const s = ok(rs);
+  const cut = K.ruleCut(s, normal(s));
+  assert.deepEqual([cut.set, cut.unique], [['C'], false]);
+});
+
+test('F5b T019 r2: el atajo alarga cada actividad lo que le deja su holgura (igual que unidad a unidad, y en poco tiempo con mucho que alargar)', () => {
+  // El procedimiento literal de P5, unidad a unidad, como oráculo.
+  const unitByUnit = (p) => {
+    const d = crashed(p); const T = length(p, d);
+    const order = p.activities.map((a, i) => [a, i]).sort((x, y) => y[0].b - x[0].b || x[1] - y[1]).map((x) => x[0]);
+    const steps = [];
+    for (let moved = true; moved;) {
+      moved = false;
+      for (const a of order) {
+        if (d[a.id] >= a.dn) continue;
+        d[a.id] += 1;
+        if (length(p, d) <= T) { steps.push(a.id); moved = true; break; }
+        d[a.id] -= 1;
+      }
+    }
+    return { d, steps };
+  };
+  const rng = R.mulberry32(20261126);
+  for (let t = 0; t < 300; t++) {
+    const n = 3 + Math.floor(rng() * 6); const rs = [];
+    for (let i = 0; i < n; i++) {
+      const dn = 1 + Math.floor(rng() * 8); const dc = Math.floor(rng() * (dn + 1)); const cn = Math.floor(rng() * 20);
+      rs.push(row(`A${i}`, Array.from({ length: i }, (_, j) => `A${j}`).filter(() => rng() < 0.35).join(', '), dn, dc, cn, cn + Math.floor(rng() * 25)));
+    }
+    const p = ok(rs); const sc = K.shortcut(p); const o = unitByUnit(p);
+    assert.deepEqual(sc.d, o.d, `tabla ${t}`);
+    assert.deepEqual(sc.steps.map((x) => x.id), o.steps, `tabla ${t}`);
+  }
+  const big = [row('A', '', 998, 998, 0, 0)];
+  for (let i = 1; i <= 29; i++) big.push(row(`B${i}`, '', 998, 0, 0, i));
+  const t0 = Date.now();
+  const sc = K.shortcut(ok(big));
+  assert.equal(sc.steps.length, 29 * 998);
+  assert.ok(Date.now() - t0 < 3000, `${Date.now() - t0} ms`);
+});

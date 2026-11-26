@@ -636,7 +636,9 @@
     if (!Array.isArray(a) || a.length !== 2 || a[0] !== 1 || !Array.isArray(a[1]) || !a[1].length || a[1].length > LIMITS.rows || !a[1].every(ktRowOk)) return null;
     return a[1].map(ktRow);
   }
-  // Costes del proyecto: { fixed, perUnit, due, penalty, bonus }, cada uno ≥ 0 o null; todos null → null.
+  // Costes del proyecto: { fixed, perUnit, due, penalty, bonus }, cada uno ≥ 0 o null. Todos null se guarda (y va en el
+  // enlace como «kc=,,,,»): en un ejemplo, vaciar sus costes es «sin costes del proyecto», no «los del ejemplo», que es
+  // kc = null (revisión de T019, I-F2).
   function cleanKc(kc) {
     if (!kc || typeof kc !== 'object') return null;
     const out = {};
@@ -647,7 +649,7 @@
       if (!KC_VALUE.test(str)) return undefined;              // no válido
       out[k] = Number(str);
     }
-    return KC_KEYS.every((k) => out[k] === null) ? null : out;
+    return out;
   }
   const kdOk = (x) => Number.isInteger(x) && x >= 0 && x <= 9999;
   function encodeCt(s, q) {

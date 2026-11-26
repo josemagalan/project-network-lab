@@ -30,8 +30,14 @@ test('F5b T008: ida y vuelta con todas las claves', () => {
   assert.equal(warning, undefined);
   for (const k of ['v', 'ke', 'kt', 'kc', 'kd', 'kn', 'kg', 'ka', 'step', 'lang', 'nota', 'box', 'pred']) assert.deepEqual(state[k], s[k], k);
   for (const ke of ['kl', 'ni', 'nip', 'rf']) assert.equal(round(ct({ ke })).state.ke, ke);
-  // Costes del proyecto todos vacíos: no se escriben.
-  assert.doesNotMatch(U.encode(ct({ kc: { fixed: null, perUnit: null, due: null, penalty: null, bonus: null } })), /kc=/);
+  // Costes del proyecto todos vacíos (revisión de T019, I-F2): se escriben vacíos y vuelven vacíos, no como «sin kc»,
+  // que en un ejemplo son sus costes.
+  const none = { fixed: null, perUnit: null, due: null, penalty: null, bonus: null };
+  const hn = U.encode(ct({ ke: 'ni', kc: none }));
+  assert.ok(hn.includes('kc=%2C%2C%2C%2C'), hn);
+  assert.deepEqual(U.decode(hn).state.kc, none);
+  assert.equal(U.decode(hn).warning, undefined);
+  assert.doesNotMatch(U.encode(ct({ ke: 'ni' })), /kc=/);
 });
 
 test('F5b T008: la tabla propia en el límite (40 filas) va y vuelve; lo que pasa de los límites se recorta', () => {
@@ -100,4 +106,7 @@ test('F5b T008: acciones ct, ctTable y ctCosts', () => {
   assert.deepEqual(kc, { fixed: 10, perUnit: 3.5, due: null, penalty: null, bonus: 2 });
   assert.equal(S.reduce(s, { type: 'ctCosts', kc: { fixed: 'x' } }, 10).kc, s.kc);   // un valor no válido no cambia nada
   assert.equal(S.reduce(s, { type: 'ctCosts', kc: null }, 10).kc, null);
+  // Vaciar el último coste escrito deja los costes vacíos, no los del ejemplo (I-F2).
+  const one = S.reduce(s, { type: 'ctCosts', kc: { fixed: '10' } }, 10);
+  assert.deepEqual(S.reduce(one, { type: 'ctCosts', kc: Object.assign({}, one.kc, { fixed: '' }) }, 10).kc, { fixed: null, perUnit: null, due: null, penalty: null, bonus: null });
 });

@@ -13446,6 +13446,216 @@ check('F5b T016 · AC12: axe sin violaciones con la tabla de tiempos abierta (ES
   }
 });
 
+// ---------- F5b, T019: arreglos de la revisión de nivel 2 (ronda 1) ----------
+
+require(path.join(ROOT, 'js', 'i18n-ct.js'));
+const ctBarOff = (page) => page.evaluate(() => ['ctWalk', 'ctShortBtn', 'ctGanttBtn', 'ctNets-roy', 'ctNets-pert', 'ctNets-both'].map((id) => document.getElementById(id).disabled));
+
+check('F5b T019 · I-F1: en el paso a paso, la flecha derecha no se salta la predicción y la izquierda no sale del paso 1', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es&step=2&pred=1');
+  await page.waitForSelector('#ctPick-A');
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(150);
+  assert.equal((await ctWalkSt(page)).k, 2, 'sin comprobar, no se avanza con el teclado');
+  assert.equal(await page.locator('#ctPick-A').count(), 1);
+  await page.locator('#ctPredShow').click();
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => PNL.ctTab.state().walk.k === 3);
+  await setHash(page, ctHash({ ke: 'kl', lang: 'es', step: 1 }));
+  await page.waitForFunction(() => PNL.ctTab.state().walk && PNL.ctTab.state().walk.k === 1);
+  await page.evaluate(() => document.activeElement.blur());
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForTimeout(150);
+  assert.equal((await ctWalkSt(page)).k, 1, 'en el paso 1, la flecha izquierda no vuelve a la tabla');
+  assert.equal(await page.locator('#ctCmp').count(), 0);
+  await close(page);
+});
+
+check('F5b T019 · I-F7: el desplegable del proyecto, «Pegar» (con cabecera y hasta 40 filas) y «Vaciar» de la tabla propia', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es');
+  await page.locator('#ctProj').selectOption('ni');
+  await page.waitForFunction(() => PNL.ctTab.state().src.id === 'ni');
+  assert.equal((await ctHashNow(page)).ke, 'ni');
+  await page.locator('#ctProj').selectOption('own');
+  await page.waitForFunction(() => PNL.ctTab.state().src.kind === 'own');
+  assert.equal(await page.locator('#ctT-0-id').inputValue(), 'A');
+  await page.locator('#ctPaste summary').click();
+  await page.locator('#ctPasteText').fill('Actividad\tNombre\tPredecesoras\tNormal\tUrgente\tCoste normal\tCoste urgente\nB\t\tA\t3\t2\t5\t8\nC\tFin\tB\t2\t1\t1\t3');
+  await page.locator('#ctPasteApply').click();
+  await page.waitForFunction(() => document.querySelectorAll('#ctOwn tbody tr').length === 3);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#ctOwn tbody tr')].map((tr) => tr.querySelector('[data-f="id"]').value)), ['A', 'B', 'C']);
+  assert.equal(await page.locator('#ctT-2-name').inputValue(), 'Fin');
+  assert.deepEqual((await ctHashNow(page)).kt.map((r) => r.id), ['A', 'B', 'C']);
+  // Más de 40 filas: se cortan y se avisa.
+  const many = Array.from({ length: 45 }, (_, i) => `X${i}\t\t\t2\t1\t1\t2`).join('\n');
+  if (!(await page.locator('#ctPaste').evaluate((d) => d.open))) await page.locator('#ctPaste summary').click();
+  await page.locator('#ctPasteText').fill(many);
+  await page.locator('#ctPasteApply').click();
+  await page.waitForSelector('#ctPasteCut');
+  assert.equal(await page.locator('#ctOwn tbody tr').count(), 40);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctPasteCut');
+  await page.locator('#ctClear').click();
+  await page.waitForFunction(() => document.querySelectorAll('#ctOwn tbody tr').length === 1);
+  assert.equal(await page.locator('#ctT-0-id').inputValue(), '');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctT-0-id');
+  await close(page);
+});
+
+check('F5b T019 · I-F8: tras escribir un coste del proyecto, el primer clic fuera vale (abre el paso a paso, añade la fila)', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es');
+  await page.locator('#ctCost-perUnit').click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('8');
+  await page.locator('#ctWalk').click();
+  await page.waitForFunction(() => PNL.ctTab.state().walk && PNL.ctTab.state().walk.k === 1);
+  assert.equal((await ctHashNow(page)).kc.perUnit, 8);
+  await setHash(page, ctHash({ ke: 'own', kt: CT_SEED370, lang: 'es' }));
+  await page.waitForSelector('#ctOwn');
+  const n = await page.locator('#ctOwn tbody tr').count();
+  await page.locator('#ctCost-fixed').click();
+  await page.keyboard.type('50');
+  await page.locator('#ctAdd').click();
+  await page.waitForFunction((k) => document.querySelectorAll('#ctOwn tbody tr').length === k + 1, n);
+  assert.equal((await ctHashNow(page)).kc.fixed, 50);
+  // Mientras se escribe, el campo no se rehace: el cursor sigue en él y lo escrito no cambia de forma.
+  await page.locator('#ctCost-bonus').click();
+  await page.keyboard.type('2,5');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctCost-bonus');
+  assert.equal(await page.locator('#ctCost-bonus').inputValue(), '2,5');
+  // Ronda 2: «10.05» se teclea entero (rehaciendo el campo en «10.0» quedaba «105»).
+  await page.locator('#ctCost-fixed').click();
+  await page.keyboard.press('Control+A');
+  await page.keyboard.type('10.05');
+  assert.equal(await page.locator('#ctCost-fixed').inputValue(), '10.05');
+  await page.waitForFunction(() => PNL.ctTab.state().k.fixed === 10.05);
+  // Dos campos mal: corregir uno no quita el aviso mientras el otro siga mal.
+  for (const f of ['due', 'penalty']) { await page.locator(`#ctCost-${f}`).fill('x'); await page.locator(`#ctCost-${f}`).press('Tab'); }
+  assert.equal(await page.locator('#ctCostsBad').isVisible(), true);
+  await page.locator('#ctCost-due').fill('7');
+  assert.equal(await page.locator('#ctCostsBad').isVisible(), true);
+  await page.locator('#ctCost-penalty').fill('3');
+  assert.equal(await page.locator('#ctCostsBad').isVisible(), false);
+  // En un ejemplo, la ayuda deja de decir que son sus costes en cuanto se escribe uno.
+  await setHash(page, ctHash({ ke: 'ni', lang: 'es' }));
+  await page.waitForFunction(() => PNL.ctTab.state().src.id === 'ni');
+  const fromEx = I0.t('es', 'ct.costs.fromExample');
+  assert.ok((await page.locator('#ctCostsHint').innerText()).includes(fromEx));
+  await page.locator('#ctCost-fixed').fill('11');
+  await page.waitForFunction((t) => !document.getElementById('ctCostsHint').textContent.includes(t), fromEx);
+  await close(page);
+});
+
+check('F5b T019 · I-F12: al teclear la tabla propia hasta que se lee, se habilitan «Redes», «Gantt», «Atajo» y «Paso a paso» (y al romperla, se deshabilitan)', async () => {
+  const page = await ctLab('v=ct&ke=kl&lang=es');
+  await page.locator('#ctProj').selectOption('own');
+  await page.waitForSelector('#ctT-0-dn');
+  assert.deepEqual(await ctBarOff(page), [true, true, true, true, true, true]);
+  for (const [f, v] of [['dn', '5'], ['dc', '3'], ['cn', '10'], ['cc', '20']]) await page.locator(`#ctT-0-${f}`).fill(v);
+  await page.waitForFunction(() => PNL.ctTab.state().ok);
+  assert.deepEqual(await ctBarOff(page), [false, false, false, false, false, false]);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ctT-0-cc');
+  await page.locator('#ctT-0-dn').fill('x');
+  await page.waitForFunction(() => !PNL.ctTab.state().ok);
+  assert.deepEqual(await ctBarOff(page), [true, true, true, true, true, true]);
+  await page.locator('#ctT-0-dn').fill('5');
+  await page.locator('#ctWalk').click();
+  await page.waitForFunction(() => PNL.ctTab.state().walk && PNL.ctTab.state().walk.k === 1);
+  await close(page);
+});
+
+check('F5b T019 · I-F2: vaciar los costes de un ejemplo los quita (la compresión sin totales) y el enlace lo guarda', async () => {
+  const page = await ctLab('v=ct&ke=ni&lang=es');
+  assert.equal(await page.locator('#ctCmp thead th').count(), 9);
+  await page.locator('#ctCost-fixed').fill('');
+  await page.locator('#ctCost-perUnit').fill('');
+  await page.waitForFunction(() => PNL.ctTab.state().k.perUnit === null);
+  assert.deepEqual((await ctSt(page)).k, { fixed: null, perUnit: null, due: null, penalty: null, bonus: null });
+  assert.equal(await page.locator('#ctCmp thead th').count(), 6);
+  const hash = await page.evaluate(() => location.hash);
+  assert.match(hash, /kc=%2C%2C%2C%2C/);
+  const again = await ctLab(hash.slice(1));
+  assert.deepEqual([await again.locator('#ctCost-fixed').inputValue(), await again.locator('#ctCost-perUnit').inputValue()], ['', '']);
+  assert.equal(await again.locator('#ctCmp thead th').count(), 6);
+  await close(again);
+  await close(page);
+});
+
+check('F5b T019 · N-F4 y N-F9: una duración de más de 999 o una compresión de más de 150 duraciones se explican sin calcular; si el cálculo falla, se dice', async () => {
+  const page = await ctLab(ctHash({ ke: 'own', kt: [{ id: 'A', name: '', links: '', dn: '999999999999', dc: '0', cn: '1', cc: '2' }], lang: 'es' }));
+  assert.deepEqual((await ctSt(page)).errors, ['badDuration']);
+  assert.equal(await page.locator('#ctT-0-dn').getAttribute('aria-invalid'), 'true');
+  assert.match(await page.locator('#ctOwn tbody tr').first().innerText(), /de 0 a 999/);
+  await page.locator('#ctT-0-dn').fill('200');
+  await page.waitForFunction(() => PNL.ctTab.state().errors.join() === 'wide');
+  assert.match(await page.locator('#ctIssues').innerText(), /De la duración normal \(200\) a la mínima \(0\) hay 201 duraciones, y la pestaña calcula 150 como mucho/);
+  assert.equal(await page.locator('#ctCmp').count(), 0);
+  await page.locator('#ctT-0-dn').fill('20');
+  await page.waitForSelector('#ctCmp');
+  // Un cálculo que falla (el símplex, simulado): el aviso en lugar de la compresión; el paso a paso, deshabilitado.
+  await page.evaluate(() => { PNL.crash.curve = () => { throw new Error('lp: demasiados pivotes'); }; });
+  await page.locator('#ctT-0-cc').fill('3');
+  await page.waitForSelector('#ctCalcFail');
+  assert.match(await page.locator('#ctCalcFail').innerText(), /No se ha podido calcular la compresión con estos costes/);
+  assert.equal(await page.locator('#ctWalk').isDisabled(), true);
+  await close(page);
+});
+
+check('F5b T019 · I-F10: la notación española (nota=es) en la caja de la ROY, su leyenda y la tabla de tiempos, también en el paso a paso', async () => {
+  for (const nota of ['es', 'en']) {
+    const N = I0.notation(nota);
+    const page = await ctLab(`v=ct&ke=kl&lang=es&nota=${nota}`);
+    assert.match(await page.locator('#ctRoyLegend').innerText(), new RegExp(`Caja: ${N.ES} · d · ${N.EF}`));
+    const head = await page.evaluate(() => [...document.querySelectorAll('#ctTimesTable thead th')].map((t) => t.textContent));
+    assert.deepEqual(head.slice(2, 7), [N.ES, N.EF, N.LS, N.LF, N.TF], nota);
+    assert.ok(await page.evaluate((t) => [...document.querySelectorAll('#ctRoy svg text')].some((x) => x.textContent.includes(t)), nota === 'es' ? 'HT' : 'TF'), nota);
+    await setHash(page, ctHash({ ke: 'kl', lang: 'es', nota, step: 2 }));
+    await page.waitForFunction(() => PNL.ctTab.state().walk && PNL.ctTab.state().walk.k === 2);
+    assert.deepEqual((await page.evaluate(() => [...document.querySelectorAll('#ctTimesTable thead th')].map((t) => t.textContent))).slice(2, 7), [N.ES, N.EF, N.LS, N.LF, N.TF]);
+    await close(page);
+  }
+});
+
+check('F5b T019 · I-F11: mientras se predice, ni el aviso de la regla que falla, ni el «por encima», ni la fila elegida, ni la voz del paso dicen la respuesta', async () => {
+  const page = await ctLab(ctHash({ ke: 'rf', lang: 'es', step: 4, pred: 1 }));
+  await page.waitForSelector('#ctPick-A');
+  assert.equal(await page.locator('#ctStepFail').count(), 0);
+  assert.equal(await page.locator('#ctCand tr.chosen').count(), 0);
+  assert.equal(await page.locator('#ctCand .ct-set').count(), 0);
+  const live = await page.locator('#live').textContent();
+  assert.ok(live.includes(I0.t('es', 'predict.hidden')), live);
+  assert.doesNotMatch(live, /A y B|B y E|por 10/);
+  await page.locator('#ctPredShow').click();
+  await page.waitForSelector('#ctStepFail');
+  assert.equal(await page.locator('#ctCand tr.chosen').count(), 2);
+  // De 8 a 7 la regla sigue por encima (sin movimiento): tampoco se dice antes de comprobar.
+  await ctStepTo(page, 5);
+  await page.waitForSelector('#ctPick-A');
+  assert.equal(await page.locator('#ctStepAbove').count(), 0);
+  await page.locator('#ctPredShow').click();
+  await page.waitForSelector('#ctStepAbove');
+  await close(page);
+});
+
+check('F5b T019 · I-F14: con costes de cientos de millones, la curva tiene 7 líneas como mucho en el eje y; con 100 duraciones, las cifras del eje x no se pisan', async () => {
+  const kt = [{ id: 'A', name: '', links: '', dn: '5', dc: '3', cn: '300000', cc: '400000' }, { id: 'B', name: '', links: 'A', dn: '4', dc: '2', cn: '99999999', cc: '999999999' }];
+  const page = await ctLab(ctHash({ ke: 'own', kt, lang: 'es' }));
+  await page.waitForSelector('#ctCurve svg');
+  assert.ok(await page.locator('#ctCurve .ctc-grid').count() <= 7);
+  await setHash(page, ctHash({ ke: 'own', kt: [{ id: 'A', name: '', links: '', dn: '120', dc: '21', cn: '0', cc: '99' }], lang: 'es' }));
+  await page.waitForFunction(() => PNL.ctTab.state().rows.length === 100);
+  const xs = await page.evaluate(() => [...document.querySelectorAll('#ctCurve text.ctc-tick')].filter((t) => t.getAttribute('text-anchor') === 'middle').map((t) => t.getBBox()).map((b) => [b.x, b.x + b.width]));
+  assert.ok(xs.length >= 5 && xs.length <= 20, String(xs.length));
+  xs.sort((a, b) => a[0] - b[0]).forEach((b, i) => { if (i) assert.ok(b[0] >= xs[i - 1][1], `cifras del eje x pisadas: ${JSON.stringify([xs[i - 1], b])}`); });
+  // Ronda 2: con las 100 duraciones empatadas en el coste total, solo dos valores escritos (la elegida y la primera de
+  // coste mínimo, si no están pegadas).
+  await setHash(page, ctHash({ ke: 'own', kt: [{ id: 'A', name: '', links: '', dn: '120', dc: '21', cn: '0', cc: '99' }], kc: { fixed: null, perUnit: 1, due: null, penalty: null, bonus: null }, lang: 'es' }));
+  await page.waitForFunction(() => PNL.ctTab.state().best.length === 100);
+  assert.ok(await page.locator('#ctCurve .ctc-val').count() <= 2);
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

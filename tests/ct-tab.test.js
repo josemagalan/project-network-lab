@@ -211,3 +211,61 @@ test('F5b T013 · AC5: cuando el atajo queda por encima (semilla 370): 66 frente
   assert.deepEqual(sc.optD, { A: 3, B: 3, C: 2, D: 1, E: 6 });
   assert.equal(T.shortcut(T.model(st({ ke: 'own', kt: [row('A', '', '3', '5', '1', '2')] }), 'es')), null);
 });
+
+// ---------- Revisión de nivel 2 de la F5b (T019, ronda 1) ----------
+
+test('F5b T019 · I-F2: vaciar todos los costes de un ejemplo deja la pestaña sin costes del proyecto (no vuelven los del ejemplo)', () => {
+  const S = require('../js/store.js');
+  let s = st({ ke: 'ni' });
+  assert.equal(T.compression(T.model(s, 'es')).hasCosts, true);
+  s = S.reduce(s, { type: 'ctCosts', kc: Object.assign({}, X.get('ni').k, { fixed: '' }) }, 10);
+  s = S.reduce(s, { type: 'ctCosts', kc: Object.assign({}, s.kc, { perUnit: '' }) }, 10);
+  const m = T.model(s, 'es');
+  assert.deepEqual(m.k, { fixed: null, perUnit: null, due: null, penalty: null, bonus: null });
+  assert.equal(m.edited, true);
+  assert.equal(T.compression(m).hasCosts, false);
+  assert.deepEqual(T.compression(m).best, [T.compression(m).normalT]);
+  // Y el enlace lo guarda.
+  assert.deepEqual(T.model(U.decode(U.encode(s)).state, 'es').k, m.k);
+});
+
+test('F5b T019 · N-F4: los textos de la duración fuera de rango y de la compresión demasiado larga, en los dos idiomas', () => {
+  const kt = [row('A', '', '200', '0', '1', '2')];
+  for (const lang of ['es', 'en']) {
+    const m = T.model(st({ ke: 'own', kt }), lang);
+    assert.equal(m.p, null);
+    const mk = T.rowMarks(m, lang);
+    assert.equal(mk.general.length, 1);
+    assert.ok(['200', '201', '150'].every((x) => mk.general[0].includes(x)), mk.general[0]);
+    assert.match(T.issueText({ code: 'badDuration', ids: ['A'] }, lang), /999/);
+  }
+  assert.equal(T.compression(T.model(st({ ke: 'own', kt }), 'es')), null);
+});
+
+test('F5b T019 · N-F9: si el cálculo falla, la compresión, la traza y el atajo dan null (la vista lo dice) y no se rompen', () => {
+  const K = require('../js/core/crash.js');
+  const kt = [row('A', '', '3', '1', '5', '9'), row('B', 'A', '4', '2', '3', '13')];
+  const m = T.model(st({ ke: 'own', kt }), 'es');
+  const keep = { curve: K.curve, shortcut: K.shortcut };
+  K.curve = () => { throw new Error('lp: demasiados pivotes'); };
+  K.shortcut = () => { throw new Error('lp: demasiados pivotes'); };
+  try {
+    assert.equal(T.compression(m), null);
+    assert.equal(T.trace(m), null);
+    assert.equal(T.shortcut(m), null);
+  } finally { Object.assign(K, keep); }
+  // Otra tabla vuelve a calcular.
+  const m2 = T.model(st({ ke: 'own', kt: kt.concat([row('C', 'B', '2', '1', '1', '2')]) }), 'es');
+  assert.ok(T.compression(m2) && T.trace(m2) && T.shortcut(m2));
+});
+
+test('F5b T019 · I-F14: el eje y de la curva con costes grandes: el paso crece con la magnitud y hay 6 tramos como mucho', () => {
+  assert.deepEqual([0, 6, 12, 30, 489, 60000, 120000, 1.2e6, 5e7, 9.99e11].map(CH.niceStep), [1, 1, 2, 5, 100, 10000, 20000, 200000, 1e7, 2e11]);
+  const kt = [row('A', '', '5', '3', '300000', '400000'), row('B', 'A', '4', '2', '99999999', '999999999')];
+  const m = T.model(st({ ke: 'own', kt, kc: { fixed: 123456789, perUnit: 1000000, due: null, penalty: null, bonus: null } }), 'es');
+  const spec = T.curveSpec(m, T.compression(m), null, 'es');
+  const sc = CH.scales(spec);
+  assert.ok((sc.top - sc.lo) / sc.step <= 7, `${sc.lo}…${sc.top} de ${sc.step} en ${sc.step}`);
+  // Con muchas duraciones, las cifras del eje x van de k en k (la de 150 duraciones, a 500 px, de 11 en 11).
+  assert.deepEqual([CH.every(5, 500), CH.every(150, 500), CH.every(150, 300)], [1, 11, 22]);
+});

@@ -58,20 +58,40 @@
   // ---------- La compresión (T011; tableros 123, 125 y 127) ----------
 
   const hasCosts = (k) => KC.some((x) => k[x] != null && Number(k[x]) !== 0);
+  const pkey = (p) => JSON.stringify(p.activities.map((a) => [a.id, a.dn, a.dc, a.cn, a.cc, p.preds[a.id]]));
+
+  let cvCache = { key: null, val: null };
+  /**
+   * La curva óptima y la regla de la tabla, que no dependen de los costes del proyecto: una vez por tabla (al escribir un
+   * coste no se recalculan). null si el cálculo falla (revisión de T019, N-F9: el símplex con costes enormes); la vista
+   * lo dice en lugar de romperse.
+   */
+  function base(p) {
+    const key = pkey(p);
+    if (cvCache.key !== key) {
+      let val = null;
+      try { const cur = K.curve(p); val = { cur, steps: K.rule(p, cur) }; } catch { val = null; }
+      cvCache = { key, val };
+    }
+    return cvCache.val;
+  }
+
   let cmpCache = { key: null, val: null };
 
   /**
    * La tabla de la compresión: una fila por duración, de la normal a la mínima, con la regla (conjunto, coste del paso,
    * coste directo, duraciones, empate), el óptimo (coste y duraciones), los totales con los costes del proyecto y la marca
    * de la regla que queda por encima. `first` es la primera fila por encima (con el movimiento, AC4); `best`, las
-   * duraciones de coste total mínimo. Se guarda la última: cambiar de idioma o de fila no la recalcula.
+   * duraciones de coste total mínimo. Se guarda la última: cambiar de idioma o de fila no la recalcula. null sin tabla o si
+   * el cálculo falla.
    */
   function compression(m) {
     if (!m.p) return null;
-    const key = JSON.stringify([m.p.activities.map((a) => [a.id, a.dn, a.dc, a.cn, a.cc, m.p.preds[a.id]]), m.k]);
+    const bs = base(m.p);
+    if (!bs) return null;
+    const key = JSON.stringify([pkey(m.p), m.k]);
     if (cmpCache.key === key) return cmpCache.val;
-    const cur = K.curve(m.p);
-    const steps = K.rule(m.p, cur);
+    const { cur, steps } = bs;
     const tot = new Map(K.totals(m.p, m.k, cur).map((x) => [x.T, x]));
     const opt = new Map(cur.map((o) => [o.T, o]));
     const d0 = K.normalD(m.p);
@@ -137,11 +157,25 @@
   // ---------- El paso a paso (T012; tablero 124) ----------
 
   let trCache = { key: null, val: null };
-  /** La traza del reproductor (crash.trace): tabla, un paso por unidad, fin y totales; null si la tabla no se lee. */
+  /** La traza del reproductor (crash.trace): tabla, un paso por unidad, fin y totales; null si la tabla no se lee o si el
+   * cálculo falla. */
   function trace(m) {
     if (!m.p) return null;
-    const key = JSON.stringify([m.p.activities.map((a) => [a.id, a.dn, a.dc, a.cn, a.cc, m.p.preds[a.id]]), m.k]);
-    if (trCache.key !== key) trCache = { key, val: K.trace(m.p, m.k) };
+    const key = JSON.stringify([pkey(m.p), m.k]);
+    if (trCache.key !== key) {
+      // La traza sin los costes del proyecto se guarda con la curva (por tabla); al escribir un coste solo cambia el paso
+      // de los costes totales (ronda 2 de T019).
+      const bs = base(m.p);
+      let val = null;
+      try {
+        if (bs && !bs.trace) bs.trace = K.trace(m.p, null, bs.cur, bs.steps);
+        if (bs) {
+          const rows = hasCosts(m.k) ? K.totals(m.p, m.k, bs.cur) : null;
+          val = rows ? bs.trace.concat([{ kind: 'ctTotals', reveals: [], rows, best: K.best(m.p, m.k, null, rows) }]) : bs.trace;
+        }
+      } catch { val = null; }
+      trCache = { key, val };
+    }
     return trCache.val;
   }
 
@@ -177,13 +211,15 @@
   // ---------- El atajo de Nicholas (T013; tablero 128) ----------
 
   let scCache = { key: null, val: null };
-  /** crash.shortcut con las duraciones del óptimo a la misma duración (para explicar cuándo queda por encima). */
+  /** crash.shortcut con las duraciones del óptimo a la misma duración (para explicar cuándo queda por encima); null si
+   * el cálculo falla. */
   function shortcut(m) {
     if (!m.p) return null;
-    const key = JSON.stringify(m.p.activities.map((a) => [a.id, a.dn, a.dc, a.cn, a.cc, m.p.preds[a.id]]));
+    const key = pkey(m.p);
     if (scCache.key !== key) {
-      const sc = K.shortcut(m.p);
-      scCache = { key, val: Object.assign({}, sc, { optD: K.optimum(m.p, sc.T).d }) };
+      let val = null;
+      try { const sc = K.shortcut(m.p); val = Object.assign({}, sc, { optD: K.optimum(m.p, sc.T).d }); } catch { val = null; }
+      scCache = { key, val };
     }
     return scCache.val;
   }
@@ -197,7 +233,7 @@
   function issueText(is, lang) {
     const ids = (is.ids || []).join(', ');
     if (is.code === 'cycle') return I.t(lang, 'issue.cycle', { ids });
-    return I.t(lang, `ct.issue.${is.code}`, { ids });
+    return I.t(lang, `ct.issue.${is.code}`, Object.assign({}, is, { ids }));
   }
 
   /** Marcas de la tabla propia: por fila, los campos con error, los avisos y sus textos; aparte, los errores sin fila. */
@@ -353,9 +389,11 @@
           const rows = pasteRows(area.value);
           if (!rows.length) return;
           const now = readOwn().filter((r) => FIELDS.some((f) => r[f].trim())).concat(rows);
-          pasteNote = now.length > U.LIMITS.rows;
+          // pasteNote se apaga al pintar el aviso: el foco va al aviso según lo que se pegó (revisión de T019, con I-F7).
+          const cut = now.length > U.LIMITS.rows;
+          pasteNote = cut;
           commit(now.slice(0, U.LIMITS.rows));
-          focus(pasteNote ? 'ctPasteCut' : 'ctAdd');
+          focus(cut ? 'ctPasteCut' : 'ctAdd');
         }, { id: 'ctPasteApply' })]);
       const cutNote = pasteNote ? h('p', { class: 'ct-m ct-m-warn', id: 'ctPasteCut', role: 'status', tabindex: '-1' }, [tc('pasteCut', { rows: U.LIMITS.rows })]) : null;
       pasteNote = false;
@@ -399,15 +437,25 @@
     }
 
     // ---------- Costes del proyecto (tableros 123 y 126) ----------
+    // Revisión de T019 (I-F8): cada coste válido vale al escribirlo y solo se rehace la parte de abajo; con onchange, la
+    // vista se rehacía al perder el foco, entre el mousedown y el mouseup, y el primer clic fuera se perdía. Un valor no
+    // válido se marca al salir del campo.
+    const costsHint = () => (m.src.kind === 'example' && !m.edited ? `${tc('costs.fromExample')} ${tc('costs.hint')}` : tc('costs.hint'));
     function costsCard() {
+      const anyBad = () => KC.some((key) => { const el = root.document.getElementById(`ctCost-${key}`); return el && el.getAttribute('aria-invalid') === 'true'; });
       const field = (key) => {
         const id = `ctCost-${key}`;
         const inp = h('input', { id, value: m.k[key] == null ? '' : num(m.k[key]), size: '6', inputmode: 'decimal', autocomplete: 'off', 'aria-invalid': 'false',
-          'aria-describedby': 'ctCostsHint', onchange: (e) => {
+          'aria-describedby': 'ctCostsHint',
+          oninput: (e) => {
             const v = parseCost(e.target.value);
-            if (v === undefined) { e.target.setAttribute('aria-invalid', 'true'); badCost.hidden = false; return; }
-            e.target.setAttribute('aria-invalid', 'false'); badCost.hidden = true;
-            hooks.dispatch({ type: 'ctCosts', kc: Object.assign({}, m.k, { [key]: v }) });
+            if (v === undefined) return;
+            e.target.setAttribute('aria-invalid', 'false'); badCost.hidden = !anyBad();
+            hooks.dispatch({ type: 'ctCosts', kc: Object.assign({}, m.k, { [key]: v }) }, { fromEditor: true });
+          },
+          onchange: (e) => {
+            if (parseCost(e.target.value) !== undefined) return;
+            e.target.setAttribute('aria-invalid', 'true'); badCost.hidden = false;
           } });
         return h('label', { class: 'ct-field', for: id }, [tc(`costs.${key}`), ' ', inp]);
       };
@@ -416,7 +464,7 @@
         h('h2', { id: 'ctCostsHead' }, [tc('costs.title')]),
         h('div', { class: 'ct-row ct-costs' }, KC.map(field)),
         badCost,
-        h('p', { class: 'muted small', id: 'ctCostsHint' }, [m.src.kind === 'example' && !m.edited ? `${tc('costs.fromExample')} ${tc('costs.hint')}` : tc('costs.hint')]),
+        h('p', { class: 'muted small', id: 'ctCostsHint' }, [costsHint()]),
       ]);
     }
 
@@ -666,9 +714,8 @@
         hide ? h('span', { class: 'muted small' }, [I.t(lang(), 'predict.hidden')]) : null]);
     }
 
-    function shortcutBlock() {
+    function shortcutBlock(sc) {
       const ts = (k, q) => tc(`short.${k}`, q);
-      const sc = shortcut(m);
       const rows = shortcutRows(m, sc);
       const head = h('tr', {}, ['act', 'dc', 'slope', 'ext', 'final'].map((k) => h('th', { scope: 'col' }, [ts(`col.${k}`)])));
       const body = rows.map((r) => h('tr', { 'data-act': r.id, class: r.ext ? 'chosen' : null }, [h('th', { scope: 'row' }, [r.id]), h('td', { class: 'num' }, [num(r.dc)]),
@@ -720,11 +767,14 @@
             h('thead', {}, [head]), h('tbody', {}, body)])])]);
     }
 
+    // Si el cálculo falla (N-F9), se dice en lugar de la compresión o del atajo.
+    const calcFail = () => h('p', { class: 'ct-note ct-note-warn', id: 'ctCalcFail', role: 'status' }, [tc('calcFail')]);
     function fillLower() {
       clear(lower);
       if (!m.p) return;
-      if (state().ka === 1) { lower.appendChild(shortcutBlock()); return; }
+      if (state().ka === 1) { const sc = shortcut(m); lower.appendChild(sc ? shortcutBlock(sc) : calcFail()); return; }
       const c = compression(m);
+      if (!c) { lower.appendChild(calcFail()); return; }
       const T = chosenT(state(), c);
       const key = `${m.src.id}|${T}`;
       if (key !== optKey) { optView = false; optKey = key; }
@@ -747,15 +797,27 @@
       container.appendChild(lower);
       fillLower();
     }
+    // Al teclear (la tabla propia o un coste) no se rehace la barra ni la parte de arriba: los botones que dependen de que
+    // la tabla se lea se habilitan o no aquí (revisión de T019, I-F12).
+    function refreshBar() {
+      for (const id of ['ctNets-roy', 'ctNets-pert', 'ctNets-both', 'ctGanttBtn', 'ctShortBtn']) { const el = root.document.getElementById(id); if (el) el.disabled = !m.p; }
+      const w = root.document.getElementById('ctWalk');
+      if (w) w.disabled = !m.trace;
+    }
     function render(model, opts) {
-      // Al teclear en la tabla propia no se rehace la tabla: se marcan las filas.
-      const typing = opts && opts.fromEditor && m && m.src.kind === 'own' && model.src.kind === 'own' && ownTable && ownTable.isConnected && lower
-        && model.src.rows.length === m.src.rows.length;
+      // Al teclear no se rehace la tabla ni los costes (el foco y el cursor no se mueven): se marcan las filas y se rehace
+      // lo de abajo.
+      const typing = opts && opts.fromEditor && m && lower && lower.isConnected && model.src.kind === m.src.kind && model.src.id === m.src.id
+        && (model.src.kind !== 'own' || (ownTable && ownTable.isConnected && model.src.rows.length === m.src.rows.length));
       m = model;
       if (typing) {
         const cut = root.document.getElementById('ctPasteCut');
         if (cut) cut.remove();
-        markOwn(); fillLower(); return;
+        if (ownTable) markOwn();
+        refreshBar();
+        const hint = root.document.getElementById('ctCostsHint');
+        if (hint) hint.textContent = costsHint();
+        fillLower(); return;
       }
       keepFocus(draw);
     }

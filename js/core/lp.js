@@ -8,6 +8,10 @@
  * artificiales. Las artificiales que quedan en la base a nivel 0 salen antes de la fase 2 (si su fila no tiene otra
  * columna, es redundante y se anula): si se quedaran, la fase 2 podría volverlas positivas y dar una solución que no
  * cumple su fila (el error que encontró el prototipo, plan §5). Regla de Bland para entrar y para salir: no cicla.
+ * Un coste reducido cuenta como negativo si pasa de TOL más 10⁻¹³ de la suma de los valores absolutos de sus términos:
+ * con costes de 10⁷ o más, el ruido de coma flotante pasaba de una tolerancia solo absoluta y el símplex daba vueltas hasta
+ * el tope (revisión de T019, N-F9). Relativa a cada columna, y no a la tabla entera, una actividad de pendiente enorme no
+ * borra las pequeñas (ronda 2).
  */
 (function (root) {
   'use strict';
@@ -32,9 +36,9 @@
       let enter = -1;
       for (let j = 0; j < N && enter < 0; j++) {
         if (!allowed(j)) continue;
-        let rc = cost[j];
-        for (let i = 0; i < m; i++) rc -= cost[basis[i]] * tab[i][j];
-        if (rc < -TOL) enter = j;
+        let rc = cost[j]; let mag = Math.abs(cost[j]);
+        for (let i = 0; i < m; i++) { const t = cost[basis[i]] * tab[i][j]; rc -= t; mag += Math.abs(t); }
+        if (rc < -(TOL + 1e-13 * mag)) enter = j;
       }
       if (enter < 0) return count;
       let leave = -1; let best = Infinity;

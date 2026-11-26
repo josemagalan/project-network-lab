@@ -3,7 +3,8 @@
  *   parse(rows) → { project, report }
  *       rows = [{ id, name?, links, dn, dc, cn, cc }] en texto, como el taller (P1). project = { activities: [{ id, name,
  *       dn, dc, cn, cc, b }] en orden topológico, preds, succs, byId }. Errores: los de core/project (badId,
- *       reservedId, duplicateId, unknownRef, tooMany, cycle) y badDuration, badCrash, badCost, costOrder; aviso noCrash.
+ *       reservedId, duplicateId, unknownRef, tooMany, cycle) y badDuration (entero de 0 a MAX_DURATION), badCrash, badCost,
+ *       costOrder y, sin fila, wide (más de MAX_SPAN duraciones entre la normal y la mínima); aviso noCrash.
  *   schedule(p, d) → { T, times, critical, criticalPaths, solution }   core/cpm con las duraciones d
  *   directCost(p, d) → coste directo (Σ cn + Σ b·(dn − d))
  *   ruleCut(p, d) → { set, cost, unique, other } | null                  P2: corte mínimo de la subred crítica
@@ -12,9 +13,12 @@
  *   rule(p, cur?) → pasos de la regla, con el óptimo de cada duración (de cur, la curva ya calculada, si se da) y el
  *       movimiento en la primera que queda por encima
  *   shortcut(p) → atajo de Nicholas (P5) · totals(p, k) · best(p, k) → duraciones de coste total mínimo (§0)
- *   trace(p, k) → pasos del reproductor (P9) · stepData(p, d) y setCheck(data, set) → corrección del conjunto que
+ *   trace(p, k, cur?, steps?) → pasos del reproductor (P9; con la curva y los pasos de la regla, si ya están) · stepData(p, d) y setCheck(data, set) → corrección del conjunto que
  *       predice el alumno (`analyze` B3); checkSet(p, d, set) = setCheck(stepData(p, d), set)
- * Duraciones enteras; costes con decimales, redondeados a 10⁻⁹. Sin DOM ni azar.
+ * Duraciones enteras; costes con decimales. Las pendientes se guardan sin redondear (con tercios o séptimos, redondearlas
+ * inventaba diferencias de 10⁻⁹ entre la regla y el óptimo); los costes que se devuelven, redondeados a 10⁻⁹, y se
+ * comparan con near/over (tolerancia 10⁻⁷ más 10⁻¹² del valor). Los topes MAX_DURATION y MAX_SPAN acotan el cálculo,
+ * que va duración a duración: una tabla o un enlace con duraciones enormes congelaba la pestaña. Sin DOM ni azar.
  */
 (function (root) {
   'use strict';
@@ -26,6 +30,11 @@
 
   const EPS = 1e-9;
   const INF = 1e15;
+  const MAX_DURATION = 999;      // por actividad
+  const MAX_SPAN = 150;          // filas de la compresión (de la duración normal a la mínima): unos 0,5 s con 30 actividades
+  // Costes: a > b de verdad, no por el redondeo (absoluta para los pequeños, relativa para los grandes).
+  const tol = (a, b) => 1e-7 + 1e-12 * Math.max(Math.abs(a), Math.abs(b));
+  const over = (a, b) => a > b + tol(a, b);
   const rnd = (v) => Math.round(v * 1e9) / 1e9;
   const str = (v) => (v == null ? '' : String(v));
   const INT_RE = /^\d+$/;
@@ -44,7 +53,7 @@
       const dn = str(r.dn).trim(); const dc = str(r.dc).trim(); const cn = str(r.cn).trim(); const cc = str(r.cc).trim();
       const err = (code) => errors.push({ code, row: i, ids: [id] });
       const f = {};
-      if (INT_RE.test(dn)) f.dn = Number(dn); else err('badDuration');
+      if (INT_RE.test(dn) && Number(dn) <= MAX_DURATION) f.dn = Number(dn); else err('badDuration');
       if (!dc && !cn && !cc) {
         if (f.dn != null) { f.dc = f.dn; f.cn = 0; f.cc = 0; warnings.push({ code: 'noCrash', row: i, ids: [id] }); }
       } else {
@@ -70,10 +79,12 @@
     const activities = solved.order.map((id) => {
       const a = st.project.activities.find((x) => x.id === id);
       const f = fields.get(rowOf.get(id));
-      const b = f.dn > f.dc ? rnd((f.cc - f.cn) / (f.dn - f.dc)) : 0;
+      const b = f.dn > f.dc ? (f.cc - f.cn) / (f.dn - f.dc) : 0;
       return { id, name: a.name, dn: f.dn, dc: f.dc, cn: f.cn, cc: f.cc, b };
     });
     const project = { activities, preds: st.project.preds, succs: st.project.succs, byId: Object.fromEntries(activities.map((a) => [a.id, a])) };
+    const from = schedule(project, normalD(project)).T; const to = schedule(project, crashD(project)).T;
+    if (from - to + 1 > MAX_SPAN) return { project: null, report: { errors: [{ code: 'wide', row: null, ids: [], from, to, n: from - to + 1, max: MAX_SPAN }], warnings } };
     return { project, report: { errors: [], warnings: warnings.concat(st.report.warnings).sort((a, b) => a.row - b.row) } };
   }
 
@@ -96,20 +107,26 @@
     const crit = p.activities.filter((a) => sch.critical.includes(a.id));
     const ix = new Map(crit.map((a, i) => [a.id, i]));
     const n = 2 * crit.length + 2; const S = n - 2; const T = n - 1;
+    // Capacidad que queda «a cero»: relativa a la del arco de cada actividad (con pendientes sin redondear, 7 × 10/7 deja
+    // 10⁻¹⁵, y con costes de 10¹⁰, 10⁻⁶); en los arcos que unen actividades, relativa a la mayor pendiente finita.
+    const fin = Math.max(1e-300, ...crit.map((a) => a.b));
+    const scale = Array.from({ length: n }, () => new Float64Array(n).fill(fin));
     const cap = Array.from({ length: n }, () => new Float64Array(n));
     const tm = sch.times;
     crit.forEach((a, i) => {
       cap[2 * i][2 * i + 1] = d[a.id] > a.dc ? a.b : INF;
+      if (d[a.id] > a.dc) { scale[2 * i][2 * i + 1] = a.b; scale[2 * i + 1][2 * i] = a.b; }
       if (tm[a.id].ES < EPS) cap[S][2 * i] = INF;
       if (Math.abs(tm[a.id].EF - sch.T) < EPS) cap[2 * i + 1][T] = INF;
       for (const s of p.succs[a.id]) if (ix.has(s) && Math.abs(tm[s].ES - tm[a.id].EF) < EPS) cap[2 * i + 1][2 * ix.get(s)] = INF;
     });
+    const zero = (u, v) => 1e-12 * scale[u][v];
     let flow = 0;
     for (;;) {
       const prev = new Int32Array(n).fill(-1); prev[S] = S; const q = [S];
       while (q.length && prev[T] < 0) {
         const u = q.shift();
-        for (let v = 0; v < n; v++) if (prev[v] < 0 && cap[u][v] > EPS) { prev[v] = u; q.push(v); }
+        for (let v = 0; v < n; v++) if (prev[v] < 0 && cap[u][v] > zero(u, v)) { prev[v] = u; q.push(v); }
       }
       if (prev[T] < 0) break;
       let f = INF;
@@ -122,7 +139,7 @@
       const seen = new Uint8Array(n); seen[from] = 1; const q = [from];
       while (q.length) {
         const u = q.shift();
-        for (let v = 0; v < n; v++) if (!seen[v] && (forward ? cap[u][v] : cap[v][u]) > EPS) { seen[v] = 1; q.push(v); }
+        for (let v = 0; v < n; v++) if (!seen[v] && (forward ? cap[u][v] > zero(u, v) : cap[v][u] > zero(v, u))) { seen[v] = 1; q.push(v); }
       }
       return seen;
     };
@@ -147,7 +164,8 @@
   // ---------- Óptimo: modelo lineal de Klastorin (P3) ----------
   // Variables: comienzo S y fin F de cada actividad; dc ≤ F − S ≤ dn; S de cada actividad ≥ F de sus predecesoras de
   // la reducción transitiva; F ≤ T. Objetivo: Σ b·(dn − (F − S)). Con opts.base, las cotas son ±1 alrededor de base y
-  // hay un coste ε por unidad movida (P4, movimiento).
+  // hay un coste ε por unidad movida (P4, movimiento): una diezmillonésima de la menor pendiente positiva, para que mover
+  // de más nunca compense una diferencia real de coste (revisión de T019, N-F3 y ronda 2).
   function reduction(p) {
     const anc = {};
     for (const a of p.activities) { anc[a.id] = new Set(); for (const x of p.preds[a.id]) { anc[a.id].add(x); for (const y of anc[x]) anc[a.id].add(y); } }
@@ -157,6 +175,8 @@
   function solveModel(p, T, red, opts) {
     const acts = p.activities; const n = acts.length; const base = opts && opts.base;
     const ix = new Map(acts.map((a, i) => [a.id, i]));
+    const pos = acts.map((a) => a.b).filter((b) => b > 0);
+    const eps = 1e-7 * (pos.length ? Math.min(...pos) : 1);
     const nv = base ? 3 * n : 2 * n; const c = new Array(nv).fill(0); const rows = [];
     const vec = (pairs) => { const v = new Array(nv).fill(0); for (const [j, x] of pairs) v[j] += x; return v; };
     acts.forEach((a, i) => {
@@ -167,7 +187,7 @@
       rows.push({ a: vec([[n + i, 1]]), op: '<=', b: T });
       for (const x of red[a.id]) rows.push({ a: vec([[n + ix.get(x), 1], [i, -1]]), op: '<=', b: 0 });
       if (base) {                                                      // u ≥ |F − S − base|, con coste ε
-        c[2 * n + i] = 1e-6;
+        c[2 * n + i] = eps;
         rows.push({ a: vec([[n + i, 1], [i, -1], [2 * n + i, -1]]), op: '<=', b: base[a.id] });
         rows.push({ a: vec([[n + i, -1], [i, 1], [2 * n + i, -1]]), op: '<=', b: -base[a.id] });
       }
@@ -220,7 +240,7 @@
       sch = schedule(p, d);
       const cost = directCost(p, d);
       const step = {
-        from, T: sch.T, set: cut.set, stepCost: cut.cost, cost, opt: opt.get(sch.T), above: cost > opt.get(sch.T) + EPS,
+        from, T: sch.T, set: cut.set, stepCost: cut.cost, cost, opt: opt.get(sch.T), above: over(cost, opt.get(sch.T)),
         unique: cut.unique, other: cut.other, d: Object.assign({}, d),
         reached: cut.set.filter((id) => d[id] === p.byId[id].dc),
         newCrit: sch.criticalPaths.filter((x) => !before.includes(x.join())),
@@ -266,7 +286,7 @@
     };
     for (const s of data.starts) { const path = go(s); if (path) return { ok: false, reason: 'pathUncut', path }; }
     const cost = rnd(ids.reduce((t, id) => t + data.slopes[id], 0));
-    if (data.min != null && cost > data.min + EPS) return { ok: false, reason: 'dearer', cost, best: data.min };
+    if (data.min != null && over(cost, data.min)) return { ok: false, reason: 'dearer', cost, best: data.min };
     return { ok: true, cost };
   }
 
@@ -274,24 +294,23 @@
 
   // ---------- Atajo de Nicholas (P5) ----------
   // Todo urgente; de una en una, se alarga una unidad la actividad de mayor pendiente que no alarga el proyecto
-  // (desempate: el orden de la tabla) y se vuelve a empezar, hasta que ninguna se puede alargar.
+  // (desempate: el orden de la tabla) y se vuelve a empezar, hasta que ninguna se puede alargar. Alargar solo quita
+  // holgura, así que una actividad que no se puede alargar ya no podrá: basta con alargar cada una, en ese orden, lo que
+  // le deja su holgura total (las mismas unidades, con una pasada por actividad; unidad a unidad, una tabla con mucho que
+  // alargar congelaba la pestaña, ronda 2 de T019).
   function shortcut(p) {
     const d = crashD(p);
     const T = schedule(p, d).T;
     const order = p.activities.map((a, i) => [a, i]).sort((x, y) => y[0].b - x[0].b || x[1] - y[1]).map((x) => x[0]);
     const steps = [];
-    for (let moved = true; moved;) {
-      moved = false;
-      for (const a of order) {
-        if (d[a.id] >= a.dn) continue;
-        d[a.id] += 1;
-        if (schedule(p, d).T <= T) { steps.push({ id: a.id, saving: a.b }); moved = true; break; }
-        d[a.id] -= 1;
-      }
+    for (const a of order) {
+      const k = Math.min(a.dn - d[a.id], schedule(p, d).solution.floats[a.id].TF);
+      for (let u = 0; u < k; u++) steps.push({ id: a.id, saving: a.b });
+      d[a.id] += Math.max(0, Math.round(k));
     }
     const units = {}; for (const s of steps) units[s.id] = (units[s.id] || 0) + 1;
     const cost = directCost(p, d); const opt = optimum(p, T).cost;
-    return { T, crashCost: directCost(p, crashD(p)), cost, d, steps, units, opt, above: cost > opt + EPS };
+    return { T, crashCost: directCost(p, crashD(p)), cost, d, steps, units, opt, above: over(cost, opt) };
   }
 
   // ---------- Costes totales (§0) ----------
@@ -300,8 +319,9 @@
   // ctTable (duración y coste normales) → ctStep por cada unidad (caminos críticos de partida, candidatas con su
   // pendiente, conjunto, coste, óptimo, aviso; predicción de ct.set y ct.cost) → ctEnd (por qué termina) → ctTotals
   // (si hay costes del proyecto).
-  function trace(p, k) {
-    const steps = rule(p); const d0 = normalD(p); const sch0 = schedule(p, d0);
+  function trace(p, k, cur, ruled) {
+    cur = cur || curve(p);
+    const steps = ruled || rule(p, cur); const d0 = normalD(p); const sch0 = schedule(p, d0);
     const out = [{ kind: 'ctTable', reveals: [], T: sch0.T, cost: directCost(p, d0), paths: sch0.criticalPaths, critical: sch0.critical }];
     let d = d0; let sch = sch0;
     for (const s of steps) {
@@ -313,7 +333,7 @@
       }));
       d = s.d; sch = schedule(p, d);
     }
-    if (hasCosts(k)) { const rows = totals(p, k); out.push({ kind: 'ctTotals', reveals: [], rows, best: best(p, k, null, rows) }); }
+    if (hasCosts(k)) { const rows = totals(p, k, cur); out.push({ kind: 'ctTotals', reveals: [], rows, best: best(p, k, null, rows) }); }
     return out;
   }
 
@@ -333,10 +353,10 @@
 
   function best(p, k, cur, rows) {
     const t = rows || totals(p, k, cur); const min = Math.min(...t.map((x) => x.total));
-    return t.filter((x) => x.total <= min + EPS).map((x) => x.T).sort((a, b) => a - b);
+    return t.filter((x) => !over(x.total, min)).map((x) => x.T).sort((a, b) => a - b);
   }
 
-  const api = { EPS, parse, schedule, directCost, ruleCut, reduction, optimum, curve, move, rule, shortcut, totals, best, trace, stepData, setCheck, checkSet, normalD, crashD };
+  const api = { EPS, MAX_DURATION, MAX_SPAN, over, parse, schedule, directCost, ruleCut, reduction, optimum, curve, move, rule, shortcut, totals, best, trace, stepData, setCheck, checkSet, normalD, crashD };
   root.PNL = root.PNL || {};
   root.PNL.crash = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
