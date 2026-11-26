@@ -60,6 +60,83 @@
     return { src, mode, res, p: project, report, empty: !project && !report.errors.length };
   }
 
+  // ---------- La nivelación (T010; tableros 131–134) ----------
+
+  const LEV = ['es', 'ls', 'man', 'bur', 'min'];
+  const ESof = (p) => Object.fromEntries(p.activities.map((a) => [a.id, p.times[a.id].ES]));
+  const LSof = (p) => Object.fromEntries(p.activities.map((a) => [a.id, p.times[a.id].LS]));
+  const pkey = (p) => JSON.stringify([p.table, p.activities.map((a) => [a.id, a.d, a.r, p.preds[a.id]]), p.res]);
+
+  /** El recurso que se nivela: wk, si el proyecto lo tiene; si no, el primero. */
+  const levelK = (m, state) => (Number.isInteger(state.wk) && state.wk < m.res.length ? state.wk : 0);
+
+  /** Pico, suma de cuadrados y trabajo del recurso k en el calendario S, en los periodos de 1 a T (al nivelar, T del CPM). */
+  const stats = (m, S, k) => R.stats(R.profile(m.p, S, k, Math.max(m.p.T, ...m.p.activities.map((a) => S[a.id] + a.d))));
+
+  let levCache = { key: null, val: null };
+  /**
+   * Temprano, tardío, Burgess y mínimo del pico del recurso k (el mínimo, con su cota y si está demostrado). Se guarda el
+   * último: cambiar de calendario o de idioma no lo recalcula. budget: el tope de la búsqueda (las pruebas lo bajan).
+   */
+  function levData(m, k, budget) {
+    const key = JSON.stringify([pkey(m.p), k, budget == null ? null : budget]);
+    if (levCache.key === key) return levCache.val;
+    const b = R.burgess(m.p, k);
+    const val = { es: ESof(m.p), ls: LSof(m.p), bur: { S: b.S, passes: b.passes }, min: R.minPeak(m.p, k, budget) };
+    levCache = { key, val };
+    return val;
+  }
+
+  /**
+   * ¿Se puede mover id a s en el calendario S (P3)? Entre su comienzo temprano y su tardío (window); sin empezar antes de
+   * que acabe una predecesora (pred) ni acabar después de que empiece una sucesora (succ), que no se arrastran.
+   */
+  function moveCheck(m, S, id, s) {
+    const t = m.p.times[id];
+    if (s < t.ES || s > t.LS) return { ok: false, reason: 'window', id, lo: t.ES, hi: t.LS };
+    const c = R.check(m.p, Object.assign({}, S, { [id]: s }), 'lev', id);
+    if (c.ok) return { ok: true };
+    const [x, y] = c.ids;
+    // pred: [predecesora, id]; succ: [id, sucesora].
+    if (c.reason === 'pred') return { ok: false, reason: 'pred', id, other: x, end: S[x] + m.p.byId[x].d, start: s };
+    return { ok: false, reason: 'succ', id, other: y, end: s + m.p.byId[id].d, start: S[y] };
+  }
+  /** El motivo de un movimiento que no se aplica. */
+  const moveText = (c, lang) => I.t(lang, `rs.manual.bad.${c.reason}`, c);
+  /** El calendario a mano: el temprano con los movimientos de wq, en orden; los que ya no valen se descartan sin aviso. */
+  function manual(m, wq) {
+    const S = ESof(m.p); const moves = [];
+    for (const [id, s] of wq || []) {
+      if (!m.p.byId[id] || s === S[id] || !moveCheck(m, S, id, s).ok) continue;
+      S[id] = s; moves.push([id, s]);
+    }
+    return { S, moves };
+  }
+  /** La lista de movimientos con id en s (si vuelve a su comienzo temprano, sale de la lista). */
+  function withMove(m, moves, id, s) {
+    const out = moves.filter(([x]) => x !== id);
+    if (s !== m.p.times[id].ES) out.push([id, s]);
+    return out;
+  }
+
+  /** El calendario que se ve: wc (al nivelar, uno de los cinco; si no, el temprano) con su calendario S. */
+  function calendar(m, state) {
+    const wc = LEV.includes(state.wc) ? state.wc : 'es';
+    if (wc === 'man') return Object.assign({ wc }, manual(m, state.wq));
+    const lv = wc === 'bur' || wc === 'min' ? levData(m, levelK(m, state)) : null;
+    const S = wc === 'es' ? ESof(m.p) : wc === 'ls' ? LSof(m.p) : lv[wc].S;
+    return { wc, S, info: lv ? lv[wc] : null };
+  }
+
+  /** La comparación de los cinco calendarios: pico, suma de cuadrados y trabajo de cada recurso en cada uno. */
+  function compareRows(m, state) {
+    const lv = levData(m, levelK(m, state)); const man = manual(m, state.wq);
+    const cals = { es: lv.es, ls: lv.ls, man: man.S, bur: lv.bur.S, min: lv.min.S };
+    return LEV.map((cal) => ({ cal, stats: m.res.map((_, j) => stats(m, cals[cal], j)), info: cal === 'bur' ? lv.bur : cal === 'min' ? lv.min : null,
+      untouched: cal === 'man' && !man.moves.length }));
+  }
+
+
   // ---------- Los recursos de la tabla propia (tablero 139) ----------
 
   /** Las tres filas del editor de recursos, con lo escrito (texto). */
@@ -170,6 +247,13 @@
         ]),
         h('div', { class: 'rs-row' }, [
           h('div', { class: 'seg rs-mode', role: 'group', 'aria-label': tr('mode.label') }, [mode('lev'), mode('lim')]),
+          // Nivelar (T010): el recurso que se nivela y el calendario.
+          m.mode === 'lev' ? h('label', { class: 'rs-field' }, [tr('bar.res'), ' ', h('select', { id: 'rsRes', disabled: !m.p,
+            onchange: (e) => { go({ wk: Number(e.target.value) }, { push: true }); focus('rsRes'); } },
+            m.res.map((r, k) => h('option', { value: String(k), selected: k === levelK(m, state()) }, [r.label])))]) : null,
+          m.mode === 'lev' ? h('label', { class: 'rs-field' }, [tr('bar.cal'), ' ', h('select', { id: 'rsCal', disabled: !m.p,
+            onchange: (e) => { bad = null; go({ wc: e.target.value }, { push: true }); focus('rsCal'); } },
+            LEV.map((k) => h('option', { value: k, selected: k === levCal() }, [tr(`cals.${k}`)])))]) : null,
         ]),
       ]);
     }
@@ -323,11 +407,142 @@
       ]));
       return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsResHead' }, [
         h('h2', { id: 'rsResHead' }, [tr('res.title')]),
-        h('table', { class: 'data rs-res', id: 'rsRes' }, [h('thead', {}, [h('tr', {}, [h('td', {}, []), h('th', { scope: 'col' }, [tr('res.name')]), h('th', { scope: 'col' }, [tr('res.cap')]), h('td', {}, [])])]),
+        h('table', { class: 'data rs-res', id: 'rsResTable' }, [h('thead', {}, [h('tr', {}, [h('td', {}, []), h('th', { scope: 'col' }, [tr('res.name')]), h('th', { scope: 'col' }, [tr('res.cap')]), h('td', {}, [])])]),
           h('tbody', {}, body)]),
         badCap,
         h('p', { class: 'muted small', id: 'rsResHint' }, [tr('res.hint')]),
       ]);
+    }
+
+    // ---------- La nivelación: Gantt con perfiles, comparación, a mano y ROY (T010; tableros 131–134) ----------
+    let bad = null; let sel = null; let timesOpen = false; let profOpen = false; let lower = null;
+    const levCal = () => (LEV.includes(state().wc) ? state().wc : 'es');
+    const unitOf = (T) => Math.max(12, Math.min(34, Math.floor(600 / Math.max(1, T))));
+    const resUses = (a) => m.res.map((r, k) => `${r.label} ${num(a.r[k])}`).join(', ');
+    function ganttCard(cal) {
+      const p = m.p; const S = cal.S; const T = p.T; const U = unitOf(T);
+      const shifts = cal.wc === 'man' || cal.wc === 'bur' || cal.wc === 'min';
+      const rows = p.table.map((id) => {
+        const a = p.byId[id]; const t = p.times[id];
+        return { id, s: S[id], d: a.d, r: a.r.map(num), es: t.ES, lf: t.LF, crit: t.TF === 0, moved: shifts && S[id] !== t.ES,
+          label: tr('gantt.bar', { id, s: num(S[id]), f: num(S[id] + a.d), uses: resUses(a) }) };
+      });
+      const res = m.res.map((r, k) => {
+        const u = R.profile(p, S, k, T); const x = R.stats(u);
+        return { label: r.label, cap: r.cap, u, aria: tr('gantt.profile', { res: r.label, peak: num(x.peak), ssq: num(x.ssq), work: num(x.work) }),
+          statsText: [tr('gantt.peak', { v: num(x.peak) }), tr('gantt.ssq', { v: num(x.ssq) }), tr('gantt.work', { v: num(x.work) })] };
+      });
+      const holder = h('div', { class: 'rs-gantt', id: 'rsGantt' });
+      const calName = tr(`cals.${cal.wc}`);
+      root.PNL.rsGantt.render(holder, { T, Tcpm: T, unit: U, rows, res, window: true, caps: false, sel: cal.wc === 'man' ? sel : null,
+        label: tr('gantt.label', { cal: calName, name: m.src.title }), capText: (v) => tr('gantt.cap', { v: num(v) }),
+        onMove: cal.wc === 'man' ? (id, s) => move(cal, id, s) : null, onSelect: cal.wc === 'man' ? (id) => { sel = id; bad = null; keepFocus(drawLower); } : null });
+      const notes = [];
+      if (cal.wc === 'min') {
+        const x = cal.info; const k = levelK(m, state());
+        notes.push(h('p', { class: `rs-note ${x.proved ? 'rs-note-ok' : 'rs-note-warn'}`, id: 'rsMinNote', role: 'status' }, [x.proved
+          ? tr('min.proved', { T: num(p.T), res: m.res[k].label, peak: num(x.peak), nodes: num(x.nodes) })
+          : tr('min.notProved', { peak: num(x.peak), lb: num(x.lb) })]));
+      }
+      if (cal.wc === 'bur') {
+        const k = levelK(m, state());
+        notes.push(h('p', { class: 'rs-note', id: 'rsBurNote' }, [tr('bur.note', { n: num(cal.info.passes), from: num(stats(m, levData(m, k).es, k).ssq), to: num(stats(m, S, k).ssq) })]));
+      }
+      const leg = h('p', { class: 'rs-legend', id: 'rsGanttLegend' }, [h('span', { class: 'rs-l-crit' }, [tr('gantt.crit')]), h('span', { class: 'rs-l-free' }, [tr('gantt.free')]),
+        h('span', { class: 'rs-l-window' }, [tr('gantt.window')]), shifts ? h('span', { class: 'rs-l-ghost' }, [tr('gantt.ghost')]) : null, h('span', {}, [tr('gantt.use')])]);
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsGanttHead' }, [
+        h('h2', { id: 'rsGanttHead' }, [tr(m.res.length > 1 ? 'gantt.title' : 'gantt.titleOne', { cal: calName })]),
+        h('div', { class: 'rs-scroll rs-gantt-wrap', tabindex: cal.wc === 'man' ? null : '0', role: 'region', 'aria-label': tr('gantt.label', { cal: calName, name: m.src.title }) }, [holder]),
+        h('p', { class: 'rs-swipe muted small', 'aria-hidden': 'true' }, [tr('gantt.swipe')]),
+        leg].concat(notes));
+    }
+    // Un movimiento a mano (P3): si vale, va al enlace (wq); si no, se dice el motivo y no se aplica.
+    function move(cal, id, s) {
+      sel = id;
+      const c = moveCheck(m, cal.S, id, s);
+      if (!c.ok) { bad = moveText(c, lang()); keepFocus(drawLower); return; }
+      bad = null;
+      hooks.dispatch({ type: 'rsStarts', value: withMove(m, cal.moves, id, s) });
+      if (hooks.announce) hooks.announce(tr('manual.moved', { id, s: num(s) }));
+    }
+    function manualCard(cal) {
+      const ids = m.p.table;
+      if (!sel || !m.p.byId[sel]) sel = ids[0];
+      const act = h('select', { id: 'rsMoveAct', onchange: (e) => { sel = e.target.value; bad = null; keepFocus(drawLower); } },
+        ids.map((id) => h('option', { value: id, selected: id === sel }, [id])));
+      const start = h('input', { id: 'rsMoveStart', value: String(cal.S[sel]), size: '4', inputmode: 'numeric', autocomplete: 'off' });
+      const apply = () => { const v = start.value.trim(); if (/^\d{1,5}$/.test(v)) move(cal, sel, Number(v)); };
+      start.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } });
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsMoveHead' }, [
+        h('h2', { id: 'rsMoveHead' }, [tr('manual.title')]),
+        h('p', { class: 'small' }, [tr('manual.hint')]),
+        h('div', { class: 'rs-row' }, [h('label', { class: 'rs-field' }, [tr('manual.act'), ' ', act]), h('label', { class: 'rs-field' }, [tr('manual.start'), ' ', start]),
+          button(tr('manual.apply'), apply, { id: 'rsMoveApply' }),
+          button(tr('manual.reset'), () => { bad = null; hooks.dispatch({ type: 'rsStarts', value: null }); focus('rsMoveReset'); }, { id: 'rsMoveReset', disabled: !cal.moves.length })]),
+        bad ? h('p', { class: 'rs-m rs-m-err rs-bad', id: 'rsMoveBad', role: 'alert' }, [h('strong', {}, [tr('manual.notApplied')]), ' ', bad]) : null,
+        h('p', { class: 'muted small' }, [tr('manual.note')]),
+      ]);
+    }
+    function compareCard() {
+      const rows = compareRows(m, state()); const cur = levCal();
+      // Dos filas de cabecera: el recurso encima de su pico y su suma de cuadrados.
+      const head = [h('tr', {}, [h('th', { scope: 'col', rowspan: '2' }, [tr('cmp.cal')])].concat(m.res.map((r) => h('th', { scope: 'colgroup', colspan: '2', class: 'rs-cmp-res' }, [r.label])))),
+        h('tr', {}, m.res.flatMap(() => [h('th', { scope: 'col' }, [tr('cmp.peak')]), h('th', { scope: 'col' }, [tr('cmp.ssq')])]))];
+      const extra = (r) => (r.cal === 'bur' ? (r.info.passes === 1 ? tr('cmp.passesOne') : tr('cmp.passes', { n: num(r.info.passes) })) : r.cal === 'min' ? tr(r.info.proved ? 'cmp.proved' : 'cmp.notProved') : r.untouched ? tr('cmp.untouched') : '');
+      const body = rows.map((r) => h('tr', { class: r.cal === cur ? 'chosen' : null, 'data-cal': r.cal }, [h('th', { scope: 'row' }, [tr(`cals.${r.cal}`), extra(r) ? h('span', { class: 'muted small' }, [` ${extra(r)}`]) : null])]
+        .concat(r.stats.flatMap((x) => [h('td', { class: 'num' }, [h('strong', {}, [num(x.peak)])]), h('td', { class: 'num' }, [num(x.ssq)])]))));
+      const k = levelK(m, state());
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsCmpHead' }, [h('h2', { id: 'rsCmpHead' }, [tr('cmp.title')]),
+        h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': `${tr('cmp.title')} · ${m.src.title}` }, [h('table', { class: 'data rs-cmp', id: 'rsCmp' }, [h('thead', {}, head), h('tbody', {}, body)])]),
+        h('p', { class: 'muted small' }, [tr('cmp.note', { work: num(rows[0].stats[k].work) })])]);
+    }
+    function royCard(cal) {
+      const p = m.p;
+      const proj = { activities: p.activities.map((a) => ({ id: a.id, name: a.name, d: a.d })), preds: p.preds, succs: p.succs };
+      const sol = root.PNL.cpm.solve(proj);
+      const early = cal.wc === 'es';
+      const revealed = new Map();
+      for (const a of p.activities) {
+        revealed.set(`${a.id}.ES`, cal.S[a.id]); revealed.set(`${a.id}.EF`, cal.S[a.id] + a.d);
+        if (early) { for (const f of ['LS', 'LF']) revealed.set(`${a.id}.${f}`, sol.times[a.id][f]); revealed.set(`${a.id}.TF`, sol.floats[a.id].TF); }
+      }
+      const tags = new Map();
+      if (cal.wc === 'man' || cal.wc === 'bur' || cal.wc === 'min') {
+        for (const a of p.activities) {
+          const dd = cal.S[a.id] - p.times[a.id].ES;
+          if (dd) tags.set(a.id, [{ text: tr('roy.moved', { n: num(dd) }), cls: 'ntag-moved', title: tr('roy.movedTitle', { n: num(dd) }) }]);
+        }
+      }
+      const holder = h('div', { class: 'rs-net', id: 'rsRoy', tabindex: '0' });
+      root.PNL.royView.render(holder, { project: proj, solution: sol, lay: root.PNL.layout.layout(sol, proj), step: null, revealed, box: '7', lang: lang(), nota: state().nota,
+        criticalOn: true, numFmt: num, name: m.src.title, fit: true, minWidth: 560, tags });
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsRoyHead' }, [h('h2', { id: 'rsRoyHead' }, [tr(early ? 'roy.title' : 'roy.titleCal')]), holder,
+        h('p', { class: 'rs-swipe muted small', 'aria-hidden': 'true' }, [tr('gantt.swipe')]),
+        h('p', { class: 'rs-legend', id: 'rsRoyLegend' }, [tr(early ? 'roy.legend' : 'roy.legendCal')])]);
+    }
+    // Alternativas en texto (AC12): comienzo y fin de cada actividad, y el uso de cada recurso en cada periodo.
+    function altTables(cal) {
+      const p = m.p; const calName = tr(`cals.${cal.wc}`);
+      const tHead = h('tr', {}, [tr('alt.act'), tr('alt.d'), tr('alt.start'), tr('alt.end')].concat(m.res.map((r) => r.label)).map((c) => h('th', { scope: 'col' }, [c])));
+      const tBody = p.table.map((id) => { const a = p.byId[id]; return h('tr', {}, [h('th', { scope: 'row' }, [id])].concat([a.d, cal.S[id], cal.S[id] + a.d, ...a.r].map((v) => h('td', { class: 'num' }, [num(v)])))); });
+      const us = m.res.map((_, k) => R.profile(p, cal.S, k, p.T));
+      const pHead = h('tr', {}, [tr('alt.period')].concat(m.res.map((r) => r.label)).map((c) => h('th', { scope: 'col' }, [c])));
+      const pBody = Array.from({ length: p.T }, (_, q) => h('tr', {}, [h('th', { scope: 'row' }, [num(q + 1)])].concat(us.map((u) => h('td', { class: 'num' }, [num(u[q])])))));
+      const box = (id, open, setOpen, title, caption, tid, head, body) => h('details', { class: 'card rs-card rs-alt', id, open, ontoggle: (e) => setOpen(e.target.open) }, [h('summary', {}, [title]),
+        h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': title }, [h('table', { class: 'data rs-cmp', id: tid }, [h('caption', { class: 'sr-only' }, [caption]), h('thead', {}, [head]), h('tbody', {}, body)])])]);
+      return [box('rsTimes', timesOpen, (v) => { timesOpen = v; }, tr('alt.times'), tr('alt.timesCaption', { cal: calName }), 'rsTimesTable', tHead, tBody),
+        box('rsProfile', profOpen, (v) => { profOpen = v; }, tr('alt.profile'), tr('alt.profileCaption', { cal: calName }), 'rsProfileTable', pHead, pBody)];
+    }
+    let shown = null;
+    function drawLower() {
+      if (!lower) return;
+      clear(lower); shown = null;
+      if (!m.p || m.mode !== 'lev') return;
+      const cal = calendar(m, state());
+      shown = cal;
+      lower.appendChild(h('div', { class: 'rs-lev' }, [ganttCard(cal), h('div', { class: 'rs-side' }, [compareCard(), cal.wc === 'man' ? manualCard(cal) : null])]));
+      lower.appendChild(royCard(cal));
+      for (const el of altTables(cal)) lower.appendChild(el);
     }
 
     function draw() {
@@ -335,17 +550,22 @@
       ownTable = null; issuesSlot = null;
       container.appendChild(bar());
       container.appendChild(h('div', { class: 'rs-top' }, m.src.kind === 'own' ? [ownCard(), resCard()] : [exampleCard()]));
+      lower = h('div', { class: 'rs-lower', id: 'rsLower' });
+      container.appendChild(lower);
+      drawLower();
     }
     function render(model, opts) {
       // Al teclear no se rehace la tabla (el foco y el cursor no se mueven): se marcan las filas. Si cambia el número de
       // recursos (se nombra o se borra uno), la tabla se rehace con una columna más o menos.
       const typing = opts && opts.fromEditor && m && model.src.kind === 'own' && m.src.kind === 'own' && ownTable && ownTable.isConnected
         && model.src.rows.length === m.src.rows.length && model.res.length === ownK;
+      if (!m || model.src.id !== m.src.id || model.mode !== m.mode) { bad = null; sel = null; }
       m = model;
       if (typing) {
         const cut = root.document.getElementById('rsPasteCut');
         if (cut) cut.remove();
         markOwn();
+        keepFocus(drawLower);
         return;
       }
       keepFocus(draw);
@@ -353,13 +573,14 @@
     function debug() {
       if (!m) return null;
       return { src: { kind: m.src.kind, id: m.src.id }, mode: m.mode, res: m.res.map((r) => ({ label: r.label, cap: r.cap })),
-        errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => c === 'noUse'), ok: !!m.p };
+        errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => c === 'noUse'), ok: !!m.p,
+        cal: shown ? shown.wc : null, k: m.p ? levelK(m, state()) : null, moves: shown && shown.moves ? shown.moves : [], unit: m.p ? unitOf(m.p.T) : null };
     }
     function leave() { /* T009: nada que parar */ }
     return { render, debug, leave };
   }
 
-  const api = { FIELDS, source, resources, model, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows, create };
+  const api = { FIELDS, LEV, source, resources, model, levelK, stats, levData, moveCheck, moveText, manual, withMove, calendar, compareRows, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows, create };
   root.PNL = root.PNL || {};
   root.PNL.rsTab = api;
   if (isNode) module.exports = api;

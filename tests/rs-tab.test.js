@@ -82,3 +82,61 @@ test('F5c T009: pegar desde una hoja de cálculo (con cabeceras o sin ellas) con
 test('F5c T009: «Partir del taller» lleva las filas del taller tal cual', () => {
   assert.deepEqual(T.workRows([{ id: 'A', name: 'x', duration: 3, links: '' }]), [{ id: 'A', name: 'x', duration: '3', links: '' }]);
 });
+
+// ---------- T010: calendarios de la nivelación, movimientos a mano y comparación (tableros 131–134) ----------
+
+test('F5c T010: los cinco calendarios de la nivelación de Klastorin 8.1 (temprano 21, tardío 16, Burgess y mínimo 16)', () => {
+  const m = T.model(st({ we: 'k81' }), 'es');
+  const peak = (wc, extra) => { const c = T.calendar(m, st(Object.assign({ we: 'k81', wc }, extra))); return [c.wc, T.stats(m, c.S, 0).peak, T.stats(m, c.S, 0).ssq]; };
+  assert.deepEqual(peak('es'), ['es', 21, 1877]);
+  assert.deepEqual(peak('ls'), ['ls', 16, 1839]);
+  assert.deepEqual(peak('man'), ['man', 21, 1877]);
+  assert.deepEqual(peak('bur'), ['bur', 16, 1735]);
+  assert.deepEqual(peak('min'), ['min', 16, 1735]);
+  // Un calendario de recursos limitados, al nivelar, es el temprano.
+  assert.deepEqual(peak('opt'), ['es', 21, 1877]);
+  const lv = T.levData(m, 0);
+  assert.deepEqual([lv.bur.passes, lv.min.peak, lv.min.proved], [2, 16, true]);
+  // Con un tope de 3 nodos, el mínimo no queda demostrado y da su cota.
+  const cut = T.levData(m, 0, 3).min;
+  assert.equal(cut.proved, false);
+  assert.ok(cut.lb <= cut.peak);
+  // La comparación: una fila por calendario, con el pico y la suma de cuadrados de cada recurso.
+  const rows = T.compareRows(m, st({ we: 'k81' }));
+  assert.deepEqual(rows.map((r) => [r.cal, r.stats[0].peak, r.stats[0].ssq]), [['es', 21, 1877], ['ls', 16, 1839], ['man', 21, 1877], ['bur', 16, 1735], ['min', 16, 1735]]);
+});
+
+test('F5c T010: LOGON: el recurso que se nivela (wk) y cómo cambia el otro; wk fuera de los recursos es el primero', () => {
+  const m = T.model(st({ we: 'lg' }), 'es');
+  const s1 = T.calendar(m, st({ we: 'lg', wc: 'bur', wk: 1 })).S;
+  assert.deepEqual([T.stats(m, s1, 0).peak, T.stats(m, s1, 1).peak], [19, 16]);
+  assert.equal(T.levelK(m, st({ we: 'lg', wk: 2 })), 0);
+  const min0 = T.calendar(m, st({ we: 'lg', wc: 'min', wk: 0 })).S;
+  assert.equal(T.stats(m, min0, 0).peak, 15);
+});
+
+test('F5c T010: movimientos a mano: entre ES y LS; una predecesora o una sucesora que choca no se aplica y se dice cuál (P3)', () => {
+  const m = T.model(st({ we: 'lg' }), 'es');
+  const S0 = T.calendar(m, st({ we: 'lg', wc: 'man' })).S;
+  assert.deepEqual(T.moveCheck(m, S0, 'Q', S0.Q + 2), { ok: false, reason: 'succ', id: 'Q', other: 'T', end: S0.Q + 7, start: S0.T });
+  assert.deepEqual(T.moveCheck(m, S0, 'Q', S0.Q - 1), { ok: false, reason: 'window', id: 'Q', lo: m.p.times.Q.ES, hi: m.p.times.Q.LS });
+  assert.deepEqual(T.moveCheck(m, S0, 'P', S0.P + 2), { ok: true });
+  // T se mueve primero; después Q ya cabe. Una predecesora que choca: retrasar T y luego adelantar no se puede si Q acaba después.
+  const S1 = Object.assign({}, S0, { T: S0.T + 2 });
+  assert.deepEqual(T.moveCheck(m, S1, 'Q', S0.Q + 2), { ok: true });
+  const S2 = Object.assign({}, S1, { Q: S0.Q + 2 });
+  assert.deepEqual(T.moveCheck(m, S2, 'T', S0.T), { ok: false, reason: 'pred', id: 'T', other: 'Q', end: S0.Q + 7, start: S0.T });
+  for (const lang of ['es', 'en']) {
+    for (const c of [T.moveCheck(m, S0, 'Q', S0.Q + 2), T.moveCheck(m, S0, 'Q', S0.Q - 1), T.moveCheck(m, S2, 'T', S0.T)]) {
+      const text = T.moveText(c, lang);
+      assert.ok(text && !/\{|undefined|^rs\./.test(text), text);
+    }
+  }
+  // Los movimientos guardados (wq): se aplican en orden y se descartan los que ya no valen.
+  const man = T.manual(m, [['T', S0.T + 2], ['Q', S0.Q + 2], ['ZZ', 3], ['H', 4], ['P', S0.P + 2]]);
+  assert.deepEqual(man.moves, [['T', S0.T + 2], ['Q', S0.Q + 2], ['P', S0.P + 2]]);
+  assert.deepEqual([man.S.T, man.S.Q, man.S.P, man.S.H], [S0.T + 2, S0.Q + 2, S0.P + 2, 0]);
+  // Volver a su comienzo temprano quita el movimiento de la lista.
+  assert.deepEqual(T.withMove(m, man.moves, 'P', S0.P), [['T', S0.T + 2], ['Q', S0.Q + 2]]);
+  assert.deepEqual(T.withMove(m, man.moves, 'R', 22), [['T', S0.T + 2], ['Q', S0.Q + 2], ['P', S0.P + 2], ['R', 22]]);
+});

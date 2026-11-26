@@ -13856,6 +13856,130 @@ check('F5c T009 · axe sin violaciones (claro y oscuro, ES y EN) con un ejemplo 
   }
 });
 
+// ---------- F5c, T010: el Gantt con perfiles y la nivelación (temprano, tardío, a mano, Burgess y mínimo) ----------
+
+const rsCmp = (page) => page.evaluate(() => [...document.querySelectorAll('#rsCmp tbody tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((td) => td.textContent.replace(/\s+/g, ' ').trim())));
+const rsStats = (page) => page.evaluate(() => [...document.querySelectorAll('#rsGantt .rsg-prof')].map((g) => [...g.querySelectorAll('.rsg-stat')].map((t) => t.textContent)));
+const rsRoyVals = (page, id) => page.evaluate((a) => {
+  const own = (t) => (t.firstChild ? t.firstChild.nodeValue : '');
+  const g = [...document.querySelectorAll('#rsRoy g.node')].find((n) => [...n.querySelectorAll('text.nid')].some((t) => own(t) === a));
+  return g ? [...g.querySelectorAll('text.val')].map(own) : null;
+}, id);
+
+check('F5c T010 · AC3 y AC10: Klastorin 8.1 de 21 a 16: los cinco calendarios en el Gantt con su perfil, la comparación y el mínimo demostrado (ES y EN)', async () => {
+  for (const lang of ['es', 'en']) {
+    const page = await rsLab(rsHash({ we: 'k81', lang }));
+    await page.waitForSelector('#rsGantt svg');
+    assert.equal(await page.locator('#rsCal').inputValue(), 'es');
+    assert.equal(await page.locator('#rsGantt .rsg-bar').count(), 7);
+    let st = await rsStats(page);
+    assert.equal(st.length, 1);
+    assert.match(st[0][0], /21/);
+    assert.deepEqual((await rsCmp(page)).map((r) => [r[1], r[2]]), [['21', NR5.fmt(lang, 1877)], ['16', NR5.fmt(lang, 1839)], ['21', NR5.fmt(lang, 1877)], ['16', NR5.fmt(lang, 1735)], ['16', NR5.fmt(lang, 1735)]]);
+    for (const [wc, peak] of [['ls', 16], ['bur', 16], ['min', 16], ['es', 21]]) {
+      await page.locator('#rsCal').selectOption(wc);
+      await page.waitForFunction((x) => PNL.rsTab.state().cal === x, wc);
+      st = await rsStats(page);
+      assert.match(st[0][0], new RegExp(`\\b${peak}\\b`), `${wc}: pico`);
+      assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wc, wc);
+      if (wc === 'min') assert.match(await page.locator('#rsMinNote').innerText(), lang === 'es' ? /Demostrado/ : /Proved/);
+    }
+    await close(page);
+  }
+});
+
+check('F5c T010 · AC3: LOGON con dos perfiles: se nivela el recurso elegido y el otro cambia (Burgess del equipo sube los trabajadores a 19)', async () => {
+  const page = await rsLab(rsHash({ we: 'lg', wc: 'bur', lang: 'es' }));
+  await page.waitForSelector('#rsGantt svg');
+  let st = await rsStats(page);
+  assert.equal(st.length, 2);
+  assert.match(st[0][0], /15/);
+  await page.locator('#rsRes').selectOption('1');
+  await page.waitForFunction(() => PNL.rsTab.state().k === 1);
+  st = await rsStats(page);
+  assert.match(st[0][0], /19/);
+  assert.match(st[1][0], /16/);
+  assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wk, 1);
+  await close(page);
+});
+
+check('F5c T010 · AC6: a mano, con el teclado y con el ratón: un movimiento válido va al enlace; uno fuera de su ventana o que choca con una sucesora no se aplica y se dice el motivo', async () => {
+  const page = await rsLab(rsHash({ we: 'k81', wc: 'man', lang: 'es' }));
+  await page.waitForSelector('#rsBar-C');
+  // C: ventana [3, 4]. Flecha derecha: a 4; otra vez: fuera de la ventana.
+  await page.locator('#rsBar-C').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => /wq=C%3A4/.test(location.hash));
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsBar-C');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForSelector('#rsMoveBad');
+  assert.match(await page.locator('#rsMoveBad').innerText(), /C.*3.*4/);
+  assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wq.length, 1);
+  // F (ventana [2, 11]) con el campo: a 9; la comparación cuenta «a mano».
+  await page.locator('#rsMoveAct').selectOption('F');
+  await page.locator('#rsMoveStart').fill('9');
+  await page.locator('#rsMoveApply').click();
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 2);
+  assert.equal(await page.locator('#rsMoveBad').count(), 0);
+  // Con el ratón: arrastrar E dos periodos a la derecha.
+  const box = await page.locator('#rsBar-E rect.rsg-box').boundingBox();
+  const unit = await page.evaluate(() => { const s = document.querySelector('#rsGantt svg'); return s.getBoundingClientRect().width / s.viewBox.baseVal.width * PNL.rsTab.state().unit; });
+  await page.mouse.move(box.x + 5, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 5 + unit * 2, box.y + 5, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForFunction(() => PNL.rsTab.state().moves.some(([id, s]) => id === 'E' && s === 4));
+  // «Volver al temprano» quita todos los movimientos.
+  await page.locator('#rsMoveReset').click();
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 0);
+  // LOGON: Q dos periodos más tarde choca con T, su sucesora (el error del libro).
+  await setHash(page, rsHash({ we: 'lg', wc: 'man', lang: 'es' }));
+  await page.waitForSelector('#rsBar-Q');
+  await page.locator('#rsMoveAct').selectOption('Q');
+  await page.locator('#rsMoveStart').fill('20');
+  await page.locator('#rsMoveApply').click();
+  await page.waitForSelector('#rsMoveBad');
+  assert.match(await page.locator('#rsMoveBad').innerText(), /Q acabaría en 25 y T, su sucesora, empieza en 23/);
+  assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wq, null);
+  await close(page);
+});
+
+check('F5c T010 · C1: la ROY con la caja de siempre en el temprano; en los demás calendarios, comienzo y fin arriba y «·» abajo, con la marca de lo que se ha retrasado', async () => {
+  const page = await rsLab(rsHash({ we: 'k81', lang: 'es' }));
+  await page.waitForSelector('#rsRoy svg');
+  assert.deepEqual(await rsRoyVals(page, 'F'), ['2', '2', '4', '11', '9', '13']);
+  await page.locator('#rsCal').selectOption('bur');
+  await page.waitForFunction(() => PNL.rsTab.state().cal === 'bur');
+  assert.deepEqual(await rsRoyVals(page, 'F'), ['11', '2', '13', '·', '·', '·']);
+  assert.ok((await page.locator('#rsRoyLegend').innerText()).length > 10);
+  assert.equal(await page.locator('#rsRoy .ntag').count(), 2);   // C y F, retrasadas
+  await close(page);
+});
+
+check('F5c T010 · AC12: alternativas en texto (comienzos y perfil por periodo), axe sin violaciones (claro y oscuro, ES y EN) y a 360 px sin desbordar; por debajo de 1 MB', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await rsLab(rsHash({ we: 'lg', wc: 'man', wq: [['P', 20]], lang }), { scheme });
+    await page.waitForSelector('#rsGantt svg');
+    await page.locator('#rsTimes summary').click();
+    await page.locator('#rsProfile summary').click();
+    assert.equal(await page.locator('#rsTimesTable tbody tr').count(), 19);
+    assert.equal(await page.locator('#rsProfileTable tbody tr').count(), 47);
+    await axe(page, `F5c T010 · LOGON a mano · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await rsLab(rsHash({ we: 'k81', wc: 'bur', lang: 'es' }), { width: 360, height: 740 });
+  await m.waitForSelector('#rsGantt svg');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5c-t010-k81-360', true);
+  await close(m);
+  const page = await rsLab(rsHash({ we: 'lg', wc: 'min', lang: 'es' }));
+  await page.waitForSelector('#rsGantt svg');
+  const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+  console.log(`    cpm.html#v=rs&we=lg&wc=min: ${(bytes / 1024).toFixed(0)} KB`);
+  assert.ok(bytes <= BUDGET);
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

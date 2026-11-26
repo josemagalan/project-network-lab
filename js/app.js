@@ -109,7 +109,7 @@
     // F5b (plan §4): v=ct, coste–tiempo, con su núcleo (símplex, compresión y ejemplos), textos, controlador y hoja.
     ct: ['css/ct.css', 'js/core/lp.js', 'js/core/crash.js', 'js/core/crashex.js', 'js/i18n-ct.js', 'js/views/ct-chart.js', 'js/ct.js'],
     // F5c (plan §4): v=rs, recursos, con su núcleo (nivelación, esquemas y búsquedas exactas) y ejemplos, textos, controlador y hoja.
-    rs: ['css/rs.css', 'js/core/resource.js', 'js/core/resex.js', 'js/i18n-rs.js', 'js/rs.js'],
+    rs: ['css/rs.css', 'js/core/resource.js', 'js/core/resex.js', 'js/i18n-rs.js', 'js/views/rs-gantt.js', 'js/rs.js'],
   };
   const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt, rs: () => !!G.rsTab };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
