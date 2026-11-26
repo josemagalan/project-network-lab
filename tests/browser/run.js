@@ -13656,6 +13656,206 @@ check('F5b T019 · I-F14: con costes de cientos de millones, la curva tiene 7 l�
   await close(page);
 });
 
+// ---------- F5c, T009: la vista de recursos (oculta), la tabla del proyecto y los recursos ----------
+
+const RSR = require(path.join(ROOT, 'js', 'core', 'resource.js'));
+const RSX = require(path.join(ROOT, 'js', 'core', 'resex.js'));
+const rsHash = (s) => U5.encode(Object.assign({ v: 'rs' }, s)).slice(1);
+async function rsLab(hash, opts) {
+  const page = await lab(hash, opts);
+  await page.waitForFunction(() => PNL.rsTab && PNL.rsTab.state && PNL.rsTab.state());
+  return page;
+}
+const rsSt = (page) => page.evaluate(() => PNL.rsTab.state());
+const rsGo = async (page, s) => {
+  await setHash(page, rsHash(s));
+  await page.waitForFunction((x) => PNL.rsTab.state().src.id === x[0] && PNL.rsTab.state().mode === x[1], [s.we || 'k81', s.wm || (s.we && s.we !== 'own' ? RSX.get(s.we).mode : 'lev')]);
+};
+const rsCells = (page) => page.evaluate(() => [...document.querySelectorAll('#rsProjTable tbody tr')].map((tr) => [...tr.querySelectorAll('th, td')].map((td) => td.textContent.trim())));
+// La tabla propia del tablero 139: B con duración no entera, C con más trabajadores de los disponibles, D sin usos (aviso),
+// E un hito y F con un uso negativo; dos recursos (la grúa, sin límite).
+const RS_OWN139 = [
+  { id: 'A', name: '', links: '', d: '4', r1: '3', r2: '2', r3: '' },
+  { id: 'B', name: '', links: 'A', d: '2.5', r1: '1', r2: '', r3: '' },
+  { id: 'C', name: '', links: 'A', d: '3', r1: '12', r2: '1', r3: '' },
+  { id: 'D', name: '', links: 'B, C', d: '2', r1: '', r2: '', r3: '' },
+  { id: 'E', name: '', links: 'C', d: '0', r1: '2', r2: '', r3: '' },
+  { id: 'F', name: '', links: 'D, E', d: '3', r1: '-1', r2: '2', r3: '' },
+];
+const RS_WR139 = [{ name: 'Workers', cap: 10 }, { name: 'Crane', cap: null }];
+
+check('F5c T009 · AC8: cada ejemplo abre en su modo con su tabla de solo lectura (duración y un uso por recurso), su fuente y sus recursos (ES y EN, las dos notaciones); la vista no está en «Extensiones» hasta T014', async () => {
+  for (const [lang, nota] of [['es', 'es'], ['en', 'en']]) {
+    const page = await rsLab(`v=rs&lang=${lang}&nota=${nota}`);
+    assert.equal(await page.locator('#rsView').isVisible(), true);
+    assert.equal(await page.locator('#stage').isVisible(), false);
+    assert.equal(await page.locator('#ctView').isVisible(), false);
+    for (const ex of RSX.list()) {
+      await rsGo(page, { we: ex.id, lang, nota });
+      const p = RSR.parse(ex.rows, ex.res.map((r) => ({ name: r.name[lang], cap: r.cap })), ex.mode).project;
+      assert.equal(await page.locator('#rsProj').inputValue(), ex.id);
+      assert.equal(await page.locator(`#rsMode-${ex.mode}`).getAttribute('aria-pressed'), 'true');
+      const head = await page.evaluate(() => [...document.querySelectorAll('#rsProjTable thead th')].map((x) => x.textContent.trim()));
+      assert.deepEqual(head.slice(3), ex.res.map((r) => r.name[lang]), `${ex.id}: un uso por recurso`);
+      const cells = await rsCells(page);
+      assert.equal(cells.length, p.table.length, ex.id);
+      p.table.forEach((id, i) => {
+        const a = p.byId[id];
+        assert.equal(cells[i][0], id);
+        assert.deepEqual(cells[i].slice(2), [a.d, ...a.r].map((v) => NR5.fmt(lang, v)), `${ex.id} · ${id}`);
+      });
+      const srcText = await page.locator('#rsSource').innerText();
+      assert.ok(srcText.includes(ex.source[lang]) && srcText.includes(ex.unit[lang]), `${ex.id}: fuente y unidad`);
+      // Con recursos limitados, la disponibilidad de cada recurso; nivelando, no.
+      const caps = await page.locator('#rsCaps').count();
+      assert.equal(caps, ex.mode === 'lim' ? 1 : 0, `${ex.id}: disponibilidades`);
+      if (caps) for (const r of ex.res) assert.ok((await page.locator('#rsCaps').innerText()).includes(r.name[lang]));
+      assert.equal(await page.locator('#rsOwn').count(), 0, 'sin tabla editable en los ejemplos');
+      assert.deepEqual((await rsSt(page)).errors, []);
+    }
+    // El selector de «Desfases» y de coste–tiempo no tiene aún la tercera opción.
+    await setHash(page, `v=gpr&lang=${lang}`);
+    await page.waitForSelector('#gprExtCt');
+    assert.equal(await page.locator('#gprExtRs').count(), 0);
+    await close(page);
+  }
+});
+
+check('F5c T009 · AC8: cambiar de modo (Nivelar | Recursos limitados) va al enlace; con recursos limitados, LOGON enseña sus disponibilidades', async () => {
+  const page = await rsLab(rsHash({ we: 'lg', lang: 'es' }));
+  assert.equal(await page.locator('#rsCaps').count(), 0);
+  await page.locator('#rsMode-lim').click();
+  await page.waitForFunction(() => PNL.rsTab.state().mode === 'lim');
+  assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wm, 'lim');
+  assert.match(await page.locator('#rsCaps').innerText(), /14/);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsMode-lim');
+  await close(page);
+});
+
+check('F5c T009 · AC8: la tabla propia (tablero 139) marca cada fila con su error (duración, uso, más de lo disponible), avisa de la fila sin usos, señala el hito y no calcula; al corregir, se calcula y el enlace guarda la tabla', async () => {
+  const page = await rsLab(rsHash({ we: 'own', wt: RS_OWN139, wr: RS_WR139, wm: 'lim', lang: 'en' }));
+  assert.equal(await page.locator('#rsProjTable').count(), 0);
+  let st = await rsSt(page);
+  assert.deepEqual([st.src.kind, st.errors, st.warnings, st.ok], ['own', ['badDuration', 'overCap', 'badUse'], ['noUse'], false]);
+  assert.equal(await page.locator('#rsOwn tbody tr.bad').count(), 3);
+  assert.equal(await page.locator('#rsT-1-d').getAttribute('aria-invalid'), 'true');
+  assert.equal(await page.locator('#rsT-2-r1').getAttribute('aria-invalid'), 'true');
+  assert.equal(await page.locator('#rsT-2-r2').getAttribute('aria-invalid'), 'false');
+  assert.equal(await page.locator('#rsT-5-r1').getAttribute('aria-invalid'), 'true');
+  assert.ok(await page.locator('#rsT-3-r1').evaluate((e) => e.classList.contains('rs-warn')));
+  assert.match(await page.locator('#rsOwn tbody tr[data-row="4"] [data-msg]').innerText(), /milestone/i);
+  assert.match(await page.locator('#rsIssues').innerText(), /3/);
+  // Sin «Recurso 3» con nombre, la tabla tiene dos columnas de usos.
+  assert.equal(await page.locator('#rsT-0-r3').count(), 0);
+  await page.locator('#rsT-1-d').fill('2');
+  await page.locator('#rsT-2-r1').fill('6');
+  await page.locator('#rsT-5-r1').fill('1');
+  await page.waitForFunction(() => PNL.rsTab.state().ok);
+  st = await rsSt(page);
+  assert.deepEqual([st.errors, st.warnings], [[], ['noUse']]);
+  assert.equal(await page.locator('#rsIssues').count(), 0);
+  const hash = U5.decode(await page.evaluate(() => location.hash)).state;
+  assert.deepEqual(hash.wt.map((r) => [r.d, r.r1]), [['4', '3'], ['2', '1'], ['3', '6'], ['2', ''], ['0', '2'], ['3', '1']]);
+  // Nivelando, la disponibilidad no cuenta: 12 trabajadores en C no es un error.
+  await page.locator('#rsT-2-r1').fill('12');
+  await page.waitForFunction(() => PNL.rsTab.state().errors.length === 1);
+  await page.locator('#rsMode-lev').click();
+  await page.waitForFunction(() => PNL.rsTab.state().ok);
+  // Añadir, quitar y vaciar.
+  await page.locator('#rsAdd').click();
+  assert.equal(await page.locator('#rsOwn tbody tr').count(), 7);
+  await page.locator('#rsDel-6').click();
+  assert.equal(await page.locator('#rsOwn tbody tr').count(), 6);
+  await page.locator('#rsClear').click();
+  await page.waitForFunction(() => document.querySelectorAll('#rsOwn tbody tr').length === 1);
+  assert.equal((await rsSt(page)).ok, false);
+  await close(page);
+});
+
+check('F5c T009 · los recursos de la tabla propia: nombrar el tercero añade su columna; la disponibilidad va al enlace (vacía, sin límite); un valor no válido se marca y no cambia nada', async () => {
+  const page = await rsLab(rsHash({ we: 'own', wt: RS_OWN139.slice(0, 1), wr: RS_WR139, wm: 'lim', lang: 'es' }));
+  assert.equal(await page.locator('#rsResName-2').inputValue(), '');
+  await page.locator('#rsResName-2').fill('Pintores');
+  await page.waitForSelector('#rsT-0-r3');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsResName-2');
+  assert.deepEqual(U5.decode(await page.evaluate(() => location.hash)).state.wr.map((r) => r.name), ['Workers', 'Crane', 'Pintores']);
+  await page.locator('#rsResCap-1').fill('3');
+  await page.waitForFunction(() => /wr=[^&]*Crane%3A3/.test(location.hash) || /Crane:3/.test(decodeURIComponent(location.hash)));
+  await page.locator('#rsResCap-0').fill('0');
+  await page.locator('#rsResCap-0').press('Tab');
+  assert.equal(await page.locator('#rsResCap-0').getAttribute('aria-invalid'), 'true');
+  assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wr[0].cap, 10);
+  await page.locator('#rsResCap-0').fill('');
+  await page.waitForFunction(() => PNL.rsTab.state().res[0].cap === null);
+  assert.equal(await page.locator('#rsResCap-0').getAttribute('aria-invalid'), 'false');
+  await close(page);
+});
+
+check('F5c T009 · AC9: «Partir del taller» copia actividades, predecesoras y duraciones (sin taller, las del ejercicio 6); los usos, vacíos (aviso en cada fila); «Atrás» vuelve al ejemplo. «Pegar» añade filas', async () => {
+  const E6s = require(path.join(ROOT, 'js', 'core', 'examples.js')).get('ej6');
+  // El ejercicio 6 está en posteriores: se copia en predecesoras.
+  const PJ = require(path.join(ROOT, 'js', 'core', 'project.js'));
+  const E6 = { rows: PJ.toRows(PJ.parse(E6s.rows, 'succ').project, 'pred') };
+  const page = await rsLab('v=rs&lang=es');
+  await page.locator('#rsFromWork').click();
+  await page.waitForFunction(() => PNL.rsTab.state().src.kind === 'own');
+  const st = await rsSt(page);
+  assert.deepEqual([st.errors, st.warnings], [[], E6.rows.map(() => 'noUse')]);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsProj');
+  const last = E6.rows.length - 1;
+  assert.deepEqual([await page.locator('#rsT-0-id').inputValue(), await page.locator(`#rsT-${last}-links`).inputValue(), await page.locator(`#rsT-${last}-d`).inputValue(), await page.locator(`#rsT-${last}-r1`).inputValue()],
+    [E6.rows[0].id, E6.rows[last].links, String(E6.rows[last].duration), '']);
+  await page.locator('#rsPaste summary').click();
+  await page.locator('#rsPasteText').fill('Z\t\tA\t4\t3');
+  await page.locator('#rsPasteApply').click();
+  await page.waitForFunction((n) => document.querySelectorAll('#rsOwn tbody tr').length === n, E6.rows.length + 1);
+  assert.equal(await page.locator(`#rsT-${last + 1}-r1`).inputValue(), '3');
+  await page.goBack();
+  await page.waitForFunction(() => PNL.app && PNL.app.state().v === 'rs' && PNL.rsTab.state().src.kind === 'example');
+  await close(page);
+});
+
+check('F5c T009 · AC13: el grupo rs solo con v=rs (al abrir y al ir por enlace); la vista con su hoja y por debajo de 1 MB', async () => {
+  for (const hash of ['v=route&ex=ej6&step=0&lang=es', 'v=work&lang=es', 'v=gpr&lang=es', 'v=ct&lang=es', 'v=m0&lang=es']) {
+    const p = await lab(hash);
+    await p.waitForTimeout(150);
+    assert.equal(await p.evaluate(() => !!PNL.rsTab || !!PNL.resource || [...document.scripts].some((s) => /(\/rs\.js|resource|resex)/.test(s.getAttribute('src') || ''))
+      || !!document.querySelector('link[href="css/rs.css"]')), false, hash);
+    await close(p);
+  }
+  const r = await lab('v=route&ex=ej6&step=0&lang=es');
+  await setHash(r, 'v=rs&we=gb&lang=es');
+  await r.waitForFunction(() => PNL.rsTab && PNL.rsTab.state && PNL.rsTab.state());
+  assert.equal(await r.locator('#rsView').isVisible(), true);
+  await close(r);
+  for (const hash of ['v=rs&we=lg&lang=es', rsHash({ we: 'own', wt: RS_OWN139, wr: RS_WR139, wm: 'lim', lang: 'en' })]) {
+    const page = await rsLab(hash);
+    assert.equal(await page.evaluate(() => !!document.querySelector('link[href="css/rs.css"]')), true);
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+    console.log(`    cpm.html#${hash.slice(0, 40)}: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${hash}: ${bytes} bytes`);
+    await close(page);
+  }
+});
+
+check('F5c T009 · axe sin violaciones (claro y oscuro, ES y EN) con un ejemplo y con la tabla propia con errores; a 360 px la página no se desplaza en horizontal', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await rsLab(rsHash({ we: 'gb', lang }), { scheme });
+    await axe(page, `F5c · GUMBY · ${lang} · ${scheme}`);
+    await rsGo(page, { we: 'own', wt: RS_OWN139, wr: RS_WR139, wm: 'lim', lang });
+    await page.waitForSelector('#rsOwn');
+    await axe(page, `F5c · tabla propia con errores · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  for (const s of [{ we: 'lg', lang: 'es' }, { we: 'own', wt: RS_OWN139, wr: RS_WR139, wm: 'lim', lang: 'en' }]) {
+    const m = await rsLab(rsHash(s), { width: 360, height: 740 });
+    assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `${s.we}: sin desbordar a lo ancho`);
+    await shot(m, `f5c-t009-${s.we}-360`, true);
+    await close(m);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

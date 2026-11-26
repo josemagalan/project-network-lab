@@ -55,6 +55,8 @@
   const UNC_PUBLIC = true;  // F4a: la pestaña se publica en T013
   let gprc = null;          // controlador de «Precedencias generalizadas» (F5a)
   let ctc = null;           // controlador de coste–tiempo (F5b)
+  let rsc = null;           // controlador de recursos (F5c)
+  const RS_PUBLIC = false;  // F5c (plan §4): la tercera opción de «Extensiones» se publica en T014
   const GPR_PUBLIC = true; // F5a (P9): publicada en T015
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
@@ -106,8 +108,10 @@
     gr: ['css/gpr.css', 'js/core/gpr.js', 'js/core/gprpert.js', 'js/core/gprex.js', 'js/i18n-gpr.js', 'js/views/gpr-gantt.js', 'js/gpr.js'],
     // F5b (plan §4): v=ct, coste–tiempo, con su núcleo (símplex, compresión y ejemplos), textos, controlador y hoja.
     ct: ['css/ct.css', 'js/core/lp.js', 'js/core/crash.js', 'js/core/crashex.js', 'js/i18n-ct.js', 'js/views/ct-chart.js', 'js/ct.js'],
+    // F5c (plan §4): v=rs, recursos, con su núcleo (nivelación, esquemas y búsquedas exactas) y ejemplos, textos, controlador y hoja.
+    rs: ['css/rs.css', 'js/core/resource.js', 'js/core/resex.js', 'js/i18n-rs.js', 'js/rs.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt, rs: () => !!G.rsTab };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -171,7 +175,7 @@
   const needsU56 = (s) => s.v === 'unc' && s.um !== 'm7';
   const missingU7 = (s) => (needsU7(s) && (!READY.u7() || (needsU7r(s) && !READY.u7r()))) || (needsU56(s) && !READY.u56());
   const needU7 = (s) => need('un').then(() => (needsU7(s) ? need('u7').then(() => (needsU7r(s) ? need('u7r') : null)) : need('u56')));
-  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'unc' ? 'un' : v === 'gpr' ? 'gr' : v === 'ct' ? 'ct' : null);
+  const groupOf = (v) => (v === 'm0' || v === 'ex' ? v : v === 'unc' ? 'un' : v === 'gpr' ? 'gr' : v === 'ct' ? 'ct' : v === 'rs' ? 'rs' : null);
   // Grupos que pide un enlace (F3c, P5 y P12): M0 con el texto de su enunciado (st) o con el generador (sg).
   function groupsOf(hash) {
     const q = new URLSearchParams(String(hash || '').replace(/^#/, ''));
@@ -210,6 +214,8 @@
     if (state.v === 'gpr') { model = Object.assign(G.gprTab.model(state, lang()), { gprm: true }); return; }
     // Coste–tiempo (F5b): su tabla (un ejemplo o la propia), lo leído y los costes del proyecto (T010).
     if (state.v === 'ct') { model = Object.assign(G.ctTab.model(state, lang()), { ctm: true }); model.trace = G.ctTab.trace(model); return; }
+    // Recursos (F5c): su tabla (un ejemplo o la propia), el modo, los recursos y lo leído (T009).
+    if (state.v === 'rs') { model = Object.assign(G.rsTab.model(state, lang()), { rsm: true }); return; }
     let rows; let mode; let name; let unit = ''; let structureOnly = false;
     // En la ruta, una tabla sin filas con datos no tiene nada que recorrer: se usa el ejemplo (revisión, ronda 2, H3).
     const hasRows = state.t && state.t.some((r) => [r.id, r.duration, r.links].some((v) => String(v == null ? '' : v).trim()));
@@ -277,6 +283,7 @@
     // «Precedencias generalizadas» (F5a, T011): su traza; el paso 0 es la tabla y el paso a paso va del 1 en adelante.
     if (model.gprm) return model.trace || null;
     if (model.ctm) return model.trace || null;
+    if (model.rsm) return model.trace || null;
     if (pert()) return model.net ? (prog() ? progNet().trace : model.net.trace) : null;
     return model.solution ? model.solution.trace : null;
   }
@@ -320,10 +327,13 @@
   }
   // Las dos vistas guardan su barra al ocultarse, así que los ids llevan el prefijo de la vista (gprExtCt, ctExtGpr…); al cambiar,
   // el foco va al botón de la extensión elegida en la barra de la vista nueva.
+  // F5c (P13): con una tercera opción, «Recursos», que hasta T014 solo sale en su propia vista (abierta por enlace).
   function extSwitch(current) {
-    const pick = (k, go) => h('button', { type: 'button', id: `${current}Ext${k === 'gpr' ? 'Gpr' : 'Ct'}`, 'aria-pressed': String(current === k),
-      onclick: () => { if (current !== k) go(`${k}Ext${k === 'gpr' ? 'Gpr' : 'Ct'}`); } }, [t(`nav.ext.${k}`)]);
-    return h('div', { class: 'seg ext-switch', role: 'group', 'aria-label': t('nav.ext.label') }, [pick('gpr', toGpr), pick('ct', toCt)]);
+    const cap = (k) => k[0].toUpperCase() + k.slice(1);
+    const pick = (k, go) => h('button', { type: 'button', id: `${current}Ext${cap(k)}`, 'aria-pressed': String(current === k),
+      onclick: () => { if (current !== k) go(`${k}Ext${cap(k)}`); } }, [t(`nav.ext.${k}`)]);
+    return h('div', { class: 'seg ext-switch', role: 'group', 'aria-label': t('nav.ext.label') },
+      [pick('gpr', toGpr), pick('ct', toCt)].concat(RS_PUBLIC || current === 'rs' ? [pick('rs', toRs)] : []));
   }
   // Entrada a coste–tiempo (F5b): lo que hubiera (ejemplo o tabla propia), conservando el taller para «Partir del taller».
   const ctEntry = () => Object.assign({}, state, { v: 'ct', step: 0 });
@@ -332,6 +342,15 @@
     if (state.v === 'ct') return;
     if (!READY.ct()) { need('ct').then(() => toCt(fid), noop); return; }
     dispatch({ type: 'ct' }, { push: true });
+    if (typeof fid === 'string' && $(fid)) $(fid).focus(); else window.scrollTo(0, 0);
+  }
+  // Entrada a recursos (F5c): lo que hubiera (ejemplo o tabla propia), conservando el taller para «Partir del taller».
+  const rsEntry = () => Object.assign({}, state, { v: 'rs', step: 0 });
+  function toRs(fid) {
+    stopPlay();
+    if (state.v === 'rs') return;
+    if (!READY.rs()) { need('rs').then(() => toRs(fid), noop); return; }
+    dispatch({ type: 'rs' }, { push: true });
     if (typeof fid === 'string' && $(fid)) $(fid).focus(); else window.scrollTo(0, 0);
   }
   function toEx() {
@@ -366,7 +385,7 @@
     // duración o un nombre) conserva la red del alumno; con otra estructura se borra, como antes. Mientras la tabla no es
     // válida (una celda a medio escribir), la red se guarda con la estructura de la última tabla válida (ronda 2, R2-F1).
     const keepRn = action.type === 'table' && before.rn ? (model && model.project ? structKey(model.project) : rnKey) : null;
-    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'xk', 'dg', 'dk', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh', 'qe', 'qt', 'qw', 'ke', 'kt', 'kc'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
+    const dataChanged = ['t', 'ex', 'mode', 'wi', 'lang', 'v', 'st', 'own', 'mk', 'sd', 'lv', 'gp', 'ask', 'xm', 'ans', 'xd', 'gv', 'cx', 'sv', 'xt', 'xk', 'dg', 'dk', 'um', 'ue', 'ut', 'ua', 'uc', 'ux', 'ud', 'up', 'uw', 'us', 'ug', 'uf', 'uq', 'ur', 'uv', 'uo', 'uy', 'ui', 'uz', 'uh', 'qe', 'qt', 'qw', 'ke', 'kt', 'kc', 'we', 'wt', 'wr', 'wm', 'wk', 'wc', 'ws', 'wp', 'wq'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]));
     if (dataChanged) { compute(); fitGraph(); if (['t', 'ex', 'mode'].some((k) => JSON.stringify(before[k]) !== JSON.stringify(state[k]))) selected = null; }
     if (keepRn && !(model && model.project)) { rnKey = keepRn; state = Object.assign({}, state, { rn: before.rn }); }
     else if (keepRn && structKey(model.project) === keepRn) state = Object.assign({}, state, { rn: before.rn });
@@ -423,9 +442,9 @@
     $('navUnc').hidden = !UNC_PUBLIC;
     $('navUnc').href = U.encode(uncEntry());
     // «Extensiones» (F5b, P14): «Desfases» y coste–tiempo comparten pestaña; el selector va en la barra de cada una.
-    $('navGpr').setAttribute('aria-current', state.v === 'gpr' || state.v === 'ct' ? 'page' : 'false');
+    $('navGpr').setAttribute('aria-current', ['gpr', 'ct', 'rs'].includes(state.v) ? 'page' : 'false');
     $('navGpr').hidden = !GPR_PUBLIC;
-    $('navGpr').href = U.encode(state.v === 'ct' ? ctEntry() : gprEntry());
+    $('navGpr').href = U.encode(state.v === 'ct' ? ctEntry() : state.v === 'rs' ? rsEntry() : gprEntry());
     $('navM0').href = U.encode(m0Entry());
     $('navRoute').href = U.encode(Object.assign({}, state, { v: 'route', t: null, ex: state.ex || 'ej6', step: 0, wi: null }));
     $('navWork').href = U.encode(Object.assign({}, state, { v: 'work', step: 0 }));
@@ -457,11 +476,15 @@
     const ctOn = state.v === 'ct';
     $('ctView').hidden = !ctOn;
     if (!ctOn && ctc) ctc.leave();
+    const rsOn = state.v === 'rs';
+    $('rsView').hidden = !rsOn;
+    if (!rsOn && rsc) rsc.leave();
     if (m0On) { $('workshop').hidden = true; $('stage').hidden = true; m0.render(model, opts); return; }
     if (exOn) { $('workshop').hidden = true; $('stage').hidden = true; exc.render(model, opts); return; }
     if (uncOn) { $('workshop').hidden = true; $('stage').hidden = true; uncc.render(model, opts); return; }
     if (gprOn) { $('workshop').hidden = true; $('stage').hidden = true; gprc.render(model, opts); return; }
     if (ctOn) { $('workshop').hidden = true; $('stage').hidden = true; ctc.render(model, opts); return; }
+    if (rsOn) { $('workshop').hidden = true; $('stage').hidden = true; rsc.render(model, opts); return; }
     const work = state.v === 'work';
     $('workshop').hidden = !work;
     if (work) editor.render(Object.assign({}, model, { showComputed, numFmt, hideDuration: durationHidden() }), !!(opts && opts.fullEditor));
@@ -1366,6 +1389,16 @@
         announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
       });
       G.ctTab.state = () => ctc.debug();
+    }
+    if (G.rsTab && !rsc) {
+      rsc = G.rsTab.create($('rsView'), {
+        state: () => state, lang, dispatch,
+        // «Partir del taller» (AC9): la tabla del taller (o el ejemplo que muestra) con su forma.
+        workRows: workSource,
+        ext: extSwitch,
+        announce: (text) => { if (text !== lastAnnounced) { $('live').textContent = text; lastAnnounced = text; } },
+      });
+      G.rsTab.state = () => rsc.debug();
     }
   }
 

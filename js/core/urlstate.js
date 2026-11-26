@@ -687,7 +687,7 @@
   // wm = null es el modo del ejemplo («cada uno abre en su modo»); con tabla propia, nivelación. wr = null son los recursos
   // del ejemplo (con tabla propia, uno sin límite); en wr, un nombre vacío es el del ejemplo o «Recurso n».
   const RS_DEFAULTS = { we: 'k81', wt: null, wr: null, wm: null, wk: 0, wc: 'es', ws: 'sf', wp: 'slk', wq: null };
-  const RS = { res: 3, name: 40, cap: 9999, start: 99999 };
+  const RS = { res: 3, name: 20, cap: 9999, start: 99999 };
   // Tabla propia: filas como texto (id, predecesoras, d, r1, r2, r3, nombre), con los límites del taller.
   const WT_ROW = (r) => [cut(r.id, LIMITS.id), cut(r.links, LIMITS.links), cut(r.d, LIMITS.duration), cut(r.r1, LIMITS.duration),
     cut(r.r2, LIMITS.duration), cut(r.r3, LIMITS.duration), cut(r.name, LIMITS.name)];
@@ -708,7 +708,7 @@
     if (!Array.isArray(a) || a.length !== 2 || a[0] !== 1 || !Array.isArray(a[1]) || !a[1].length || a[1].length > LIMITS.rows || !a[1].every(wtRowOk)) return null;
     return a[1].map(wtRow);
   }
-  // Recursos: de 1 a 3, { name, cap }, con cap entero de 1 a 9999 o null (sin límite). El nombre se recorta a 40 y sin
+  // Recursos: de 1 a 3, { name, cap }, con cap entero de 1 a 9999 o null (sin límite). El nombre se recorta a 20 (plan §0) y sin
   // espacios a los lados; la disponibilidad puede venir como texto («3», «»). Algo no válido → null.
   function cleanWr(wr) {
     if (!Array.isArray(wr) || !wr.length || wr.length > RS.res) return null;

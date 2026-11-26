@@ -27,7 +27,7 @@
       },
       nav: { label: 'Secciones', m0: 'Del enunciado a la tabla', route: 'Ruta guiada', work: 'Taller', home: 'Portada del laboratorio', unc: 'Duraciones inciertas', gpr: 'Extensiones',
         // F5b (P14): la pestaña «Extensiones» lleva dentro el selector de la extensión.
-        ext: { label: 'Extensión', gpr: 'Desfases', ct: 'Coste–tiempo' } },
+        ext: { label: 'Extensión', gpr: 'Desfases', ct: 'Coste–tiempo', rs: 'Recursos' } },
       ctl: {
         lang: 'Idioma', nota: 'Notación', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Caja', box4: '4 campos', box7: '7 campos', boxc: 'Compacta',
@@ -349,7 +349,7 @@
         footer: 'Code under the MIT licence · teaching content CC BY 4.0 · University of Burgos',
       },
       nav: { label: 'Sections', m0: 'From statement to table', route: 'Guided tour', work: 'Workshop', home: 'Lab home page', unc: 'Uncertain durations', gpr: 'Extensions',
-        ext: { label: 'Extension', gpr: 'Lags', ct: 'Time–cost' } },
+        ext: { label: 'Extension', gpr: 'Lags', ct: 'Time–cost', rs: 'Resources' } },
       ctl: {
         lang: 'Language', nota: 'Notation', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Node box', box4: '4 fields', box7: '7 fields', boxc: 'Compact',

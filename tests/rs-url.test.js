@@ -51,8 +51,8 @@ test('F5c T007: la tabla propia en el límite (40 filas) va y vuelve; lo que pas
   const back = round(rs({ we: 'own', wt: long })).state.wt[0];
   assert.equal(back.links.length, 200); assert.equal(back.d.length, 12); assert.equal(back.r1.length, 12);
   assert.ok(U.encodeSafe(rs({ we: 'own', wt: t, wq: t.map((r, i) => [r.id, i * 100]) })).hash);
-  // Nombres de recurso: hasta 40 caracteres.
-  assert.equal(round(rs({ wr: [{ name: 'n'.repeat(60), cap: 1 }] })).state.wr[0].name.length, 40);
+  // Nombres de recurso: hasta 20 caracteres (plan §0).
+  assert.equal(round(rs({ wr: [{ name: 'n'.repeat(60), cap: 1 }] })).state.wr[0].name.length, 20);
 });
 
 test('F5c T007: valores malformados → el de siempre y aviso', () => {

@@ -1,0 +1,42 @@
+/* Project Network Lab — estilos de la vista de recursos (F5c). Se cargan bajo demanda con la vista v=rs (app.js, grupo
+   rs), como sus scripts, para que las demás vistas no los paguen (principio 27). Usan los tokens de styles.css. */
+.rs { display: flex; flex-direction: column; gap: 12px; }
+.rs h2 { margin: 0; font-size: 14px; }
+.rs p { margin: 0; }
+.rs-bar { padding: 8px 14px; display: flex; flex-direction: column; gap: 8px; }
+.rs-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.rs button.ghost { min-height: 32px; padding: 4px 12px; }
+.rs .seg button { padding: 4px 12px; min-height: 32px; }
+.rs-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
+.rs-field select { min-height: 32px; max-width: 100%; min-width: 0; }
+.rs-bar #rsProj { width: 20rem; }
+.rs-card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.rs-mono { font-family: var(--mono); }
+.rs .small { font-size: 13px; }
+.rs-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 400px); gap: 12px; align-items: start; }
+.rs-top > :only-child { grid-column: 1 / -1; max-width: 760px; }
+@media (max-width: 900px) { .rs-top { grid-template-columns: minmax(0, 1fr); } }
+.rs-scroll { overflow-x: auto; position: relative; }
+table.data.rs-proj { font-size: 13px; }
+table.data.rs-proj th, table.data.rs-proj td { padding: 3px 8px; }
+table.data.rs-proj tbody th { font-weight: 700; }
+.rs-caps { font-weight: 600; }
+/* Tabla propia y recursos (tablero 139). */
+table.data.rs-own { font-size: 13px; }
+table.data.rs-own th, table.data.rs-own td { padding: 3px 5px; vertical-align: top; }
+table.data.rs-own input, table.data.rs-res input { width: 100%; min-width: 3em; height: 30px; padding: 0 5px; font-size: 13px; }
+table.data.rs-own input[aria-invalid="true"], table.data.rs-res input[aria-invalid="true"] { border: 2px solid var(--critical); background: var(--critical-soft); }
+table.data.rs-own input.rs-warn { border: 2px solid var(--warn-line); }
+table.data.rs-own tr.bad { background: var(--critical-soft); }
+table.data.rs-res { font-size: 13px; }
+table.data.rs-res th, table.data.rs-res td { padding: 3px 6px; text-align: left; }
+table.data.rs-res tbody th { white-space: nowrap; }
+table.data.rs-own td.rs-msg { text-align: left; font-size: 12.5px; min-width: 12em; max-width: 22em; }
+.rs-m { display: block; }
+.rs-m-err { color: var(--critical-text); }
+.rs-m-warn { color: var(--warn); }
+.rs-m-info { color: var(--muted); }
+.rs-issues { background: var(--critical-soft); border: 1px solid var(--critical); border-radius: 10px; padding: 6px 12px; font-size: 14px; }
+.rs-issues ul { margin: 4px 0 0; padding-left: 1.2em; }
+.rs-paste summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.rs-paste textarea { width: 100%; font-family: var(--mono); font-size: 13px; }
