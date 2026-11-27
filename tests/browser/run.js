@@ -14414,6 +14414,149 @@ check('F5c T014 · AC12 y AC14: con el selector de tres, la cabecera cabe en una
   }
 });
 
+// ---------- F5c, T015: navegador y accesibilidad de toda la vista (AC12–AC14) ----------
+
+// Los elementos de la vista a los que llega el tabulador, en el orden del documento (visibles, sin tabindex negativo).
+const rsTabbables = (page) => page.evaluate(() => [...document.querySelectorAll('#rsView a[href], #rsView button, #rsView input, #rsView select, #rsView textarea, #rsView summary, #rsView [tabindex]')]
+  .filter((e) => !e.disabled && e.tabIndex >= 0 && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden]') && !(e.closest('details:not([open])') && e.tagName !== 'SUMMARY'))
+  .map((e) => e.id || `${e.tagName.toLowerCase()}:${(e.getAttribute('aria-label') || e.textContent).trim().slice(0, 30)}`));
+// Recorre la vista con el tabulador desde su primer control: llega a todos, en orden, sin quedarse atrapado.
+async function rsTabWalk(page) {
+  const want = await rsTabbables(page);
+  await page.evaluate(() => { const f = document.querySelector('#rsView .ext-switch button'); f.focus(); });
+  const seen = [await page.evaluate(() => document.activeElement.id)];
+  for (let i = 1; i < want.length; i++) {
+    await page.keyboard.press('Tab');
+    seen.push(await page.evaluate(() => { const e = document.activeElement; return e.id || `${e.tagName.toLowerCase()}:${(e.getAttribute('aria-label') || e.textContent).trim().slice(0, 30)}`; }));
+  }
+  return { want, seen };
+}
+
+check('F5c T015 · AC12: el teclado de punta a punta: el tabulador recorre en orden toda la vista (barra, tabla, Gantt, comparación, ROY y alternativas) en nivelar, a mano, con recursos limitados y en el paso a paso, sin quedarse atrapado', async () => {
+  for (const s of [{ we: 'k81', wc: 'bur' }, { we: 'k81', wc: 'man' }, { we: 'k85' }, { we: 'gb', wc: 'man', wq: [['J', 0]] }, { we: 'k85', step: 3, pred: 1 }, { we: 'n723', ws: 'pf', step: 4 }]) {
+    const page = await rsLab(rsHash(Object.assign({ lang: 'es' }, s)));
+    await page.waitForSelector('#rsGantt svg');
+    // Las alternativas en texto, abiertas, también se recorren.
+    for (const id of ['rsTimes', 'rsProfile']) if (await page.locator(`#${id}`).count()) await page.locator(`#${id} > summary`).click();
+    const { want, seen } = await rsTabWalk(page);
+    assert.ok(want.length >= 12, `${JSON.stringify(s)}: ${want.length} controles`);
+    assert.deepEqual(seen, want, JSON.stringify(s));
+    await close(page);
+  }
+});
+
+check('F5c T015 · AC12: solo con el teclado: el paso a paso con predicción (Intro y Espacio en los botones, número y Intro en el comienzo, flecha derecha para seguir) y colocar a mano con recursos limitados (desplegable, número, Intro y flechas en la barra)', async () => {
+  const page = await rsLab(rsHash({ we: 'k85', lang: 'es' }));
+  await page.waitForSelector('#rsWalk');
+  await page.locator('#rsWalk').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.rsTab.state().walk && PNL.rsTab.state().walk.k === 1);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsWalk');
+  await page.locator('#rsPred').focus();
+  await page.keyboard.press('Space');
+  await page.waitForSelector('#rsPick-B');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsPred');
+  // Paso 1: elegir B con Espacio, comprobar con Intro; el foco pasa al comienzo; 0 e Intro.
+  await page.locator('#rsPick-B').focus();
+  await page.keyboard.press('Space');
+  await page.waitForFunction(() => document.getElementById('rsPick-B').getAttribute('aria-pressed') === 'true');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsPick-B');
+  await page.locator('#rsPickCheck').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.activeElement && document.activeElement.id === 'rsPredStart');
+  await page.keyboard.type('0');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#rsPredFb');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsPredFb');
+  assert.match(await page.locator('#rsPredFb').innerText(), /Sí: la regla elige B\.[\s\S]*Sí: B empieza en 0\./);
+  // La flecha derecha sigue al paso 2 y el foco va a su pregunta.
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => PNL.rsTab.state().walk.k === 2);
+  // Con el botón «Siguiente» y el teclado, el foco va a la primera actividad de la pregunta.
+  await page.locator('#rsPredShow').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => !document.getElementById('rsPick-A'));
+  await page.locator('#rsNext').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.rsTab.state().walk.k === 3);
+  assert.match(await page.evaluate(() => document.activeElement.id), /^rsPick-/);
+  // Colocar a mano (GUMBY): la actividad en el desplegable con las flechas, el comienzo e Intro; después, la barra con las flechas.
+  await rsGo(page, { we: 'gb', wc: 'man', lang: 'es' });
+  await page.waitForSelector('#rsPlaceAct');
+  await page.locator('#rsPlaceAct').focus();
+  assert.equal(await page.locator('#rsPlaceAct').inputValue(), 'J');
+  await page.locator('#rsPlaceStart').focus();
+  await page.keyboard.type('0');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 1);
+  await page.locator('#rsBar-J').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => PNL.rsTab.state().moves.some(([id, t]) => id === 'J' && t === 1));
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsBar-J');
+  await close(page);
+});
+
+check('F5c T015 · AC12: axe sin violaciones con todo abierto (claro y oscuro, ES y EN): Burgess y el mínimo con sus alternativas en texto, el óptimo con las cadenas, la tabla propia con recursos limitados y el final de los dos pasos a paso', async () => {
+  const own = [
+    { id: 'A', name: '', links: '', d: '3', r1: '2', r2: '1', r3: '' },
+    { id: 'B', name: '', links: '', d: '2', r1: '3', r2: '', r3: '' },
+    { id: 'C', name: '', links: 'A, B', d: '4', r1: '2', r2: '2', r3: '' },
+  ];
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await rsLab(rsHash({ we: 'k81', wc: 'bur', lang }), { scheme });
+    for (const s of [{ we: 'k81', wc: 'bur' }, { we: 'lg', wc: 'min', wk: 1 }, { we: 'lgi', wc: 'opt' }, { we: 'own', wt: own, wm: 'lim', wr: [{ name: 'Grúa', cap: 4 }, { name: 'Pintores', cap: '' }] },
+      { we: 'k81', wc: 'bur', step: 7 }, { we: 'k85', ws: 'sb', step: 6 }]) {
+      await rsGo(page, Object.assign({ lang }, s));
+      await page.waitForSelector('#rsGantt svg');
+      for (const id of ['rsTimes', 'rsProfile']) {
+        if (await page.locator(`#${id}`).count() && !(await page.locator(`#${id}`).getAttribute('open'))) await page.locator(`#${id} > summary`).click();
+      }
+      await axe(page, `F5c T015 · todo abierto · ${JSON.stringify(s).slice(0, 60)} · ${lang} · ${scheme}`);
+    }
+    await close(page);
+  }
+});
+
+check('F5c T015 · AC13 y AC14: a 1280×720 y a 360 px ninguna parte de la vista desplaza la página a lo ancho (ES y EN; cada modo, calendario y paso a paso)', async () => {
+  const cases = [{ we: 'k81' }, { we: 'k81', wc: 'bur' }, { we: 'lg', wc: 'man' }, { we: 'lg', wc: 'min' }, { we: 'k85' }, { we: 'lgi', wc: 'opt' }, { we: 'gb', wc: 'man' },
+    { we: 'k81', wc: 'bur', step: 2, pred: 1 }, { we: 'k85', step: 3, pred: 1 }, { we: 'n723', ws: 'pf', step: 4, pred: 1 }, { we: 'k85', ws: 'sb', step: 6 }];
+  for (const [w, h] of [[1280, 720], [360, 740]]) {
+    for (const lang of ['es', 'en']) {
+      const page = await rsLab(rsHash({ we: 'k81', lang }), { width: w, height: h });
+      for (const s of cases) {
+        await rsGo(page, Object.assign({ lang }, s));
+        await page.waitForSelector('#rsGantt svg');
+        await page.waitForTimeout(50);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, `${w} px · ${lang} · ${JSON.stringify(s)}`);
+      }
+      await close(page);
+    }
+  }
+});
+
+check('F5c T015 · AC13 (principio 27): rs y rl no se cargan en las demás vistas; v=rs con todo abierto (LOGON con el inspector, el óptimo, las alternativas, el paso a paso y «Aprende más») sigue por debajo de 1 MB', async () => {
+  for (const h of ['v=route&ex=ej6&lang=es', 'v=work&lang=es', 'v=gpr&lang=es', 'v=ct&lang=es', 'v=unc&lang=es']) {
+    const page = await lab(h);
+    await page.waitForTimeout(300);
+    const loaded = await page.evaluate(() => [...document.scripts].map((x) => x.getAttribute('src') || '').concat([...document.querySelectorAll('link[rel="stylesheet"]')].map((x) => x.getAttribute('href') || '')));
+    assert.deepEqual(loaded.filter((f) => /(^|\/)(rs|i18n-rs|learn-rs|resource|resex|rs-gantt)\.(js|css)$/.test(f)), [], h);
+    assert.equal(await page.evaluate(() => !!(PNL.rsTab || PNL.resource || PNL.learnRs)), false, h);
+    await close(page);
+  }
+  const page = await rsLab(rsHash({ we: 'lgi', wc: 'opt', lang: 'es' }));
+  await page.waitForSelector('#rsGantt svg');
+  for (const id of ['rsTimes', 'rsProfile']) await page.locator(`#${id} > summary`).click();
+  await rsGo(page, { we: 'lgi', lang: 'es', step: 3, pred: 1 });
+  await page.waitForSelector('#rsPick-H, [id^="rsPick-"]');
+  await page.locator('#rsLearn').click();
+  await page.waitForFunction(() => document.getElementById('learnDialog').open);
+  const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+    .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+  console.log(`    cpm.html#v=rs con todo abierto: ${(bytes / 1024).toFixed(0)} KB`);
+  assert.ok(bytes > 0 && bytes <= BUDGET, `${bytes} bytes`);
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

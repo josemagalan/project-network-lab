@@ -321,3 +321,38 @@ for (const [file, pairs] of Object.entries(F3E_SHEETS)) {
     assert.deepEqual(fails, []);
   });
 }
+
+// F5c (T015): la hoja de recursos (rs.css) solo usa los tokens de styles.css (y --select, el naranja de la cadena crítica y del
+// instante del paso a paso). El contorno del foco se quita solo en las barras del Gantt, que se marcan con el trazo de --focus
+// (3 px o más) al enfocarlas. Los textos de la vista (motivos, avisos, corrección, usos dentro de las barras) y los trazos que
+// llevan información (disponible, cadena, instante, mejor regla), con su contraste en los dos temas.
+test('css/rs.css: sin colores propios; el foco de las barras con el trazo de --focus; textos con 4,5:1 y trazos con 3:1 en los dos temas', () => {
+  const css = read('css/rs.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(css, /#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/, 'sin colores fuera de los tokens');
+  const off = [...css.matchAll(/([^{}]+)\{[^}]*outline:\s*(?:none|0)\b[^}]*\}/g)].map((m) => m[1].trim());
+  assert.deepEqual(off, ['.rsg-bar:focus']);
+  const ring = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, sel, body]) => sel.includes('.rsg-bar:focus-visible') && /stroke:\s*var\(--focus\)/.test(body));
+  assert.equal(ring.length, 1);
+  assert.ok(Number((ring[0][2].match(/stroke-width:\s*([\d.]+)/) || [])[1]) >= 3);
+  const ok = new Set([...PAIRS['css/styles.css'].ui.map(([fg]) => fg), ...PAIRS['css/styles.css'].text.map(([fg]) => fg), 'select', 'line', 'warn']);
+  const used = [...css.matchAll(/(?:stroke|outline|border(?:-[a-z]+)?|(?:^|[\s;{])color|fill):[^;]*var\(--([a-z-]+)\)/g)].map((m) => m[1]);
+  assert.ok(used.length >= 20, `${used.length} usos`);
+  // Rellenos (barras y columnas del perfil, con su texto encima) y fondos suaves de las notas, aparte: se miden abajo.
+  const fills = new Set(['accent', 'critical', 'select', 'card', 'muted', 'ink', 'accent-ink', 'critical-text']);
+  assert.deepEqual([...new Set(used)].filter((tok) => !ok.has(tok) && !fills.has(tok)), []);
+  const fails = [];
+  for (const theme of ['light', 'dark']) {
+    const t = Object.assign({}, tokens('css/styles.css')[theme], selectTokens()[theme]);
+    const text = [['ok', 'card'], ['ok', 'soft'], ['critical-text', 'soft'], ['critical-text', 'card'], ['critical-text', 'critical-soft'], ['warn', 'card'], ['ink', 'accent-soft'],
+      ['accent-ink', 'accent'], ['accent-ink', 'select'], ['accent-ink', 'critical'], ['muted', 'card'], ['ink', 'ok-soft'], ['ink', 'warn-soft'], ['ink', 'soft'], ['accent', 'card'], ['ink', 'card']];
+    const ui = [['accent', 'card'], ['critical', 'card'], ['select', 'card'], ['focus', 'card'], ['muted', 'card'], ['ok', 'card'], ['warn-line', 'card']];
+    for (const [pairs, min] of [[text, 4.5], [ui, 3]]) {
+      for (const [fg, bg] of pairs) {
+        assert.ok(t[fg] && t[bg], `${theme}: --${fg} o --${bg}`);
+        const r = contrast(t[fg], t[bg]);
+        if (r < min) fails.push(`${theme} --${fg} sobre --${bg}: ${r.toFixed(2)}`);
+      }
+    }
+  }
+  assert.deepEqual(fails, []);
+});
