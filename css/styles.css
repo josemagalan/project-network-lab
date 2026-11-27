@@ -648,6 +648,8 @@ table.data.ex-ans .d { text-align: right; padding-right: 8px; color: var(--muted
 /* F5b (P14): el selector de «Extensiones» (Desfases | Coste–tiempo), al principio de la barra de cada extensión: dos botones
    unidos y compactos, para que la barra del paso a paso de «Desfases» siga en una línea a 1280 px. */
 .card .seg.ext-switch { gap: 0; }
-.card .seg.ext-switch button { padding: 4px 10px; min-height: 32px; font-size: 13px; border-radius: 0; }
+/* F5c (T014): con tres opciones, 8 px a los lados para que la barra de «Desfases» quepa en una línea en el paso a paso. */
+.card .seg.ext-switch button { padding: 4px 8px; min-height: 32px; font-size: 13px; border-radius: 0; }
+.card .seg.ext-switch button + button { margin-left: -1px; }
 .card .seg.ext-switch button:first-child { border-radius: 8px 0 0 8px; }
-.card .seg.ext-switch button:last-child { border-radius: 0 8px 8px 0; margin-left: -1px; }
+.card .seg.ext-switch button:last-child { border-radius: 0 8px 8px 0; }

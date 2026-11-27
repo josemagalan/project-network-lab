@@ -9,7 +9,8 @@
 .gpr button.ghost { min-height: 32px; padding: 4px 12px; }
 .gpr-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 14px; max-width: 100%; min-width: 0; }
 .gpr-field select { min-height: 32px; max-width: 100%; min-width: 0; }
-.gpr-bar #gprProj { width: 15rem; }
+/* F5c (T014): 11 rem, para que con el selector de tres extensiones la barra del paso a paso quepa en una línea a 1280 px. */
+.gpr-bar #gprProj { width: 11rem; }
 .gpr-card { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .gpr-mono, .gpr-code { font-family: var(--mono); }
 /* Tabla de un ejemplo: fichas de solo lectura (tablero 115). */

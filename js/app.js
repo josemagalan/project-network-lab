@@ -56,7 +56,6 @@
   let gprc = null;          // controlador de «Precedencias generalizadas» (F5a)
   let ctc = null;           // controlador de coste–tiempo (F5b)
   let rsc = null;           // controlador de recursos (F5c)
-  const RS_PUBLIC = false;  // F5c (plan §4): la tercera opción de «Extensiones» se publica en T014
   const GPR_PUBLIC = true; // F5a (P9): publicada en T015
 
   // ---------- Carga bajo demanda (F3a, P10) ----------
@@ -336,7 +335,7 @@
     const pick = (k, go) => h('button', { type: 'button', id: `${current}Ext${cap(k)}`, 'aria-pressed': String(current === k),
       onclick: () => { if (current !== k) go(`${k}Ext${cap(k)}`); } }, [t(`nav.ext.${k}`)]);
     return h('div', { class: 'seg ext-switch', role: 'group', 'aria-label': t('nav.ext.label') },
-      [pick('gpr', toGpr), pick('ct', toCt)].concat(RS_PUBLIC || current === 'rs' ? [pick('rs', toRs)] : []));
+      [pick('gpr', toGpr), pick('ct', toCt), pick('rs', toRs)]);   // F5c (T014, P13): la tercera opción, publicada
   }
   // Entrada a coste–tiempo (F5b): lo que hubiera (ejemplo o tabla propia), conservando el taller para «Partir del taller».
   const ctEntry = () => Object.assign({}, state, { v: 'ct', step: 0 });
@@ -1257,7 +1256,8 @@
     $('navM0').addEventListener('click', (e) => { e.preventDefault(); toM0(); });
     $('navEx').addEventListener('click', (e) => { e.preventDefault(); toEx(); });
     $('navUnc').addEventListener('click', (e) => { e.preventDefault(); toUnc(); });
-    $('navGpr').addEventListener('click', (e) => { e.preventDefault(); if (state.v !== 'ct') toGpr(); });
+    // La pestaña, pulsada desde coste–tiempo o recursos, no cambia de extensión.
+    $('navGpr').addEventListener('click', (e) => { e.preventDefault(); if (state.v !== 'ct' && state.v !== 'rs') toGpr(); });
     $('navRoute').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); dispatch({ type: 'example', id: state.ex || 'ej6' }, { noHash: state.v === 'm0' }); dispatch({ type: 'route' }); });
     $('navWork').addEventListener('click', (e) => { e.preventDefault(); stopPlay(); if (state.v !== 'work') dispatch(Object.assign({ type: 'work' }, model.rows ? { rows: workRows(model.rows), mode: model.mode } : workSource())); });
     // F4a (T013): el desplegable «Ajustes» se cierra con Esc (el foco vuelve a su botón) y al pulsar fuera de él.

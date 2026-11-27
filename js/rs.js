@@ -3,8 +3,8 @@
  * T009: la barra (extensión, proyecto, «Partir del taller» y, en la segunda fila, el modo), la tabla del proyecto (de solo
  * lectura en los ejemplos, con un uso por recurso y, con recursos limitados, sus disponibilidades; editable con «Tabla
  * propia», con el error o el aviso de cada fila) y los recursos de la tabla propia. El Gantt con perfiles y la nivelación
- * (T010), los recursos limitados (T011), el paso a paso (T012) y «Aprende más» (T013, learn-rs en el grupo rl). Hasta T014 la
- * vista solo se abre por enlace (v=rs).
+ * (T010), los recursos limitados (T011), el paso a paso (T012) y «Aprende más» (T013, learn-rs en el grupo rl). Desde T014,
+ * la vista es la tercera opción de «Extensiones» (app.extSwitch) y tiene su tarjeta en la portada.
  *
  * La parte sin DOM (source, resources, model, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows) se prueba
  * en Node (tests/rs-tab.test.js); create() pinta la vista. Para las pruebas de navegador, PNL.rsTab.state() da lo pintado.

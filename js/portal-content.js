@@ -51,6 +51,9 @@
       ctQuestion: '¿Cuánto cuesta acabar antes?', ctTitle: 'Coste–tiempo',
       ctDesc: 'Compresión de proyectos: qué actividades acortar para ganar cada semana al menor coste, la regla de los libros frente al óptimo exacto, y los costes indirectos, las penalizaciones y las primas con la duración de coste mínimo.',
       ctTopics: 'Pendiente · Corte mínimo · Óptimo · Coste total · Atajo', ctOpen: 'Abrir coste–tiempo',
+      rsQuestion: '¿Y si no hay gente para todo a la vez?', rsTitle: 'Recursos',
+      rsDesc: 'El perfil de cada recurso bajo el Gantt. Nivelar sin alargar el proyecto (a mano, con Burgess paso a paso o con el mínimo exacto del pico) y programar con recursos limitados (reglas de prioridad en serie y en paralelo, la cota de Baker y el óptimo), con la cadena crítica.',
+      rsTopics: 'Perfil · Burgess · Reglas de prioridad · Baker · Cadena crítica', rsOpen: 'Abrir recursos',
       fitTitle: 'Así encajan', fitNote: 'La misma tabla de principio a fin', fitKnown: 'Duraciones conocidas', fitUncertain: 'Duraciones inciertas',
       fitTable: 'Enunciado → tabla', fitTableSub: 'M0 · precedencias', fitRoy: 'Red ROY', fitOr: 'o', fitPert: 'Red PERT',
       fitNetSub: 'M1 · M2 · dos dibujos de la misma tabla', fitTimes: 'Tiempos', fitTimesSub: 'M3 · hacia delante y hacia atrás',
@@ -139,6 +142,9 @@
       ctQuestion: 'How much does finishing earlier cost?', ctTitle: 'Time–cost',
       ctDesc: 'Project crashing: which activities to shorten to gain each week at the lowest cost, the textbook rule against the exact optimum, and indirect costs, penalties and bonuses with the minimum-cost duration.',
       ctTopics: 'Slope · Minimum cut · Optimum · Total cost · Shortcut', ctOpen: 'Open time–cost',
+      rsQuestion: 'What if there are not enough people for everything at once?', rsTitle: 'Resources',
+      rsDesc: 'Each resource’s profile under the Gantt chart. Level it without lengthening the project (by hand, with Burgess step by step, or with the exact minimum peak) and schedule with limited resources (serial and parallel priority rules, Baker’s bound and the optimum), with the critical chain.',
+      rsTopics: 'Profile · Burgess · Priority rules · Baker · Critical chain', rsOpen: 'Open resources',
       fitTitle: 'How they fit together', fitNote: 'The same table from start to finish', fitKnown: 'Known durations', fitUncertain: 'Uncertain durations',
       fitTable: 'Statement → table', fitTableSub: 'M0 · precedences', fitRoy: 'Activity on node', fitOr: 'or', fitPert: 'Activity on arrow',
       fitNetSub: 'M1 · M2 · two drawings of the same table', fitTimes: 'Times', fitTimesSub: 'M3 · forward and backward',
@@ -201,7 +207,7 @@
   // semilla: la elige la interfaz al abrir.
   const TARGETS = {
     m0: 'v=m0&st=ej5', route: 'v=route&ex=ej6&step=0', m1: 'v=route&ex=ej6&step=1', m2: 'v=route&ex=ej6&step=0&graph=aoa', cmp: 'v=route&ex=ej6&step=0&graph=aoa&view=cmp', reto: 'v=route&ex=ej6&step=0&graph=aoa&view=reto', m3: 'v=route&ex=ej6&step=2',
-    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', m7: 'v=unc&um=m7', gpr: 'v=gpr', ct: 'v=ct', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle', exam: '',
+    m4: 'v=route&ex=ej6&step=26', m5: 'v=unc&um=m5', m6: 'v=unc&um=m6', m7: 'v=unc&um=m7', gpr: 'v=gpr', ct: 'v=ct', rs: 'v=rs', work: 'v=work', ex: 'v=ex', moodle: 'v=moodle', exam: '',
   };
   // F3e (T017, P2) y F3f (T016, P5): el exportador y el examen imprimible tienen su página; examen.html solo necesita el idioma.
   const PAGES = { moodle: 'moodle.html', exam: 'examen.html' };

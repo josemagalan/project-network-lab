@@ -66,11 +66,11 @@ test('todos los destinos conservan el idioma, y el HTML ya los trae en español'
   assert.throws(() => labHref('m1', 'fr'));
 });
 
-test('ocho módulos y dos extensiones, todos disponibles; ids únicos y anclas que existen', () => {
-  assert.equal((html.match(/class="module-card tone-/g) || []).length, 10);
-  for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'F5a', 'F5b']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
-  // F3f (T016): y el examen imprimible; F5a (T015): y las precedencias generalizadas; F5b (T015): y coste–tiempo.
-  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 14, 'M0–M7, F5a, F5b, el taller, los ejercicios generados, el banco de Moodle y el examen imprimible');
+test('ocho módulos y tres extensiones, todos disponibles; ids únicos y anclas que existen', () => {
+  assert.equal((html.match(/class="module-card tone-/g) || []).length, 11);
+  for (const m of ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'F5a', 'F5b', 'F5c']) assert.ok(html.includes(`<span class="card-num">${m}</span>`), m);
+  // F3f (T016): y el examen imprimible; F5a (T015): y las precedencias generalizadas; F5b (T015): y coste–tiempo; F5c (T014): y recursos.
+  assert.equal((html.match(/class="ok" data-i18n="available"/g) || []).length, 15, 'M0–M7, F5a, F5b, F5c, el taller, los ejercicios generados, el banco de Moodle y el examen imprimible');
   assert.equal((html.match(/data-i18n="soonPhase2"/g) || []).length, 0, 'la fase 2 ya no tiene nada en preparación');
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size);
@@ -296,4 +296,23 @@ test('F5b T015 · la tarjeta «Coste–tiempo» va en el grupo de extensiones, d
   }
   assert.equal(messages.es.ctTitle, 'Coste–tiempo');
   assert.equal(messages.en.ctTitle, 'Time–cost');
+});
+
+test('F5c T014 · la tarjeta «Recursos» va en el grupo de extensiones, después de «Coste–tiempo», y abre la vista en el idioma elegido, sin avisos', () => {
+  for (const lang of ['es', 'en']) {
+    const { state, warning } = U.decode('#' + labHref('rs', lang).split('#')[1]);
+    assert.equal(warning, undefined);
+    assert.deepEqual([state.v, state.step, state.lang], ['rs', 0, lang]);
+  }
+  const modules = html.slice(html.indexOf('id="modules-title"'), html.indexOf('class="fit-section"'));
+  const group = modules.slice(modules.indexOf('data-i18n="groupExt"'));
+  assert.ok(group.indexOf('<span class="card-num">F5c</span>') > group.indexOf('<span class="card-num">F5b</span>'));
+  assert.match(group, /data-lab="rs"><span data-i18n="rsOpen">Abrir recursos<\/span>/);
+  for (const k of ['rsQuestion', 'rsTitle', 'rsDesc', 'rsTopics', 'rsOpen']) {
+    assert.ok(group.includes(`data-i18n="${k}"`), k);
+    assert.ok(messages.es[k] && messages.en[k], k);
+    assert.ok(group.includes(`>${messages.es[k]}<`), `${k}: el HTML trae el texto en español`);
+  }
+  assert.equal(messages.es.rsTitle, 'Recursos');
+  assert.equal(messages.en.rsTitle, 'Resources');
 });
