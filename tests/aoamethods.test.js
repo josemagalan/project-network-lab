@@ -8,6 +8,8 @@ const E = require('../js/core/examples.js');
 const A = require('../js/core/aoa.js');
 const M = require('../js/core/mindummy.js');
 const K = require('../js/core/aoacheck.js');
+// Con la cobertura (NODE_V8_COVERAGE) el código va instrumentado y más lento: los tiempos límite solo se miran sin ella, como en mc y sim.
+const TIMED = !process.env.NODE_V8_COVERAGE;
 require('../js/core/aoamethods.js');
 
 const load = (rows, mode = 'succ', opts) => {
@@ -255,7 +257,7 @@ test('revisión F2b, F2: el presupuesto de Corneil-Gotlieb-Lee acota el trabajo 
   const p = fromSucc({ A1: ['A2', 'A6', 'A8', 'A10'], A2: ['A4', 'A6', 'A9', 'A11', 'A13', 'A14', 'A16'], A3: ['A5', 'A7', 'A8', 'A10', 'A13', 'A17'], A4: ['A7', 'A9', 'A11', 'A12', 'A13', 'A16', 'A17', 'A22'], A5: ['A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A15', 'A17', 'A18', 'A20', 'A21', 'A22', 'A24'], A6: ['A9', 'A12', 'A14', 'A19', 'A22'], A7: ['A13', 'A14'], A8: ['A12', 'A14'], A9: ['A13', 'A14', 'A22', 'A25', 'A27'], A10: ['A12', 'A20', 'A22'], A11: ['A13', 'A18', 'A24', 'A26', 'A28'], A12: ['A13', 'A16', 'A19', 'A21', 'A25', 'A26', 'A27'], A13: ['A19', 'A25', 'A27'], A14: ['A16', 'A20', 'A21', 'A26', 'A27', 'A28'], A15: ['A17', 'A18', 'A20', 'A21', 'A25', 'A26', 'A27', 'A28'], A16: ['A25', 'A26', 'A28'], A17: ['A18', 'A19', 'A22', 'A23'], A18: ['A25'], A19: [], A20: ['A21', 'A22', 'A26'], A21: ['A24'], A22: [], A23: ['A25'], A24: [], A25: ['A26'], A26: [], A27: [], A28: [] });
   const t0 = Date.now();
   const net = A.build(p, { method: 'cgl' });
-  assert.ok(Date.now() - t0 < 2000, `${Date.now() - t0} ms`);
+  if (TIMED) assert.ok(Date.now() - t0 < 2000, `${Date.now() - t0} ms`);
   assert.equal(net.approx, true);
   assert.deepEqual(logicErrors(net, p), []);
 });

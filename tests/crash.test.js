@@ -12,6 +12,8 @@ const C = require('../js/core/cpm.js');
 const P = require('../js/core/project.js');
 const E = require('../js/core/examples.js');
 const R = require('../js/core/rng.js');
+// Con la cobertura (NODE_V8_COVERAGE) el código va instrumentado y más lento: los tiempos límite solo se miran sin ella, como en mc y sim.
+const TIMED = !process.env.NODE_V8_COVERAGE;
 
 const row = (id, links, dn, dc, cn, cc) => ({ id, links, dn: String(dn), dc: String(dc), cn: String(cn), cc: String(cc) });
 const ok = (rs) => { const { project, report } = K.parse(rs); assert.deepEqual(report.errors, []); return project; };
@@ -380,7 +382,7 @@ test('F5b T019 · N-F4: duraciones de 0 a 999 y como mucho 150 duraciones en la 
   const p = ok(chain);
   const t1 = Date.now();
   assert.equal(K.curve(p).length, 150);
-  assert.ok(Date.now() - t1 < 5000, `curva: ${Date.now() - t1} ms`);
+  if (TIMED) assert.ok(Date.now() - t1 < 5000, `curva: ${Date.now() - t1} ms`);
 });
 
 test('F5b T019 · N-F1: costes con decimales: pendientes de 0,05 y 0,08, la regla, el «más caro» y la curva a 10⁻⁴', () => {
@@ -528,5 +530,5 @@ test('F5b T019 r2: el atajo alarga cada actividad lo que le deja su holgura (igu
   const t0 = Date.now();
   const sc = K.shortcut(ok(big));
   assert.equal(sc.steps.length, 29 * 998);
-  assert.ok(Date.now() - t0 < 3000, `${Date.now() - t0} ms`);
+  if (TIMED) assert.ok(Date.now() - t0 < 3000, `${Date.now() - t0} ms`);
 });

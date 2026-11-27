@@ -3,6 +3,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const S = require('./oracle-spinrad.js');
+// Con la cobertura (NODE_V8_COVERAGE) el código va instrumentado y más lento: los tiempos límite solo se miran sin ella, como en mc y sim.
+const TIMED = !process.env.NODE_V8_COVERAGE;
 
 test('una cadena A→B necesita un arco añadido (A+ → B−)', () => {
   assert.equal(S.optimum({ A: ['B'], B: [] }).arcs, 1);
@@ -22,5 +24,5 @@ test('el oráculo termina en menos de 10 s con 5 tareas', () => {
   const t0 = Date.now();
   const r = S.optimum({ A: ['C', 'D'], B: ['D', 'E'], C: [], D: [], E: [] });
   assert.ok(r, 'encuentra una red');
-  assert.ok(Date.now() - t0 < 10000, `${Date.now() - t0} ms`);
+  if (TIMED) assert.ok(Date.now() - t0 < 10000, `${Date.now() - t0} ms`);
 });
