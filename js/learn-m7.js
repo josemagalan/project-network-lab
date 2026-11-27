@@ -1,7 +1,7 @@
 /*
  * learn-m7 — «Aprende más» de M7, Montecarlo e índices (spec f4b-montecarlo-indices; plan P4 y P11, bloque 4; T012):
  * la criticidad como probabilidad y sus límites, los empates frente a la diapositiva del Tema 6c, la crucialidad, los dos
- * índices a la vez, la significación, las distribuciones, el error del Montecarlo, la hipótesis de Schoenberger y el
+ * índices a la vez, la significación, las distribuciones, el error del Montecarlo, la hipótesis de Schonberger y el
  * código en Python. Va en su propio grupo bajo demanda (l7): se carga al abrir el diálogo, no con M7 (principio 27).
  * Las cifras de los ejemplos (Klastorin discreto y Williams) se comprueban contra core/mc en tests/learn-m7.test.js.
  */
@@ -49,8 +49,8 @@
           'Una probabilidad o una criticidad es una proporción, con un intervalo de ± 1,96·√(p(1 − p)/n): con 10 000 réplicas, como mucho ± 0,0098. Por eso, en el ejemplo discreto, la simulación y la cuenta exacta difieren en la segunda o la tercera cifra decimal.',
           'La misma semilla da siempre los mismos números, en la web y en Python; «Otra simulación» elige otra semilla y enseña cuánto cambian. La vista «Convergencia» enseña cómo se estrechan los intervalos al añadir réplicas.',
         ] },
-        { head: 'La hipótesis de Schoenberger', paras: [
-          'Schoenberger (1981) explicó por qué los proyectos «siempre» se retrasan: cuando varios caminos se juntan, más varianza implica más duración esperada. En el ejemplo del Tema 6c, A dura 12, 14 o 16 (0,1, 0,8 y 0,1) y B, en paralelo, 10 o 15 (0,5 cada uno): el proyecto dura 14,55 de media, más que la media de A (14). Si la varianza de A sube (0,3, 0,4 y 0,3), con la misma media, el proyecto pasa a 14,65.',
+        { head: 'La hipótesis de Schonberger', paras: [
+          'Schonberger (1981) explicó por qué los proyectos «siempre» se retrasan: cuando varios caminos se juntan, más varianza implica más duración esperada. En el ejemplo del Tema 6c, A dura 12, 14 o 16 (0,1, 0,8 y 0,1) y B, en paralelo, 10 o 15 (0,5 cada uno): el proyecto dura 14,55 de media, más que la media de A (14). Si la varianza de A sube (0,3, 0,4 y 0,3), con la misma media, el proyecto pasa a 14,65.',
           'En M7 se ve en la duración del proyecto: la media simulada queda por encima de la de PERT, que solo mira el camino crítico de las medias.',
         ] },
         { head: 'El código en Python', paras: [
@@ -103,8 +103,8 @@
           'A probability or a criticality is a proportion, with an interval of ± 1.96·√(p(1 − p)/n): with 10,000 runs, ± 0.0098 at most. That is why, in the discrete example, the simulation and the exact count differ in the second or third decimal place.',
           'The same seed always gives the same numbers, on the web and in Python; “Simulate again” picks another seed and shows how much they change. The “Convergence” view shows how the intervals narrow as runs are added.',
         ] },
-        { head: 'Schoenberger’s hypothesis', paras: [
-          'Schoenberger (1981) explained why projects are “always” late: when several paths merge, more variance means a longer expected duration. In the Unit 6c example, A takes 12, 14 or 16 (0.1, 0.8 and 0.1) and B, in parallel, 10 or 15 (0.5 each): the project takes 14.55 on average, more than the mean of A (14). If the variance of A rises (0.3, 0.4 and 0.3), with the same mean, the project goes up to 14.65.',
+        { head: 'Schonberger’s hypothesis', paras: [
+          'Schonberger (1981) explained why projects are “always” late: when several paths merge, more variance means a longer expected duration. In the Unit 6c example, A takes 12, 14 or 16 (0.1, 0.8 and 0.1) and B, in parallel, 10 or 15 (0.5 each): the project takes 14.55 on average, more than the mean of A (14). If the variance of A rises (0.3, 0.4 and 0.3), with the same mean, the project goes up to 14.65.',
           'In M7 it shows in the project duration: the simulated mean ends up above PERT’s, which only looks at the critical path of the means.',
         ] },
         { head: 'The Python code', paras: [
@@ -121,7 +121,7 @@
     es: [
       'Van Slyke, R. M. (1963). Monte Carlo methods and the PERT problem. Operations Research, 11(5), 839–860.',
       'Dodin, B. M. y Elmaghraby, S. E. (1985). Approximating the criticality indices of the activities in PERT networks. Management Science, 31(2), 207–223.',
-      'Schoenberger, D. W. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
+      'Schonberger, R. J. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
       'Williams, T. M. (1992). Criticality in probabilistic network analysis. Journal of the Operational Research Society, 43(4), 353–357.',
       'Williams, T. (2002). Modelling complex projects, cap. 5. Wiley.',
       'Klastorin, T. (2010). Gestión de proyectos. Profit Editorial.',
@@ -130,7 +130,7 @@
     en: [
       'Van Slyke, R. M. (1963). Monte Carlo methods and the PERT problem. Operations Research, 11(5), 839–860.',
       'Dodin, B. M. and Elmaghraby, S. E. (1985). Approximating the criticality indices of the activities in PERT networks. Management Science, 31(2), 207–223.',
-      'Schoenberger, D. W. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
+      'Schonberger, R. J. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
       'Williams, T. M. (1992). Criticality in probabilistic network analysis. Journal of the Operational Research Society, 43(4), 353–357.',
       'Williams, T. (2002). Modelling complex projects, ch. 5. Wiley.',
       'Klastorin, T. (2010). Gestión de proyectos [Project management]. Profit Editorial.',

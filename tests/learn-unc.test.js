@@ -47,3 +47,17 @@ test('T012: learn-unc va en su propio grupo bajo demanda, no en cpm.html ni en e
   assert.match(app, /ul: \['js\/learn-unc\.js'\]/);
   assert.doesNotMatch(app.match(/un: \[[^\]]*\]/)[0], /learn-unc/);
 });
+
+test('aviso del autor (2026-11-27): el autor de «Why projects are “always” late» es Richard J. Schonberger, en los textos y en las referencias', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const ROOT = path.join(__dirname, '..');
+  const files = fs.readdirSync(path.join(ROOT, 'js')).filter((f) => f.endsWith('.js')).map((f) => path.join('js', f)).concat(['README.md', 'index.html', 'cpm.html']);
+  for (const f of files) assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), 'utf8'), /Schoenberger/, f);
+  for (const L of [require('../js/learn-unc.js'), require('../js/learn-m7.js')]) {
+    for (const lang of ['es', 'en']) {
+      const ref = L.refs[lang].find((r) => /always/.test(r));
+      assert.match(ref, /^Schonberger, R\. J\. \(1981\)\. Why projects are “always” late/, lang);
+    }
+  }
+});

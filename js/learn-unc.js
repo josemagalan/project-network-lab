@@ -45,7 +45,7 @@
         { head: 'La fusión de caminos', paras: [
           'Si varios caminos casi críticos llegan al final, el proyecto termina cuando termina el último: su duración es el máximo de varios caminos, mayor que la de cualquiera de ellos. La normal de un solo camino sobrestima la probabilidad de cumplir el plazo (MacCrimmon y Ryavec, 1964).',
           'Con caminos independientes y normales, la probabilidad exacta es el producto de las probabilidades de cada camino; es la «cuenta exacta» que se ve en la fusión y en el ejemplo de las dos rutas.',
-          'Schoenberger (1981) mostró con una simulación hecha a mano por qué los proyectos «siempre» se retrasan: con varios caminos en paralelo, la duración esperada del proyecto supera la del camino crítico, y más cuanta más varianza tienen.',
+          'Schonberger (1981) mostró con una simulación hecha a mano por qué los proyectos «siempre» se retrasan: con varios caminos en paralelo, la duración esperada del proyecto supera la del camino crítico, y más cuanta más varianza tienen.',
         ] },
         { head: 'Pocas actividades y asimetría', paras: [
           'El TCL necesita muchos sumandos. Con pocas actividades asimétricas, la suma conserva la asimetría y su cola larga queda fuera de la normal. Al sumar más actividades, la forma se parece cada vez más a la normal.',
@@ -99,7 +99,7 @@
         { head: 'Merging paths', paras: [
           'If several near-critical paths reach the end, the project finishes when the last one does: its duration is the maximum of several paths, longer than any of them. The normal of a single path overestimates the probability of meeting the deadline (MacCrimmon and Ryavec, 1964).',
           'With independent normal paths, the exact probability is the product of the probabilities of each path; that is the “exact count” shown in the merge case and in the two-routes example.',
-          'Schoenberger (1981) showed with a simulation done by hand why projects are “always” late: with several parallel paths, the expected project duration exceeds that of the critical path, and the more so the more variance they have.',
+          'Schonberger (1981) showed with a simulation done by hand why projects are “always” late: with several parallel paths, the expected project duration exceeds that of the critical path, and the more so the more variance they have.',
         ] },
         { head: 'Few activities and skewness', paras: [
           'The CLT needs many terms. With few skewed activities, the sum keeps the skewness and its long tail falls outside the normal. As more activities are added, the shape looks more and more like the normal.',
@@ -123,7 +123,7 @@
       'Klastorin, T. (2010). Gestión de proyectos. Profit Editorial.',
       'Hillier, F. S. y Lieberman, G. J. (2015). Introduction to Operations Research (10.ª ed.), cap. 22. McGraw-Hill.',
       'MacCrimmon, K. R. y Ryavec, C. A. (1964). An analytical study of the PERT assumptions. Operations Research, 12(1), 16–37.',
-      'Schoenberger, D. W. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
+      'Schonberger, R. J. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
       'Vose, D. (2008). Risk analysis: A quantitative guide (3.ª ed.). Wiley.',
     ],
     en: [
@@ -131,7 +131,7 @@
       'Klastorin, T. (2010). Gestión de proyectos [Project management]. Profit Editorial.',
       'Hillier, F. S. and Lieberman, G. J. (2015). Introduction to Operations Research (10th ed.), ch. 22. McGraw-Hill.',
       'MacCrimmon, K. R. and Ryavec, C. A. (1964). An analytical study of the PERT assumptions. Operations Research, 12(1), 16–37.',
-      'Schoenberger, D. W. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
+      'Schonberger, R. J. (1981). Why projects are “always” late: A rationale based on manual simulation of a PERT/CPM network. Interfaces, 11(5), 66–70.',
       'Vose, D. (2008). Risk analysis: A quantitative guide (3rd ed.). Wiley.',
     ],
   };

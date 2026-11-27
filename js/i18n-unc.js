@@ -94,7 +94,7 @@
       titleSame: 'Fusión de caminos: {k} caminos más con la misma media que el crítico (media {mu}, σ² = {var})',
       note1: 'Con un solo camino, la normal, la simulación y la cuenta exacta coinciden.',
       note: 'La normal solo mira un camino, así que dice {pn} hagan lo que hagan los deslizadores. Con {n} caminos que pueden terminar los últimos, la probabilidad real baja a {ps}: es el sesgo de la fusión.',
-      schoenberger: 'Schoenberger: la media simulada ({mean}) supera {mu} aunque ningún camino tiene una media mayor. Más caminos, o más varianza, alargan la duración esperada.',
+      schonberger: 'Schonberger: la media simulada ({mean}) supera {mu} aunque ningún camino tiene una media mayor. Más caminos, o más varianza, alargan la duración esperada.',
     },
     lim: {
       k: 'Actividades', w: 'Asimetría', r: 'ρ',
@@ -204,7 +204,7 @@
       titleSame: 'Merging paths: {k} more paths with the same mean as the critical one (mean {mu}, σ² = {var})',
       note1: 'With a single path, the normal, the simulation and the exact count agree.',
       note: 'The normal only looks at one path, so it says {pn} whatever the sliders do. With {n} paths that can each finish last, the real probability falls to {ps}: the merge bias.',
-      schoenberger: 'Schoenberger: the simulated mean ({mean}) is above {mu} although no path has a larger mean. More paths, or more variance, mean a longer expected duration.',
+      schonberger: 'Schonberger: the simulated mean ({mean}) is above {mu} although no path has a larger mean. More paths, or more variance, mean a longer expected duration.',
     },
     lim: {
       k: 'Activities', w: 'Skewness', r: 'ρ',

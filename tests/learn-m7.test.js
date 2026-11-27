@@ -33,12 +33,12 @@ test('T012: el tema de M7, en los dos idiomas, con las mismas secciones y párra
   assert.ok(L7.refs.es.length >= 6);
 });
 
-test('T012: explica lo que pide la spec (criticidad, empates, crucialidad, significación, error, Schoenberger y Python)', () => {
+test('T012: explica lo que pide la spec (criticidad, empates, crucialidad, significación, error, Schonberger y Python)', () => {
   const es = all('es'); const en = all('en');
-  for (const re of [/Van Slyke/, /Dodin y Elmaghraby/, /61,1 %/, /crucialidad/, /Pearson/, /Spearman/, /significación/, /√n/, /Schoenberger/, /pnl_montecarlo\.py/, /--seed/, /tornado en espejo/]) assert.match(es, re);
-  for (const re of [/Van Slyke/, /Dodin and Elmaghraby/, /61\.1%/, /cruciality/, /significance/, /Schoenberger/, /pnl_montecarlo\.py/, /mirror tornado/]) assert.match(en, re);
+  for (const re of [/Van Slyke/, /Dodin y Elmaghraby/, /61,1 %/, /crucialidad/, /Pearson/, /Spearman/, /significación/, /√n/, /Schonberger/, /pnl_montecarlo\.py/, /--seed/, /tornado en espejo/]) assert.match(es, re);
+  for (const re of [/Van Slyke/, /Dodin and Elmaghraby/, /61\.1%/, /cruciality/, /significance/, /Schonberger/, /pnl_montecarlo\.py/, /mirror tornado/]) assert.match(en, re);
   // Las referencias citadas en el texto están en la lista.
-  for (const who of ['Van Slyke', 'Dodin', 'Schoenberger', 'Williams, T. M. (1992)', 'Williams, T. (2002)', 'Klastorin', 'Acebes']) assert.ok(L7.refs.es.some((r) => r.includes(who)) && L7.refs.en.some((r) => r.includes(who)), who);
+  for (const who of ['Van Slyke', 'Dodin', 'Schonberger', 'Williams, T. M. (1992)', 'Williams, T. (2002)', 'Klastorin', 'Acebes']) assert.ok(L7.refs.es.some((r) => r.includes(who)) && L7.refs.en.some((r) => r.includes(who)), who);
 });
 
 test('T012: las cifras del ejemplo discreto de Klastorin que cita el texto son las del núcleo', () => {
@@ -63,7 +63,7 @@ test('T012: las crucialidades de los ejemplos de Williams (a)–(c) y (d) son la
   assert.deepEqual([d.crit, d.cruc], [[1, 1], [0, 1]]);
 });
 
-test('T012: las cuentas del error del Montecarlo y de Schoenberger', () => {
+test('T012: las cuentas del error del Montecarlo y de Schonberger', () => {
   has(1.96 * Math.sqrt(0.25 / 10000), 4);             // ± 0,0098
   const emax = (pa) => {
     let e = 0;

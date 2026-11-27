@@ -4946,7 +4946,7 @@ check('F4a T010 · fusión de caminos: normal fija, simulación y cuenta exacta;
   assert.match(rows[0], /0,841/);
   assert.match(rows[2], /Cuenta exacta/);
   assert.match(await p.locator('#uncMergeNote').innerText(), /4 caminos/);
-  assert.equal(await p.locator('#uncSchoenberger').count(), 1);
+  assert.equal(await p.locator('#uncSchonberger').count(), 1);
   assert.match(await p.locator('#uncSimChart svg').getAttribute('aria-label'), /Plazo 22: normal 0,841, simulación 0,6/);
   // Más caminos: la probabilidad simulada baja y la normal sigue igual; el foco se queda en el deslizador.
   await p.locator('#uncK-n').focus();

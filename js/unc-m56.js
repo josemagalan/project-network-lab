@@ -422,7 +422,7 @@
         if (i.n === 1) out.push(h('p', { class: 'card unc-callout' }, [tu('merge.note1')]));
         else if (su) {
           out.push(h('p', { class: 'card unc-callout', id: 'uncMergeNote' }, [tu('merge.note', { pn: fx(su.pn, 3), n: i.n, ps: fx(su.ps, 3) })]));
-          if (su.mean > i.mu + 0.05) out.push(h('p', { class: 'card unc-info', id: 'uncSchoenberger' }, [tu('merge.schoenberger', { mean: fx(su.mean, 2), mu: num(i.mu) })]));
+          if (su.mean > i.mu + 0.05) out.push(h('p', { class: 'card unc-info', id: 'uncSchonberger' }, [tu('merge.schonberger', { mean: fx(su.mean, 2), mu: num(i.mu) })]));
         }
       } else if (s.ux === 'proj') {
         const pert = M().acts.some((a) => a.dist.kind === 'pert');
