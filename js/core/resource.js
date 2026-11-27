@@ -341,18 +341,22 @@
     } else {
       let t = 0;
       while (Object.keys(S).length < table.length) {
-        // Un hito (d = 0) acaba en el mismo instante: sus sucesoras se miran en ese instante (se repite mientras empiece
-        // alguno).
+        // Un hito (d = 0) no ocupa periodos y acaba en el mismo instante: los hitos elegibles empiezan antes que nada (se
+        // repite mientras empiece alguno) y sus sucesoras entran con las demás, cada una con su prioridad. (Antes entraban
+        // en una segunda vuelta, cuando otra de menos prioridad podía haber cogido ya el recurso; hallado por la evidencia
+        // de T016.)
         let elig; const started = []; let waiting; let again = true;
         const before = opts.record ? snap() : null;
         const eligAt = new Set();
+        const ready = () => table.filter((a) => !(a.id in S) && q.preds[a.id].every((x) => x in S && S[x] + q.byId[x].d <= t)).sort(cmp);
         while (again) {
-          again = false; waiting = [];
-          elig = table.filter((a) => !(a.id in S) && q.preds[a.id].every((x) => x in S && S[x] + q.byId[x].d <= t)).sort(cmp);
-          for (const a of elig) eligAt.add(a.id);
-          for (const a of elig) {
-            if (fits(a, t)) { S[a.id] = t; put(a, t); started.push(a.id); if (!a.d) again = true; } else waiting.push({ id: a.id, block: blocker(a, t) });
-          }
+          again = false;
+          for (const a of ready()) if (!a.d) { S[a.id] = t; started.push(a.id); eligAt.add(a.id); again = true; }
+        }
+        waiting = []; elig = ready();
+        for (const a of elig) {
+          eligAt.add(a.id);
+          if (fits(a, t)) { S[a.id] = t; put(a, t); started.push(a.id); } else waiting.push({ id: a.id, block: blocker(a, t) });
         }
         const seen = new Set(); const all = started.map((id) => q.byId[id]).concat(waiting.map((w) => q.byId[w.id])).filter((a) => !seen.has(a.id) && seen.add(a.id)).sort(cmp);
         const step = { t, elig: all.map((x) => ({ id: x.id, prio: prio(x) })), started, waiting };
@@ -445,7 +449,10 @@
       for (const i of p.table.map((id) => p.byId[id])) {
         if (i === j || S[i.id] + i.d !== S[j.id]) continue;
         if (p.preds[j.id].includes(i.id)) { waits.get(j.id).push(i.id); continue; }
-        // j no cabía un periodo antes (en ese periodo se pasaba de lo disponible de un recurso que usan las dos).
+        // j no cabía un periodo antes (en ese periodo se pasaba de lo disponible de un recurso que usan las dos). Un hito
+        // (d = 0) no ocupa periodos: ni espera por un recurso ni hace esperar (si no, dos hitos en el mismo instante se
+        // «esperaban» el uno al otro y la búsqueda de cadenas no acababa; hallado por la evidencia de T016).
+        if (!i.d || !j.d) continue;
         const blocked = p.res.some((r, k) => r.cap != null && j.r[k] && i.r[k] && u[k][t] + j.r[k] > r.cap);
         if (blocked) waits.get(j.id).push(i.id);
       }

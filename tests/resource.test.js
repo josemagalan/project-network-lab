@@ -304,11 +304,11 @@ function refSgs(p, scheme, keyOf) {
     }
   } else {
     for (let t = 0; Object.keys(S).length < table.length; t++) {
-      // Los hitos acaban en el mismo instante: se vuelve a mirar mientras empiece alguno.
-      for (let n = -1; n !== Object.keys(S).length;) {
-        n = Object.keys(S).length;
-        for (const a of table.filter((x) => !(x.id in S) && p.preds[x.id].every((y) => y in S && S[y] + p.byId[y].d <= t)).sort(prio)) if (free(a, t)) { S[a.id] = t; take(a, t); }
-      }
+      // Los hitos acaban en el mismo instante y no ocupan el recurso: empiezan antes que nada (mientras quede alguno
+      // elegible); después, las demás elegibles, por prioridad (T016).
+      const ready = () => table.filter((x) => !(x.id in S) && p.preds[x.id].every((y) => y in S && S[y] + p.byId[y].d <= t)).sort(prio);
+      for (let ms = ready().filter((a) => !a.d); ms.length; ms = ready().filter((a) => !a.d)) for (const a of ms) S[a.id] = t;
+      for (const a of ready()) if (free(a, t)) { S[a.id] = t; take(a, t); }
     }
   }
   return S;
@@ -552,4 +552,32 @@ test('F5c T006: en 300 tablas, lo que da el esquema siempre acierta, y cada paso
 test('F5c T006: las partes obligatorias podan la búsqueda: LOGON, pico del equipo en menos de 1000 nodos y óptimo con 14 trabajadores en menos de 10 000', () => {
   assert.ok(K.minPeak(ex('lg'), 1).nodes < 1000);
   assert.ok(K.optimum(ex('lg', 'lim')).nodes < 10000);
+});
+
+test('T016 (evidencia): la cadena crítica no se queda en un bucle con hitos en el mismo instante; un hito no espera por un recurso ni hace esperar', () => {
+  // Hallado por cifras.js: dos hitos que usan el recurso, en el mismo instante y uno detrás del otro, se «esperaban» por el
+  // recurso en los dos sentidos (en el esquema serie hacia atrás), y chains se colgaba.
+  const rows = [row('A0', '', '0', '1'), row('A1', 'A0', '0', '1'), row('A2', 'A0, A1', '2', '0'), row('A3', 'A0, A1', '2', '0'), row('A4', '', '2', '3')];
+  const p = K.parse(rows, [{ name: 'R', cap: '3' }], 'lim').project;
+  for (const scheme of ['s', 'p']) for (const dir of ['f', 'b']) for (const rule of K.RULES) {
+    const r = K.sgs(p, { scheme, dir, rule });
+    const ch = K.chains(p, r.S, dir);
+    for (const c of ch) for (let i = 1; i < c.length; i++) {
+      const [x, y] = [c[i - 1], c[i]];
+      // Entre dos con duración 0, solo una precedencia.
+      if (!p.byId[x].d || !p.byId[y].d) assert.ok(p.preds[y].includes(x), `${scheme}${dir} ${rule}: ${x} → ${y}`);
+    }
+  }
+});
+
+test('T016 (evidencia): en el paralelo, la sucesora de un hito que acaba en ese instante entra con su prioridad (y la traza se da por buena)', () => {
+  // Hallado por cifras.js: M es un hito sin predecesoras; X (2 periodos) va detrás de M e Y (3 periodos) no tiene
+  // predecesoras; las dos usan todo el recurso. Con «la más corta primero», X va antes que Y. Antes, X entraba en una
+  // segunda vuelta del instante 0, cuando Y ya había cogido el recurso, y la predicción de la traza no se daba por buena.
+  const p = ok([row('M', '', 0, 0), row('X', 'M', 2, 4), row('Y', '', 3, 4)], res(4), 'lim');
+  const r = K.sgs(p, { scheme: 'p', dir: 'f', rule: 'spt' });
+  assert.deepEqual([r.S.M, r.S.X, r.S.Y, r.T], [0, 0, 2, 5]);
+  for (const scheme of ['s', 'p']) for (const dir of ['f', 'b']) for (const rule of K.RULES) {
+    for (const s of K.trace(p, { kind: 'sgs', scheme, dir, rule })) if (s.kind === 'rsTime' && s.started.length) assert.ok(K.setCheck(s.set, s.started).ok, `${scheme}${dir} ${rule} t=${s.t}`);
+  }
 });
