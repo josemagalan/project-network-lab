@@ -285,3 +285,23 @@ test('F4b T012 (reserva 2 de T001): la vista de M5 y M6 va en unc-m56.js (grupo 
     assert.ok(U[k] !== undefined, k);
   }
 });
+
+test('causesPert (aviso del portal, 2026-11-27): la varianza de la beta-PERT no es siempre mayor que ((b − a)/6)²; es menor con m muy cerca de un extremo', () => {
+  const I = require('../js/i18n.js');
+  require('../js/i18n-unc.js');
+  const T = require('../js/core/threept.js');
+  const v = (a, m, b) => T.moments('pert', { a, m, b }).var;
+  const f = (a, b) => ((b - a) / 6) ** 2;
+  // Klastorin A (2, 6, 14): mayor; m en un extremo: menor; el cambio, hacia el 15 % de la anchura: (2 − √2) / 4 ≈ 0,146.
+  assert.ok(v(2, 6, 14) > f(2, 14));
+  assert.ok(v(0, 0, 6) < f(0, 6) && v(0, 6, 6) < f(0, 6));
+  const cut = (2 - Math.SQRT2) / 4;
+  assert.ok(Math.abs(cut - 0.146) < 0.001);
+  assert.ok(v(0, 0.14, 1) < f(0, 1) && v(0, 0.16, 1) > f(0, 1) && v(0, 0.84, 1) > f(0, 1) && v(0, 0.86, 1) < f(0, 1));
+  for (const lang of ['es', 'en']) {
+    const text = I.t(lang, 'unc.proj.causesPert', U.labels(lang === 'es' ? 'es' : 'en'));
+    assert.doesNotMatch(text, /más varianza que|more variance than/, lang);
+    assert.match(text, /15 %/, lang);
+    assert.ok(!/[{}]/.test(text), text);
+  }
+});

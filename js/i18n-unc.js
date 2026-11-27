@@ -111,7 +111,7 @@
       tooMany: 'El proyecto tiene {n} caminos, demasiados para listarlos: se muestra el crítico del cálculo de examen.',
       exact: 'Cuenta exacta (caminos independientes)',
       causes: 'Los caminos casi críticos también pueden terminar los últimos (la fusión).',
-      causesPert: 'Los caminos casi críticos también pueden terminar los últimos (la fusión) y la simulación usa la beta-PERT, que tiene más varianza que (({b} − {a})/6)².',
+      causesPert: 'Los caminos casi críticos también pueden terminar los últimos (la fusión). Además, la simulación usa la beta-PERT, cuya varianza no es (({b} − {a})/6)²: es mayor cuando {m} está hacia el centro y menor cuando está muy cerca de un extremo (a menos de un 15 % de la anchura).',
     },
     issue: {
       missing: 'Fila {row}: falta {f}.', badNum: 'Fila {row}: {f} debe ser un número mayor o igual que 0.', tooBig: 'Fila {row}: {f} admite como mucho 6 cifras y 4 decimales.',
@@ -221,7 +221,7 @@
       tooMany: 'The project has {n} paths, too many to list: the critical path of the exam calculation is shown.',
       exact: 'Exact count (independent paths)',
       causes: 'Near-critical paths can also finish last (the merge).',
-      causesPert: 'Near-critical paths can also finish last (the merge), and the simulation uses the beta-PERT, which has more variance than (({b} − {a})/6)².',
+      causesPert: 'Near-critical paths can also finish last (the merge). Besides, the simulation uses the beta-PERT, whose variance is not (({b} − {a})/6)²: it is larger when {m} lies towards the middle and smaller when it is very close to one end (within 15 % of the width).',
     },
     issue: {
       missing: 'Row {row}: {f} is missing.', badNum: 'Row {row}: {f} must be a number greater than or equal to 0.', tooBig: 'Row {row}: {f} takes at most 6 digits and 4 decimal places.',
