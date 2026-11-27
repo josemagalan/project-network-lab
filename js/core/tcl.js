@@ -183,19 +183,22 @@
     return { paths: mus.map((mu) => ({ acts: [{ kind: 'normal', mu, var: MERGE.var }] })), normal: { mu: MERGE.mu, var: MERGE.var },
       deadline, exact: mus.reduce((p, mu) => p * T.phi((deadline - mu) / sd), 1) };
   }
-  function chain(k, d, rho) {
+  // El plazo: la media en «Pocas actividades» y «Asimetría» (aviso del autor, 2026-11-27): ahí la normal da 0,5 y la suma
+  // asimétrica se separa de ella; en μ + σ las dos casi coinciden y el caso no enseñaba la diferencia. En «Correlación»,
+  // μ + σ: la varianza real es mayor y la normal se queda corta justo ahí.
+  function chain(k, d, rho, atMean) {
     const m = T.moments('pert', d); const mu = k * m.mean; const v = k * m.var;
     return { paths: [{ acts: Array.from({ length: k }, () => ({ kind: 'pert', a: d.a, m: d.m, b: d.b })), rho }],
-      normal: { mu, var: v }, deadline: mu + Math.sqrt(v), terna: d, k };
+      normal: { mu, var: v }, deadline: atMean ? mu : mu + Math.sqrt(v), terna: d, k };
   }
   const SKEWED = { a: 0, m: 0, b: 12 };
   function few({ k }) {
     if (!intIn(k, 1, 30)) throw new Error('tcl.cases.few: fuera de rango');
-    return chain(k, SKEWED, 0);
+    return chain(k, SKEWED, 0, true);
   }
   function skew({ s }) {
     if (!numIn(s, 0, 1)) throw new Error('tcl.cases.skew: fuera de rango');
-    return chain(3, { a: 0, m: 6 - 6 * s, b: 12 }, 0);
+    return chain(3, { a: 0, m: 6 - 6 * s, b: 12 }, 0, true);
   }
   function corr({ rho }) {
     if (!numIn(rho, 0, 1)) throw new Error('tcl.cases.corr: fuera de rango');

@@ -190,14 +190,14 @@ test('F4a r1 (F7): el plazo de tabla para una probabilidad menor que 0,5 (Hillie
   close(e.deadline, 39.0654, 1e-4);
 });
 
-test('F4a r1 (F8): la normal de pocas actividades, asimetría y correlación usa los momentos de la beta-PERT y el plazo μ + σ', () => {
+test('F4a r1 (F8): la normal de pocas actividades, asimetría y correlación usa los momentos de la beta-PERT; el plazo, μ en las dos primeras y μ + σ en la correlación', () => {
   const T = require('../js/core/threept.js');
   for (const [c, k, d] of [[L.cases.few({ k: 1 }), 1, { a: 0, m: 0, b: 12 }], [L.cases.few({ k: 7 }), 7, { a: 0, m: 0, b: 12 }],
     [L.cases.skew({ s: 0.5 }), 3, { a: 0, m: 3, b: 12 }], [L.cases.corr({ rho: 0.5 }), 10, { a: 0, m: 6, b: 12 }]]) {
     const m = T.moments('pert', d);
     assert.equal(c.paths[0].acts.length, k);
     close(c.normal.mu, k * m.mean, 1e-12); close(c.normal.var, k * m.var, 1e-12);
-    close(c.deadline, c.normal.mu + Math.sqrt(c.normal.var), 1e-12);
+    close(c.deadline, c.normal.mu + (k === 10 ? Math.sqrt(c.normal.var) : 0), 1e-12);
   }
   // (0, 0, 12): la varianza de la beta-PERT es 20/7 = 2,857, no la de examen (4).
   close(L.cases.few({ k: 1 }).normal.var, 20 / 7, 1e-12);
@@ -292,4 +292,26 @@ test('F3e: con más de 50 caminos críticos y medias en sextos, la programación
   assert.equal(e.tiesCount, 127);
   assert.deepEqual(e.path, ['A', 'B', 'X1', 'X2', 'X3', 'X4', 'X5', 'X6']);
   close(e.var, 53 / 36, 1e-9);
+});
+
+test('aviso del autor (2026-11-27): en «Pocas actividades» y «Asimetría» el plazo es la media, donde la normal (0,5) y la simulación se separan; en μ + σ coincidían', () => {
+  const sim = (c, us) => S.summary(S.run({ kind: 'paths', model: { paths: c.paths }, n: 20000, us }).durations).pLE(c.deadline);
+  const phi = require('../js/core/threept.js').phi;
+  // Es donde más se separan: con una actividad, unos 0,10 (0,60 frente a 0,50); con tres, unos 0,05.
+  for (const [c, gap] of [[L.cases.few({ k: 1 }), 0.08], [L.cases.skew({ s: 1 }), 0.04]]) {
+    const z = (c.deadline - c.normal.mu) / Math.sqrt(c.normal.var);
+    assert.equal(z, 0);
+    const p = sim(c, 51);
+    assert.ok(p - phi(z) > gap, `${p} frente a ${phi(z)}`);
+    // En μ + σ casi no se distinguían (lo que se corrige).
+    const at = Object.assign({}, c, { deadline: c.normal.mu + Math.sqrt(c.normal.var) });
+    assert.ok(Math.abs(sim(at, 51) - phi(1)) < 0.02);
+  }
+  // Una actividad (0, 0, 12): la beta-PERT es Beta(1, 5) × 12 y P(≤ 2) = 1 − (5/6)⁵ ≈ 0,598.
+  close(L.cases.few({ k: 1 }).deadline, 2, 1e-12);
+  close(1 - (5 / 6) ** 5, 0.598, 0.001);
+  // Con la actividad simétrica (asimetría 0) o muchas actividades (TCL), en la media vuelven a coincidir.
+  for (const c of [L.cases.skew({ s: 0 }), L.cases.few({ k: 30 })]) assert.ok(Math.abs(sim(c, 52) - 0.5) < 0.04, JSON.stringify(c.deadline));
+  // La fusión y la correlación siguen con μ + σ.
+  close(L.cases.merge({ n: 4, slack: 1 }).deadline, 22, 1e-12);
 });
