@@ -20,6 +20,7 @@
   const X = req('./core/resex.js', 'resex');
   const U = req('./core/urlstate.js', 'urlstate');
   const NR = req('./narrate.js', 'narrate');
+  const PRD = () => req('./predict.js', 'predict');
 
   const USE = ['r1', 'r2', 'r3'];
   const FIELDS = ['id', 'name', 'links', 'd', 'r1', 'r2', 'r3'];
@@ -57,7 +58,9 @@
     const mode = state.wm || src.mode || 'lev';
     const res = resources(state, src, lang);
     const { project, report } = R.parse(src.rows, res.map((r) => ({ name: r.label, cap: r.cap == null ? '' : String(r.cap) })), mode);
-    return { src, mode, res, p: project, report, empty: !project && !report.errors.length };
+    const m = { src, mode, res, p: project, report, empty: !project && !report.errors.length };
+    m.walk = walkCfg(m, state);
+    return m;
   }
 
   // ---------- La nivelación (T010; tableros 131–134) ----------
@@ -203,6 +206,139 @@
     return { nodes, edges, waits };
   }
 
+  // ---------- El paso a paso (T012; tableros 133, 136 y 137; plan P9) ----------
+
+  /**
+   * Qué se reproduce en el paso a paso: Burgess del recurso que se nivela, al nivelar con el calendario «Burgess»; con
+   * recursos limitados y el calendario de la regla, su esquema, su sentido y su regla. Con otro calendario, nada (null).
+   */
+  function walkCfg(m, state) {
+    if (!m.p) return null;
+    if (m.mode === 'lev') return (LEV.includes(state.wc) ? state.wc : 'es') === 'bur' ? { kind: 'bur', k: levelK(m, state) } : null;
+    if (m.mode !== 'lim' || (LIM.includes(state.wc) ? state.wc : 'sgs') !== 'sgs') return null;
+    const sc = SCHEME[state.ws] || SCHEME.sf;
+    return { kind: 'sgs', scheme: sc.scheme, dir: sc.dir, rule: R.RULES.includes(state.wp) ? state.wp : 'slk' };
+  }
+
+  let trCache = { key: null, val: null };
+  /**
+   * La traza del reproductor (resource.trace) con lo que hace falta para enseñarla: cfg (lo que se reproduce) y q, la red
+   * en la que se programa (hacia atrás, la red al revés: las sucesoras pasan a ser predecesoras). null sin paso a paso.
+   */
+  function trace(m) {
+    if (!m.p || !m.walk) return null;
+    const key = JSON.stringify([pkey(m.p), m.walk]);
+    if (trCache.key !== key) {
+      const val = R.trace(m.p, m.walk);
+      val.cfg = m.walk;
+      val.q = m.walk.dir === 'b' ? Object.assign({}, m.p, { preds: m.p.succs, succs: m.p.preds }) : m.p;
+      trCache = { key, val };
+    }
+    return trCache.val;
+  }
+
+  // Las columnas de la prioridad de cada regla (las de core/resource.RULES): sign −1 si la clave va de mayor a menor
+  // (más recursos y ACTIM se guardan con el signo cambiado para ordenar de menor a mayor).
+  const KEYS = { slk: [['tf', 1], ['ls', 1]], lft: [['lf', 1], ['tf', 1]], spt: [['d', 1]], res: [['use', -1]], act: [['path', -1]], esf: [['es', 1]], lsf: [['ls', 1]] };
+  /** Las columnas de la prioridad de la regla, con el sentido en que se leen. */
+  const keyCols = (rule) => (KEYS[rule] || KEYS.slk).map(([k, sign]) => ({ k, sign }));
+  const keyLabel = (c, lang) => I.t(lang, `rs.walk.key.${c.k}`);
+  /** El primer componente de la prioridad en que difieren a y b: su nombre y los dos valores como se leen. */
+  function keyDiff(rule, a, b, lang) {
+    const cols = keyCols(rule);
+    const i = Math.max(0, a.findIndex((v, j) => v !== b[j]));
+    const c = cols[i] || cols[0];
+    return { label: keyLabel(c, lang).toLowerCase(), va: NR.fmt(lang, c.sign * a[i]), vb: NR.fmt(lang, c.sign * b[i]) };
+  }
+
+  /**
+   * Lo que enseña el paso k: el calendario (antes del paso mientras se predice; si no, después), la actividad marcada,
+   * el instante del paralelo (now), el horizonte del dibujo y si va en el tiempo de la red al revés (back).
+   */
+  function walkView(m, tr, k, hide) {
+    const step = tr[k]; const prev = tr[k - 1];
+    if (tr.cfg.kind === 'bur') {
+      return { S: (hide ? prev : step).S, sel: step.kind === 'rsMove' ? step.id : null, T: m.p.T, now: null, back: false };
+    }
+    const end = tr[tr.length - 1];
+    const S = hide ? (prev.kind === 'rsTable' ? {} : prev.S) : step.S;
+    return { S, sel: step.kind === 'rsPick' && !hide ? step.id : null, T: Math.max(m.p.T, end.T), now: step.kind === 'rsTime' ? step.t : null,
+      back: tr.cfg.dir === 'b' && step.kind !== 'rsEnd' };
+  }
+
+  /** El nombre de un recurso en minúscula, para el medio de una frase. */
+  const resLow = (m, k) => m.res[k].label.toLowerCase();
+
+  /**
+   * Lo que se le dice al alumno al comprobar el paso k: en el esquema serie, la actividad elegida y su comienzo; en
+   * Burgess, el comienzo; en el paralelo, las que empiezan. Cada mensaje: { kind: ok | wrong, text }.
+   */
+  function feedback(m, tr, k, answers, lang) {
+    const t = (key, q) => I.t(lang, `rs.walk.${key}`, q);
+    const num = (v) => NR.fmt(lang, v);
+    const step = tr[k]; const rule = tr.cfg.rule; const out = [];
+    const ok = (text) => out.push({ kind: 'ok', text });
+    const bad = (text) => out.push({ kind: 'wrong', text });
+    const startOf = (key) => { const v = PRD().parseAnswer(answers.get(key)); return v; };
+    if (step.kind === 'rsMove') {
+      const c = step.reveals[0].check; const v = startOf('rs.start');
+      if (v === null) bad(t('burEmpty', { id: step.id, to: num(step.to) }));
+      else if (!Number.isInteger(v)) bad(t('startNum', { start: num(step.to) }));
+      else {
+        const r = R.startCheck(c, v);
+        if (r.ok) ok(t('burOk', { s: num(v), ssq: num(step.after) }) + (v !== step.to ? ` ${t('burOkTie', { to: num(step.to) })}` : ''));
+        else if (r.reason === 'window') bad(t('burWindow', { id: step.id, lo: num(r.window[0]), hi: num(r.window[1]) }));
+        else bad(t('burSsq', { s: num(v), ssq: num(r.ssq), best: num(r.best) }));
+      }
+      return out;
+    }
+    if (step.kind === 'rsPick') {
+      const pc = step.reveals[0].check; const sc = step.reveals[1].check;
+      const given = answers.get('rs.pick');
+      if (!given) bad(t('emptyPick'));
+      else {
+        const r = R.pickCheck(pc, given);
+        const keyOf = (id) => pc.elig.find((x) => x.id === id).key;
+        if (r.ok) {
+          const tied = pc.elig.filter((x) => x.id !== given && x.key.join() === keyOf(given).join()).map((x) => x.id);
+          ok(given === step.id ? t('pickOk', { id: given }) : t('pickOkTie', { id: given, list: I.list(lang, tied), chosen: step.id }));
+        } else if (r.reason === 'notElig') {
+          const miss = tr.q.preds[given].filter((x) => pc.all.includes(x));
+          bad(t(miss.length === 1 ? 'pickNotEligOne' : 'pickNotElig', { id: given, list: I.list(lang, miss) }));
+        } else {
+          const d = keyDiff(rule, keyOf(r.best[0]), keyOf(given), lang);
+          bad(t(r.best.length === 1 ? 'pickLower' : 'pickLowerMany', { best: I.list(lang, r.best), id: given, label: d.label, vb: d.va, vg: d.vb }));
+        }
+      }
+      const v = startOf('rs.start');
+      if (v === null) bad(t('startEmpty', { start: num(step.start) }));
+      else if (!Number.isInteger(v)) bad(t('startNum', { start: num(step.start) }));
+      else {
+        const r = R.startCheck(sc, v);
+        if (r.ok) ok(t('startOk', { id: step.id, start: num(step.start) }));
+        else if (r.reason === 'preds') bad(t('startPreds', { id: step.id, ready: num(r.ready) }));
+        else if (r.reason === 'over') bad(t('startOver', { s: num(v), period: num(r.period), use: num(r.use), res: resLow(m, r.res), cap: num(r.cap) }));
+        else bad(t('startLater', { id: step.id, start: num(r.start) }));
+      }
+      return out;
+    }
+    if (step.kind === 'rsTime' && step.reveals.length) {
+      const c = step.reveals[0].check;
+      const given = answers.get('rs.set');
+      if (!given || !given.size) { bad(t('emptySet')); return out; }
+      const ids = c.elig.map((x) => x.id).filter((id) => given.has(id)).concat([...given].filter((id) => !c.elig.some((x) => x.id === id)));
+      const r = R.setCheck(c, ids);
+      const keyOf = (id) => c.elig.find((x) => x.id === id).key;
+      if (r.ok) ok(t(ids.length === 1 ? 'setOkOne' : 'setOk', { list: I.list(lang, ids) }));
+      else if (r.reason === 'notElig') bad(t('setNotElig', { list: I.list(lang, r.ids), t: num(c.t) }));
+      else if (r.reason === 'over') bad(t('setOver', { list: I.list(lang, ids), period: num(r.period), use: num(r.use), res: resLow(m, r.res), cap: num(r.cap) }));
+      else if (r.reason === 'missing') bad(t('setMissing', { id: r.id, t: num(c.t) }));
+      else if (r.ids.length) { const d = keyDiff(rule, keyOf(r.ids[0]), keyOf(r.ids[1]), lang); bad(t('setLower', { a: r.ids[0], b: r.ids[1], label: d.label, va: d.va, vb: d.vb })); }
+      else bad(t('setLowerAny'));
+    }
+    return out;
+  }
+
   // ---------- Los recursos de la tabla propia (tablero 139) ----------
 
   /** Las tres filas del editor de recursos, con lo escrito (texto). */
@@ -288,6 +424,7 @@
     const num = (v) => NR.fmt(lang(), v);
     let m = null;
     const go = (action, opts) => hooks.dispatch(Object.assign({ type: 'rs' }, action), opts);
+    const walking = () => !!(m && m.p && m.walk) && state().step > 0 && !!trace(m);
 
     function focus(id) { const el = root.document.getElementById(id); if (el) el.focus(); }
     function keepFocus(fn) {
@@ -304,34 +441,55 @@
         X.list().map((ex) => h('option', { value: ex.id, selected: m.src.id === ex.id }, [ex.title[lang()]]))
           .concat([h('option', { value: 'own', selected: m.src.kind === 'own' }, [tr('own')])]));
       const mode = (k) => h('button', { type: 'button', class: 'ghost', id: `rsMode-${k}`, 'aria-pressed': String(m.mode === k),
-        onclick: () => { if (m.mode !== k) go({ wm: k }, { push: true }); focus(`rsMode-${k}`); } }, [tr(`mode.${k}`)]);
+        onclick: () => { if (m.mode !== k) stay({ wm: k }); focus(`rsMode-${k}`); } }, [tr(`mode.${k}`)]);
       return h('div', { class: 'card rs-bar' }, [
         h('div', { class: 'rs-row' }, [
           hooks.ext ? hooks.ext('rs') : null,
           h('label', { class: 'rs-field' }, [tr('project'), ' ', sel]),
           button(tr('fromWork'), fromWork, { id: 'rsFromWork' }),
+          h('span', { class: 'rs-push' }),
+          // «Paso a paso» (T012): del paso 1 en adelante; si el calendario no tiene paso a paso, pasa al de Burgess o al de la regla.
+          h('div', { class: 'seg' }, [h('button', { type: 'button', class: 'ghost', id: 'rsWalk', 'aria-pressed': String(walking()), disabled: !m.p, onclick: toggleWalk }, [tr('walk.toggle')])]),
         ]),
         h('div', { class: 'rs-row' }, [
           h('div', { class: 'seg rs-mode', role: 'group', 'aria-label': tr('mode.label') }, [mode('lev'), mode('lim')]),
           // Nivelar (T010): el recurso que se nivela y el calendario.
           m.mode === 'lev' ? h('label', { class: 'rs-field' }, [tr('bar.res'), ' ', h('select', { id: 'rsRes', disabled: !m.p,
-            onchange: (e) => { go({ wk: Number(e.target.value) }, { push: true }); focus('rsRes'); } },
+            onchange: (e) => { stay({ wk: Number(e.target.value) }); focus('rsRes'); } },
             m.res.map((r, k) => h('option', { value: String(k), selected: k === levelK(m, state()) }, [r.label])))]) : null,
           m.mode === 'lev' ? h('label', { class: 'rs-field' }, [tr('bar.cal'), ' ', h('select', { id: 'rsCal', disabled: !m.p,
-            onchange: (e) => { bad = null; go({ wc: e.target.value }, { push: true }); focus('rsCal'); } },
+            onchange: (e) => { bad = null; stay({ wc: e.target.value }); focus('rsCal'); } },
             LEV.map((k) => h('option', { value: k, selected: k === levCal() }, [tr(`cals.${k}`)])))]) : null,
           // Recursos limitados (T011): el calendario y, con el de la regla, el esquema y la regla.
           m.mode === 'lim' ? h('label', { class: 'rs-field' }, [tr('bar.cal'), ' ', h('select', { id: 'rsCal', disabled: !m.p,
-            onchange: (e) => { bad = null; go({ wc: e.target.value }, { push: true }); focus('rsCal'); } },
+            onchange: (e) => { bad = null; stay({ wc: e.target.value }); focus('rsCal'); } },
             LIM.map((k) => h('option', { value: k, selected: k === limCal() }, [tr(`cals.${k}`)])))]) : null,
           m.mode === 'lim' && limCal() === 'sgs' ? h('label', { class: 'rs-field' }, [tr('bar.scheme'), ' ', h('select', { id: 'rsScheme', disabled: !m.p,
-            onchange: (e) => { go({ ws: e.target.value }, { push: true }); focus('rsScheme'); } },
+            onchange: (e) => { stay({ ws: e.target.value }); focus('rsScheme'); } },
             Object.keys(SCHEME).map((k) => h('option', { value: k, selected: k === schemeOf() }, [tr(`schemes.${k}`)])))]) : null,
           m.mode === 'lim' && limCal() === 'sgs' ? h('label', { class: 'rs-field' }, [tr('bar.rule'), ' ', h('select', { id: 'rsRule', disabled: !m.p,
-            onchange: (e) => { go({ wp: e.target.value }, { push: true }); focus('rsRule'); } },
+            onchange: (e) => { stay({ wp: e.target.value }); focus('rsRule'); } },
             R.RULES.map((k) => h('option', { value: k, selected: k === ruleOf(), title: tr(`rules.${k}`) }, [tr(`rulesShort.${k}`)])))]) : null,
+          walking() ? h('span', { class: 'rs-push' }) : null,
+          walking() ? h('label', { class: 'rs-check' }, [h('input', { type: 'checkbox', id: 'rsPred', checked: !!state().pred,
+            onchange: (e) => { hooks.dispatch({ type: 'set', key: 'pred', value: e.target.checked ? 1 : 0 }); focus('rsPred'); } }), ' ', I.t(lang(), 'predict.toggle')]) : null,
         ]),
+        walking() ? player() : null,
       ]);
+    }
+    // Un cambio en la barra durante el paso a paso sigue en el paso a paso (paso 1) si lo nuevo también lo tiene.
+    function stay(action) {
+      const was = walking();
+      go(action, { push: true });
+      if (was && m.p && trace(m)) hooks.dispatch({ type: 'go', n: 1 });
+    }
+    function toggleWalk() {
+      if (walking()) hooks.dispatch({ type: 'go', n: 0 });
+      else {
+        if (!trace(m)) go({ wc: m.mode === 'lim' ? 'sgs' : 'bur' }, { push: true });
+        hooks.dispatch({ type: 'go', n: 1 });
+      }
+      focus('rsWalk');
     }
     function pickProject(id) {
       if (id === 'own' && !state().wt) { hooks.dispatch({ type: 'rsTable', rows: [Object.assign(blank(), { id: 'A' })] }, { push: true }); focus('rsProj'); return; }
@@ -733,6 +891,221 @@
         box('rsProfile', profOpen, (v) => { profOpen = v; }, tr('alt.profile'), tr('alt.profileCaption', { cal: calName }), 'rsProfileTable', pHead, pBody)];
     }
 
+    // ---------- El paso a paso (T012; tableros 133, 136 y 137) ----------
+    const tw = (k, q) => tr(`walk.${k}`, q);
+    const curStep = () => { const t0 = trace(m); return t0[Math.min(state().step, t0.length - 1)]; };
+    let lastWalk = '';
+    const schemeKey = (cfg) => `${cfg.scheme}${cfg.dir}`;
+    // La fase de la pregunta: en el esquema serie, primero la actividad (pick) y después el comienzo (start).
+    function phaseOf(step) {
+      if (!hooks.predicting(step)) return null;
+      if (step.kind === 'rsPick') return hooks.pred().answers.get('rs.pickDone') ? 'start' : 'pick';
+      return step.kind === 'rsMove' ? 'bur' : 'set';
+    }
+    function counterLabel(t0, step) {
+      const cfg = t0.cfg;
+      if (step.kind === 'rsEnd') return tw('counterEnd');
+      if (cfg.kind === 'bur') return tw('counterBur', { pass: num(step.pass), id: step.id });
+      const q = { scheme: tr(`schemes.${schemeKey(cfg)}`), rule: tr(`rules.${cfg.rule}`), t: num(step.t) };
+      return tw(step.kind === 'rsTime' ? 'counterTime' : 'counterSgs', q);
+    }
+    // El reproductor, en la tercera fila de la barra (tablero 130).
+    function player() {
+      const t0 = trace(m); const n = t0.length - 1; const k = Math.min(state().step, n); const step = t0[k];
+      const hide = hooks.predicting(step);
+      const nav = (id, label, n1, off) => h('button', { type: 'button', class: 'ghost', id, disabled: off, onclick: () => {
+        hooks.dispatch({ type: 'go', n: n1 });
+        const st = curStep();
+        focus(hooks.predicting(st) ? firstAsk(st) : id);
+      } }, [label]);
+      const c = I.t(lang(), 'player.counter', { i: k, n });
+      return h('div', { class: 'rs-row rs-player', role: 'group', 'aria-label': tw('player') }, [
+        nav('rsFirst', `⏮ ${I.t(lang(), 'player.first')}`, 1, k <= 1),
+        nav('rsPrev', `← ${I.t(lang(), 'player.prev')}`, k - 1, k <= 1),
+        h('span', { class: 'rs-counter', id: 'rsCounter' }, [`${c} · ${counterLabel(t0, step)}`]),
+        nav('rsNext', `${I.t(lang(), 'player.next')} →`, k + 1, k >= n || hide),
+        nav('rsLast', `${tw('last')} ⏭`, n, k >= n || hide),
+        h('span', { class: 'muted small' }, [hide ? I.t(lang(), 'predict.hidden') : tw('keys')]),
+      ]);
+    }
+    // El primer control de la pregunta del paso (para llevar el foco al llegar a él).
+    function firstAsk(step) {
+      const ph = phaseOf(step);
+      if (ph === 'pick') return `rsPick-${step.reveals[0].check.all[0]}`;
+      if (ph === 'set') return `rsSet-${step.reveals[0].check.elig[0].id}`;
+      return 'rsPredStart';
+    }
+    // Las elegibles de un paso de los esquemas: actividad, su prioridad y, en el paralelo, su duración y sus usos.
+    function eligTable(step, chosen) {
+      const cfg = trace(m).cfg; const cols = keyCols(cfg.rule);
+      const list = step.kind === 'rsPick' ? step.pick.elig : step.set.elig;
+      const par = step.kind === 'rsTime';
+      const head = [tw('eligAct')].concat(cols.map((x) => keyLabel(x, lang())), par ? [tr('col.d')].concat(m.res.map((r) => r.label)) : []);
+      const body = list.map((x) => h('tr', { class: chosen.includes(x.id) ? 'chosen' : null, 'data-act': x.id }, [h('th', { scope: 'row' }, [x.id])]
+        .concat(cols.map((col, i) => h('td', { class: 'num' }, [num(col.sign * x.key[i])])),
+          par ? [h('td', { class: 'num' }, [num(x.d)])].concat(x.r.map((v) => h('td', { class: 'num' }, [num(v)]))) : [])));
+      return h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': tw('eligLabel') }, [
+        h('table', { class: 'data rs-cmp rs-elig', id: 'rsElig' }, [h('thead', {}, [h('tr', {}, head.map((x) => h('th', { scope: 'col' }, [x])))]), h('tbody', {}, body)])]);
+    }
+    // El título y la narración del paso (con la pregunta, mientras se predice).
+    function narration(t0, k, phase) {
+      const step = t0[k]; const cfg = t0.cfg; const text = [];
+      let title;
+      const res = (x) => resLow(m, x);
+      if (step.kind === 'rsMove') {
+        const kk = cfg.k;
+        title = phase ? tw('burAsk', { id: step.id }) : tw(step.to !== step.from ? 'burMoveTitle' : 'burStayTitle', { pass: num(step.pass), id: step.id, from: num(step.from), to: num(step.to) });
+        text.push(tw('burIntro', { id: step.id, lo: num(step.window[0]), hi: num(step.window[1]), T: num(m.p.T) }));
+        if (phase) text.push(tw('burAskText', { res: res(kk) }));
+        else if (step.to !== step.from && step.after < step.before) text.push(tw('burMoved', { to: num(step.to), res: res(kk), before: num(step.before), after: num(step.after) }));
+        else if (step.to !== step.from) text.push(tw('burMovedTie', { to: num(step.to), after: num(step.after) }));
+        else text.push(tw('burStay', { before: num(step.before) }));
+      } else if (step.kind === 'rsPick') {
+        const rule = cfg.rule;
+        title = phase === 'pick' ? tw('pickAsk') : phase === 'start' ? tw('startAsk', { id: step.id }) : tw('pickTitle', { id: step.id, start: num(step.start) });
+        text.push(tw('eligText', { list: I.list(lang(), step.pick.elig.map((x) => x.id)), rule: tw(`rule.${rule}`), tie: rule === 'slk' || rule === 'lft' ? tw(`tie.${rule}`) : '' }));
+        if (phase === 'start') text.push(tw('startText', { ready: num(step.ready) }));
+        else if (!phase) text.push(step.wait ? tw('startWait', { id: step.id, start: num(step.start), period: num(step.wait.period), use: num(step.wait.use), res: res(step.wait.res), cap: num(step.wait.cap) })
+          : tw('startFree', { id: step.id, start: num(step.start) }));
+      } else if (step.kind === 'rsTime') {
+        const ids = step.set.elig.map((x) => x.id);
+        title = phase ? tw('timeAsk', { t: num(step.t) }) : !step.started.length ? tw('timeNone', { t: num(step.t) })
+          : tw(step.started.length === 1 ? 'timeTitleOne' : 'timeTitle', { t: num(step.t), list: I.list(lang(), step.started) });
+        text.push(tw('timeText', { t: num(step.t), list: I.list(lang(), ids), rule: tr(`rules.${cfg.rule}`).toLowerCase() }));
+        if (!phase) {
+          for (const w of step.waiting) {
+            const later = t0.find((x) => x.kind === 'rsTime' && x.started.includes(w.id));
+            text.push(tw('wait', { id: w.id, period: num(w.block.period), use: num(w.block.use), res: res(w.block.res), cap: num(w.block.cap), s: later ? num(later.t) : '—' }));
+          }
+        }
+      } else if (cfg.kind === 'bur') {
+        const kk = cfg.k; const st0 = stats(m, t0[0].S, kk); const st1 = stats(m, step.S, kk);
+        title = tw('burEndTitle');
+        text.push(tw(step.passes === 1 ? 'burEndOne' : 'burEnd', { n: num(step.passes), res: res(kk), from: num(st0.ssq), to: num(st1.ssq), p0: num(st0.peak), p1: num(st1.peak) }));
+      } else {
+        title = tw('sgsEndTitle', { T: tU(step.T) });
+        text.push(tw('sgsEnd', { T: tU(step.T), Tcpm: tU(m.p.T), bound: num(step.bound) }));
+        if (step.chains.length) text.push(tw('sgsEndChains', { list: step.chains.map((c) => c.join(' → ')).join('; ') }));
+        if (step.reversed) text.push(tw('sgsEndBack', { T: num(step.T) }));
+      }
+      return { title, text: text.join(' ') };
+    }
+    // La pregunta: un comienzo (Burgess y el esquema serie), una actividad (serie) o un conjunto (paralelo).
+    function askBox(step, phase) {
+      if (!phase) return null;
+      const pred = hooks.pred();
+      const show = button(I.t(lang(), 'predict.show'), () => { hooks.predShow(); focus('rsNext'); }, { id: 'rsPredShow' });
+      if (phase === 'pick') {
+        const c = step.reveals[0].check; const cur = pred.answers.get('rs.pick');
+        const msg = h('p', { class: 'rs-m rs-m-err', id: 'rsPredEmpty', hidden: true }, [tw('emptyPick')]);
+        const check = () => {
+          if (!pred.answers.get('rs.pick')) { msg.hidden = false; focus(`rsPick-${c.all[0]}`); return; }
+          pred.answers.set('rs.pickDone', true);
+          keepFocus(draw);
+          focus('rsPredStart');
+        };
+        return h('div', { class: 'rs-predict' }, [
+          h('div', { class: 'rs-row', role: 'group', 'aria-label': tw('pickGroup') }, c.all.map((id) => h('button', { type: 'button', class: 'ghost rs-pick', id: `rsPick-${id}`,
+            'aria-pressed': String(cur === id), onclick: () => { pred.answers.set('rs.pick', id); keepFocus(draw); } }, [id]))),
+          h('div', { class: 'rs-row' }, [h('button', { type: 'button', class: 'primary', id: 'rsPickCheck', onclick: check }, [tw('checkPick')]), show]), msg]);
+      }
+      if (phase === 'set') {
+        const c = step.reveals[0].check;
+        if (!pred.answers.has('rs.set')) pred.answers.set('rs.set', new Set());
+        const set = pred.answers.get('rs.set');
+        const msg = h('p', { class: 'rs-m rs-m-err', id: 'rsPredEmpty', hidden: true }, [tw('emptySet')]);
+        const check = () => {
+          if (!set.size) { msg.hidden = false; focus(`rsSet-${c.elig[0].id}`); return; }
+          hooks.predCheck(step); focus('rsPredFb');
+        };
+        return h('div', { class: 'rs-predict' }, [
+          h('div', { class: 'rs-row', role: 'group', 'aria-label': tw('setGroup', { t: num(step.t) }) }, c.elig.map((x) => h('label', { class: 'rs-check' }, [
+            h('input', { type: 'checkbox', id: `rsSet-${x.id}`, checked: set.has(x.id), 'aria-describedby': 'rsPredEmpty',
+              onchange: (e) => { if (e.target.checked) set.add(x.id); else set.delete(x.id); } }), ' ', x.id]))),
+          h('div', { class: 'rs-row' }, [h('button', { type: 'button', class: 'primary', id: 'rsPredCheck', onclick: check }, [I.t(lang(), 'predict.check')]), show]), msg]);
+      }
+      const id = step.id;
+      const msg = h('p', { class: 'rs-m rs-m-err', id: 'rsPredEmpty', hidden: true }, [tw('emptyStart')]);
+      const check = () => {
+        if (!String(pred.answers.get('rs.start') || '').trim()) { msg.hidden = false; focus('rsPredStart'); return; }
+        hooks.predCheck(step); focus('rsPredFb');
+      };
+      return h('div', { class: 'rs-predict' }, [h('div', { class: 'rs-row' }, [
+        h('label', { class: 'rs-field', for: 'rsPredStart' }, [tw('startLabel', { id })]),
+        h('input', { id: 'rsPredStart', value: pred.answers.get('rs.start') || '', size: '5', inputmode: 'numeric', autocomplete: 'off', 'aria-describedby': 'rsPredEmpty',
+          oninput: (e) => { pred.answers.set('rs.start', e.target.value); }, onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); check(); } } }),
+        h('button', { type: 'button', class: 'primary', id: 'rsPredCheck', onclick: check }, [I.t(lang(), 'predict.check')]), show]), msg]);
+    }
+    const fbBox = (id, list) => h('div', { class: 'rs-fb', id, tabindex: '-1', role: 'status' }, list.map((x) => h('p', { class: `rs-fb-${x.kind}` }, [
+      h('span', { 'aria-hidden': 'true' }, [x.kind === 'ok' ? '✓ ' : '✕ ']), x.text])));
+    // Burgess: la suma de cuadrados con cada comienzo de la ventana (después de responder).
+    function optsCard(step, yours) {
+      const min = Math.min(...step.options.map((o) => o.ssq)); const kk = trace(m).cfg.k; const d = m.p.byId[step.id].d;
+      const body = step.options.map((o) => h('tr', { class: [o.s === step.to ? 'chosen' : '', o.s === yours && o.s !== step.to ? 'yours' : ''].join(' ').trim() || null, 'data-s': String(o.s) }, [
+        h('th', { scope: 'row' }, [num(o.s)]), h('td', { class: 'num' }, [num(o.s + d)]), h('td', { class: 'num' }, [num(o.ssq)]),
+        h('td', {}, [o.s === step.to ? tw('opts.best') : o.ssq === min ? tw('opts.min') : o.s === yours ? tw('opts.yours') : ''])]));
+      const head = ['start', 'end', 'ssq', 'mark'].map((x) => h('th', { scope: 'col' }, [tw(`opts.${x}`)]));
+      return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsOptsHead' }, [h('h2', { id: 'rsOptsHead' }, [tw('opts.title')]),
+        h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': tw('opts.label', { res: resLow(m, kk), id: step.id }) }, [
+          h('table', { class: 'data rs-cmp', id: 'rsOpts' }, [h('thead', {}, [h('tr', {}, head)]), h('tbody', {}, body)])])]);
+    }
+    // El Gantt con perfiles del paso: lo colocado hasta ahora (o el calendario de Burgess antes o después del movimiento).
+    function walkGantt(t0, k, hide) {
+      const step = t0[k]; const v = walkView(m, t0, k, hide); const cfg = t0.cfg; const S = v.S;
+      const p = m.p; const bur = cfg.kind === 'bur';
+      const chainIds = step.kind === 'rsEnd' && step.chains ? new Set(step.chains.flat()) : new Set();
+      const U = unitOf(v.T);
+      const rows = p.table.map((id) => {
+        const a = p.byId[id]; const t = p.times[id]; const s0 = S[id] == null ? null : S[id];
+        return { id, s: s0, d: a.d, r: a.r.map(num), es: t.ES, lf: t.LF, crit: bur && t.TF === 0, chain: chainIds.has(id), moved: bur && s0 !== t.ES,
+          label: s0 == null ? `${id}: ${tr('place.empty')}` : tr('gantt.bar', { id, s: num(s0), f: num(s0 + a.d), uses: resUses(a) }) };
+      });
+      const res = m.res.map((r, j) => {
+        const u = R.profile(p, Object.fromEntries(Object.entries(S).filter(([, x]) => x != null)), j, v.T); const x = R.stats(u);
+        return { label: r.label, cap: r.cap, u, aria: tr('gantt.profile', { res: r.label, peak: num(x.peak), ssq: num(x.ssq), work: num(x.work) }),
+          statsText: [tr('gantt.peak', { v: num(x.peak) }), tr('gantt.ssq', { v: num(x.ssq) }), tr('gantt.work', { v: num(x.work) })] };
+      });
+      let title;
+      if (bur) {
+        const ssq = stats(m, S, cfg.k).ssq;
+        title = step.kind === 'rsEnd' ? tw('ganttEnd', { v: num(ssq) }) : tw(hide ? 'ganttBefore' : 'ganttAfter', { id: step.id, v: num(ssq) });
+      } else title = step.kind === 'rsEnd' ? tw('ganttEndSgs') : tw(v.back ? 'ganttPlacedBack' : 'ganttPlaced');
+      const holder = h('div', { class: 'rs-gantt', id: 'rsGantt' });
+      root.PNL.rsGantt.render(holder, { T: v.T, Tcpm: p.T, unit: U, rows, res, window: bur, caps: !bur, sel: v.sel, emptyText: tr('place.empty'), now: v.now,
+        nowText: v.now == null ? null : tw('now', { t: num(v.now) }), label: `${title} · ${m.src.title}`, capText: (x) => tr('gantt.cap', { v: num(x) }) });
+      return { card: h('section', { class: 'card rs-card', 'aria-labelledby': 'rsGanttHead' }, [h('h2', { id: 'rsGanttHead' }, [title]),
+        h('div', { class: 'rs-scroll rs-gantt-wrap', tabindex: '0', role: 'region', 'aria-label': `${title} · ${m.src.title}` }, [holder]),
+        h('p', { class: 'rs-swipe muted small', 'aria-hidden': 'true' }, [tr('gantt.swipe')])]), S, T: v.T };
+    }
+    function walkDraw() {
+      const t0 = trace(m); const n = t0.length - 1; const k = Math.min(state().step, n); const step = t0[k];
+      const phase = phaseOf(step); const hide = !!phase;
+      const pred = hooks.pred();
+      const nar = narration(t0, k, phase);
+      const v = walkView(m, t0, k, hide);
+      const g = walkGantt(t0, k, hide);
+      const parts = [h('h2', { id: 'rsStepHead' }, [nar.title]), v.back ? h('p', { class: 'rs-note', id: 'rsBackNote' }, [tw('backNote')]) : null, h('p', { id: 'rsStepText' }, [nar.text])];
+      if (step.kind === 'rsPick' || step.kind === 'rsTime') {
+        const chosen = phase ? [] : step.kind === 'rsPick' ? [step.id] : step.started;
+        parts.push(eligTable(step, phase === 'start' ? [step.id] : chosen));
+      }
+      if (phase === 'start') parts.push(fbBox('rsPickFb', feedback(m, t0, k, pred.answers, lang()).slice(0, 1)));
+      if (state().pred) {
+        parts.push(askBox(step, phase));
+        if (!phase && pred.done && pred.step === state().step && pred.result) parts.push(fbBox('rsPredFb', feedback(m, t0, k, pred.answers, lang())));
+      }
+      const side = [h('section', { class: 'card rs-card rs-step', id: 'rsStepCard', 'aria-labelledby': 'rsStepHead' }, parts)];
+      if (step.kind === 'rsMove' && !phase) {
+        const yv = PRD().parseAnswer(pred.answers.get('rs.start'));
+        side.push(optsCard(step, state().pred && pred.done && pred.result ? yv : null));
+      }
+      container.appendChild(h('div', { class: 'rs-lev rs-walk' }, [g.card, h('div', { class: 'rs-side' }, side)]));
+      const cal = { wc: t0.cfg.kind === 'bur' ? 'bur' : 'sgs', S: g.S, T: g.T };
+      for (const el of (t0.cfg.kind === 'bur' ? altTables(cal) : limAltTables(cal))) container.appendChild(el);
+      const wkey = `${m.src.id}|${lang()}|${k}|${n}|${phase}`;
+      if (wkey !== lastWalk) { lastWalk = wkey; if (hooks.announce) hooks.announce(`${I.t(lang(), 'player.counter', { i: k, n })}. ${nar.title}. ${phase ? I.t(lang(), 'predict.hidden') : nar.text}`); }
+    }
+
     let shown = null;
     function drawLower() {
       if (!lower) return;
@@ -758,6 +1131,7 @@
       clear(container);
       ownTable = null; issuesSlot = null;
       container.appendChild(bar());
+      if (walking()) { lower = null; walkDraw(); return; }
       container.appendChild(h('div', { class: 'rs-top' }, m.src.kind === 'own' ? [ownCard(), resCard()] : [exampleCard()]));
       lower = h('div', { class: 'rs-lower', id: 'rsLower' });
       container.appendChild(lower);
@@ -784,13 +1158,14 @@
       return { src: { kind: m.src.kind, id: m.src.id }, mode: m.mode, res: m.res.map((r) => ({ label: r.label, cap: r.cap })),
         errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => c === 'noUse'), ok: !!m.p,
         cal: shown ? shown.wc : null, k: m.p ? levelK(m, state()) : null, moves: shown && shown.moves ? shown.moves : [], unit: m.p ? unitOf(m.p.T) : null,
-        T: shown && shown.T != null ? shown.T : null, chains: shown && shown.chains ? shown.chains : [] };
+        T: shown && shown.T != null ? shown.T : null, chains: shown && shown.chains ? shown.chains : [],
+        walk: walking() ? (() => { const t0 = trace(m); const k = Math.min(state().step, t0.length - 1); return { k, n: t0.length - 1, kind: t0[k].kind, phase: phaseOf(t0[k]) }; })() : null };
     }
     function leave() { /* T009: nada que parar */ }
     return { render, debug, leave };
   }
 
-  const api = { FIELDS, LEV, source, resources, model, levelK, stats, levData, moveCheck, moveText, manual, withMove, calendar, compareRows, LIM, limData, placeCheck, placeText, manualLim, withPlace, limCalendar, chainMarks, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows, create };
+  const api = { FIELDS, LEV, source, resources, model, levelK, stats, levData, moveCheck, moveText, manual, withMove, calendar, compareRows, LIM, limData, placeCheck, placeText, manualLim, withPlace, limCalendar, chainMarks, walkCfg, trace, keyCols, keyLabel, walkView, feedback, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows, create };
   root.PNL = root.PNL || {};
   root.PNL.rsTab = api;
   if (isNode) module.exports = api;

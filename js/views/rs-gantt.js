@@ -7,7 +7,8 @@
  * Como views/ct-chart: sin innerHTML (constitución, 22), elementos con createElementNS y colores en clases (css/rs.css),
  * así que valen en claro y oscuro. La alternativa en texto son las tablas de comienzos y del perfil (js/rs.js).
  * spec = { T, Tcpm, unit, emptyText, rows: [{ id, s, d, r: [..], es, lf, crit, chain, moved, label }], res: [{ label, cap, u: [..], stats, statsText: [..] }],
- *          window, caps, sel, label, capText(v), onMove(id, s), onSelect(id) }
+ *          window, caps, sel, label, capText(v), onMove(id, s), onSelect(id), now, nowText }
+ * now (T012): el instante del esquema paralelo en el paso a paso, una línea vertical con nowText encima.
  */
 (function (root) {
   'use strict';
@@ -46,6 +47,10 @@
     if (spec.Tcpm != null) {
       grid.appendChild(el('line', { class: 'rsg-end', x1: X(spec.Tcpm), y1: TOP - 6, x2: X(spec.Tcpm), y2: ganttH }));
       grid.appendChild(el('text', { class: 'rsg-tick', x: X(spec.Tcpm) + 4, y: TOP + 4 }, `T = ${spec.Tcpm}`));
+    }
+    if (spec.now != null) {
+      grid.appendChild(el('line', { class: 'rsg-now', x1: X(spec.now), y1: TOP - 6, x2: X(spec.now), y2: h - 8 }));
+      grid.appendChild(el('text', { class: 'rsg-nowtext', x: X(spec.now) + 4, y: ganttH + 12 }, spec.nowText || ''));
     }
     svg.appendChild(grid);
     // Barras.

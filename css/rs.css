@@ -123,3 +123,22 @@ table.data.rs-rules td button { min-height: 28px; min-width: 2.6em; padding: 2px
 table.data.rs-rules td button.best { color: var(--ok); font-weight: 700; border-color: var(--ok); }
 table.data.rs-rules td button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; background: var(--accent-soft); }
 table.data.rs-cmp td.rs-over { color: var(--critical-text); font-weight: 700; }
+/* T012: el paso a paso con predicción (tableros 133, 136 y 137): reproductor en la tercera fila de la barra, pregunta y respuesta. */
+.rs-push { margin-left: auto; }
+.rs-check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.rs-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+.rs-player { border-top: 1px solid var(--line); padding-top: 8px; }
+.rs-counter { font-size: 14px; font-weight: 600; }
+.rs-step p { font-size: 14.5px; line-height: 1.5; }
+.rs-predict { display: flex; flex-direction: column; gap: 6px; }
+.rs-predict input:not([type]) { width: 5em; height: 32px; padding: 0 6px; }
+.rs .rs-pick { min-width: 2.6em; }
+.rs .rs-pick[aria-pressed="true"] { background: var(--accent-soft); outline: 2px solid var(--accent); outline-offset: 1px; }
+.rs-fb { margin: 0; padding: 6px 12px; border-radius: 10px; background: var(--soft); border: 1px solid var(--line); font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.rs-fb-ok { color: var(--ok); }
+.rs-fb-wrong { color: var(--critical-text); }
+table.data.rs-cmp tr.yours { background: var(--critical-soft); }
+table.data.rs-elig { width: auto; }
+table.data.rs-elig th, table.data.rs-elig td { padding: 3px 6px; }
+.rsg-now { stroke: var(--select); stroke-width: 2; stroke-dasharray: 3 3; }
+.rsg-nowtext { fill: var(--ink); font-size: 10.5px; font-weight: 700; }

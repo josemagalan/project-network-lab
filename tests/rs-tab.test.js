@@ -197,3 +197,121 @@ test('F5c T011: a mano con recursos limitados (C2): empieza vacío; se coloca un
   assert.deepEqual(T.withPlace(all.moves, 'Q', null).map(([id]) => id), ['J', 'M', 'L', 'V', 'Y', 'Z']);
   assert.deepEqual(T.withPlace([['J', 0]], 'J', 2), [['J', 2]]);
 });
+
+// ---------- T012: el paso a paso con predicción (AC5; tableros 133, 136 y 137; plan P9, `analyze` C4) ----------
+
+const PRD = require('../js/predict.js');
+const ans = (pairs) => new Map(pairs);
+
+test('F5c T012: la traza de la vista: Burgess al nivelar con «Burgess»; el esquema y la regla con recursos limitados; nada con otro calendario', () => {
+  let m = T.model(st({ we: 'k81', wc: 'bur' }), 'es');
+  let tr = T.trace(m);
+  assert.deepEqual(tr.map((s) => s.kind), ['rsTable', 'rsMove', 'rsMove', 'rsMove', 'rsMove', 'rsMove', 'rsMove', 'rsEnd']);
+  assert.deepEqual(tr.cfg, { kind: 'bur', k: 0 });
+  assert.equal(T.trace(m), tr, 'se guarda');
+  // LOGON, nivelando el equipo (wk = 1).
+  assert.deepEqual(T.trace(T.model(st({ we: 'lg', wc: 'bur', wk: 1 }), 'es')).cfg, { kind: 'bur', k: 1 });
+  for (const wc of ['es', 'ls', 'man', 'min']) assert.equal(T.trace(T.model(st({ we: 'k81', wc }), 'es')), null, wc);
+  // Recursos limitados: el calendario de la regla (también el que se ve por defecto) con su esquema y su regla.
+  m = T.model(st({ we: 'k85' }), 'es');
+  tr = T.trace(m);
+  assert.deepEqual(tr.cfg, { kind: 'sgs', scheme: 's', dir: 'f', rule: 'slk' });
+  assert.deepEqual(tr.filter((s) => s.kind === 'rsPick').map((s) => [s.id, s.start]), [['B', 0], ['D', 3], ['A', 8], ['C', 12], ['E', 13]]);
+  tr = T.trace(T.model(st({ we: 'n723', ws: 'pf', wp: 'slk' }), 'es'));
+  assert.deepEqual(tr.filter((s) => s.kind === 'rsTime').map((s) => [s.t, s.started.join()]), [[0, 'B,A'], [1, ''], [2, 'C'], [4, 'F,E'], [7, ''], [10, 'D']]);
+  for (const wc of ['opt', 'man']) assert.equal(T.trace(T.model(st({ we: 'k85', wc }), 'es')), null, wc);
+  // Hacia atrás: la red al revés (las sucesoras pasan a ser predecesoras).
+  tr = T.trace(T.model(st({ we: 'k85', ws: 'sb' }), 'es'));
+  assert.deepEqual([tr.cfg.dir, tr.q.preds.B, tr[tr.length - 1].T, tr[tr.length - 1].reversed], ['b', ['C', 'D'], 14, true]);
+  // Sin proyecto, no hay traza.
+  assert.equal(T.trace(T.model(st({ we: 'own', wt: [row('A', 'Z', '1', '1')] }), 'es')), null);
+});
+
+test('F5c T012 · AC5: predict corrige rs.pick, rs.start y rs.set con core/resource (empates y cada motivo)', () => {
+  // Serie, Klastorin 8.5: en el paso 2 son elegibles D (holgura 0) y A (3); en el 3, A empieza en 8.
+  const s85 = T.trace(T.model(st({ we: 'k85' }), 'es'));
+  assert.deepEqual(s85[2].reveals.map(PRD.key), ['rs.pick', 'rs.start']);
+  assert.equal(PRD.hasPrediction(s85[2]), true);
+  const chk = (step, pairs) => Object.fromEntries(PRD.check(step, ans(pairs)));
+  assert.deepEqual(chk(s85[2], [['rs.pick', 'D'], ['rs.start', '3']]), { 'rs.pick': 'ok', 'rs.start': 'ok' });
+  assert.deepEqual(chk(s85[2], [['rs.pick', 'A'], ['rs.start', '2']]), { 'rs.pick': 'wrong', 'rs.start': 'wrong' });
+  assert.deepEqual(chk(s85[2], [['rs.pick', 'C']]), { 'rs.pick': 'wrong', 'rs.start': 'empty' });
+  assert.deepEqual(chk(s85[3], [['rs.pick', ''], ['rs.start', '8']]), { 'rs.pick': 'empty', 'rs.start': 'ok' });
+  for (const v of ['3', '9', '8.5', 'x']) assert.equal(chk(s85[3], [['rs.start', v]])['rs.start'], 'wrong', v);
+  // Burgess, Klastorin 8.1: F vale en cualquiera de los de menor suma de cuadrados (8 a 11).
+  const b81 = T.trace(T.model(st({ we: 'k81', wc: 'bur' }), 'es'));
+  for (const v of ['8', '9', '11']) assert.equal(chk(b81[2], [['rs.start', v]])['rs.start'], 'ok', v);
+  for (const v of ['5', '12', '1', '7.5']) assert.equal(chk(b81[2], [['rs.start', v]])['rs.start'], 'wrong', v);
+  // Paralelo, Nicholas 7.23 en el instante 4: F y E.
+  const p723 = T.trace(T.model(st({ we: 'n723', ws: 'pf' }), 'es'));
+  const t4 = p723.find((s) => s.t === 4);
+  assert.deepEqual(t4.reveals.map(PRD.key), ['rs.set']);
+  assert.equal(chk(t4, [['rs.set', new Set(['E', 'F'])]])['rs.set'], 'ok');
+  for (const g of [['F', 'D'], ['F'], ['D'], ['F', 'E', 'D']]) assert.equal(chk(t4, [['rs.set', new Set(g)]])['rs.set'], 'wrong', g.join());
+  assert.equal(chk(t4, [['rs.set', new Set()]])['rs.set'], 'empty');
+  // Un instante en que no empieza ninguna no se pregunta.
+  assert.equal(PRD.hasPrediction(p723.find((s) => s.t === 1)), false);
+});
+
+test('F5c T012 · AC5: los mensajes de la predicción (tableros 133, 136 y 137), en los dos idiomas', () => {
+  const fb = (we, extra, k, pairs, lang) => {
+    const m = T.model(st(Object.assign({ we }, extra)), lang || 'es');
+    return T.feedback(m, T.trace(m), k, ans(pairs), lang || 'es');
+  };
+  // Serie (136): qué actividad toca.
+  assert.deepEqual(fb('k85', {}, 2, [['rs.pick', 'D'], ['rs.start', '3']]).map((x) => x.kind), ['ok', 'ok']);
+  assert.match(fb('k85', {}, 2, [['rs.pick', 'D']])[0].text, /^Sí: la regla elige D\./);
+  assert.match(fb('k85', {}, 3, [['rs.pick', 'C']])[0].text, /^C no es elegible: le falta A por colocar\./);
+  assert.match(fb('k85', {}, 2, [['rs.pick', 'A']])[0].text, /^La regla elige otra: D va antes \(holgura total: 0, frente a 3 de A\)\./);
+  // Serie: cuándo empieza.
+  assert.match(fb('k85', {}, 2, [['rs.pick', 'D'], ['rs.start', '2']])[1].text, /^Demasiado pronto: las predecesoras de D acaban en 3\./);
+  assert.match(fb('k85', {}, 3, [['rs.pick', 'A'], ['rs.start', '3']])[1].text, /^No cabe en 3: en el periodo 4 harían falta 11 trabajadores y hay 9\./);
+  assert.match(fb('k85', {}, 3, [['rs.pick', 'A'], ['rs.start', '9']])[1].text, /^Más tarde de lo necesario: A cabe antes, en 8\./);
+  assert.match(fb('k85', {}, 3, [['rs.pick', 'A'], ['rs.start', '8']])[1].text, /^Sí: A empieza en 8\./);
+  assert.match(fb('k85', {}, 3, [['rs.pick', 'A'], ['rs.start', '']])[1].text, /^No ha escrito el comienzo; es 8\./);
+  // Burgess (133).
+  assert.match(fb('k81', { wc: 'bur' }, 2, [['rs.start', '5']])[0].text, /^No es la menor: con 5, la suma de cuadrados es 1815; hay un comienzo con 1735\./);
+  assert.match(fb('k81', { wc: 'bur' }, 2, [['rs.start', '12']])[0].text, /^Fuera de su ventana: F solo puede empezar entre 2 y 11\./);
+  assert.match(fb('k81', { wc: 'bur' }, 2, [['rs.start', '11']])[0].text, /^Sí: con 11, la suma de cuadrados es la menor \(1735\)\.$/);
+  assert.match(fb('k81', { wc: 'bur' }, 2, [['rs.start', '9']])[0].text, /^Sí: con 9, .*Con empate, Burgess se queda con el más tardío: 11\./);
+  // Paralelo (137).
+  const t4 = (pairs, lang) => fb('n723', { ws: 'pf' }, 4, pairs, lang);
+  assert.match(t4([['rs.set', new Set(['F', 'E'])]])[0].text, /^Sí: empiezan F y E\./);
+  assert.match(t4([['rs.set', new Set(['F', 'D'])]])[0].text, /^No caben todas: con F y D, en el periodo 5 harían falta 15 trabajadores y hay 10\./);
+  assert.match(t4([['rs.set', new Set(['F'])]])[0].text, /^Cabe una más: E también cabe en 4\./);
+  assert.match(t4([['rs.set', new Set(['D'])]])[0].text, /^La regla va primero: F \(holgura total: 0\) va antes que D \(7\)\./);
+  assert.match(t4([['rs.set', new Set()]])[0].text, /^Elija al menos una actividad\./);
+  for (const pairs of [[['rs.set', new Set(['F', 'D'])]], [['rs.set', new Set(['F'])]], [['rs.set', new Set(['D'])]], [['rs.set', new Set(['F', 'E'])]]]) {
+    for (const x of t4(pairs, 'en')) assert.ok(x.text && !/[{}]|undefined|^rs\./.test(x.text), x.text);
+  }
+  assert.match(t4([['rs.set', new Set(['F', 'D'])]], 'en')[0].text, /^Not all of them fit: with F and D, period 5 would need 15 workers and there are 10\./);
+});
+
+test('F5c T012: lo que enseña cada paso: el calendario antes o después, el instante, las claves de la regla y la red al revés', () => {
+  // Las columnas de la prioridad de cada regla (los valores, como se leen: más recursos y ACTIM, de mayor a menor).
+  assert.deepEqual(T.keyCols('slk').map((c) => c.k), ['tf', 'ls']);
+  assert.deepEqual(T.keyCols('res').map((c) => c.sign), [-1]);
+  for (const r of ['slk', 'lft', 'spt', 'res', 'act', 'esf', 'lsf']) {
+    for (const lang of ['es', 'en']) for (const c of T.keyCols(r)) assert.ok(!/^rs\./.test(T.keyLabel(c, lang)), `${r} ${c.k}`);
+  }
+  let m = T.model(st({ we: 'k81', wc: 'bur' }), 'es');
+  let tr = T.trace(m);
+  // Burgess, paso 2 (F): antes, F en 2; después, en 11.
+  assert.equal(T.walkView(m, tr, 2, true).S.F, 2);
+  assert.equal(T.walkView(m, tr, 2, false).S.F, 11);
+  assert.equal(T.walkView(m, tr, 2, false).sel, 'F');
+  // Paralelo: la línea del instante; antes de comprobar, sin F ni E.
+  m = T.model(st({ we: 'n723', ws: 'pf' }), 'es');
+  tr = T.trace(m);
+  const k4 = tr.findIndex((s) => s.t === 4);
+  const v = T.walkView(m, tr, k4, true);
+  assert.deepEqual([v.now, v.S.F, v.S.C, v.T], [4, undefined, 2, 11]);
+  assert.deepEqual(T.walkView(m, tr, k4, false).S.F, 4);
+  // Hacia atrás: el tiempo de la red al revés hasta el final, que da la vuelta al calendario.
+  m = T.model(st({ we: 'k85', ws: 'sb' }), 'es');
+  tr = T.trace(m);
+  assert.equal(T.walkView(m, tr, 1, false).back, true);
+  assert.deepEqual(T.walkView(m, tr, 1, false).S, { E: 0 });
+  const end = T.walkView(m, tr, tr.length - 1, false);
+  assert.deepEqual([end.back, end.S.E, end.T], [false, 10, 14]);
+});

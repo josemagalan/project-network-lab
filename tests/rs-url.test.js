@@ -123,6 +123,9 @@ test('F5c T007: acción rs (otro proyecto, modo, recurso, calendario, esquema y 
   assert.equal(S.reduce(base, { type: 'rs', wp: 'lft' }, 10).step, 4);
   s = S.reduce(rs({ wc: 'sgs', step: 6 }), { type: 'rs', ws: 'pf', wp: 'lft' }, 10);
   assert.deepEqual([s.ws, s.wp, s.step], ['pf', 'lft', 0]);
+  // T012: con recursos limitados, un calendario de la nivelación (el temprano, por defecto) es el de la regla: también vuelve a 0.
+  assert.equal(S.reduce(rs({ wm: 'lim', wc: 'es', step: 6 }), { type: 'rs', wp: 'lft' }, 10).step, 0);
+  assert.equal(S.reduce(rs({ wc: 'opt', step: 6 }), { type: 'rs', ws: 'pf' }, 10).step, 6);
   // Valores no válidos no cambian nada; own sin tabla propia, tampoco.
   s = S.reduce(base, { type: 'rs', we: 'nada', wm: 'x', wk: 5, wc: 'zz', ws: 'q', wp: 'min' }, 10);
   assert.deepEqual(s, Object.assign({}, base, { v: 'rs' }));

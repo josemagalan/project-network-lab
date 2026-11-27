@@ -296,10 +296,12 @@
       // F5c (plan §3, P12): la vista de recursos. Otro proyecto empieza de cero (paso, recursos, modo del ejemplo, recurso,
       // calendario y movimientos); el esquema y la regla se quedan. Otro modo vuelve al calendario temprano sin movimientos.
       // El paso vuelve a 0 cuando cambia lo que se reproduce: proyecto, modo, recurso, calendario y, si se ve el de la regla,
-      // el esquema y la regla.
+      // el esquema y la regla. Con recursos limitados, un calendario de la nivelación (el temprano, por defecto) es el de la
+      // regla (T012): solo el óptimo y el de a mano no la usan.
       case 'rs': {
         const E = U.RS;
-        const sig = (x) => [x.we, x.wm, x.wk, x.wc, x.wc === 'sgs' ? x.ws : '', x.wc === 'sgs' ? x.wp : ''].join('|');
+        const rule = (x) => !['man', 'opt'].includes(x.wc);
+        const sig = (x) => [x.we, x.wm, x.wk, x.wc, rule(x) ? x.ws : '', rule(x) ? x.wp : ''].join('|');
         const before = sig(s);
         s.v = 'rs';
         if (['k81', 'k85', 'lg', 'lgi', 'gb', 'n723'].includes(action.we) || (action.we === 'own' && s.wt)) {

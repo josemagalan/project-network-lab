@@ -14084,6 +14084,200 @@ check('F5c T011 · AC12: axe sin violaciones (claro y oscuro, ES y EN) con la re
   await close(page);
 });
 
+// ---------- F5c, T012: el paso a paso con predicción (AC5; tableros 133, 136 y 137) ----------
+
+const rsWalkSt = async (page) => (await rsSt(page)).walk;
+const rsStepTo = async (page, k) => { await page.evaluate((n) => PNL.app.go(n), k); await page.waitForFunction((n) => PNL.rsTab.state().walk && PNL.rsTab.state().walk.k === n, k); };
+const rsFb = (page) => page.locator('#rsPredFb').innerText();
+const rsStartCheck = async (page, v) => { await page.locator('#rsPredStart').fill(String(v)); await page.locator('#rsPredCheck').click(); await page.waitForSelector('#rsPredFb'); return rsFb(page); };
+
+check('F5c T012 · AC5: Burgess paso a paso sin predicción (Klastorin 8.1): «Paso a paso» pasa al calendario de Burgess; cada movimiento con su ventana y sus sumas de cuadrados; el fin; flechas del teclado', async () => {
+  const page = await rsLab(rsHash({ we: 'k81', lang: 'es' }));
+  await page.waitForSelector('#rsWalk');
+  assert.equal(await page.locator('#rsWalk').getAttribute('aria-pressed'), 'false');
+  await page.locator('#rsWalk').click();
+  await page.waitForFunction(() => PNL.rsTab.state().walk && PNL.rsTab.state().walk.k === 1);
+  let h = U5.decode(await page.evaluate(() => location.hash)).state;
+  assert.deepEqual([h.wc, h.step], ['bur', 1]);
+  assert.equal(await page.locator('#rsWalk').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#rsProjTable').count(), 0, 'en el paso a paso no está la tabla del proyecto');
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Pasada 1: C va de 3 a 4');
+  assert.match(await page.locator('#rsStepText').innerText(), /C puede empezar entre 3 y 4/);
+  assert.match(await page.locator('#rsStepText').innerText(), /baja de 1877 a 1825/);
+  assert.match(await page.locator('#rsCounter').innerText(), /Paso 1 de 7 · Pasada 1 · actividad C/);
+  await page.locator('#rsNext').click();
+  await page.waitForFunction(() => PNL.rsTab.state().walk.k === 2);
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Pasada 1: F va de 2 a 11');
+  assert.equal(await page.locator('#rsOpts tbody tr').count(), 10, 'F puede empezar de 2 a 11');
+  assert.equal(await page.locator('#rsOpts tr.chosen').getAttribute('data-s'), '11');
+  assert.equal(await page.locator('#rsGantt .rsg-bar.sel').getAttribute('data-act'), 'F');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'rsNext');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => PNL.rsTab.state().walk.k === 3);
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Pasada 1: E se queda en 2');
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(() => PNL.rsTab.state().walk.k === 2);
+  await page.locator('#rsLast').click();
+  await page.waitForFunction(() => PNL.rsTab.state().walk.k === 7);
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Fin de Burgess');
+  assert.match(await page.locator('#rsStepText').innerText(), /después de 2 pasadas.*de 1877 a 1735.*de 21 a 16/);
+  assert.equal(await page.locator('#rsNext').isDisabled(), true);
+  await page.locator('#rsFirst').click();
+  await page.waitForFunction(() => PNL.rsTab.state().walk.k === 1);
+  // Volver: el calendario de Burgess con la tabla del proyecto.
+  await page.locator('#rsWalk').click();
+  await page.waitForSelector('#rsProjTable');
+  h = U5.decode(await page.evaluate(() => location.hash)).state;
+  assert.deepEqual([h.wc, h.step], ['bur', 0]);
+  await close(page);
+});
+
+check('F5c T012 · AC5: Burgess con predicción (EN, tablero 133): fuera de la ventana, no la menor y el acierto (con empate, el más tardío); «Siguiente» y la flecha esperan a comprobar', async () => {
+  const page = await rsLab(rsHash({ we: 'k81', wc: 'bur', lang: 'en', step: 2, pred: 1 }));
+  await page.waitForSelector('#rsPredStart');
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Where does F start?');
+  assert.match(await page.locator('#rsGanttHead').innerText(), /Before moving F \(sum of squares 1,?825\)/);
+  assert.equal(await page.locator('#rsOpts').count(), 0, 'las sumas de cuadrados se ven después de comprobar');
+  assert.equal(await page.locator('#rsNext').isDisabled(), true);
+  await page.locator('#rsPredStart').focus();
+  await page.locator('#rsStepCard').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('ArrowRight');
+  assert.equal((await rsWalkSt(page)).k, 2, 'la flecha no salta la predicción');
+  await page.locator('#rsPredCheck').click();
+  assert.equal(await page.locator('#rsPredEmpty').isVisible(), true);
+  assert.match(await rsStartCheck(page, 12), /Out of its window: F can only start between 2 and 11\./);
+  assert.equal(await page.locator('#rsNext').isDisabled(), false);
+  assert.equal(await page.locator('#rsOpts tr.yours').count(), 0);
+  await rsStepTo(page, 1); await page.locator('#rsPredShow').click(); await rsStepTo(page, 2);
+  assert.match(await rsStartCheck(page, 5), /Not the least: with 5, the sum of squares is 1,?815; there is a start with 1,?735\./);
+  assert.equal(await page.locator('#rsOpts tr.yours').getAttribute('data-s'), '5');
+  await rsStepTo(page, 1); await page.locator('#rsPredShow').click(); await rsStepTo(page, 2);
+  assert.match(await rsStartCheck(page, 9), /^✓ Right: with 9, the sum of squares is the least \(1,?735\)\. With a tie, Burgess keeps the latest: 11\./m);
+  assert.match(await page.locator('#rsGanttHead').innerText(), /After moving F \(sum of squares 1,?735\)/);
+  await close(page);
+});
+
+check('F5c T012 · AC5: esquema serie con predicción (Klastorin 8.5, tablero 136): primero qué actividad toca y después cuándo empieza, con cada motivo', async () => {
+  const page = await rsLab(rsHash({ we: 'k85', lang: 'es', step: 2, pred: 1 }));
+  await page.waitForSelector('#rsPick-A');
+  assert.equal(await page.locator('#rsStepHead').innerText(), '1 · ¿Qué actividad toca?');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#rsElig tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim()))), [['D', '0', '3'], ['A', '3', '3']]);
+  assert.equal(await page.locator('#rsPredStart').count(), 0, 'el comienzo se pregunta después');
+  // Elegir A: la regla elige otra.
+  await page.locator('#rsPick-A').click();
+  assert.equal(await page.locator('#rsPick-A').getAttribute('aria-pressed'), 'true');
+  await page.locator('#rsPickCheck').click();
+  await page.waitForSelector('#rsPredStart');
+  assert.match(await page.locator('#rsPickFb').innerText(), /La regla elige otra: D va antes \(holgura total: 0, frente a 3 de A\)\./);
+  assert.equal(await page.locator('#rsStepHead').innerText(), '2 · ¿Cuándo empieza D?');
+  assert.equal(await page.locator('#rsNext').isDisabled(), true);
+  const fb = await rsStartCheck(page, 2);
+  assert.match(fb, /Demasiado pronto: las predecesoras de D acaban en 3\./);
+  assert.match(fb, /La regla elige otra/);
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Se coloca D: empieza en 3');
+  // Paso 3: C no es elegible; A no cabe en 3 y en 9 es más tarde de lo necesario.
+  await rsStepTo(page, 3);
+  await page.waitForSelector('#rsPick-C');
+  await page.locator('#rsPick-C').click();
+  await page.locator('#rsPickCheck').click();
+  await page.waitForSelector('#rsPickFb');
+  assert.match(await page.locator('#rsPickFb').innerText(), /C no es elegible: le falta A por colocar\./);
+  assert.match(await rsStartCheck(page, 3), /No cabe en 3: en el periodo 4 harían falta 11 trabajadores y hay 9\./);
+  await rsStepTo(page, 2); await rsStepTo(page, 3);
+  await page.locator('#rsPick-A').click(); await page.locator('#rsPickCheck').click();
+  await page.waitForSelector('#rsPredStart');
+  assert.match(await page.locator('#rsPickFb').innerText(), /Sí: la regla elige A\./);
+  assert.match(await rsStartCheck(page, 9), /Más tarde de lo necesario: A cabe antes, en 8\./);
+  await rsStepTo(page, 2); await rsStepTo(page, 3);
+  await page.locator('#rsPick-A').click(); await page.locator('#rsPickCheck').click();
+  await page.waitForSelector('#rsPredStart');
+  assert.match(await rsStartCheck(page, 8), /Sí: A empieza en 8\./);
+  assert.match(await page.locator('#rsStepText').innerText(), /en el periodo 4 harían falta 11 trabajadores y hay 9/);
+  // «Mostrar la solución» también deja seguir.
+  await rsStepTo(page, 4);
+  await page.waitForSelector('#rsPick-C');
+  await page.locator('#rsPredShow').click();
+  await page.waitForFunction(() => !document.getElementById('rsPick-C'));
+  assert.equal(await page.locator('#rsNext').isDisabled(), false);
+  await close(page);
+});
+
+check('F5c T012 · AC5: esquema paralelo con predicción (Nicholas 7.23, EN, tablero 137): qué empieza en 4, cada motivo y el acierto; el instante en el Gantt', async () => {
+  const page = await rsLab(rsHash({ we: 'n723', ws: 'pf', lang: 'en', step: 4, pred: 1 }));
+  await page.waitForSelector('#rsSet-F');
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Which activities start at 4?');
+  assert.equal(await page.locator('#rsGantt .rsg-now').count(), 1);
+  assert.equal(await page.locator('#rsGantt .rsg-bar[data-act="F"]').count(), 0, 'F aún no está');
+  const setCheck = async (ids) => {
+    for (const id of ['F', 'E', 'D']) await page.locator(`#rsSet-${id}`).setChecked(ids.includes(id));
+    await page.locator('#rsPredCheck').click();
+    await page.waitForSelector('#rsPredFb');
+    return rsFb(page);
+  };
+  const again = async (ids) => { await rsStepTo(page, 3); await page.locator('#rsPredShow').click(); await rsStepTo(page, 4); await page.waitForSelector('#rsSet-F'); return setCheck(ids); };
+  await page.locator('#rsPredCheck').click();
+  assert.equal(await page.locator('#rsPredEmpty').isVisible(), true);
+  assert.match(await setCheck(['F', 'D']), /Not all of them fit: with F and D, period 5 would need 15 workers and there are 10\./);
+  assert.match(await again(['F']), /One more fits: E also fits at 4\./);
+  assert.match(await again(['D']), /The rule goes first: F \(total slack: 0\) comes before D \(7\)\./);
+  assert.match(await again(['F', 'E']), /Right: F and E start\./);
+  assert.match(await page.locator('#rsStepText').innerText(), /D waits: period 5 would need 20 workers and there are 10; it starts at 10\./);
+  assert.equal(await page.locator('#rsGantt .rsg-bar[data-act="F"]').count(), 1);
+  // Un instante sin ninguna que empiece no se pregunta.
+  await rsStepTo(page, 5);
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Nothing starts at 7');
+  assert.equal(await page.locator('#rsNext').isDisabled(), false);
+  await close(page);
+});
+
+check('F5c T012 · AC5: hacia atrás (serie, Klastorin 8.5): la red al revés, el tiempo desde el final y, al acabar, el calendario al derecho; cambiar la regla sigue en el paso a paso', async () => {
+  const page = await rsLab(rsHash({ we: 'k85', ws: 'sb', lang: 'es', step: 1 }));
+  await page.waitForSelector('#rsBackNote');
+  assert.match(await page.locator('#rsBackNote').innerText(), /red al revés.*desde el final/);
+  assert.equal(await page.locator('#rsStepHead').innerText(), 'Se coloca E: empieza en 0');
+  await page.locator('#rsLast').click();
+  await page.waitForFunction(() => PNL.rsTab.state().walk.kind === 'rsEnd');
+  assert.match(await page.locator('#rsStepText').innerText(), /dura 14 .*cota de Baker, 13/);
+  assert.equal(await page.locator('#rsBackNote').count(), 0);
+  // Otra regla: vuelve al paso 1 de su traza, sin salir del paso a paso.
+  await page.locator('#rsRule').selectOption('lft');
+  await page.waitForFunction(() => PNL.rsTab.state().walk && PNL.rsTab.state().walk.k === 1);
+  const h = U5.decode(await page.evaluate(() => location.hash)).state;
+  assert.deepEqual([h.wp, h.step], ['lft', 1]);
+  // Otro calendario sin paso a paso (el óptimo): se sale.
+  await page.locator('#rsCal').selectOption('opt');
+  await page.waitForFunction(() => PNL.rsTab.state().cal === 'opt' && !PNL.rsTab.state().walk);
+  await close(page);
+});
+
+check('F5c T012 · axe sin violaciones en el paso a paso (al predecir y corregido; claro y oscuro, ES y EN; Burgess, serie y paralelo); a 360 px sin desbordar', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await rsLab(rsHash({ we: 'k81', wc: 'bur', lang, step: 2, pred: 1 }), { scheme });
+    await page.waitForSelector('#rsPredStart');
+    await axe(page, `F5c T012 · Burgess, al predecir · ${lang} · ${scheme}`);
+    await rsStartCheck(page, 5);
+    await axe(page, `F5c T012 · Burgess, corregido · ${lang} · ${scheme}`);
+    await rsGo(page, { we: 'k85', lang, step: 3, pred: 1 });
+    await page.waitForSelector('#rsPick-A');
+    await axe(page, `F5c T012 · serie, al predecir · ${lang} · ${scheme}`);
+    await page.locator('#rsPick-A').click(); await page.locator('#rsPickCheck').click();
+    await page.waitForSelector('#rsPredStart');
+    await axe(page, `F5c T012 · serie, el comienzo · ${lang} · ${scheme}`);
+    await rsGo(page, { we: 'n723', ws: 'pf', lang, step: 4, pred: 1 });
+    await page.waitForSelector('#rsSet-F');
+    await axe(page, `F5c T012 · paralelo, al predecir · ${lang} · ${scheme}`);
+    await page.locator('#rsSet-F').check(); await page.locator('#rsPredCheck').click();
+    await page.waitForSelector('#rsPredFb');
+    await axe(page, `F5c T012 · paralelo, corregido · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await rsLab(rsHash({ we: 'k85', lang: 'es', step: 3, pred: 1 }), { width: 360, height: 740 });
+  await m.waitForSelector('#rsPick-A');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await shot(m, 'f5c-t012-k85-360', true);
+  await close(m);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

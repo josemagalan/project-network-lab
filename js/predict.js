@@ -19,6 +19,10 @@
  * En la compresión coste–tiempo (F5b T012, `analyze` B3), el conjunto de actividades que se acortan en el paso (CT_SET, un
  * conjunto): vale cualquiera que corte todos los caminos críticos al coste mínimo, según core/crash.setCheck con los datos
  * del paso (rv.check). Un valor sin actividad ni suceso (ct.set, ct.cost) tiene por clave su campo.
+ * En los recursos (F5c T012, P9, `analyze` C4), con los datos del paso (rv.check) y core/resource: qué actividad elige la
+ * regla en el esquema serie (RS_PICK; vale una empatada, pickCheck), cuándo empieza (RS_START, un entero; en Burgess, uno
+ * de los de menor suma de cuadrados, startCheck) y qué actividades empiezan en un instante del paralelo (RS_SET, un
+ * conjunto; setCheck).
  */
 (function (root) {
   'use strict';
@@ -49,6 +53,11 @@
   // F5b (T012): el conjunto que se acorta en un paso de la compresión; lo corrige core/crash (grupo ct, ya cargado).
   const CT_SET = 'ct.set';
   const crash = () => root.PNL.crash || (typeof module !== 'undefined' && module.exports ? require('./core/crash.js') : null);
+  // F5c (T012): las tres preguntas de los recursos; las corrige core/resource (grupo rs, ya cargado).
+  const RS_PICK = 'rs.pick';
+  const RS_START = 'rs.start';
+  const RS_SET = 'rs.set';
+  const resource = () => root.PNL.resource || (typeof module !== 'undefined' && module.exports ? require('./core/resource.js') : null);
   const byId = (a, b) => a.localeCompare(b, 'en', { numeric: true });
 
   // Qué precedentes marcadas sobran y cuáles faltan respecto a las que llevan ficticia de dependencia.
@@ -116,6 +125,21 @@
         out.set(key(rv), !given || !given.size ? 'empty' : (crash().setCheck(rv.check, [...given]).ok ? 'ok' : 'wrong'));
         continue;
       }
+      if (rv.field === RS_PICK) {
+        const given = answers.get(key(rv));
+        out.set(key(rv), given == null || given === '' ? 'empty' : (resource().pickCheck(rv.check, given).ok ? 'ok' : 'wrong'));
+        continue;
+      }
+      if (rv.field === RS_SET) {
+        const given = answers.get(key(rv));
+        out.set(key(rv), !given || !given.size ? 'empty' : (resource().setCheck(rv.check, [...given]).ok ? 'ok' : 'wrong'));
+        continue;
+      }
+      if (rv.field === RS_START) {
+        const a = parseAnswer(answers.get(key(rv)));
+        out.set(key(rv), a === null ? 'empty' : (Number.isInteger(a) && resource().startCheck(rv.check, a).ok ? 'ok' : 'wrong'));
+        continue;
+      }
       if (rv.field === M7_PATH) {
         const given = answers.get(key(rv));
         out.set(key(rv), given == null || given === '' ? 'empty' : (rv.ok.includes(given) ? 'ok' : 'wrong'));
@@ -138,7 +162,7 @@
   const hasPrediction = (step) => !!step && (step.kind === 'progAct' || !!step.rule || (step.kind === 'm0Frag' && !!step.fields)
     || (!!step.reveals && step.reveals.length > 0));
 
-  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, m0Diff, M0_GIVES, M7_PATH, GPR_CLS, CT_SET, GPR_CLASSES, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
+  const api = { check, summary, key, parseAnswer, hasPrediction, ruleDiff, progDiff, m0Diff, M0_GIVES, M7_PATH, GPR_CLS, CT_SET, RS_PICK, RS_START, RS_SET, GPR_CLASSES, RULE_ACTS, RULE_COUNT, PROG_START, PROG_DUMMIES, PROG_STARTS };
   root.PNL = root.PNL || {};
   root.PNL.predict = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
