@@ -14278,6 +14278,51 @@ check('F5c T012 · axe sin violaciones en el paso a paso (al predecir y corregid
   await close(m);
 });
 
+// ---------- F5c, T013: «Aprende más» (grupo rl) ----------
+
+check('F5c T013 · AC12 y AC13: «Aprende más» carga su grupo (rl) solo al abrirlo y cuenta nivelar o limitar, Burgess, los esquemas y las reglas, Baker, la cadena crítica y sus colchones (ES y EN), con sus referencias; con todo abierto, por debajo de 1 MB', async () => {
+  const L = require(path.join(ROOT, 'js', 'learn-rs.js'));
+  for (const lang of ['es', 'en']) {
+    const page = await rsLab(rsHash({ we: 'k85', lang }));
+    await page.waitForSelector('#rsLearn');
+    assert.equal(await page.evaluate(() => !!PNL.learnRs || [...document.scripts].some((x) => /learn-rs/.test(x.getAttribute('src') || ''))), false);
+    await page.locator('#rsLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open);
+    assert.equal(await page.evaluate(() => !!PNL.learnRs), true);
+    assert.equal(await page.locator('#learnTitle').innerText(), L[lang].title);
+    assert.equal(await page.locator('#learnBody h3').count(), L[lang].sections.length + 1);
+    assert.equal(await page.locator('#learnBody li').count(), L.refs[lang].length);
+    assert.match(await page.locator('#learnBody').innerText(), /⌈\(101 \+ 3 \+ 8\) \/ 9⌉ = 13/);
+    await page.keyboard.press('Escape');
+    await page.waitForFunction(() => !document.getElementById('learnDialog').open);
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'rsLearn');
+    // También desde el paso a paso; con todo abierto, la vista sigue por debajo de 1 MB.
+    await rsGo(page, { we: 'k85', lang, step: 2, pred: 1 });
+    await page.waitForSelector('#rsPick-A');
+    await page.locator('#rsLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open);
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')]
+      .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
+    console.log(`    cpm.html#v=rs (${lang}) + paso a paso + «Aprende más»: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${bytes} bytes`);
+    await close(page);
+  }
+});
+
+check('F5c T013 · axe sin violaciones con «Aprende más» abierto (ES claro, EN oscuro); la barra con «Aprende más» no desborda a 360 px', async () => {
+  for (const [lang, scheme] of [['es', 'light'], ['en', 'dark']]) {
+    const page = await rsLab(rsHash({ we: 'k81', lang }), { scheme });
+    await page.locator('#rsLearn').click();
+    await page.waitForFunction(() => document.getElementById('learnDialog').open);
+    await axe(page, `F5c T013 · Aprende más · ${lang} · ${scheme}`);
+    await close(page);
+  }
+  const m = await rsLab(rsHash({ we: 'k81', lang: 'es' }), { width: 360, height: 740 });
+  await m.waitForSelector('#rsLearn');
+  assert.equal(await m.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
+  await close(m);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

@@ -3,7 +3,7 @@
  * T009: la barra (extensión, proyecto, «Partir del taller» y, en la segunda fila, el modo), la tabla del proyecto (de solo
  * lectura en los ejemplos, con un uso por recurso y, con recursos limitados, sus disponibilidades; editable con «Tabla
  * propia», con el error o el aviso de cada fila) y los recursos de la tabla propia. El Gantt con perfiles y la nivelación
- * (T010), los recursos limitados (T011), el paso a paso (T012) y «Aprende más» (T013) llegan con sus tareas. Hasta T014 la
+ * (T010), los recursos limitados (T011), el paso a paso (T012) y «Aprende más» (T013, learn-rs en el grupo rl). Hasta T014 la
  * vista solo se abre por enlace (v=rs).
  *
  * La parte sin DOM (source, resources, model, resRows, resFromRows, issueText, rowMarks, workRows, pasteRows) se prueba
@@ -450,6 +450,8 @@
           h('span', { class: 'rs-push' }),
           // «Paso a paso» (T012): del paso 1 en adelante; si el calendario no tiene paso a paso, pasa al de Burgess o al de la regla.
           h('div', { class: 'seg' }, [h('button', { type: 'button', class: 'ghost', id: 'rsWalk', 'aria-pressed': String(walking()), disabled: !m.p, onclick: toggleWalk }, [tr('walk.toggle')])]),
+          // «Aprende más» (T013): el diálogo de la página, con learn-rs (grupo rl) cargado al abrirlo.
+          hooks.learn ? button(I.t(lang(), 'learn.button'), () => hooks.learn(), { id: 'rsLearn' }) : null,
         ]),
         h('div', { class: 'rs-row' }, [
           h('div', { class: 'seg rs-mode', role: 'group', 'aria-label': tr('mode.label') }, [mode('lev'), mode('lim')]),

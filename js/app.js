@@ -110,8 +110,10 @@
     ct: ['css/ct.css', 'js/core/lp.js', 'js/core/crash.js', 'js/core/crashex.js', 'js/i18n-ct.js', 'js/views/ct-chart.js', 'js/ct.js'],
     // F5c (plan §4): v=rs, recursos, con su núcleo (nivelación, esquemas y búsquedas exactas) y ejemplos, textos, controlador y hoja.
     rs: ['css/rs.css', 'js/core/resource.js', 'js/core/resex.js', 'js/i18n-rs.js', 'js/views/rs-gantt.js', 'js/rs.js'],
+    // F5c (T013): «Aprende más» de recursos, al abrirlo.
+    rl: ['js/learn-rs.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt, rs: () => !!G.rsTab };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt, rs: () => !!G.rsTab, rl: () => !!G.learnRs };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -1130,6 +1132,8 @@
   // «Aprende más» de «Precedencias generalizadas» (F5a, T014): su grupo (gl) se carga al abrirlo.
   // «Aprende más» de coste–tiempo (F5b, T014): el mismo diálogo, con learn-ct (grupo cl).
   function openCtLearn() { openSectionsLearn('learnCt', 'cl', openCtLearn); }
+  // «Aprende más» de recursos (F5c, T013): el mismo diálogo, con learn-rs (grupo rl).
+  function openRsLearn() { openSectionsLearn('learnRs', 'rl', openRsLearn); }
   function openGprLearn() { openSectionsLearn('learnGpr', 'gl', openGprLearn); }
   function openSectionsLearn(name, group, again) {
     const LG = G[name];
@@ -1398,6 +1402,7 @@
         // «Partir del taller» (AC9): la tabla del taller (o el ejemplo que muestra) con su forma.
         workRows: workSource,
         ext: extSwitch,
+        learn: openRsLearn,
         // Paso a paso (T012): la predicción de la página, como en coste–tiempo.
         pred: () => pred, predicting,
         predCheck: (step) => { pred.result = PR.check(step, pred.answers); pred.step = state.step; pred.done = true; render(); },
