@@ -240,15 +240,19 @@
     d.appendChild(h('div', { class: 'fx-panel', role: 'group', 'aria-label': t(spec, 'label') }, kids));
   }
 
-  // Alineado a la derecha del botón; si así se saldría por la izquierda, a la izquierda; y si tampoco cabe (pantalla
-  // estrecha, botón en medio), desplazado lo justo para quedar dentro.
+  // Fijo en la pantalla (así no lo recorta una caja que se desplaza, como las columnas del detective): bajo el botón y
+  // alineado a su derecha, dentro de la pantalla; si abajo no cabe y arriba sí, encima; si no, se desplaza por dentro.
   function place(d) {
     const pn = d.querySelector('.fx-panel'); if (!pn || !d.open) return;
-    pn.classList.remove('fx-left'); pn.style.left = '';
-    if (pn.getBoundingClientRect().left >= 8) return;
-    pn.classList.add('fx-left');
-    const r = pn.getBoundingClientRect(); const W = root.document.documentElement.clientWidth;
-    if (r.right > W - 8) pn.style.left = `${Math.round(W - 8 - r.right)}px`;
+    const s = d.querySelector('summary').getBoundingClientRect();
+    const W = root.document.documentElement.clientWidth; const H = root.innerHeight;
+    pn.style.maxHeight = '';
+    const w = pn.offsetWidth; const hg = pn.offsetHeight;
+    let top = s.bottom + 6;
+    if (top + hg > H - 8 && s.top - 6 - hg >= 8) top = s.top - 6 - hg;
+    pn.style.left = `${Math.round(Math.max(8, Math.min(s.right - w, W - 8 - w)))}px`;
+    pn.style.top = `${Math.round(top)}px`;
+    if (top + hg > H - 8) pn.style.maxHeight = `${Math.max(120, Math.floor(H - 8 - top))}px`;
   }
   function mount(d, spec) {
     d.fxSpec = spec;
@@ -264,8 +268,12 @@
     d.fxSpec = spec;
     if (d.fxShape !== shape(spec)) build(d);
   }
-  // Pulsar fuera cierra los menús abiertos (como «Ajustes»); el foco no se mueve.
+  // Pulsar fuera cierra los menús abiertos (como «Ajustes»); el foco no se mueve. Al desplazar o cambiar el tamaño de la
+  // ventana, el menú abierto sigue al botón.
   if (root.document) {
+    const follow = () => root.document.querySelectorAll('details.fx[open]').forEach(place);
+    root.addEventListener('scroll', follow, true);
+    root.addEventListener('resize', follow);
     root.document.addEventListener('click', (e) => {
       root.document.querySelectorAll('details.fx[open]').forEach((d) => { if (!d.contains(e.target)) d.open = false; });
     });

@@ -15076,6 +15076,125 @@ check('F5d T006 · AC10: el botón de la red y el del Gantt, con el menú abiert
   }
 });
 
+// ---------- F5d T007: «Ejercicios» ----------
+const fxUrl = (url) => url.replace('cpm.html#', 'cpm.html?fx=1#');
+async function fxSeg(page, H) {
+  const d = page.locator(`${H} > details.fx`);
+  if (!(await d.evaluate((x) => x.open))) await d.locator('summary').click();
+  await page.waitForSelector(`${H} .fx-panel`);
+  const m = await page.evaluate((h) => { const pn = document.querySelector(`${h} .fx-panel`); return { seg: [...pn.querySelectorAll('.seg button')].map((b) => `${b.textContent}${b.getAttribute('aria-pressed') === 'true' ? '*' : ''}`), hints: [...pn.querySelectorAll('.fx-hint')].filter((x) => !x.hidden).map((x) => x.textContent) }; }, H);
+  await page.keyboard.press('Escape');
+  return m;
+}
+const numsOf = (tex) => tikzTexts(tex).filter((x) => /^\d+$/.test(x));
+const EX_ONLY = '«Resuelta» aparece al entregar el ejercicio o pedir la solución.';
+
+check('F5d T007 · AC7 (P2): ejercicio de cálculo: antes de comprobar, solo la ROY en blanco (nombres y duraciones); después, también resuelta, con los tiempos y el camino crítico; la PERT de sucesos, igual', async () => {
+  const s = { sd: 14844, lv: 'medium', lang: 'es', ask: ['times', 'events'] };
+  const m = exModel(s);
+  const page = await open(fxUrl(exUrl(s)));
+  const H = '#exView .ex-net-card .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  let mm = await fxSeg(page, H);
+  assert.deepEqual(mm.seg, ['En blanco*']);
+  assert.equal(mm.hints[0], EX_ONLY);
+  const blank = await fxCopy(page, H, 'blank');
+  assert.match(blank, new RegExp(`^% Red ROY · Semilla ${m.seed} · Project Network Lab`));
+  assert.doesNotMatch(blank, /\[pnl thick/);
+  assert.deepEqual(numsOf(blank).sort(), m.project.activities.map((a) => String(a.d)).sort());
+  await page.locator('#exCheck').click();
+  mm = await fxSeg(page, H);
+  assert.deepEqual(mm.seg, ['En blanco*', 'Resuelta']);
+  const solved = await fxCopy(page, H, 'solved');
+  assert.match(solved, /\[pnl thick/);
+  assert.ok(numsOf(solved).includes(String(m.sol.cpm.duration)), 'la duración del proyecto');
+  assert.ok(numsOf(solved).length > numsOf(blank).length * 3);
+  // La PERT de sucesos (pestaña «Sucesos»): en blanco, los sucesos numerados; resuelta, con sus tiempos.
+  await page.locator('#exTabEvents').click();
+  await page.waitForSelector(`${H} > details.fx`);
+  const pb = await fxCopy(page, H, 'blank');
+  assert.match(pb, /^% Red PERT · Semilla/);
+  const nev = m.sol.net.events.length;
+  assert.equal((pb.match(/circle\[radius=/g) || []).length, nev);
+  assert.deepEqual(numsOf(pb).map(Number).sort((a, b) => a - b), Array.from({ length: nev }, (_, i) => i + 1));
+  const ps = await fxCopy(page, H, 'solved');
+  assert.ok(numsOf(ps).includes(String(m.sol.events.TE[nev])), 'el tiempo del último suceso');
+  assert.match(ps, /\[pnl thick/);
+  await close(page);
+  // Examen entregado: las dos desde el principio.
+  const ex = await open(fxUrl(exUrl(Object.assign({}, s, { xm: 'exam', xd: 1 }))));
+  await ex.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(ex, H)).seg, ['En blanco*', 'Resuelta']);
+  await close(ex);
+});
+
+check('F5d T007 · AC7 (P2): ejercicio de probabilidad (TCL): la ROY en blanco antes de comprobar; resuelta después, con el camino crítico', async () => {
+  const page = await open(fxUrl(pbUrl({ sd: 50, lv: 'hard', lang: 'es' })));
+  const H = '#exView .ex-net-card .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(page, H)).seg, ['En blanco*']);
+  const blank = await fxCopy(page, H, 'blank');
+  assert.doesNotMatch(blank, /\[pnl thick/);
+  await page.locator('#pbCheck').click();
+  assert.deepEqual((await fxSeg(page, H)).seg, ['En blanco*', 'Resuelta']);
+  const solved = await fxCopy(page, H, 'solved');
+  assert.match(solved, /\[pnl thick/);
+  const digits = (x) => tikzTexts(x).join('').replace(/\D/g, '').length;
+  assert.equal(digits(blank), 0, 'en blanco, solo los nombres (la caja compacta sin cifras no se escribe)');
+  assert.ok(digits(solved) > 0);
+  await close(page);
+});
+
+check('F5d T007 · AC7 (P3): detective: en blanco, la red del enunciado sin las marcas; tras «Ver los errores» o comprobar, también la corregida, que es la de pantalla', async () => {
+  const page = await open(fxUrl(dtUrl({ sd: 92846, lv: 'hard', dg: 'aoa', dk: 'all', lang: 'es' })));
+  const H = '#exView .dt-head .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(page, H)).seg, ['En blanco*']);
+  const blank0 = await fxCopy(page, H, 'blank');
+  assert.match(blank0, /^% Red PERT · Semilla 92846/);
+  await page.locator('#dtSee').click();
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(page, H)).seg, ['En blanco*', 'Resuelta']);
+  const blank = await fxCopy(page, H, 'blank');
+  assert.ok(sameBody(blank, blank0), 'en blanco no cambia al ver los errores');
+  const solved = await fxCopy(page, H, 'solved');
+  assert.ok(sameBody(solved, await screenTikz(page, '#exView .dt-net-box svg')), 'resuelta = pantalla');
+  assert.notEqual(solved, blank);
+  await close(page);
+});
+
+check('F5d T007 · AC7 (P4): construir la ROY: en blanco, el dibujo del alumno tal como está; tras «Ver la red correcta» o comprobar, también la correcta, con todas las actividades', async () => {
+  const s = { sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' };
+  const page = await open(fxUrl(xbUrl(s)));
+  const H = '#exView .xb-work .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(page, H)).seg, ['En blanco*']);
+  const blank = await fxCopy(page, H, 'blank');
+  assert.ok(sameBody(blank, await screenTikz(page, '#exView .xb-canvas svg.xb-svg')), 'en blanco = el lienzo');
+  await page.locator('#xbSee').click();
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(page, H)).seg, ['En blanco*', 'Resuelta']);
+  const solved = await fxCopy(page, H, 'solved');
+  const p = exModel(Object.assign({ xk: 'roy' }, s)).project;
+  for (const a of p.activities) assert.ok(tikzTexts(solved).includes(a.id), a.id);
+  await close(page);
+});
+
+check('F5d T007 · AC7 (P4): construir la PERT: el dibujo del alumno en blanco; con la solución a la vista, la red de la solución como resuelta', async () => {
+  const s = { sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es' };
+  const page = await open(fxUrl(xpUrl(s)));
+  const H = '#exView .xb-fx .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(page, H)).seg, ['En blanco*']);
+  assert.ok(sameBody(await fxCopy(page, H, 'blank'), await screenTikz(page, '#exView svg.reto-svg')));
+  await page.locator('#exView [data-k="solution"]').click();
+  await page.waitForSelector('#exView .reto-solution svg.net');
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.deepEqual((await fxSeg(page, H)).seg, ['Resuelta*']);
+  assert.ok(sameBody(await fxCopy(page, H, 'solved'), await screenTikz(page, '#exView .reto-solution svg.net')));
+  await close(page);
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

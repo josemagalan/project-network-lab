@@ -76,10 +76,10 @@
   const GRID = ['grid', 'rsg-grid'];
   const THIN = ['sep'];
   const SKIP = ['defs', 'title', 'desc', 'marker', 'pattern', 'style', 'metadata', 'clipPath', 'mask', 'linearGradient', 'radialGradient'];
-  const SYM = { '★': '$\\star$', '−': '$-$', '→': '$\\to$', '←': '$\\leftarrow$', '≤': '$\\le$', '≥': '$\\ge$', '×': '$\\times$', '…': '\\ldots{}', '–': '--', '—': '---' };
+  const SYM = { '★': '$\\star$', '✓': '$\\surd$', '✗': '$\\times$', '½': '$\\frac{1}{2}$', '−': '$-$', '→': '$\\to$', '←': '$\\leftarrow$', '≤': '$\\le$', '≥': '$\\ge$', '×': '$\\times$', '…': '\\ldots{}', '–': '--', '—': '---' };
   const SPECIAL = { '\\': '\\textbackslash{}', '{': '\\{', '}': '\\}', '&': '\\&', '%': '\\%', '#': '\\#', _: '\\_', $: '\\$', '^': '\\^{}', '~': '\\~{}' };
   /** Texto para LaTeX: los diez caracteres especiales y los símbolos que pdfLaTeX no conoce sin un paquete. */
-  const tex = (s) => String(s).replace(/[\\{}&%#_$^~]/g, (c) => SPECIAL[c]).replace(/[★−→←≤≥×…–—]/g, (c) => SYM[c]);
+  const tex = (s) => String(s).replace(/[\\{}&%#_$^~]/g, (c) => SPECIAL[c]).replace(/[★✓✗½−→←≤≥×…–—]/g, (c) => SYM[c]);
   const f1 = (v) => { const r = Math.round(v * 10) / 10; return (Object.is(r, -0) ? 0 : r).toString(); };
   const has = (el, list) => el.cls.some((c) => list.includes(c));
   const num = (el, k) => parseFloat(el.attrs[k]) || 0;
@@ -188,7 +188,7 @@
           out(`\\draw[${styleOfEl(c)}] ${P(num(c, 'cx'), num(c, 'cy'))} circle[${rr}];`, depth);
         } else if (c.tag === 'text') {
           const s = textOf(c).replace(/\s+/g, ' ').trim();
-          if (!s || s === '·') continue;
+          if (!s || /^[·/\s]+$/.test(s)) continue; // vacío, «·» o «·/·/·» (la caja compacta sin cifras)
           const anchor = st.anchor === 'middle' ? 'base' : st.anchor === 'end' ? 'base east' : 'base west';
           out(`\\node[anchor=${anchor}, font=${fontOf(st)}] at ${P(num(c, 'x'), num(c, 'y'))} {${tex(s)}};`, depth);
         }

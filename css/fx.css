@@ -1,5 +1,5 @@
 /* F5d (T005; tableros 142–146): el menú «Exportar». Se carga con el grupo fx, al abrirlo; el botón está en styles.css. */
-.fx .fx-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; display: flex; flex-direction: column; gap: 8px; width: 290px; padding: 12px 14px; background: var(--card); color: var(--ink); border: 1px solid var(--edge); border-radius: 10px; box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 18%, transparent); text-align: left; font-weight: 400; }
+.fx .fx-panel { position: fixed; z-index: 60; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; width: 290px; padding: 12px 14px; background: var(--card); color: var(--ink); border: 1px solid var(--edge); border-radius: 10px; box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 18%, transparent); text-align: left; font-weight: 400; }
 .fx .fx-lab { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
 .fx .fx-panel .seg button { font-size: 13.5px; padding: 5px 12px; }
 .fx .fx-panel hr { width: 100%; margin: 2px 0; border: 0; border-top: 1px solid var(--line); }
@@ -11,6 +11,5 @@
 .fx .fx-live:not(:empty) { padding: 6px 8px; }
 .fx .fx-live.ok { background: var(--ok-soft); color: var(--ok); }
 .fx .fx-live.warn { background: var(--warn-soft); color: var(--warn); border-left: 3px solid var(--warn-line); }
-.fx .fx-panel.fx-left { right: auto; left: 0; }
 .fx-off { position: absolute; left: -100000px; top: 0; width: 1600px; }
 @media (max-width: 600px) { .fx .fx-panel { width: min(290px, calc(100vw - 24px)); } }

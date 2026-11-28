@@ -49,6 +49,7 @@ select, textarea, input:not([type="checkbox"]):not([type="radio"]) { background:
 .settings > summary .chev { font-size: 11px; }
 .settings[open] > summary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 /* F5d (T005): el botón «Exportar»; el menú, en fx.css. */
+.fx-holder:empty { display: none; }
 .fx { position: relative; }
 .fx > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--accent); font-weight: 600; font-size: 14px; }
 .fx > summary::-webkit-details-marker { display: none; }

@@ -287,6 +287,7 @@
     const solCache = new Map();
 
     function reset() { checked = null; showCorrect = false; confirmOpen = false; tableMsg = null; pst = null; sol = null; if (G.royCanvas) G.royCanvas.reset(); }
+    const fxHolder = G.dom.h('span', { class: 'fx-holder' }); const fxPert = G.dom.h('span', { class: 'fx-holder' });
 
     function onOp(op) {
       const m = last.m;
@@ -392,8 +393,13 @@
         h('p', { id: 'xbConfirmText' }, [tt('xb.exam.confirm')]),
         h('div', { class: 'ex-btns' }, [button(tt('xb.exam.confirmYes'), deliver, { primary: true, attrs: { id: 'xbConfirmYes' } }),
           button(tt('xb.exam.confirmNo'), () => { confirmOpen = false; focusAfter = 'xbDeliver'; redraw(); }, { attrs: { id: 'xbConfirmNo' } })])]) : null;
+      // F5d (T007, P4): «Exportar»: en blanco, el dibujo del alumno tal como está; resuelta, la red correcta (fuera de la
+      // vista), tras comprobar, «Ver la red correcta» o entregar.
+      G.figButton(fxHolder, { kind: 'roy', project: `s${s.sd}`, title: `${tt('view.graphAon')} · ${tt('ex.seed')} ${s.sd}`, lang: lang(), states: sideOn ? ['blank', 'solved'] : ['blank'],
+        initial: 'blank', ctx: 'ex', blank: () => canvasHolder.querySelector('svg.xb-svg'),
+        solved: () => { const c = G.figExport.offscreen(); G.royCanvas.renderStatic(c, { net: placeLevels(RC.fromTable(p)), lang: lang(), name: tt('xb.correctName'), prefix: 'fxok' }); return c.querySelector('svg'); } });
       const head = h('div', { class: 'ex-head' }, [h('h2', { id: 'xbCanvasHead' }, [delivered ? tt('xb.canvasLocked') : tt('xb.canvas')]),
-        delivered ? h('span', { class: 'muted small' }, [tt('xb.locked')]) : null]);
+        delivered ? h('span', { class: 'muted small' }, [tt('xb.locked')]) : null, fxHolder]);
       const canvasCard = h('section', { class: 'card xb-work', 'aria-labelledby': 'xbCanvasHead' }, [head, canvasHolder,
         delivered ? h('div', { class: 'xb-diag-in' }, diagList(p, r)) : null,
         delivered ? h('details', { class: 'xb-alt' }, [h('summary', {}, [tt('xb.yourTable')]), tableCard(p, net, true)]) : null, foot, confirm]);
@@ -521,6 +527,9 @@
         }
       }
 
+      // F5d (T007, P4): «Exportar» de la PERT como se ve: el dibujo del alumno (en blanco) o, con la solución a la vista, la
+      // red de la solución (resuelta).
+      top.push(h('div', { class: 'row-wrap xb-fx' }, [fxPert]));
       clear(container);
       const holder = h('div', { class: 'reto xb-pert' });
       container.appendChild(holder);
@@ -536,6 +545,9 @@
         onRepaint: redraw,
         extra: { top, locked: delivered, note: exam ? tt('xb.exam.note') : null, actions },
       });
+      const stu = holder.querySelector('svg.reto-svg'); const solSvg = holder.querySelector('.reto-solution svg.net');
+      G.figButton(fxPert, stu || solSvg ? { kind: 'pert', project: `s${s.sd}`, title: `${tt('view.graphAoa')} · ${tt('ex.seed')} ${s.sd}`, lang: lang(),
+        states: stu ? ['blank'] : ['solved'], ctx: 'ex', blank: () => holder.querySelector('svg.reto-svg'), solved: () => holder.querySelector('.reto-solution svg.net') } : null);
       const want = focusAfter;
       focusAfter = null;
       if (want) { const el = root.document.getElementById(want); if (el && !el.disabled) el.focus(); }

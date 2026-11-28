@@ -159,3 +159,11 @@ test('F5d T002: el SVG en texto de net-svg (el del examen y Moodle) se convierte
   assert.equal(new RegExp(`rectangle \\(${w},`).test(tz), false, 'sin el rectángulo del fondo');
   assert.ok(arrows(tz).length >= project.activities.length);
 });
+
+test('F5d T007: los signos de la corrección del detective (✓, ✗, ½) salen en LaTeX sin paquetes; la caja compacta sin cifras («·/·/·») no se escribe', () => {
+  const tree = F.parse('<svg viewBox="0 0 100 40"><text x="5" y="10">✓ ✗ ½</text><text x="5" y="30">·/·/·</text><text x="50" y="30">·/3/·</text></svg>');
+  const out = F.toTikz(tree, { title: 't' });
+  assert.match(out, /\{\$\\surd\$ \$\\times\$ \$\\frac\{1\}\{2\}\$\}/);
+  assert.doesNotMatch(out, /·\/·\/·/);
+  assert.match(out, /\{·\/3\/·\}/);
+});

@@ -318,8 +318,9 @@
 
       // ---- Red ROY sin cifras (plegable) ----
       const holder = h('div', { class: 'ex-net', id: 'pbNet', tabindex: '0', hidden: folded || null });
+      if (!normal) fxNet(ex, s, !!g);
       const netCard = normal ? null : h('section', { class: 'card ex-net-card', 'aria-label': t('ex.roy') }, [
-        h('div', { class: 'ex-head' }, [h('h2', {}, [t('ex.roy')]), h('button', { type: 'button', class: 'ghost', id: 'pbFold', 'aria-expanded': String(!folded), 'aria-controls': 'pbNet',
+        h('div', { class: 'ex-head' }, [h('h2', {}, [t('ex.roy')]), fxHolder, h('button', { type: 'button', class: 'ghost', id: 'pbFold', 'aria-expanded': String(!folded), 'aria-controls': 'pbNet',
           onclick: () => { folded = !folded; focusAfter = 'pbFold'; redraw(); } }, [folded ? t('ex.unfold') : t('ex.fold')])]),
         holder, folded ? null : h('p', { class: 'muted small' }, [t('ex.royAlt')])]);
 
@@ -420,6 +421,28 @@
       for (const tr of container.querySelectorAll('tr[data-act]')) tr.classList.toggle('sel', tr.getAttribute('data-act') === a);
     }
 
+    // F5d (T007, P2): «Exportar» de la ROY: en blanco, como se ve (solo los nombres); tras comprobar o entregar, también
+    // resuelta, con las duraciones medias, los tiempos y el camino crítico. Se dibuja fuera de la vista.
+    const fxHolder = h('span', { class: 'fx-holder' });
+    function fxNet(ex, s, done) {
+      const draw = (solved) => () => {
+        layOf(ex);
+        const c = G.figExport.offscreen();
+        G.royView.render(c, { project: lay.project, solution: lay.sol, lay: lay.roy, step: null, box: 'c', lang: lang(), nota: s.nota, selected: null, selPrecs: [], fit: true,
+          revealed: solved ? new Map(lay.sol.trace.flatMap((x) => x.reveals).map((x) => [G.predict.key(x), x.value])) : new Map(), criticalOn: solved,
+          numFmt: solved ? (v) => G.narrate.fmt(lang(), v) : () => '·', name: `${t('ex.region')} · ${t('ex.seed')} ${s.sd}`, geo: { gx: 30, gy: 20 }, minWidth: 360 });
+        return c.querySelector('svg');
+      };
+      G.figButton(fxHolder, { kind: 'roy', project: `s${s.sd}`, title: `${t('view.graphAon')} · ${t('ex.seed')} ${s.sd}`, lang: lang(), states: done ? ['blank', 'solved'] : ['blank'],
+        initial: 'blank', ctx: 'ex', solved: draw(true), blank: draw(false) });
+    }
+    function layOf(ex) {
+      if (lay.ex !== ex) {
+        const project = G.project.parse(ex.rows.map((r) => ({ id: r.id, duration: String(r.m), links: r.preds.join(', ') })), 'pred').project;
+        const sol = G.cpm.solve(project);
+        lay = { ex, project, sol, roy: G.layout.layout(sol, project) };
+      }
+    }
     function drawNet(holder, ex, s) {
       if (lay.ex !== ex) {
         const project = G.project.parse(ex.rows.map((r) => ({ id: r.id, duration: String(r.m), links: r.preds.join(', ') })), 'pred').project;

@@ -593,7 +593,34 @@
       if (!folded && !pert) foot.push(h('p', { class: 'muted small' }, [tt('ex.royAlt')]));
       if (!folded && pert) foot.push(h('button', { type: 'button', class: 'linklike', id: 'exArcs', onclick: () => { arcs = !arcs; draw(); focus('exArcs'); } }, [arcs ? tt('ex.netLink') : tt('ex.arcLink')]));
       netHolder.hidden = folded;
-      return h('section', { class: 'card ex-net-card', 'aria-label': title }, [h('div', { class: 'ex-head' }, [h('h2', {}, [title]), fold]), netHolder].concat(foot));
+      fxNet();
+      return h('section', { class: 'card ex-net-card', 'aria-label': title }, [h('div', { class: 'ex-head' }, [h('h2', {}, [title]), fxHolder, fold]), netHolder].concat(foot));
+    }
+    // F5d (T007, P2): «Exportar» de la red (ROY o la PERT de sucesos), dibujada fuera de la vista: en blanco, sin cifras de
+    // tiempos (la que se ve, sin la selección); resuelta, con los tiempos y el camino crítico, solo tras comprobar o entregar.
+    const fxHolder = h('span', { class: 'fx-holder' });
+    function fxNet() {
+      if (!m || !m.sol) return root.PNL.figButton(fxHolder, null);
+      const pert = view === 'events';
+      const key = `${m.seed}|${JSON.stringify(m.params)}`;
+      const L = () => { if (lay.key !== key) lay = { key, roy: root.PNL.layout.layout(m.sol.cpm, m.project), pert: root.PNL.aoaLayout.layout(m.sol.net) }; return lay; };
+      const name = `${tt('ex.region')} · ${tt('ex.seed')} ${m.seed}`;
+      const ev = m.sol.events;
+      const draw = (solved) => () => {
+        const c = root.PNL.figExport.offscreen();
+        if (pert) {
+          const rv = solved ? new Map(Object.keys(ev.TE).flatMap((n) => [[`${n}.TE`, ev.TE[n]], [`${n}.TL`, ev.TL[n]]])) : new Map();
+          root.PNL.pertView.render(c, { net: m.sol.net, lay: L().pert, revealed: rv, numFmt, lang: lang(), nota: nota(), numbered: true, name, fit: true, idPrefix: 'fx-pk',
+            step: null, criticalOn: solved, solution: m.sol.cpm, blank: !solved, geo: { colGap: 104, rowGap: 74 } });
+        } else {
+          const rv = solved ? new Map(m.sol.cpm.trace.flatMap((x) => x.reveals).map((x) => [root.PNL.predict.key(x), x.value])) : new Map();
+          root.PNL.royView.render(c, { project: m.project, solution: m.sol.cpm, lay: L().roy, step: null, revealed: rv, box: state().box, lang: lang(), nota: nota(),
+            criticalOn: solved, numFmt, name, selected: null, selPrecs: [], fit: true, geo: { gx: 30, gy: 20 }, minWidth: 360 });
+        }
+        return c.querySelector('svg');
+      };
+      return root.PNL.figButton(fxHolder, { kind: pert ? 'pert' : 'roy', project: `s${m.seed}`, title: `${tt(pert ? 'view.graphAoa' : 'view.graphAon')} · ${tt('ex.seed')} ${m.seed}`,
+        lang: lang(), states: checked || m.delivered ? ['blank', 'solved'] : ['blank'], initial: 'blank', ctx: 'ex', solved: draw(true), blank: draw(false) });
     }
     function drawNet() {
       if (!m || !m.sol || folded) return;

@@ -182,6 +182,7 @@
     let full = false;          // la última marca se rechazó por pasar de U.MAX_DM (se dice bajo «Tus marcas»)
 
     function reset() { checked = null; showErrors = false; confirmOpen = false; open = null; full = false; }
+    const fxHolder = G.dom.h('span', { class: 'fx-holder' });
     const redraw = () => { if (last) draw(last.container, last.m); };
     const marksOf = () => hooks.state().dm || [];
     const keyOf = (ms) => JSON.stringify(ms);
@@ -280,6 +281,12 @@
       // ---- La red ----
       const netBox = h('div', { class: 'dt-net-box' });
       const values = kind === 'net' ? null : r.seeded.shown.values;
+      // F5d (T007, P3): «Exportar»: en blanco, la red del enunciado sin las marcas (dibujada fuera de la vista); resuelta, la
+      // de pantalla con la corrección, tras comprobar o «Ver los errores» (en el examen, al entregar).
+      const fxDraw = () => { const c = G.figExport.offscreen(); G.detView.render(c, { graph, project: p, shown: r.seeded.shown, values, lang: lang(), nota: s.nota, numFmt: hooks.numFmt,
+        status: {}, ghosts: [], selected: null, label: t(graph === 'aoa' ? 'svgAoa' : 'svgAon'), ariaOf: () => '', interactive: () => false }); return c.querySelector('svg'); };
+      G.figButton(fxHolder, { kind: graph === 'aoa' ? 'pert' : 'roy', project: `s${s.sd}`, title: `${I.t(lang(), graph === 'aoa' ? 'view.graphAoa' : 'view.graphAon')} · ${I.t(lang(), 'ex.seed')} ${s.sd}`,
+        lang: lang(), states: g || (showErrors && !exam) ? ['blank', 'solved'] : ['blank'], initial: 'blank', ctx: 'ex', solved: () => netBox.querySelector('svg'), blank: fxDraw });
       G.detView.render(netBox, {
         graph, project: p, shown: r.seeded.shown, values, lang: lang(), nota: s.nota, numFmt: hooks.numFmt, status, ghosts, selected: open,
         label: t(graph === 'aoa' ? 'svgAoa' : 'svgAon'),
@@ -304,7 +311,7 @@
       const work = h('section', { class: 'card dt-work', 'aria-labelledby': 'dtTitle' }, [
         r.moved ? h('p', { class: 'banner small', id: 'dtMoved', role: 'status' }, [t('moved', { sd: s.sd, used: r.sd })]) : null,
         h('div', { class: 'dt-head' }, [h('h2', { id: 'dtTitle' }, [r.seeded.count === 1 ? t('titleOne') : t('title', { n: r.seeded.count })]),
-          h('p', { class: 'muted small', id: 'dtLegend' }, [legend])]),
+          h('p', { class: 'muted small', id: 'dtLegend' }, [legend]), fxHolder]),
         netBox, menuBox,
         h('div', { class: 'dt-foot' }, [
           h('p', { class: 'muted small', id: exam ? 'dtNote' : 'dtKeys' }, [delivered ? t('exam.delivered') : exam ? t('exam.note') : t('keys')]),
