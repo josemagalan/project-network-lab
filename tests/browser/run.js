@@ -14050,7 +14050,8 @@ check('F5c T011 · AC6 y C2: a mano con recursos limitados (GUMBY): empieza vac�
     await page.waitForFunction((x) => PNL.rsTab.state().moves.some(([i, t]) => i === x[0] && t === x[1]), [id, s]);
   }
   assert.equal((await rsSt(page)).T, 26);
-  assert.match(await page.locator('#rsPlaceDone').innerText(), /26/);
+  // La duración, la de la mejor regla y la del óptimo (T018, I-F10: con /26/ solo, las otras dos quedaban libres).
+  assert.equal(await page.locator('#rsPlaceDone').innerText(), 'Tu calendario dura 26 semanas; la mejor regla, 26 semanas, y el óptimo, 26 semanas.');
   assert.equal(U5.decode(await page.evaluate(() => location.hash)).state.wq.length, 7);
   // Quitar una y empezar de nuevo.
   await page.locator('#rsPlaceAct').selectOption('Z');
@@ -14161,7 +14162,8 @@ check('F5c T012 · AC5: esquema serie con predicción (Klastorin 8.5, tablero 13
   const page = await rsLab(rsHash({ we: 'k85', lang: 'es', step: 2, pred: 1 }));
   await page.waitForSelector('#rsPick-A');
   assert.equal(await page.locator('#rsStepHead').innerText(), '1 · ¿Qué actividad toca?');
-  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#rsElig tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim()))), [['D', '0', '3'], ['A', '3', '3']]);
+  // Mientras se pregunta, en el orden de la tabla: la primera fila no es la respuesta (T018, I-F17).
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#rsElig tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim()))), [['A', '3', '3'], ['D', '0', '3']]);
   assert.equal(await page.locator('#rsPredStart').count(), 0, 'el comienzo se pregunta después');
   // Elegir A: la regla elige otra.
   await page.locator('#rsPick-A').click();
@@ -14554,6 +14556,158 @@ check('F5c T015 · AC13 (principio 27): rs y rl no se cargan en las demás vista
     .reduce((a, e) => a + (e.transferSize || e.encodedBodySize || 0), 0));
   console.log(`    cpm.html#v=rs con todo abierto: ${(bytes / 1024).toFixed(0)} KB`);
   assert.ok(bytes > 0 && bytes <= BUDGET, `${bytes} bytes`);
+  await close(page);
+});
+
+// ---------- F5c T018: revisión de cierre ----------
+// Una tabla de 30 actividades con duraciones de cientos de periodos (la de la revisión: mulberry32(6), duraciones × 50).
+function rsLong(f) {
+  const RNG = require(path.join(ROOT, 'js', 'core', 'rng.js'));
+  const rng = RNG.mulberry32(6); const rows = [];
+  for (let i = 0; i < 30; i++) {
+    const l = []; for (let j = Math.max(0, i - 6); j < i; j++) if (rng() < 0.25) l.push(`A${j}`);
+    rows.push({ id: `A${i}`, name: '', links: l.join(', '), d: String(RNG.int(rng, 1, 6) * f), r1: String(RNG.int(rng, 0, 9)), r2: String(RNG.int(rng, 0, 9)), r3: String(RNG.int(rng, 0, 9)) });
+  }
+  return rows;
+}
+const digits = (x) => String(x).replace(/\D/g, '');
+
+check('F5c T018 · revisión (I-F6, I-F7, I-F9): con duraciones de cientos de periodos, la página no se congela; «no demostrado» con lo mejor encontrado y la cota (óptimo y mínimo del pico), sin decir «llega al óptimo»; el Gantt y el perfil no crecen sin límite', async () => {
+  const wt = rsLong(50); const wr = [{ name: 'A', cap: 12 }, { name: 'B', cap: 12 }, { name: 'C', cap: 12 }];
+  const lim = RSR.parse(wt, wr.map((r) => ({ name: r.name, cap: String(r.cap) })), 'lim').project;
+  const o = RSR.optimum(lim);
+  assert.equal(o.proved, false);
+  const t0 = Date.now();
+  const page = await rsLab(rsHash({ we: 'own', wt, wr, wm: 'lim', wc: 'opt', lang: 'es' }));
+  await page.waitForSelector('#rsGantt svg');
+  assert.ok(Date.now() - t0 < 8000, `${Date.now() - t0} ms`);
+  const dur = await page.locator('#rsDurOpt').innerText();
+  assert.match(dur, /^[\d.]+ \(no demostrado; no baja de [\d.]+\)$/);
+  assert.deepEqual(dur.split('(').map(digits), [String(o.T), String(o.lb)]);
+  assert.match(await page.locator('#rsGanttHead').innerText(), /^Mejor encontrado: .* \(no demostrado\)$/);
+  assert.match(await page.locator('#rsRulesNote').innerText(), /el óptimo no está demostrado/);
+  const labels = await page.evaluate(() => [...document.querySelectorAll('#rsRules button.best')].map((b) => b.getAttribute('aria-label')));
+  assert.ok(labels.length > 0 && labels.every((l) => /iguala lo mejor encontrado/.test(l) && !/llega al óptimo/.test(l)), labels.join(' | '));
+  // El Gantt: como mucho unos 2400 px de periodos, y un tramo del perfil por racha (no uno por periodo).
+  const g = await page.evaluate(() => { const s = document.querySelector('#rsGantt svg'); return { w: Number(s.getAttribute('width')), n: s.querySelectorAll('*').length }; });
+  assert.ok(g.w < 2700 && g.n < 4000, JSON.stringify(g));
+  await page.locator('#rsProfile > summary').click();
+  const rows = await page.locator('#rsProfileTable tbody tr').count();
+  assert.ok(rows > 1 && rows < 400, String(rows));
+  assert.match(await page.locator('#rsProfileTable tbody tr th').first().innerText(), /^1–\d+$/);
+  // Las rachas y sus cifras, las de Node: periodos seguidos con los mismos usos de los tres recursos (ronda 2, F2).
+  const T = Math.max(lim.T, ...lim.activities.map((a) => o.S[a.id] + a.d));
+  const us = [0, 1, 2].map((k) => RSR.profile(lim, o.S, k, T));
+  const want = [];
+  for (let q = 0; q < T; q++) { const l = want[want.length - 1]; if (l && us.every((u) => u[q] === u[l[0]])) l[1] = q + 1; else want.push([q, q + 1]); }
+  const got = await page.evaluate(() => [...document.querySelectorAll('#rsProfileTable tbody tr')].map((tr) => [...tr.children].map((c) => c.textContent.trim())));
+  assert.deepEqual(got.map((r) => r.map(digits)), want.map(([a, b]) => [b - a === 1 ? String(a + 1) : `${a + 1}${b}`].concat(us.map((u) => String(u[a])))));
+  // El perfil del Gantt: un tramo por actividad en curso con uso en cada racha de cortes (comienzos y fines; ronda 2, F6).
+  const cuts = [...new Set([0, T].concat(...lim.activities.map((a) => [o.S[a.id], o.S[a.id] + a.d])))].sort((a, b) => a - b);
+  let segs = 0;
+  for (let c = 0; c + 1 < cuts.length; c++) for (const a of lim.activities) if (o.S[a.id] <= cuts[c] && cuts[c] < o.S[a.id] + a.d) segs += a.r.filter((v) => v > 0).length;
+  assert.equal(await page.locator('#rsGantt rect.rsg-seg').count(), segs);
+  // Colocar a mano el mejor calendario encontrado: «el mejor calendario encontrado», no «el óptimo» (ronda 2, F3).
+  const wq = lim.table.slice().sort((x, y) => o.S[x] - o.S[y] || lim.table.indexOf(x) - lim.table.indexOf(y)).map((id) => [id, o.S[id]]);
+  await rsGo(page, { we: 'own', wt, wr, wm: 'lim', wc: 'man', wq, lang: 'es' });
+  await page.waitForSelector('#rsPlaceDone');
+  assert.match(await page.locator('#rsPlaceDone').innerText(), /^Tu calendario dura [\d.]+; la mejor regla, [\d.]+, y el mejor calendario encontrado, [\d.]+ \(el óptimo no está demostrado\)\.$/);
+  // Nivelar la misma tabla: el mínimo del pico, también cortado, con sus cifras.
+  const lev = RSR.parse(wt, wr.map((r) => ({ name: r.name, cap: '' })), 'lev').project;
+  const mp = RSR.minPeak(lev, 0);
+  assert.equal(mp.proved, false);
+  await rsGo(page, { we: 'own', wt, wr, wm: 'lev', wc: 'min', lang: 'es' });
+  await page.waitForSelector('#rsMinNote');
+  assert.match(await page.locator('#rsMinNote').innerText(), new RegExp(`tiene un pico de ${mp.peak}, y no se puede bajar de ${mp.lb}\\.`));
+  await close(page);
+});
+
+check('F5c T018 · revisión (I-F8, I-F14): la duración de la regla elegida en la tarjeta es la de su celda; el perfil a mano y a medias llega hasta lo colocado', async () => {
+  const page = await rsLab(rsHash({ we: 'k85', lang: 'es' }));
+  const p = RSR.parse(RSX.get('k85').rows, RSX.get('k85').res.map((r) => ({ name: r.name.es, cap: String(r.cap) })), 'lim').project;
+  for (const [rule, sc] of [['lft', 'sf'], ['spt', 'pb'], ['res', 'sf']]) {
+    await page.locator(`#rsRule-${rule}-${sc}`).click();
+    const T = RSR.sgs(p, { rule, scheme: sc[0], dir: sc[1] }).T;
+    await page.waitForFunction((x) => PNL.rsTab.state().T === x, T);
+    assert.equal(await page.locator('#rsDurRule').innerText(), String(T), `${rule} ${sc}`);
+  }
+  await rsGo(page, { we: 'k85', wc: 'man', wq: [['B', 0], ['D', 3], ['A', 14]], lang: 'es' });
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 3);
+  await page.locator('#rsProfile > summary').click();
+  const ths = await page.evaluate(() => [...document.querySelectorAll('#rsProfileTable tbody th')].map((x) => x.textContent.trim()));
+  assert.equal(ths[ths.length - 1], '18');
+  await close(page);
+});
+
+check('F5c T018 · revisión (I-F17, ronda 2, F4): en el paralelo, mientras se pregunta, las casillas, las elegibles y el texto van en el orden de la tabla; al responder, en el de la prioridad', async () => {
+  // Nicholas 7.23 (la tabla en el orden A, E, B, C, D, F), paralelo hacia delante, instante 4: elegibles F, E y D por prioridad.
+  const page = await rsLab(rsHash({ we: 'n723', ws: 'pf', lang: 'en', step: 4, pred: 1 }));
+  await page.waitForSelector('#rsSet-E');
+  const order = () => page.evaluate(() => ({ boxes: [...document.querySelectorAll('[id^="rsSet-"]')].map((x) => x.id.slice(6)), rows: [...document.querySelectorAll('#rsElig tbody tr')].map((tr) => tr.dataset.act) }));
+  assert.deepEqual(await order(), { boxes: ['E', 'D', 'F'], rows: ['E', 'D', 'F'] });
+  assert.match(await page.locator('#rsStepText').innerText(), /\(E, D and F\)/);
+  await page.locator('#rsSet-F').check(); await page.locator('#rsSet-E').check();
+  await page.locator('#rsPredCheck').click();
+  await page.waitForSelector('#rsPredFb');
+  assert.deepEqual((await order()).rows, ['F', 'E', 'D']);
+  assert.match(await page.locator('#rsStepText').innerText(), /\(F, E and D\)/);
+  await close(page);
+});
+
+check('F5c T018 · revisión (I-F11): si el navegador se queda el gesto (pointercancel), la barra no se mueve y el siguiente toque no aplica nada', async () => {
+  const page = await rsLab(rsHash({ we: 'k81', wc: 'man', lang: 'es' }));
+  await page.waitForSelector('#rsBar-C');
+  const box = await page.locator('#rsBar-C rect.rsg-box').boundingBox();
+  const x0 = await page.locator('#rsBar-C rect.rsg-box').getAttribute('x');
+  await page.mouse.move(box.x + 3, box.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 90, box.y + 5, { steps: 6 });
+  assert.notEqual(await page.locator('#rsBar-C rect.rsg-box').getAttribute('x'), x0, 'la barra se arrastra');
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointercancel')));
+  // La barra vuelve a su sitio, y el «pointerup» de un toque posterior (en cualquier parte) no aplica nada (ronda 2, F5).
+  assert.equal(await page.locator('#rsBar-C rect.rsg-box').getAttribute('x'), x0);
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointerup', { clientX: 180, clientY: 40 })));
+  await page.mouse.move(180, 40);
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  assert.deepEqual((await rsSt(page)).moves, []);
+  assert.doesNotMatch(await page.evaluate(() => location.hash), /wq=/);
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#rsBar-C')).touchAction), 'pan-y');
+  await close(page);
+});
+
+check('F5c T018 · revisión (I-F18, AC11): el enlace que deja cada interacción (mover a mano, elegir una celda de la comparación, el paso a paso, colocar) abierto en otra pestaña da la misma vista', async () => {
+  const same = async (page, what) => {
+    const hash = await page.evaluate(() => location.hash.slice(1));
+    const a = await rsSt(page); const textA = await page.locator('#rsView').innerText();
+    const other = await rsLab(hash);
+    await other.waitForFunction((x) => JSON.stringify(PNL.rsTab.state()) === x, JSON.stringify(a)).catch(() => {});
+    assert.deepEqual(await rsSt(other), a, what);
+    assert.equal(await other.locator('#rsView').innerText(), textA, what);
+    await close(other);
+  };
+  const page = await rsLab(rsHash({ we: 'k81', wc: 'man', lang: 'es' }));
+  await page.locator('#rsMoveAct').selectOption('F');
+  await page.locator('#rsMoveStart').fill('9');
+  await page.locator('#rsMoveApply').click();
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 1);
+  await page.locator('#rsBar-E').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 2);
+  await same(page, 'a mano');
+  await rsGo(page, { we: 'k85', lang: 'en' });
+  await page.locator('#rsRule-lft-pf').click();
+  await page.waitForFunction(() => PNL.rsTab.state().T != null);
+  await same(page, 'celda');
+  await page.locator('#rsWalk').click();
+  await page.waitForSelector('#rsNext');
+  await page.locator('#rsNext').click();
+  await page.locator('#rsNext').click();
+  await page.waitForFunction(() => PNL.rsTab.state().walk && PNL.rsTab.state().walk.k === 3);
+  await same(page, 'paso a paso');
+  await rsGo(page, { we: 'gb', wc: 'man', wq: [['J', 0], ['M', 6]], lang: 'es' });
+  await page.waitForFunction(() => PNL.rsTab.state().moves.length === 2);
+  await same(page, 'colocar');
   await close(page);
 });
 

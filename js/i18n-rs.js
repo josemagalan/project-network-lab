@@ -49,7 +49,7 @@
     rules: { slk: 'Menor holgura total', lft: 'Menor fin tardío', spt: 'Menor duración', res: 'Más recursos', act: 'Camino más largo hasta el final (ACTIM)', esf: 'Menor comienzo temprano', lsf: 'Menor comienzo tardío' },
     rulesShort: { slk: 'Holgura', lft: 'Fin tardío', spt: 'Duración', res: 'Recursos', act: 'ACTIM', esf: 'Com. temprano', lsf: 'Com. tardío' },
     lim: {
-      titleRule: '{scheme}, {rule}: {T}', titleOpt: 'Óptimo: {T}', titleMan: 'A mano: {T}', titleManPart: 'A mano: {n} de {all} colocadas',
+      titleRule: '{scheme}, {rule}: {T}', titleOpt: 'Óptimo: {T}', titleOptNot: 'Mejor encontrado: {T} (no demostrado)', titleMan: 'A mano: {T}', titleManPart: 'A mano: {n} de {all} colocadas',
       dur: 'Duración con los recursos disponibles', cpm: 'Sin límite (CPM)', baker: 'Cota de Baker', opt: 'Óptimo', rule: 'Esta regla ({rule}, {scheme})', man: 'A mano',
       proved: '{T} (demostrado)', notProved: '{T} (no demostrado; no baja de {lb})', manNone: '— (aún sin hacer)', manPart: '{n} de {all} colocadas',
       bakerTitle: 'De dónde sale la cota de Baker',
@@ -57,7 +57,8 @@
       bakerNone: 'Sin disponibilidades no hay cota: el proyecto dura lo del CPM.',
       cmpTitle: 'Comparar reglas: la duración con cada regla y esquema', cmpRule: 'Regla',
       cmpNote: 'En verde, las que llegan al óptimo. Elige una para ver su calendario. Ninguna regla garantiza el mínimo.',
-      cmpPick: '{rule}, {scheme}: {T}', cmpBest: 'llega al óptimo',
+      cmpNoteNot: 'En verde, las que igualan el mejor calendario encontrado: el óptimo no está demostrado. Elige una para ver su calendario. Ninguna regla garantiza el mínimo.',
+      cmpPick: '{rule}, {scheme}: {T}', cmpBest: 'llega al óptimo', cmpBestNot: 'iguala lo mejor encontrado',
       cap: 'disponibles', over: 'periodo que pasa de lo disponible', chain: 'cadena crítica',
       chainNote: 'Cadena crítica: {list}. Con recursos limitados, el camino crítico del CPM ya no explica la duración: la explica una cadena de actividades que se esperan una a otra, por precedencia o porque comparten un recurso.',
       royLegend: 'Arriba, comienzo, duración y fin en este calendario; abajo «·». En rojo, el camino crítico del CPM; en naranja, la cadena crítica; a trazos naranjas, una espera por un recurso (sin precedencia).',
@@ -75,6 +76,7 @@
       },
       placed: '{id} colocada en {s}.', removed: '{id} quitada.',
       done: 'Tu calendario dura {T}; la mejor regla, {best}, y el óptimo, {opt}.',
+      doneNot: 'Tu calendario dura {T}; la mejor regla, {best}, y el mejor calendario encontrado, {opt} (el óptimo no está demostrado).',
     },
     gantt: {
       title: 'Gantt y perfiles · {cal}', titleOne: 'Gantt y perfil · {cal}',
@@ -221,7 +223,7 @@
     rules: { slk: 'Least total slack', lft: 'Earliest late finish', spt: 'Shortest duration', res: 'Most resources', act: 'Longest path to the end (ACTIM)', esf: 'Earliest early start', lsf: 'Earliest late start' },
     rulesShort: { slk: 'Slack', lft: 'Late finish', spt: 'Duration', res: 'Resources', act: 'ACTIM', esf: 'Early start', lsf: 'Late start' },
     lim: {
-      titleRule: '{scheme}, {rule}: {T}', titleOpt: 'Optimum: {T}', titleMan: 'By hand: {T}', titleManPart: 'By hand: {n} of {all} placed',
+      titleRule: '{scheme}, {rule}: {T}', titleOpt: 'Optimum: {T}', titleOptNot: 'Best found: {T} (not proved)', titleMan: 'By hand: {T}', titleManPart: 'By hand: {n} of {all} placed',
       dur: 'Duration with the available resources', cpm: 'Unlimited (CPM)', baker: 'Baker’s bound', opt: 'Optimum', rule: 'This rule ({rule}, {scheme})', man: 'By hand',
       proved: '{T} (proved)', notProved: '{T} (not proved; not below {lb})', manNone: '— (not done yet)', manPart: '{n} of {all} placed',
       bakerTitle: 'Where Baker’s bound comes from',
@@ -229,7 +231,8 @@
       bakerNone: 'With no availabilities there is no bound: the project lasts what the CPM says.',
       cmpTitle: 'Compare rules: the duration with each rule and scheme', cmpRule: 'Rule',
       cmpNote: 'In green, those that reach the optimum. Choose one to see its schedule. No rule guarantees the minimum.',
-      cmpPick: '{rule}, {scheme}: {T}', cmpBest: 'reaches the optimum',
+      cmpNoteNot: 'In green, those that match the best schedule found: the optimum is not proved. Choose one to see its schedule. No rule guarantees the minimum.',
+      cmpPick: '{rule}, {scheme}: {T}', cmpBest: 'reaches the optimum', cmpBestNot: 'matches the best found',
       cap: 'available', over: 'period above what is available', chain: 'critical chain',
       chainNote: 'Critical chain: {list}. With limited resources, the CPM critical path no longer explains the duration: a chain of activities that wait for one another, because of precedence or because they share a resource, does.',
       royLegend: 'On top, start, duration and finish in this schedule; below “·”. In red, the CPM critical path; in orange, the critical chain; dashed orange, a wait for a resource (no precedence).',
@@ -247,6 +250,7 @@
       },
       placed: '{id} placed at {s}.', removed: '{id} removed.',
       done: 'Your schedule lasts {T}; the best rule, {best}, and the optimum, {opt}.',
+      doneNot: 'Your schedule lasts {T}; the best rule, {best}, and the best schedule found, {opt} (the optimum is not proved).',
     },
     gantt: {
       title: 'Gantt chart and profiles · {cal}', titleOne: 'Gantt chart and profile · {cal}',

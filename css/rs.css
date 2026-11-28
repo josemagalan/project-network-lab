@@ -83,7 +83,7 @@ table.data.rs-cmp th.rs-cmp-res { text-align: center; border-bottom: 1px solid v
 .rsg-bar .rsg-box { fill: var(--accent); fill-opacity: 0.8; }
 .rsg-bar.crit .rsg-box { fill: var(--critical); fill-opacity: 0.9; }
 .rsg-bar.sel .rsg-box { stroke: var(--ink); stroke-width: 2.5; }
-.rsg-bar.movable { cursor: grab; }
+.rsg-bar.movable { cursor: grab; touch-action: pan-y; }   /* el deslizamiento horizontal es arrastrar la barra (T018, I-F11) */
 .rsg-bar:focus { outline: none; }
 .rsg-bar:focus .rsg-box, .rsg-bar:focus-visible .rsg-box { stroke: var(--focus); stroke-width: 3; }
 .rsg-use { fill: var(--accent-ink); font-size: 10px; font-weight: 700; pointer-events: none; }

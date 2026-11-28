@@ -331,9 +331,11 @@
         break;
       }
       // Los movimientos que ya no valen con la tabla nueva se descartan en la vista, sin aviso (plan §3).
+      // Pasar de un ejemplo a la tabla propia es otro proyecto: borra lo mismo que la acción rs (T007; T018, N-F14).
       case 'rsTable': {
         const wt = U.RS.cleanWt(action.rows);
-        if (wt) Object.assign(s, { we: 'own', wt, step: 0 });
+        if (wt && s.we !== 'own') Object.assign(s, U.RS.DEFAULTS, { we: 'own', wt, ws: s.ws, wp: s.wp, step: 0 });
+        else if (wt) Object.assign(s, { we: 'own', wt, step: 0 });
         break;
       }
       case 'rsRes': {

@@ -23,7 +23,7 @@
     return { U, ganttH, w: LEFT + spec.T * U + 12 + RIGHT, h: ganttH + spec.res.length * (PH + GAP) + 8 };
   }
   /** El paso de las marcas del eje de tiempos, para que no se pisen. */
-  const tickStep = (T, U) => [1, 2, 5, 10, 20, 50, 100].find((k) => k * U >= 22) || 100;
+  const tickStep = (T, U) => [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000].find((k) => k * U >= 22) || 10000;
 
   function render(holder, spec) {
     const doc = root.document;
@@ -85,11 +85,12 @@
           const x0 = e.clientX; let dt = 0;
           const rect = g.querySelector('.rsg-box');
           const move = (ev) => { dt = Math.round((ev.clientX - x0) / scale / U); rect.setAttribute('x', String(X(r.s + dt))); };
-          const up = () => {
-            root.removeEventListener('pointermove', move); root.removeEventListener('pointerup', up);
-            if (dt) spec.onMove(r.id, r.s + dt); else if (spec.onSelect) spec.onSelect(r.id);
-          };
-          root.addEventListener('pointermove', move); root.addEventListener('pointerup', up);
+          const off = () => { root.removeEventListener('pointermove', move); root.removeEventListener('pointerup', up); root.removeEventListener('pointercancel', cancel); };
+          const up = () => { off(); if (dt) spec.onMove(r.id, r.s + dt); else if (spec.onSelect) spec.onSelect(r.id); };
+          // Si el navegador se queda el gesto (el dedo desliza el marco), no se aplica nada y la barra vuelve a su sitio
+          // (antes, el siguiente toque en cualquier parte aplicaba el movimiento; T018, I-F11).
+          const cancel = () => { off(); rect.setAttribute('x', String(X(r.s))); };
+          root.addEventListener('pointermove', move); root.addEventListener('pointerup', up); root.addEventListener('pointercancel', cancel);
         });
       }
       bars.appendChild(g);
@@ -104,17 +105,23 @@
       const sc = (PH - 16) / top;
       g.appendChild(el('text', { class: 'rsg-res', x: LEFT, y: y0 - 9 }, res.label));
       g.appendChild(el('line', { class: 'rsg-base', x1: LEFT, y1: base, x2: X(spec.T), y2: base }));
-      for (let q = 0; q < spec.T; q++) {
+      // Un tramo por periodo; con periodos de menos de 12 px (proyectos muy largos), un tramo por cada racha de periodos con
+      // las mismas actividades en curso, que tienen el mismo perfil (si no, decenas de miles de elementos; T018, I-F7).
+      const cuts = U >= 12 ? Array.from({ length: spec.T + 1 }, (_, q) => q)
+        : [...new Set([0, spec.T].concat(...spec.rows.filter((r) => r.s != null).map((r) => [r.s, r.s + r.d])))].filter((t) => t >= 0 && t <= spec.T).sort((a, b) => a - b);
+      for (let c = 0; c + 1 < cuts.length; c++) {
+        const q = cuts[c]; const len = cuts[c + 1] - q; const wq = len * U;
         const over = spec.caps && res.cap != null && res.u[q] > res.cap;
         let h0 = 0;
         for (const r of spec.rows) {
-          if (r.s == null || !(r.s <= q && q < r.s + r.d) || !r.r[j]) continue;
-          const hh = r.r[j] * sc; const yy = base - h0 - hh;
-          g.appendChild(el('rect', { class: `rsg-seg${over ? ' over' : r.chain ? ' chain' : ''}`, x: X(q) + 1, y: yy.toFixed(1), width: U - 2, height: hh.toFixed(1) }));
-          if (hh >= 12 && U >= 14) g.appendChild(el('text', { class: 'rsg-segid', x: X(q) + U / 2, y: (yy + hh / 2 + 3.5).toFixed(1), 'text-anchor': 'middle' }, r.id));
+          // r.r lleva las cifras ya escritas: «0» es una cadena, y sin Number se dibujaba un tramo de altura 0.
+          if (r.s == null || !(r.s <= q && q < r.s + r.d) || !Number(r.r[j])) continue;
+          const hh = Number(r.r[j]) * sc; const yy = base - h0 - hh;
+          g.appendChild(el('rect', { class: `rsg-seg${over ? ' over' : r.chain ? ' chain' : ''}`, x: X(q) + (U >= 12 ? 1 : 0), y: yy.toFixed(1), width: U >= 12 ? U - 2 : Math.max(0.5, wq - 0.5), height: hh.toFixed(1) }));
+          if (hh >= 12 && wq >= 14) g.appendChild(el('text', { class: 'rsg-segid', x: X(q) + wq / 2, y: (yy + hh / 2 + 3.5).toFixed(1), 'text-anchor': 'middle' }, r.id));
           h0 += hh;
         }
-        if (res.u[q]) g.appendChild(el('text', { class: `rsg-val${over ? ' over' : ''}`, x: X(q) + U / 2, y: (base - h0 - 3).toFixed(1), 'text-anchor': 'middle' }, String(res.u[q])));
+        if (res.u[q] && wq >= 12) g.appendChild(el('text', { class: `rsg-val${over ? ' over' : ''}`, x: X(q) + wq / 2, y: (base - h0 - 3).toFixed(1), 'text-anchor': 'middle' }, String(res.u[q])));
       }
       if (spec.caps && res.cap != null) {
         g.appendChild(el('line', { class: 'rsg-cap', x1: LEFT, y1: (base - res.cap * sc).toFixed(1), x2: X(spec.T), y2: (base - res.cap * sc).toFixed(1) }));

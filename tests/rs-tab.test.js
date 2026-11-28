@@ -315,3 +315,34 @@ test('F5c T012: lo que enseña cada paso: el calendario antes o después, el ins
   const end = T.walkView(m, tr, tr.length - 1, false);
   assert.deepEqual([end.back, end.S.E, end.T], [false, 10, 14]);
 });
+
+test('T018 (revisión, I-F2): a mano, volver a mover una actividad no pierde un movimiento anterior que dependía de ella (B +2, A +2 hasta B, B +1)', () => {
+  const m = T.model(st({ we: 'own', wt: [row('A', '', '2', '1'), row('B', 'A', '2', '1'), row('C', '', '7', '1')] }), 'es');
+  let moves = [];
+  for (const [id, s] of [['B', 4], ['A', 2], ['B', 5]]) {
+    const S = T.manual(m, moves).S;
+    assert.ok(T.moveCheck(m, S, id, s).ok, `${id} en ${s}`);
+    moves = T.withMove(m, T.manual(m, moves).moves, id, s);
+  }
+  assert.deepEqual(T.manual(m, moves).S, { A: 2, B: 5, C: 0 });
+});
+
+test('T018 (revisión, I-F4, I-F5, I-F12): los motivos de la prioridad con las reglas de signo negativo, el empate al elegir en serie y el comienzo no entero', () => {
+  const fb = (we, extra, k, pairs) => { const m = T.model(st(Object.assign({ we }, extra)), 'es'); return T.feedback(m, T.trace(m), k, new Map(pairs), 'es'); };
+  // «Más recursos» y ACTIM ordenan de mayor a menor: las cifras van sin signo.
+  assert.match(fb('k85', { wp: 'res' }, 1, [['rs.pick', 'A']])[0].text, /La regla elige otra: B va antes \(uso total: 5, frente a 3 de A\)\./);
+  assert.doesNotMatch(fb('k85', { wp: 'act' }, 1, [['rs.pick', 'A']])[0].text, /-\d/);
+  // Empate en ACTIM entre A y D: vale cualquiera, y se sigue con la que va antes en la tabla.
+  assert.match(fb('k85', { wp: 'act' }, 2, [['rs.pick', 'D']])[0].text, /^Sí: D empata con A; vale cualquiera\. Se sigue con A, que va antes en la tabla\./);
+  assert.match(fb('k85', {}, 3, [['rs.pick', 'A'], ['rs.start', '8.5']])[1].text, /^El comienzo es un número entero; es 8\./);
+});
+
+test('T018 (revisión, I-F1, I-F3): Baker y el óptimo se recalculan al cambiar la disponibilidad; la cadena crítica hacia atrás se busca hacia atrás', () => {
+  const wt = [row('A', '', '3', '4'), row('B', '', '3', '4'), row('C', 'A', '2', '3')];
+  const at = (cap) => { const d = T.limData(T.model(st({ we: 'own', wt, wm: 'lim', wr: [{ name: 'Grúa', cap }] }), 'es')); return [d.bound.bound, d.opt.T, Math.min(...d.cmp.map((x) => x.T))]; };
+  assert.deepEqual(at(8), [5, 5, 5]);
+  assert.deepEqual(at(4), [8, 8, 8]);
+  assert.deepEqual(at(8), [5, 5, 5]);
+  const m = T.model(st({ we: 'lg', wm: 'lim', ws: 'sb', wp: 'lft' }), 'es');
+  assert.deepEqual(T.limCalendar(m, st({ we: 'lg', wm: 'lim', ws: 'sb', wp: 'lft' })).chains, [['H', 'J', 'L', 'Q', 'O', 'U', 'V', 'X', 'Y', 'Z'], ['H', 'J', 'L', 'Q', 'P', 'U', 'V', 'X', 'Y', 'Z']]);
+});

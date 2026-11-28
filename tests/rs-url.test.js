@@ -137,7 +137,7 @@ test('F5c T007: acciones rsTable, rsRes y rsStarts', () => {
   const base = rs({ step: 4, wq: [['A', 3]], wc: 'man' });
   const rows = [row('A', '', '4', '2', '1', '3')];
   const own = S.reduce(base, { type: 'rsTable', rows }, 10);
-  assert.deepEqual([own.we, own.wt, own.step, own.wq], ['own', rows, 0, base.wq]);   // los movimientos que ya no valen se descartan en la vista
+  assert.deepEqual([own.we, own.wt, own.step, own.wq, own.wc], ['own', rows, 0, null, 'es']);   // otro proyecto: sin movimientos (T007; T018, N-F14)
   rows[0].d = '5';
   assert.equal(own.wt[0].d, '4');
   assert.equal(S.reduce(base, { type: 'rsTable', rows: [] }, 10).we, 'k81');
@@ -155,4 +155,13 @@ test('F5c T007: acciones rsTable, rsRes y rsStarts', () => {
   assert.equal(S.reduce(base, { type: 'rsStarts', value: null }, 10).wq, null);
   assert.deepEqual(S.reduce(base, { type: 'rsStarts', value: [['B', -1]] }, 10).wq, base.wq);
   assert.deepEqual(S.reduce(base, { type: 'rsStarts', value: [['B', 1], ['B', 2]] }, 10).wq, base.wq);
+});
+
+test('T018 (revisión, N-F14): pasar de un ejemplo a la tabla propia (rsTable) es otro proyecto: borra modo, recursos, calendario, movimientos y paso; el esquema y la regla se quedan; editar la tabla propia no borra nada', () => {
+  const busy = rs({ we: 'lg', wm: 'lim', wc: 'man', wq: [['H', 0], ['I', 10]], wr: [{ name: 'X', cap: 9 }], wk: 1, ws: 'pb', wp: 'lft', step: 3 });
+  const s = S.reduce(busy, { type: 'rsTable', rows: [row('A', '', '2', '1')] }, 10);
+  assert.deepEqual([s.we, s.wm, s.wc, s.wq, s.wr, s.wk, s.ws, s.wp, s.step], ['own', null, 'es', null, null, 0, 'pb', 'lft', 0]);
+  const own = rs({ we: 'own', wt: [row('A', '', '2', '1')], wm: 'lim', wc: 'man', wq: [['A', 1]], ws: 'pb' });
+  const e = S.reduce(own, { type: 'rsTable', rows: [row('A', '', '3', '1')] }, 10);
+  assert.deepEqual([e.wm, e.wc, e.wq, e.wt[0].d], ['lim', 'man', [['A', 1]], '3']);
 });

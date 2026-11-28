@@ -581,3 +581,226 @@ test('T016 (evidencia): en el paralelo, la sucesora de un hito que acaba en ese 
     for (const s of K.trace(p, { kind: 'sgs', scheme, dir, rule })) if (s.kind === 'rsTime' && s.started.length) assert.ok(K.setCheck(s.set, s.started).ok, `${scheme}${dir} ${rule} t=${s.t}`);
   }
 });
+
+// ---------- Revisión de cierre (T018) ----------
+
+test('T018 (revisión, N-F2): con muchas empatadas en un instante del paralelo, cualquier respuesta empatada vale, el motivo no sale vacío y la corrección es inmediata', () => {
+  for (const n of [7, 8, 11, 14]) {
+    const rows = Array.from({ length: n }, (_, i) => row(`A${i + 1}`, '', 1, 1));
+    const p = ok(rows, res(3), 'lim');
+    const s = K.trace(p, { kind: 'sgs', scheme: 'p', dir: 'f', rule: 'spt' }).find((x) => x.kind === 'rsTime' && x.t === 0);
+    const t0 = Date.now();
+    assert.deepEqual(K.setCheck(s.set, s.started), { ok: true }, `${n}: la de la traza`);
+    assert.deepEqual(K.setCheck(s.set, [`A${n}`, `A${n - 1}`, `A${n - 2}`]), { ok: true }, `${n}: las tres últimas`);
+    assert.deepEqual(K.setCheck(s.set, ['A1', 'A4', `A${n}`]), { ok: true }, `${n}: otras tres`);
+    assert.deepEqual(K.setCheck(s.set, ['A1', 'A2']), { ok: false, reason: 'missing', id: 'A3' }, `${n}: falta una`);
+    assert.equal(K.setCheck(s.set, ['A1', 'A2', 'A3', 'A4']).reason, 'over', `${n}: se pasa`);
+    assert.ok(Date.now() - t0 < 200, `${n}: ${Date.now() - t0} ms`);
+  }
+});
+
+// Todos los conjuntos que da el voraz con algún orden dentro de cada grupo de empatadas (fuerza bruta, grupos pequeños).
+function setsByPerms(c) {
+  const groups = [];
+  for (const x of c.elig) { const g = groups[groups.length - 1]; if (g && g[0].key.join() === x.key.join()) g.push(x); else groups.push([x]); }
+  const perms = (a) => (a.length <= 1 ? [a] : a.flatMap((x, i) => perms(a.filter((_, j) => j !== i)).map((r) => [x].concat(r))));
+  let orders = [[]];
+  for (const g of groups) orders = orders.flatMap((o) => perms(g).map((q) => o.concat(q)));
+  const out = new Set();
+  for (const o of orders) {
+    const u = c.res.map((x) => x.u.slice()); const got = [];
+    for (const a of o) {
+      let fit = true;
+      for (let j = 0; j < c.res.length; j++) for (let t = c.t; t < c.t + a.d; t++) if ((u[j][t] || 0) + a.r[c.res[j].k] > c.res[j].cap) fit = false;
+      if (!fit) continue;
+      got.push(a.id); for (let j = 0; j < c.res.length; j++) for (let t = c.t; t < c.t + a.d; t++) u[j][t] = (u[j][t] || 0) + a.r[c.res[j].k];
+    }
+    out.add(got.sort().join());
+  }
+  return out;
+}
+
+test('T018 (revisión, N-F2): setCheck acepta exactamente los conjuntos que da el esquema con algún orden de las empatadas (fuerza bruta, 300 tablas con empates)', () => {
+  const rng = R.mulberry32(18);
+  let n = 0;
+  for (let i = 0; i < 300; i++) {
+    // Pocas duraciones y usos distintos, para que haya empates.
+    const rows = Array.from({ length: R.int(rng, 3, 7) }, (_, j) => row(`A${j}`, j && rng() < 0.3 ? `A${R.int(rng, 0, j - 1)}` : '', R.int(rng, 0, 2), R.int(rng, 0, 2), R.int(rng, 0, 2)));
+    const p = ok(rows, res(R.int(rng, 2, 3), R.int(rng, 2, 3)), 'lim');
+    for (const rule of ['spt', 'esf', 'res']) {
+      for (const s of K.trace(p, { kind: 'sgs', scheme: 'p', dir: 'f', rule })) {
+        if (s.kind !== 'rsTime' || !s.started.length) continue;
+        const good = setsByPerms(s.set); const ids = s.set.elig.map((x) => x.id);
+        // Todos los subconjuntos no vacíos de las elegibles (como mucho 7).
+        for (let mask = 1; mask < 1 << ids.length; mask++) {
+          const g = ids.filter((_, b) => mask & (1 << b));
+          const r = K.setCheck(s.set, g);
+          assert.equal(r.ok, good.has(g.slice().sort().join()), `tabla ${i}, ${rule}, t=${s.t}: ${g}`);
+          // Si no vale, siempre con un motivo y, si es la prioridad, con las dos actividades que lo explican.
+          if (!r.ok) assert.ok(['over', 'missing'].includes(r.reason) || (r.reason === 'lower' && r.ids.length === 2), JSON.stringify(r));
+          n++;
+        }
+      }
+    }
+  }
+  assert.ok(n > 1000, String(n));
+});
+
+const TIMED = !process.env.NODE_V8_COVERAGE;
+// Tabla de 30 actividades con duraciones de cientos de periodos (la de la revisión: mulberry32(6), duraciones × 50).
+function longTable(f) {
+  const rng = R.mulberry32(6); const rows = [];
+  for (let i = 0; i < 30; i++) {
+    const l = []; for (let j = Math.max(0, i - 6); j < i; j++) if (rng() < 0.25) l.push(`A${j}`);
+    rows.push(row(`A${i}`, l.join(', '), R.int(rng, 1, 6) * f, R.int(rng, 0, 9), R.int(rng, 0, 9), R.int(rng, 0, 9)));
+  }
+  return rows;
+}
+
+test('T018 (revisión, N-F1, N-F6): el tope de las búsquedas cuenta el trabajo, no solo los nodos: con duraciones largas, el mínimo del pico y el óptimo se cortan («no demostrado») en un tiempo acotado', () => {
+  const rows = longTable(50);
+  const lev = ok(rows, res(null, null, null), 'lev'); const lim = ok(rows, res(12, 12, 12), 'lim');
+  let t0 = Date.now(); const m = K.minPeak(lev, 0); const tm = Date.now() - t0;
+  t0 = Date.now(); const o = K.optimum(lim); const to = Date.now() - t0;
+  // El trabajo no pasa del tope (más lo de un paso), y los dos dicen que no está demostrado, con lo mejor y una cota.
+  for (const x of [m, o]) { assert.equal(x.proved, false); assert.ok(x.work > K.WORK && x.work < K.WORK + 1e6, String(x.work)); assert.ok(x.nodes < K.BUDGET, String(x.nodes)); }
+  assert.ok(m.lb <= m.peak && o.lb <= o.T);
+  assert.deepEqual(K.check(lev, m.S, 'lev'), { ok: true }); assert.deepEqual(K.check(lim, o.S, 'lim'), { ok: true });
+  if (TIMED) assert.ok(tm < 1500 && to < 1500, `${tm} ms y ${to} ms`);
+});
+
+test('T018 (revisión, N-F5): Burgess no recorre los T periodos por cada comienzo: con una cadena de 20 actividades de 999 periodos, deprisa; y sus sumas de cuadrados, las de la cuenta directa (200 tablas)', () => {
+  const rows = Array.from({ length: 20 }, (_, i) => row(`C${i + 1}`, i ? `C${i}` : '', 999, 0)).concat(Array.from({ length: 10 }, (_, i) => row(`P${i + 1}`, '', 1, 1)));
+  const p = ok(rows, res(null), 'lev');
+  const t0 = Date.now(); const b = K.burgess(p, 0);
+  if (TIMED) assert.ok(Date.now() - t0 < 1500, `${Date.now() - t0} ms`);
+  assert.equal(stats0(K.profile(p, b.S, 0, p.T)).peak, 1);
+  const rng = R.mulberry32(5);
+  for (let i = 0; i < 200; i++) {
+    const q = ok(randomTable(rng, R.int(rng, 2, 8), 1), res(null), 'lev');
+    const S = ES(q);
+    for (const st of K.burgess(q, 0).steps) {
+      for (const o of st.options) {
+        const T2 = Object.assign({}, S, { [st.id]: o.s });
+        assert.equal(o.ssq, K.profile(q, T2, 0, q.T).reduce((t, v) => t + v * v, 0), `tabla ${i}, ${st.id} en ${o.s}`);
+      }
+      S[st.id] = st.to;
+    }
+  }
+});
+function stats0(u) { return { peak: Math.max(0, ...u) }; }
+
+test('T018 (revisión, N-F4): Burgess desempata las de igual comienzo temprano por el orden de la tabla al revés, no por el orden topológico', () => {
+  // La tabla en este orden: F, E, B, C, A, D (de la revisión).
+  const p = ok([row('F', '', 4, 3), row('E', 'B, D', 2, 1), row('B', '', 3, 0), row('C', 'B', 3, 0), row('A', '', 4, 5), row('D', 'B', 4, 0)], res(null), 'lev');
+  const b = K.burgess(p, 0);
+  assert.deepEqual(b.steps.map((s) => s.id), ['C', 'A', 'F', 'C', 'A', 'F']);
+  assert.equal(K.profile(p, b.S, 0, p.T).reduce((t, v) => t + v * v, 0), 148);
+});
+
+test('T018 (revisión, N-F12): el óptimo se da pegado al comienzo también cuando la mejor regla ya es la óptima o la búsqueda se corta (ninguna actividad cabe un periodo antes)', () => {
+  const glued = (p, S) => p.activities.every((a) => {
+    const ready = Math.max(0, ...p.preds[a.id].map((x) => S[x] + p.byId[x].d));
+    return S[a.id] === ready || !K.check(p, Object.assign({}, S, { [a.id]: S[a.id] - 1 }), 'lim').ok;
+  });
+  const p = ok([row('A', '', 5, 4), row('B', '', 5, 3), row('C', 'B', 2, 0), row('D', 'C', 4, 4), row('E', '', 5, 4), row('F', 'A, E', 4, 1), row('G', 'E', 2, 1)], res(5), 'lim');
+  const o = K.optimum(p);
+  assert.deepEqual([o.T, o.proved, o.S.C], [19, true, 5]);
+  const rng = R.mulberry32(12);
+  for (let i = 0; i < 200; i++) {
+    const rows = randomTable(rng, R.int(rng, 2, 8), 2);
+    const caps = [0, 1].map((k) => String(Math.max(1, ...rows.map((r) => Number(r[`r${k + 1}`])))));
+    const q = ok(rows, res(...caps), 'lim');
+    for (const x of [K.optimum(q), K.optimum(q, 3)]) {
+      assert.deepEqual(K.check(q, x.S, 'lim'), { ok: true }, `tabla ${i}`);
+      assert.equal(Math.max(0, ...q.activities.map((a) => x.S[a.id] + a.d)), x.T, `tabla ${i}: dura lo que dice`);
+      assert.ok(glued(q, x.S), `tabla ${i}: ${JSON.stringify(x.S)}`);
+    }
+  }
+});
+
+test('T018 (revisión, N-F3): el desperdicio de Baker cuenta los periodos que llegan justo a la disponibilidad (≤ R), al principio y al final', () => {
+  const p = ok([row('A', '', 1, 9), row('B', 'A', 1, 3), row('C', 'B', 1, 5), row('D', 'B', 1, 5), row('E', 'C, D', 1, 3), row('F', 'E', 1, 9)], res(9), 'lim');
+  const b = K.baker(p).list[0];
+  assert.deepEqual([b.wasteStart, b.wasteEnd, b.Dmin, b.Rmin], [6, 6, 6, 10]);
+  assert.equal(K.optimum(p).T, 6);
+});
+
+test('T018 (revisión, N-F7): con «no demostrado», la cota nunca pasa del valor exacto y, cuando la búsqueda ya había llegado a él, es justo ese (mínimo del pico y óptimo, topes pequeños, 150 tablas)', () => {
+  const rng = R.mulberry32(3);
+  for (let i = 0; i < 150; i++) {
+    const rows = randomTable(rng, R.int(rng, 4, 8), 1);
+    const cap = Math.max(1, ...rows.map((r) => Number(r.r1)));
+    const lev = ok(rows, res(null), 'lev'); const lim = ok(rows, res(cap), 'lim');
+    const fp = K.minPeak(lev, 0); const fo = K.optimum(lim);
+    assert.ok(fp.proved && fo.proved);
+    // 25 topes repartidos y el de un nodo menos de lo que hace falta (corta justo al buscar el valor exacto).
+    const some = (n) => [...new Set(Array.from({ length: 25 }, (_, j) => 1 + Math.floor((j * (n - 1)) / 25)).concat([n - 1]))].filter((b) => b >= 1);
+    for (const b of some(fp.nodes)) { const x = K.minPeak(lev, 0, b); assert.ok(x.lb <= fp.peak && x.peak >= fp.peak, `tabla ${i}, tope ${b}`); }
+    for (const b of some(fo.nodes)) { const x = K.optimum(lim, b); assert.ok(x.lb <= fo.T && x.T >= fo.T, `tabla ${i}, tope ${b}`); }
+  }
+  // Y dos tablas en que la búsqueda se corta justo al buscar el valor exacto (de la revisión): la cota es ese valor.
+  const P = ok([row('A0', '', 2, 5), row('A1', 'A0', 1, 5), row('A2', '', 6, 5), row('A3', '', 5, 1), row('A4', 'A0', 5, 2), row('A5', 'A3', 4, 0), row('A6', 'A0', 2, 5)], res(null), 'lev');
+  const mp = K.minPeak(P, 0); const cp = K.minPeak(P, 0, mp.nodes - 1);
+  assert.deepEqual([mp.peak, mp.proved, cp.proved, cp.peak, cp.lb], [10, true, false, 11, 10]);
+  const O = ok([row('A0', '', 2, 6), row('A1', 'A0', 3, 2), row('A2', '', 1, 4), row('A3', 'A0', 5, 2), row('A4', '', 3, 6), row('A5', 'A0', 6, 1), row('A6', 'A2', 4, 4), row('A7', 'A2', 1, 6)], res(6), 'lim');
+  const mo = K.optimum(O); const co = K.optimum(O, mo.nodes - 1);
+  assert.deepEqual([mo.T, mo.proved, co.proved, co.T, co.lb], [15, true, false, 16, 15]);
+});
+
+test('T018 (revisión, N-F8): dos hitos encadenados en el mismo instante del paralelo: los dos empiezan antes que nada y la sucesora entra con su prioridad', () => {
+  const p = ok([row('M1', '', 0, 0), row('M2', 'M1', 0, 0), row('X', 'M2', 2, 4), row('Y', '', 3, 4)], res(4), 'lim');
+  const r = K.sgs(p, { scheme: 'p', dir: 'f', rule: 'spt' });
+  assert.deepEqual([r.S.M1, r.S.M2, r.S.X, r.S.Y], [0, 0, 0, 2]);
+});
+
+test('T018 (revisión, N-F9): la espera por un recurso de la cadena crítica es solo si no cabía (uso justo igual a la disponibilidad sí cabe)', () => {
+  const p = ok([row('A0', '', 2, 0), row('A1', 'A0', 4, 1), row('A2', '', 1, 4), row('A3', 'A2', 1, 3), row('A4', 'A2, A3', 2, 4)], res(4), 'lim');
+  const r = K.sgs(p, { scheme: 's', dir: 'f', rule: 'slk' });
+  assert.deepEqual(r.S, { A0: 0, A2: 0, A3: 1, A1: 2, A4: 6 });
+  assert.deepEqual(K.chains(p, r.S, 'f'), [['A0', 'A1', 'A4']]);
+});
+
+test('T018 (revisión, N-F10): hacia atrás, serie y paralelo = la referencia en la red invertida con sus propios tiempos del CPM (500 tablas, con hitos)', () => {
+  const rng = R.mulberry32(78);
+  for (let i = 0; i < 500; i++) {
+    const rows = randomTable(rng, R.int(rng, 2, 9), 2);
+    const caps = [0, 1].map((k) => { const m = Math.max(1, ...rows.map((r) => Number(r[`r${k + 1}`]))); return String(R.int(rng, m, m + 4)); });
+    const p = ok(rows, res(...caps), 'lim');
+    const s = C.solve({ activities: p.activities.map((a) => ({ id: a.id, d: a.d })), preds: p.succs, succs: p.preds });
+    const times = Object.fromEntries(p.activities.map((a) => [a.id, { ES: s.times[a.id].ES, LS: s.times[a.id].LS, LF: s.times[a.id].LF, TF: s.floats[a.id].TF }]));
+    const q = Object.assign({}, p, { preds: p.succs, succs: p.preds, times, T: s.duration });
+    for (const scheme of ['s', 'p']) {
+      for (const rule of RULES) {
+        const ref = refSgs(q, scheme, KEYS[rule](q));
+        const T = Math.max(0, ...p.activities.map((a) => ref[a.id] + a.d));
+        const want = Object.fromEntries(p.activities.map((a) => [a.id, T - ref[a.id] - a.d]));
+        const got = K.sgs(p, { scheme, dir: 'b', rule });
+        assert.deepEqual([got.T, got.S], [T, want], `tabla ${i}: ${scheme}b ${rule}`);
+      }
+    }
+  }
+});
+
+test('T018 (revisión, N-F11): un hito no da overCap aunque su uso pase de la disponibilidad', () => {
+  const { report } = K.parse([row('A', '', 2, 1), row('M', 'A', 0, 9)], res(5), 'lim');
+  assert.deepEqual(report.errors, []);
+});
+
+test('T018 (revisión, ronda 2, F1): el óptimo cortado da la duración del calendario que da (pegado al comienzo, puede acabar antes que la mejor regla)', () => {
+  // La tabla de la revisión (26 actividades, disponibilidades 11 y 13): la mejor regla dura 72; pegada al comienzo, 70.
+  const p = ok([row('A0', '', 4, 1, 6), row('A1', '', 6, 7, 3), row('A2', 'A0', 4, 9, 9), row('A3', '', 5, 8, 5), row('A4', 'A1, A2', 2, 6, 0), row('A5', 'A1', 2, 6, 3), row('A6', 'A3, A5', 7, 2, 4), row('A7', '', 9, 8, 2), row('A8', 'A2', 6, 7, 7), row('A9', 'A5', 6, 5, 0), row('A10', 'A6', 3, 6, 2), row('A11', 'A5', 8, 1, 6), row('A12', 'A6, A7', 1, 7, 2), row('A13', 'A9, A11', 4, 5, 4), row('A14', 'A8, A11, A12', 6, 7, 8), row('A15', 'A14', 9, 6, 0), row('A16', 'A10, A11', 4, 3, 6), row('A17', 'A14, A15, A16', 2, 4, 1), row('A18', '', 2, 9, 8), row('A19', 'A18', 7, 4, 5), row('A20', 'A14', 1, 9, 4), row('A21', 'A15', 8, 3, 0), row('A22', 'A18, A20, A21', 4, 6, 4), row('A23', 'A17, A19, A20, A22', 7, 3, 1), row('A24', 'A19', 1, 7, 8), row('A25', 'A24', 9, 1, 4)], res(11, 13), 'lim');
+  const o = K.optimum(p);
+  assert.deepEqual([o.proved, o.T, Math.max(...p.activities.map((a) => o.S[a.id] + a.d))], [false, 70, 70]);
+  assert.ok(Math.min(...K.compare(p).map((x) => x.T)) >= 72 && o.lb <= o.T);
+  // Y en 3000 tablas pequeñas con el tope más pequeño: siempre la duración del calendario, válido, y la cota por debajo.
+  const rng = R.mulberry32(31);
+  for (let i = 0; i < 3000; i++) {
+    const rows = randomTable(rng, R.int(rng, 2, 8), 2);
+    const caps = [0, 1].map((k) => String(Math.max(1, ...rows.map((r) => Number(r[`r${k + 1}`])))));
+    const q = ok(rows, res(...caps), 'lim');
+    const x = K.optimum(q, 1);
+    assert.equal(Math.max(0, ...q.activities.map((a) => x.S[a.id] + a.d)), x.T, `tabla ${i}`);
+    assert.ok(x.lb <= x.T && K.check(q, x.S, 'lim').ok, `tabla ${i}`);
+  }
+});

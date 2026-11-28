@@ -171,7 +171,8 @@
   // actividad con hueco (las demás no pueden moverse).
   function burgess(p, k) {
     const S = ESof(p); const steps = [];
-    const idx = new Map(p.activities.map((a, i) => [a.id, i]));
+    // El orden de la tabla (p.table), no el de p.activities, que es el topológico (T018, N-F4).
+    const idx = new Map(p.table.map((id, i) => [id, i]));
     const order = [...p.activities].sort((x, y) => p.times[y.id].ES - p.times[x.id].ES || idx.get(y.id) - idx.get(x.id));
     let passes = 0;
     for (let moved = true; moved && passes < 1000;) {
@@ -182,12 +183,12 @@
         if (hi <= lo) continue;
         const base = profile(p, S, k, p.T);
         for (let t = S[a.id]; t < S[a.id] + a.d; t++) base[t] -= a.r[k];
+        // Suma de cuadrados de cada comienzo sin recorrer los T periodos: con r el uso de a, la del perfil sin a, más d·r²,
+        // más 2r por lo que ya hay en los periodos que ocupa (sumas acumuladas). O(1) por comienzo (T018, N-F5).
+        const r = a.r[k]; const pre = [0]; let q0 = 0;
+        for (let t = 0; t < p.T; t++) { pre.push(pre[t] + base[t]); q0 += base[t] * base[t]; }
         const options = [];
-        for (let s0 = lo; s0 <= hi; s0++) {
-          let q = 0;
-          for (let t = 0; t < p.T; t++) { const v = base[t] + (t >= s0 && t < s0 + a.d ? a.r[k] : 0); q += v * v; }
-          options.push({ s: s0, ssq: q });
-        }
+        for (let s0 = lo; s0 <= hi; s0++) options.push({ s: s0, ssq: q0 + a.d * r * r + 2 * r * (pre[s0 + a.d] - pre[s0]) });
         const before = options.find((o) => o.s === S[a.id]).ssq;
         const after = Math.min(...options.map((o) => o.ssq));
         const to = Math.max(...options.filter((o) => o.ssq === after).map((o) => o.s));
@@ -202,9 +203,15 @@
   // ¿Hay un calendario de las actividades, cada una en una ventana [lo, hi] que se recalcula con las ya colocadas, en el
   // que ningún periodo pasa de lim[k]? Búsqueda en profundidad: se colocan de menor a mayor holgura (desempate: mayor uso ×
   // duración, y el orden de la tabla); en cada nodo, las partes obligatorias de las no colocadas ([hi, lo + d)) no pueden
-  // pasar de lim. counter.n cuenta los nodos y corta al llegar a counter.max.
+  // pasar de lim. counter.n cuenta los nodos y corta al llegar a counter.max; counter.w cuenta el trabajo (los periodos
+  // y las actividades que se recorren) y corta al llegar a WORK. Con duraciones largas, cada nodo cuesta más: el tope de
+  // nodos solo no acotaba el tiempo (decenas de segundos con duraciones de cientos de periodos; T018, N-F1). El tope de
+  // trabajo es un número fijo, no un reloj: un enlace da siempre el mismo resultado.
   const BUDGET = 300000;
+  const WORK = 40000000;           // unos 0,4 s en Node (T018: ajustado con tablas de 8 a 30 actividades)
+  const NODE_WORK = 50;            // lo que cuesta un nodo (en periodos recorridos), además de sus ventanas y periodos
   class Cut extends Error {}
+  const spend = (counter, w) => { counter.w = (counter.w || 0) + w; if (counter.w > (counter.wmax || WORK)) throw new Cut(); };
 
   function feasible(p, opts, counter) {
     const { lim, LS, H } = opts;              // lim por recurso (null = sin límite), comienzo tardío de cada una, horizonte
@@ -216,32 +223,49 @@
     const S = new Array(n).fill(-1);
     const u = ks.map(() => new Array(H).fill(0));
     const lo = new Array(n); const hi = new Array(n);
+    const nE = acts.reduce((t, a) => t + p.preds[a.id].length, 0);
     function windows() {
+      spend(counter, 2 * (n + nE));
       for (const a of acts) { const i = ix.get(a.id); lo[i] = S[i] >= 0 ? S[i] : Math.max(p.times[a.id].ES, ...p.preds[a.id].map((x) => lo[ix.get(x)] + p.byId[x].d)); }
       for (let j = n - 1; j >= 0; j--) { const a = acts[j]; hi[j] = S[j] >= 0 ? S[j] : Math.min(LS[a.id], ...p.succs[a.id].map((x) => hi[ix.get(x)] - a.d)); }
     }
+    // Las partes obligatorias se suman sobre el propio perfil y se quitan después (antes se copiaba el perfil entero en
+    // cada nodo).
     function compulsory() {
       for (let i = 0; i < n; i++) if (lo[i] > hi[i]) return false;
-      for (let q = 0; q < ks.length; q++) {
-        const k = ks[q]; const v = u[q].slice();
-        for (let i = 0; i < n; i++) {
-          if (S[i] >= 0 || !acts[i].r[k]) continue;
-          for (let t = hi[i]; t < lo[i] + acts[i].d; t++) { v[t] += acts[i].r[k]; if (v[t] > lim[k]) return false; }
+      let ok = true;
+      for (let q = 0; q < ks.length && ok; q++) {
+        const k = ks[q]; const v = u[q]; const done = [];
+        for (let i = 0; i < n && ok; i++) {
+          if (S[i] >= 0 || !acts[i].r[k] || hi[i] >= lo[i] + acts[i].d) continue;
+          const r = acts[i].r[k]; const t1 = lo[i] + acts[i].d;
+          let t = hi[i];
+          for (; t < t1; t++) { v[t] += r; if (v[t] > lim[k]) { ok = false; t++; break; } }
+          spend(counter, 2 * (t - hi[i]));
+          done.push([hi[i], t, r]);
         }
+        for (const [t0, t1, r] of done) for (let t = t0; t < t1; t++) v[t] -= r;
       }
-      return true;
+      return ok;
     }
-    const fits = (a, s0) => { for (let q = 0; q < ks.length; q++) for (let t = s0; t < s0 + a.d; t++) if (u[q][t] + a.r[ks[q]] > lim[ks[q]]) return false; return true; };
+    // El primer periodo que se pasa con a desde s0, o −1 si cabe. Si se pasa en t, tampoco cabe empezando entre s0 y t.
+    const overAtT = (a, s0) => {
+      for (let t = s0; t < s0 + a.d; t++) for (let q = 0; q < ks.length; q++) if (u[q][t] + a.r[ks[q]] > lim[ks[q]]) { spend(counter, (t - s0 + 1) * ks.length); return t; }
+      spend(counter, a.d * ks.length + 1);
+      return -1;
+    };
     const add = (a, s0, sign) => { for (let q = 0; q < ks.length; q++) for (let t = s0; t < s0 + a.d; t++) u[q][t] += sign * a.r[ks[q]]; };
     function go(depth) {
       if (++counter.n > counter.max) throw new Cut();
+      spend(counter, NODE_WORK);
       if (depth === n) return true;
       windows();
       if (!compulsory()) return false;
       const a = order[depth]; const i = ix.get(a.id);
       const from = lo[i]; const to = hi[i];
       for (let s0 = from; s0 <= to; s0++) {
-        if (!fits(a, s0)) continue;
+        const t = overAtT(a, s0);
+        if (t >= 0) { s0 = t; continue; }
         add(a, s0, 1); S[i] = s0;
         if (go(depth + 1)) return true;
         add(a, s0, -1); S[i] = -1;
@@ -276,9 +300,9 @@
       }
     } catch (e) {
       if (!(e instanceof Cut)) throw e;
-      return { peak: best.peak, S: best.S, lb: Math.min(P, best.peak), proved: false, nodes: counter.n };
+      return { peak: best.peak, S: best.S, lb: Math.min(P, best.peak), proved: false, nodes: counter.n, work: counter.w || 0 };
     }
-    return { peak: best.peak, S: best.S, lb: lb0, proved: true, nodes: counter.n };
+    return { peak: best.peak, S: best.S, lb: lb0, proved: true, nodes: counter.n, work: counter.w || 0 };
   }
 
   // ---------- Esquemas serie y paralelo (P7) ----------
@@ -329,7 +353,8 @@
         const ready = Math.max(0, ...q.preds[a.id].map((x) => S[x] + q.byId[x].d));
         let s0 = ready; const waits = [];
         const before = opts.record ? snap() : null;
-        while (!fits(a, s0)) { waits.push(blocker(a, s0)); s0++; }
+        // Si se pasa en el periodo t, tampoco cabe empezando antes de t + 1: se salta allí.
+        for (let b = blocker(a, s0); b; b = blocker(a, s0)) { if (!waits.length) waits.push(b); s0 = b.period; }
         S[a.id] = s0; put(a, s0);
         const step = { id: a.id, ready, start: s0, wait: waits[0] || null, elig: elig.map((x) => ({ id: x.id, prio: prio(x) })) };
         if (opts.record) {
@@ -392,7 +417,11 @@
     const counter = { n: 0, max: budget == null ? BUDGET : budget };
     let best = null;
     for (const c of compare(p)) if (!best || c.T < best.T) best = c;
-    best = Object.assign({}, best, { S: sgs(p, best).S });
+    // La mejor regla, pegada al comienzo: puede acabar antes que la regla (un calendario hacia atrás), y entonces esa es
+    // la duración que se da y la que se intenta mejorar (T018, ronda 2: antes se daba la de la regla con el calendario
+    // pegado, que acababa antes).
+    const J = leftJustify(p, sgs(p, best).S);
+    best = Object.assign({}, best, { S: J, T: end(p, J) });
     const lim = p.res.map((r) => r.cap);
     const lb0 = baker(p).bound;
     if (lim.every((c) => c == null)) return { T: p.T, S: ESof(p), lb: p.T, proved: true, nodes: 0 };
@@ -401,32 +430,24 @@
       for (; D < best.T; D++) {
         const LS = Object.fromEntries(p.activities.map((a) => [a.id, p.times[a.id].LS + (D - p.T)]));
         const S = feasible(p, { lim, LS, H: D }, counter);
-        if (S) return { T: D, S: leftJustify(p, S), lb: lb0, proved: true, nodes: counter.n };
+        if (S) return { T: D, S: leftJustify(p, S), lb: lb0, proved: true, nodes: counter.n, work: counter.w || 0 };
       }
     } catch (e) {
       if (!(e instanceof Cut)) throw e;
-      return { T: best.T, S: best.S, lb: D, proved: false, nodes: counter.n };
+      return { T: best.T, S: best.S, lb: D, proved: false, nodes: counter.n, work: counter.w || 0 };
     }
-    return { T: best.T, S: best.S, lb: lb0, proved: true, nodes: counter.n };
+    // También pegado al comienzo cuando la mejor regla ya es la óptima (puede ser hacia atrás; T018, N-F12).
+    return { T: best.T, S: best.S, lb: lb0, proved: true, nodes: counter.n, work: counter.w || 0 };
   }
 
-  // Pega al comienzo un calendario válido: de la que empieza antes a la que empieza después, cada una al primer comienzo
-  // que respeta sus predecesoras y cabe con las demás. Nunca se alarga, y la cadena crítica se puede leer en él.
+  // Pega al comienzo un calendario válido: de la que empieza antes a la que empieza después (empate: el orden de la
+  // tabla), cada una al primer comienzo que respeta sus predecesoras y cabe con las ya colocadas (el esquema serie con
+  // esa lista). Ninguna empieza más tarde que en el calendario dado: las ya colocadas no usan, a partir de su comienzo,
+  // nada que no usaran antes. Así nunca se alarga, y la cadena crítica se puede leer en él.
   function leftJustify(p, S0) {
-    const S = Object.assign({}, S0);
-    const ks = p.res.map((r, k) => (r.cap == null ? -1 : k)).filter((k) => k >= 0);
-    for (let moved = true; moved;) {
-      moved = false;
-      for (const a of [...p.activities].sort((x, y) => S[x.id] - S[y.id])) {
-        const ready = Math.max(0, ...p.preds[a.id].map((x) => S[x] + p.byId[x].d));
-        for (let s0 = ready; s0 < S[a.id]; s0++) {
-          const others = Object.assign({}, S); delete others[a.id];
-          const ok = ks.every((k) => { for (let t = s0; t < s0 + a.d; t++) { let v = a.r[k]; for (const b of p.activities) if (b !== a && S[b.id] <= t && t < S[b.id] + b.d) v += b.r[k]; if (v > p.res[k].cap) return false; } return true; });
-          if (ok) { S[a.id] = s0; moved = true; break; }
-        }
-      }
-    }
-    return S;
+    const pos = new Map(p.table.map((id, i) => [id, i]));
+    const list = [...p.activities].sort((x, y) => S0[x.id] - S0[y.id] || pos.get(x.id) - pos.get(y.id)).map((a) => a.id);
+    return schedule(p, { scheme: 's', list }).S;
   }
 
   // ---------- Cadena crítica (P8) ----------
@@ -546,14 +567,16 @@
       for (const a of order) if (!overAt(res, a, c.t)) { out.push(a.id); for (const x of res) for (let t = c.t; t < c.t + a.d; t++) x.u[t] = (x.u[t] || 0) + a.r[x.k]; }
       return out;
     };
-    // Grupos de empatadas, en el orden de prioridad; se prueban sus permutaciones (como mucho 720 órdenes).
+    // Grupos de empatadas, en el orden de prioridad. Basta un orden testigo: en cada grupo, primero las que da el alumno y
+    // después las demás. Si algún orden de las empatadas da su conjunto, este también (las suyas caben juntas y una que
+    // queda fuera no cabía ni con menos colocadas); así no hace falta probar permutaciones (antes, hasta 720 órdenes y,
+    // con más empatadas, solo el de la tabla; T018, N-F2).
     const groups = [];
     for (const x of c.elig) { const g = groups[groups.length - 1]; if (g && sameKey(g[0].key, x.key)) g.push(x); else groups.push([x]); }
-    const perms = (arr) => (arr.length <= 1 ? [arr] : arr.flatMap((x, i) => perms(arr.filter((_, j) => j !== i)).map((r) => [x].concat(r))));
-    let orders = [[]];
-    for (const g of groups) { const ps = perms(g); orders = orders.flatMap((o) => ps.map((pp) => o.concat(pp))); if (orders.length > 720) { orders = [c.elig]; break; } }
+    const mine = new Set(given);
+    const witness = groups.flatMap((g) => g.filter((x) => mine.has(x.id)).concat(g.filter((x) => !mine.has(x.id))));
     const want = given.slice().sort().join();
-    if (orders.some((o) => greedy(o).slice().sort().join() === want)) return { ok: true };
+    if (greedy(witness).slice().sort().join() === want) return { ok: true };
     // Por qué no: no caben juntas, falta una que cabía o se ha dejado fuera una de más prioridad.
     const res = c.res.map((x) => ({ k: x.k, cap: x.cap, u: x.u.slice() }));
     for (const id of given) {
@@ -567,7 +590,7 @@
     return { ok: false, reason: 'lower', ids: left ? [left.id, given.find((id) => lessKey(left.key, by.get(id).key))] : [] };
   }
 
-  const api = { MAX, MAX_CAP, BUDGET, RULES: RULE_IDS, trace, pickCheck, startCheck, setCheck, parse, profile, stats, check, baker, burgess, minPeak, feasible, sgs, compare, optimum, chains };
+  const api = { MAX, MAX_CAP, BUDGET, WORK, RULES: RULE_IDS, trace, pickCheck, startCheck, setCheck, parse, profile, stats, check, baker, burgess, minPeak, feasible, sgs, compare, optimum, chains };
   root.PNL = root.PNL || {};
   root.PNL.resource = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -106,12 +106,19 @@
   }
   /** El motivo de un movimiento que no se aplica. */
   const moveText = (c, lang) => I.t(lang, `rs.manual.bad.${c.reason}`, c);
-  /** El calendario a mano: el temprano con los movimientos de wq, en orden; los que ya no valen se descartan sin aviso. */
+  /**
+   * El calendario a mano: el temprano con los movimientos de wq (de una actividad, el último); se aplican en pasadas
+   * sucesivas mientras entre alguno, así un movimiento que dependía de otro que se ha cambiado después no se pierde
+   * (T018, I-F2). Los que no valen en ninguna pasada se descartan sin aviso.
+   */
   function manual(m, wq) {
-    const S = ESof(m.p); const moves = [];
-    for (const [id, s] of wq || []) {
-      if (!m.p.byId[id] || s === S[id] || !moveCheck(m, S, id, s).ok) continue;
-      S[id] = s; moves.push([id, s]);
+    const S = ESof(m.p); const last = new Map();
+    for (const [id, s] of wq || []) if (m.p.byId[id]) { last.delete(id); last.set(id, s); }
+    let pending = [...last].filter(([id, s]) => s !== S[id]); const moves = [];
+    for (let again = true; again && pending.length;) {
+      again = false; const rest = [];
+      for (const [id, s] of pending) { if (moveCheck(m, S, id, s).ok) { S[id] = s; moves.push([id, s]); again = true; } else rest.push([id, s]); }
+      pending = rest;
     }
     return { S, moves };
   }
@@ -653,7 +660,9 @@
     // ---------- La nivelación: Gantt con perfiles, comparación, a mano y ROY (T010; tableros 131–134) ----------
     let bad = null; let sel = null; let timesOpen = false; let profOpen = false; let lower = null;
     const levCal = () => (LEV.includes(state().wc) ? state().wc : 'es');
-    const unitOf = (T) => Math.max(12, Math.min(34, Math.floor(600 / Math.max(1, T))));
+    // El periodo mide floor(600 / T) px, entre 12 y 34; con más de 200 periodos, lo que quepa en 2400 px (antes, siempre 12:
+    // un Gantt de 250 000 px con duraciones de cientos de periodos; T018, I-F7).
+    const unitOf = (T) => Math.max(T > 200 ? 2400 / T : 12, Math.min(34, Math.floor(600 / Math.max(1, T))));
     const resUses = (a) => m.res.map((r, k) => `${r.label} ${num(a.r[k])}`).join(', ');
     function ganttCard(cal) {
       const p = m.p; const S = cal.S; const T = p.T; const U = unitOf(T);
@@ -757,13 +766,24 @@
         h('p', { class: 'rs-legend', id: 'rsRoyLegend' }, [tr(early ? 'roy.legend' : 'roy.legendCal')])]);
     }
     // Alternativas en texto (AC12): comienzo y fin de cada actividad, y el uso de cada recurso en cada periodo.
+    // Las filas del perfil: una por periodo; con más de 200 periodos, una por cada racha de periodos con los mismos usos
+    // («11–15»), para que la tabla no tenga miles de filas (T018, I-F7). [a, b): del periodo a + 1 al b.
+    const profRows = (T, us) => {
+      const out = [];
+      for (let q = 0; q < T; q++) {
+        const last = out[out.length - 1];
+        if (T > 200 && last && us.every((u) => u[q] === u[last[0]])) last[1] = q + 1; else out.push([q, q + 1]);
+      }
+      return out;
+    };
+    const periods = (a, b) => (b - a === 1 ? num(a + 1) : `${num(a + 1)}–${num(b)}`);
     function altTables(cal) {
       const p = m.p; const calName = tr(`cals.${cal.wc}`);
       const tHead = h('tr', {}, [tr('alt.act'), tr('alt.d'), tr('alt.start'), tr('alt.end')].concat(m.res.map((r) => r.label)).map((c) => h('th', { scope: 'col' }, [c])));
       const tBody = p.table.map((id) => { const a = p.byId[id]; return h('tr', {}, [h('th', { scope: 'row' }, [id])].concat([a.d, cal.S[id], cal.S[id] + a.d, ...a.r].map((v) => h('td', { class: 'num' }, [num(v)])))); });
       const us = m.res.map((_, k) => R.profile(p, cal.S, k, p.T));
       const pHead = h('tr', {}, [tr('alt.period')].concat(m.res.map((r) => r.label)).map((c) => h('th', { scope: 'col' }, [c])));
-      const pBody = Array.from({ length: p.T }, (_, q) => h('tr', {}, [h('th', { scope: 'row' }, [num(q + 1)])].concat(us.map((u) => h('td', { class: 'num' }, [num(u[q])])))));
+      const pBody = profRows(p.T, us).map(([a, b]) => h('tr', {}, [h('th', { scope: 'row' }, [periods(a, b)])].concat(us.map((u) => h('td', { class: 'num' }, [num(u[a])])))));
       const box = (id, open, setOpen, title, caption, tid, head, body) => h('details', { class: 'card rs-card rs-alt', id, open, ontoggle: (e) => setOpen(e.target.open) }, [h('summary', {}, [title]),
         h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': title }, [h('table', { class: 'data rs-cmp', id: tid }, [h('caption', { class: 'sr-only' }, [caption]), h('thead', {}, [head]), h('tbody', {}, body)])])]);
       return [box('rsTimes', timesOpen, (v) => { timesOpen = v; }, tr('alt.times'), tr('alt.timesCaption', { cal: calName }), 'rsTimesTable', tHead, tBody),
@@ -790,7 +810,7 @@
       });
       const holder = h('div', { class: 'rs-gantt', id: 'rsGantt' });
       const title = cal.wc === 'sgs' ? tr('lim.titleRule', { scheme: tr(`schemes.${schemeOf()}`), rule: tr(`rules.${ruleOf()}`).toLowerCase(), T: tU(cal.T) })
-        : cal.wc === 'opt' ? tr('lim.titleOpt', { T: tU(cal.T) })
+        : cal.wc === 'opt' ? tr(cal.info.proved ? 'lim.titleOpt' : 'lim.titleOptNot', { T: tU(cal.T) })
           : cal.complete ? tr('lim.titleMan', { T: tU(cal.T) }) : tr('lim.titleManPart', { n: num(cal.moves.length), all: num(p.activities.length) });
       root.PNL.rsGantt.render(holder, { T, Tcpm: p.T, unit: U, rows, res, window: false, caps: true, sel: cal.wc === 'man' ? sel : null, emptyText: tr('place.empty'),
         label: tr('gantt.label', { cal: tr(`cals.${cal.wc}`), name: m.src.title }), capText: (v) => tr('gantt.cap', { v: num(v) }),
@@ -804,7 +824,8 @@
     }
     function durCard() {
       const p = m.p; const ld = limData(m); const o = ld.opt; const man = manualLim(m, state().wq);
-      const rule = R.sgs(p, Object.assign({ rule: ruleOf() }, SCHEME[schemeOf()]));
+      // La duración de la regla, la de su celda de la comparación (la misma que da su calendario; T018, I-F8).
+      const sc = SCHEME[schemeOf()]; const rule = ld.cmp.find((x) => x.rule === ruleOf() && x.scheme === sc.scheme && x.dir === sc.dir);
       const bk = ld.bound.list;
       const dl = h('dl', { class: 'rs-dur' }, [
         h('dt', {}, [tr('lim.cpm')]), h('dd', { id: 'rsDurCpm' }, [num(p.T)]),
@@ -819,19 +840,19 @@
         h('details', { class: 'rs-baker', open: true }, [h('summary', {}, [tr('lim.bakerTitle')]), h('p', { id: 'rsBakerText' }, [text])])]);
     }
     function rulesCard(cal) {
-      const ld = limData(m); const best = ld.opt.T;
+      const ld = limData(m); const best = ld.opt.T; const proved = ld.opt.proved;   // sin demostrar: «lo mejor encontrado» (T018, I-F9)
       const keys = Object.keys(SCHEME);
       const head = h('tr', {}, [h('th', { scope: 'col' }, [tr('lim.cmpRule')])].concat(keys.map((k) => h('th', { scope: 'col' }, [tr(`schemesShort.${k}`)]))));
       const body = R.RULES.map((r) => h('tr', {}, [h('th', { scope: 'row' }, [tr(`rules.${r}`)])].concat(keys.map((k) => {
         const sc = SCHEME[k]; const T = ld.cmp.find((x) => x.rule === r && x.scheme === sc.scheme && x.dir === sc.dir).T;
         const on = cal.wc === 'sgs' && r === ruleOf() && k === schemeOf();
         return h('td', {}, [h('button', { type: 'button', id: `rsRule-${r}-${k}`, class: T === best ? 'best' : null, 'aria-pressed': String(on),
-          'aria-label': `${tr('lim.cmpPick', { rule: tr(`rules.${r}`), scheme: tr(`schemes.${k}`), T: num(T) })}${T === best ? ` (${tr('lim.cmpBest')})` : ''}`,
+          'aria-label': `${tr('lim.cmpPick', { rule: tr(`rules.${r}`), scheme: tr(`schemes.${k}`), T: num(T) })}${T === best ? ` (${tr(proved ? 'lim.cmpBest' : 'lim.cmpBestNot')})` : ''}`,
           onclick: () => { go({ wc: 'sgs', ws: k, wp: r }, { push: true }); focus(`rsRule-${r}-${k}`); } }, [num(T)])]);
       }))));
       return h('section', { class: 'card rs-card', 'aria-labelledby': 'rsRulesHead' }, [h('h2', { id: 'rsRulesHead' }, [tr('lim.cmpTitle')]),
         h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': `${tr('lim.cmpTitle')} · ${m.src.title}` }, [h('table', { class: 'data rs-rules', id: 'rsRules' }, [h('thead', {}, [head]), h('tbody', {}, body)])]),
-        h('p', { class: 'muted small' }, [tr('lim.cmpNote')])]);
+        h('p', { class: 'muted small', id: 'rsRulesNote' }, [tr(proved ? 'lim.cmpNote' : 'lim.cmpNoteNot')])]);
     }
     // Colocar a mano (C2): si vale, va al enlace (wq); si no, se dice el motivo y no se coloca.
     function place(cal, id, s) {
@@ -862,7 +883,7 @@
             { id: 'rsRemove', disabled: cal.S[sel] == null }),
           button(tr('place.reset'), () => { bad = null; hooks.dispatch({ type: 'rsStarts', value: null }); focus('rsPlaceReset'); }, { id: 'rsPlaceReset', disabled: !cal.moves.length })]),
         bad ? h('p', { class: 'rs-m rs-m-err rs-bad', id: 'rsPlaceBad', role: 'alert' }, [h('strong', {}, [tr('place.notPlaced')]), ' ', bad]) : null,
-        cal.complete ? h('p', { class: 'rs-note rs-note-ok', id: 'rsPlaceDone', role: 'status' }, [tr('place.done', { T: tU(cal.T), best: tU(best), opt: tU(ld.opt.T) })]) : null,
+        cal.complete ? h('p', { class: 'rs-note rs-note-ok', id: 'rsPlaceDone', role: 'status' }, [tr(ld.opt.proved ? 'place.done' : 'place.doneNot', { T: tU(cal.T), best: tU(best), opt: tU(ld.opt.T) })]) : null,
       ]);
     }
     function limRoyCard(cal) {
@@ -880,13 +901,14 @@
         h('p', { class: 'rs-legend', id: 'rsRoyLegend' }, [tr('lim.royLegend')])]);
     }
     function limAltTables(cal) {
-      const p = m.p; const calName = tr(`cals.${cal.wc}`); const T = Math.max(p.T, cal.T || 0);
+      // Hasta el final de lo colocado, aunque el calendario a mano esté a medias (T018, I-F14).
+      const p = m.p; const calName = tr(`cals.${cal.wc}`); const T = Math.max(p.T, cal.T || 0, ...p.activities.filter((a) => cal.S[a.id] != null).map((a) => cal.S[a.id] + a.d));
       const tHead = h('tr', {}, [tr('alt.act'), tr('alt.d'), tr('alt.start'), tr('alt.end')].concat(m.res.map((r) => r.label)).map((c) => h('th', { scope: 'col' }, [c])));
       const tBody = p.table.map((id) => { const a = p.byId[id]; const s0 = cal.S[id];
         return h('tr', {}, [h('th', { scope: 'row' }, [id])].concat([num(a.d), s0 == null ? '—' : num(s0), s0 == null ? '—' : num(s0 + a.d), ...a.r.map(num)].map((v) => h('td', { class: 'num' }, [v])))); });
       const us = m.res.map((_, k) => R.profile(p, cal.S, k, T));
       const pHead = h('tr', {}, [tr('alt.period')].concat(m.res.map((r) => (r.cap == null ? r.label : `${r.label} (${num(r.cap)})`))).map((c) => h('th', { scope: 'col' }, [c])));
-      const pBody = Array.from({ length: T }, (_, q) => h('tr', {}, [h('th', { scope: 'row' }, [num(q + 1)])].concat(us.map((u, k) => h('td', { class: `num${m.res[k].cap != null && u[q] > m.res[k].cap ? ' rs-over' : ''}` }, [num(u[q])])))));
+      const pBody = profRows(T, us).map(([q, b]) => h('tr', {}, [h('th', { scope: 'row' }, [periods(q, b)])].concat(us.map((u, k) => h('td', { class: `num${m.res[k].cap != null && u[q] > m.res[k].cap ? ' rs-over' : ''}` }, [num(u[q])])))));
       const box = (id, open, setOpen, title, caption, tid, head, body) => h('details', { class: 'card rs-card rs-alt', id, open, ontoggle: (e) => setOpen(e.target.open) }, [h('summary', {}, [title]),
         h('div', { class: 'rs-scroll', tabindex: '0', role: 'region', 'aria-label': title }, [h('table', { class: 'data rs-cmp', id: tid }, [h('caption', { class: 'sr-only' }, [caption]), h('thead', {}, [head]), h('tbody', {}, body)])])]);
       return [box('rsTimes', timesOpen, (v) => { timesOpen = v; }, tr('alt.times'), tr('alt.timesCaption', { cal: calName }), 'rsTimesTable', tHead, tBody),
@@ -934,13 +956,16 @@
     function firstAsk(step) {
       const ph = phaseOf(step);
       if (ph === 'pick') return `rsPick-${step.reveals[0].check.all[0]}`;
-      if (ph === 'set') return `rsSet-${step.reveals[0].check.elig[0].id}`;
+      if (ph === 'set') return `rsSet-${tableOrder(step.reveals[0].check.elig)[0].id}`;
       return 'rsPredStart';
     }
+    // Mientras se pregunta, las elegibles van en el orden de la tabla, no en el de la prioridad: si no, la primera fila
+    // es la respuesta (T018, I-F17).
+    const tableOrder = (list) => { const at = new Map(m.p.table.map((id, i) => [id, i])); return list.slice().sort((x, y) => at.get(x.id) - at.get(y.id)); };
     // Las elegibles de un paso de los esquemas: actividad, su prioridad y, en el paralelo, su duración y sus usos.
-    function eligTable(step, chosen) {
+    function eligTable(step, chosen, asking) {
       const cfg = trace(m).cfg; const cols = keyCols(cfg.rule);
-      const list = step.kind === 'rsPick' ? step.pick.elig : step.set.elig;
+      const list0 = step.kind === 'rsPick' ? step.pick.elig : step.set.elig; const list = asking ? tableOrder(list0) : list0;
       const par = step.kind === 'rsTime';
       const head = [tw('eligAct')].concat(cols.map((x) => keyLabel(x, lang())), par ? [tr('col.d')].concat(m.res.map((r) => r.label)) : []);
       const body = list.map((x) => h('tr', { class: chosen.includes(x.id) ? 'chosen' : null, 'data-act': x.id }, [h('th', { scope: 'row' }, [x.id])]
@@ -965,12 +990,12 @@
       } else if (step.kind === 'rsPick') {
         const rule = cfg.rule;
         title = phase === 'pick' ? tw('pickAsk') : phase === 'start' ? tw('startAsk', { id: step.id }) : tw('pickTitle', { id: step.id, start: num(step.start) });
-        text.push(tw('eligText', { list: I.list(lang(), step.pick.elig.map((x) => x.id)), rule: tw(`rule.${rule}`), tie: rule === 'slk' || rule === 'lft' ? tw(`tie.${rule}`) : '' }));
+        text.push(tw('eligText', { list: I.list(lang(), (phase === 'pick' ? tableOrder(step.pick.elig) : step.pick.elig).map((x) => x.id)), rule: tw(`rule.${rule}`), tie: rule === 'slk' || rule === 'lft' ? tw(`tie.${rule}`) : '' }));
         if (phase === 'start') text.push(tw('startText', { ready: num(step.ready) }));
         else if (!phase) text.push(step.wait ? tw('startWait', { id: step.id, start: num(step.start), period: num(step.wait.period), use: num(step.wait.use), res: res(step.wait.res), cap: num(step.wait.cap) })
           : tw('startFree', { id: step.id, start: num(step.start) }));
       } else if (step.kind === 'rsTime') {
-        const ids = step.set.elig.map((x) => x.id);
+        const ids = (phase ? tableOrder(step.set.elig) : step.set.elig).map((x) => x.id);
         title = phase ? tw('timeAsk', { t: num(step.t) }) : !step.started.length ? tw('timeNone', { t: num(step.t) })
           : tw(step.started.length === 1 ? 'timeTitleOne' : 'timeTitle', { t: num(step.t), list: I.list(lang(), step.started) });
         text.push(tw('timeText', { t: num(step.t), list: I.list(lang(), ids), rule: tr(`rules.${cfg.rule}`).toLowerCase() }));
@@ -1017,11 +1042,11 @@
         const set = pred.answers.get('rs.set');
         const msg = h('p', { class: 'rs-m rs-m-err', id: 'rsPredEmpty', hidden: true }, [tw('emptySet')]);
         const check = () => {
-          if (!set.size) { msg.hidden = false; focus(`rsSet-${c.elig[0].id}`); return; }
+          if (!set.size) { msg.hidden = false; focus(`rsSet-${tableOrder(c.elig)[0].id}`); return; }
           hooks.predCheck(step); focus('rsPredFb');
         };
         return h('div', { class: 'rs-predict' }, [
-          h('div', { class: 'rs-row', role: 'group', 'aria-label': tw('setGroup', { t: num(step.t) }) }, c.elig.map((x) => h('label', { class: 'rs-check' }, [
+          h('div', { class: 'rs-row', role: 'group', 'aria-label': tw('setGroup', { t: num(step.t) }) }, tableOrder(c.elig).map((x) => h('label', { class: 'rs-check' }, [
             h('input', { type: 'checkbox', id: `rsSet-${x.id}`, checked: set.has(x.id), 'aria-describedby': 'rsPredEmpty',
               onchange: (e) => { if (e.target.checked) set.add(x.id); else set.delete(x.id); } }), ' ', x.id]))),
           h('div', { class: 'rs-row' }, [h('button', { type: 'button', class: 'primary', id: 'rsPredCheck', onclick: check }, [I.t(lang(), 'predict.check')]), show]), msg]);
@@ -1089,7 +1114,7 @@
       const parts = [h('h2', { id: 'rsStepHead' }, [nar.title]), v.back ? h('p', { class: 'rs-note', id: 'rsBackNote' }, [tw('backNote')]) : null, h('p', { id: 'rsStepText' }, [nar.text])];
       if (step.kind === 'rsPick' || step.kind === 'rsTime') {
         const chosen = phase ? [] : step.kind === 'rsPick' ? [step.id] : step.started;
-        parts.push(eligTable(step, phase === 'start' ? [step.id] : chosen));
+        parts.push(eligTable(step, phase === 'start' ? [step.id] : chosen, phase === 'pick' || phase === 'set'));
       }
       if (phase === 'start') parts.push(fbBox('rsPickFb', feedback(m, t0, k, pred.answers, lang()).slice(0, 1)));
       if (state().pred) {
@@ -1108,14 +1133,14 @@
       if (wkey !== lastWalk) { lastWalk = wkey; if (hooks.announce) hooks.announce(`${I.t(lang(), 'player.counter', { i: k, n })}. ${nar.title}. ${phase ? I.t(lang(), 'predict.hidden') : nar.text}`); }
     }
 
-    let shown = null;
+    let shownCal = null;
     function drawLower() {
       if (!lower) return;
-      clear(lower); shown = null;
+      clear(lower); shownCal = null;
       if (!m.p) return;
       if (m.mode === 'lim') {
         const cal = limCalendar(m, state());
-        shown = cal;
+        shownCal = cal;
         lower.appendChild(h('div', { class: 'rs-lev' }, [limGanttCard(cal), h('div', { class: 'rs-side' }, [durCard(), cal.wc === 'man' ? placeCard(cal) : null, rulesCard(cal)])]));
         lower.appendChild(limRoyCard(cal));
         for (const el of limAltTables(cal)) lower.appendChild(el);
@@ -1123,7 +1148,7 @@
       }
       if (m.mode !== 'lev') return;
       const cal = calendar(m, state());
-      shown = cal;
+      shownCal = cal;
       lower.appendChild(h('div', { class: 'rs-lev' }, [ganttCard(cal), h('div', { class: 'rs-side' }, [compareCard(), cal.wc === 'man' ? manualCard(cal) : null])]));
       lower.appendChild(royCard(cal));
       for (const el of altTables(cal)) lower.appendChild(el);
@@ -1157,6 +1182,8 @@
     }
     function debug() {
       if (!m) return null;
+      // En el paso a paso no se pinta el calendario de abajo: no se da el último que se pintó (T018).
+      const shown = walking() ? null : shownCal;
       return { src: { kind: m.src.kind, id: m.src.id }, mode: m.mode, res: m.res.map((r) => ({ label: r.label, cap: r.cap })),
         errors: m.report.errors.map((e) => e.code), warnings: m.report.warnings.map((e) => e.code).filter((c) => c === 'noUse'), ok: !!m.p,
         cal: shown ? shown.wc : null, k: m.p ? levelK(m, state()) : null, moves: shown && shown.moves ? shown.moves : [], unit: m.p ? unitOf(m.p.T) : null,
