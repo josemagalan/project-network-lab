@@ -320,9 +320,9 @@
       const holder = h('div', { class: 'ex-net', id: 'pbNet', tabindex: '0', hidden: folded || null });
       if (!normal) fxNet(ex, s, !!g);
       const netCard = normal ? null : h('section', { class: 'card ex-net-card', 'aria-label': t('ex.roy') }, [
-        h('div', { class: 'ex-head' }, [h('h2', {}, [t('ex.roy')]), fxHolder, h('button', { type: 'button', class: 'ghost', id: 'pbFold', 'aria-expanded': String(!folded), 'aria-controls': 'pbNet',
+        h('div', { class: 'ex-head' }, [h('h2', {}, [t('ex.roy')]), folded ? fxHolder : null, h('button', { type: 'button', class: 'ghost', id: 'pbFold', 'aria-expanded': String(!folded), 'aria-controls': 'pbNet',
           onclick: () => { folded = !folded; focusAfter = 'pbFold'; redraw(); } }, [folded ? t('ex.unfold') : t('ex.fold')])]),
-        holder, folded ? null : h('p', { class: 'muted small' }, [t('ex.royAlt')])]);
+        folded ? holder : h('div', { class: 'fx-over' }, [holder, fxHolder]), folded ? null : h('p', { class: 'muted small' }, [t('ex.royAlt')])]);
 
       // ---- Respuestas ----
       const onInput = (k, value) => { hooks.dispatch({ type: 'pa', value: setField(answers(hooks.state()), k, value) }, { fromEx: true }); if (g) keepFocus(); };
@@ -434,7 +434,7 @@
         return c.querySelector('svg');
       };
       G.figButton(fxHolder, { kind: 'roy', project: `s${s.sd}`, title: `${t('view.graphAon')} · ${t('ex.seed')} ${s.sd}`, lang: lang(), states: done ? ['blank', 'solved'] : ['blank'],
-        initial: 'blank', ctx: 'ex', solved: draw(true), blank: draw(false) });
+        initial: 'blank', ctx: 'ex', compact: true, solved: draw(true), blank: draw(false) });
     }
     function layOf(ex) {
       if (lay.ex !== ex) {

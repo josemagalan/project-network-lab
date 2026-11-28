@@ -594,7 +594,9 @@
       if (!folded && pert) foot.push(h('button', { type: 'button', class: 'linklike', id: 'exArcs', onclick: () => { arcs = !arcs; draw(); focus('exArcs'); } }, [arcs ? tt('ex.netLink') : tt('ex.arcLink')]));
       netHolder.hidden = folded;
       fxNet();
-      return h('section', { class: 'card ex-net-card', 'aria-label': title }, [h('div', { class: 'ex-head' }, [h('h2', {}, [title]), fxHolder, fold]), netHolder].concat(foot));
+      // El botón, sobre la esquina de la red (en la cabecera no cabe sin partir el título en dos líneas); plegada, en la cabecera.
+      return h('section', { class: 'card ex-net-card', 'aria-label': title }, [h('div', { class: 'ex-head' }, [h('h2', {}, [title]), folded ? fxHolder : null, fold]),
+        folded ? netHolder : h('div', { class: 'fx-over' }, [netHolder, fxHolder])].concat(foot));
     }
     // F5d (T007, P2): «Exportar» de la red (ROY o la PERT de sucesos), dibujada fuera de la vista: en blanco, sin cifras de
     // tiempos (la que se ve, sin la selección); resuelta, con los tiempos y el camino crítico, solo tras comprobar o entregar.
@@ -620,7 +622,7 @@
         return c.querySelector('svg');
       };
       return root.PNL.figButton(fxHolder, { kind: pert ? 'pert' : 'roy', project: `s${m.seed}`, title: `${tt(pert ? 'view.graphAoa' : 'view.graphAon')} · ${tt('ex.seed')} ${m.seed}`,
-        lang: lang(), states: checked || m.delivered ? ['blank', 'solved'] : ['blank'], initial: 'blank', ctx: 'ex', solved: draw(true), blank: draw(false) });
+        lang: lang(), states: checked || m.delivered ? ['blank', 'solved'] : ['blank'], initial: 'blank', ctx: 'ex', compact: true, solved: draw(true), blank: draw(false) });
     }
     function drawNet() {
       if (!m || !m.sol || folded) return;

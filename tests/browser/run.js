@@ -14569,7 +14569,7 @@ async function fxLoad(page) {
   await page.addScriptTag({ url: `${BASE}/js/fig-export.js` });
   await page.waitForFunction(() => PNL.figExport && PNL.figTikz);
 }
-const FX_CASES = [['ej6-roy7', 'v=route&ex=ej6&step=30&lang=es', '#netView svg'], ['ej6-pert', 'v=route&ex=ej6&step=30&lang=es&graph=aoa', '#netView svg'], ['ej6-gantt', 'v=route&ex=ej6&step=31&lang=es', '#ganttView svg']];
+const FX_CASES = [['ej6-roy7', 'v=route&ex=ej6&step=30&lang=es', '#netView svg'], ['ej6-pert', 'v=route&ex=ej6&step=30&lang=es&graph=aoa', '#netView svg'], ['ej6-gantt', 'v=route&ex=ej6&step=31&lang=es', '#ganttView svg.gantt']];
 
 check('F5d T003 · AC2: el árbol de la figura de pantalla da el mismo TikZ que el SVG capturado del Ejercicio 6 (ROY, PERT y Gantt), con la página en claro y en oscuro', async () => {
   for (const scheme of ['light', 'dark']) {
@@ -14817,10 +14817,9 @@ const fxMenu = (page, holder = 'fxTest') => page.evaluate((hid) => { const d = d
     live: pn ? pn.querySelector('[role="status"]').textContent : null }; }, holder);
 const fxGroup = (page) => page.evaluate(() => ({ js: ['js/i18n-fx.js', 'js/views/fig-tikz.js', 'js/fig-export.js'].filter((s) => document.querySelector(`script[src="${s}"]`)).length, css: !!document.querySelector('link[href="css/fx.css"]'), api: !!(PNL.figExport && PNL.figTikz) }));
 
-check('F5d T005 · AC11 y P10: sin ?fx=1 no hay botón; con ?fx=1 lo hay, y el grupo fx (guiones y hoja) solo se carga al abrir el menú; la bandera no entra en el enlace', async () => {
+check('F5d T005 · AC11 y P10: el botón (también sin ?fx=1 desde la publicación, T009), y el grupo fx (guiones y hoja) solo se carga al abrir el menú; la bandera no entra en el enlace', async () => {
   const off = await lab(FX_WORK);
-  assert.equal(await fxMount(off), 0);
-  assert.equal(await off.locator('details.fx').count(), 0);
+  assert.equal(await fxMount(off), 1);
   await close(off);
   const page = await open(`cpm.html?fx=1#${FX_WORK}`);
   assert.equal(await fxMount(page), 1);
@@ -15203,10 +15202,9 @@ const xmFx = async (hash, opts) => { const p = await open(`examen.html?fx=1#${ha
 const xmNetSvg = (page, k) => page.evaluate((i) => { const im = document.querySelectorAll('#exPreview .xm-fig[data-net] img')[i];
   return new TextDecoder().decode(Uint8Array.from(atob(im.src.split(',')[1]), (c) => c.charCodeAt(0))); }, k);
 
-check('F5d T008 · AC9 y P5: en examen.html, un botón «Exportar» en cada red del documento (no en las rejillas ni en el QR); el enunciado se exporta en blanco y la solución resuelta, como se ven; sin ?fx=1, ninguno', async () => {
+check('F5d T008 · AC9 y P5: en examen.html, un botón «Exportar» en cada red del documento (no en las rejillas ni en el QR); el enunciado se exporta en blanco y la solución resuelta, como se ven; también sin ?fx=1 desde la publicación (T009)', async () => {
   const off = await exOpen('lang=es&ep=det');
-  await off.waitForSelector('#exPreview .xm-paper');
-  assert.equal(await off.locator('details.fx').count(), 0);
+  await off.waitForSelector('#exPreview .fx-holder > details.fx');
   await close(off);
   const page = await xmFx('lang=es&ep=det-roy');
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
@@ -15256,6 +15254,97 @@ check('F5d T008 · AC10: examen.html con el menú abierto, axe sin violaciones (
     assert.equal(await page.evaluate(() => !!(PNL.figExport && PNL.figTikz && document.querySelector('link[href="css/fx.css"]'))), true);
     await axe(page, `F5d T008 · examen.html · menú abierto · ${scheme}`);
     await close(page);
+  }
+});
+
+// ---------- F5d T009: accesibilidad y publicación ----------
+// Cada sitio con figura (P1–P5), sin la bandera ?fx=1 (publicado): la URL y el contenedor de su primer botón.
+const FX_SITES = [
+  ['taller · ROY', 'cpm.html#v=work&ex=ej6&lang=es&step=999', '#panelMain .panel-head .fx-holder'],
+  ['taller · lado a lado', 'cpm.html#v=work&ex=ej6&lang=es&step=999&graph=aoa&view=side', '.side-by-side .fx-holder'],
+  ['ruta · Gantt', 'cpm.html#v=route&ex=ej6&step=31&lang=es', '#ganttView .fx-holder'],
+  ['ruta · PERT', 'cpm.html#v=route&ex=ej6&step=30&lang=es&graph=aoa', '#panelMain .panel-head .fx-holder'],
+  ['cálculo', exUrl({ sd: 14844, lv: 'medium', lang: 'es', ask: ['times', 'events'] }), '#exView .ex-net-card .fx-holder'],
+  ['probabilidad', pbUrl({ sd: 50, lv: 'hard', lang: 'es' }), '#exView .ex-net-card .fx-holder'],
+  ['detective', dtUrl({ sd: 92846, lv: 'hard', dg: 'aoa', dk: 'all', lang: 'es' }), '#exView .dt-head .fx-holder'],
+  ['construir la ROY', xbUrl({ sd: EX_CASES.medium.sd, lv: 'medium', lang: 'es' }), '#exView .xb-work .fx-holder'],
+  ['construir la PERT', xpUrl({ sd: EX_CASES.easy.sd, lv: 'easy', lang: 'es' }), '#exView .xb-fx .fx-holder'],
+  ['examen', 'examen.html#lang=es&ep=det-roy', '#exPreview .fx-holder'],
+];
+async function fxSite(url, H, opts) {
+  const page = await open(url, Object.assign({ wait: false }, opts));
+  await page.waitForSelector(`${H} > details.fx`, { timeout: 60000 });
+  return page;
+}
+const openFirst = async (page, H) => { const s = page.locator(`${H} > details.fx > summary`).first(); await s.click(); await page.locator(`${H} .fx-panel`).first().waitFor(); };
+
+check('F5d T009 · P10: publicado: el botón «Exportar» está en cada sitio sin la bandera ?fx=1, y el grupo fx sigue llegando solo al abrir el menú', async () => {
+  for (const [name, url, H] of FX_SITES) {
+    const page = await fxSite(url, H);
+    assert.equal(await page.evaluate(() => location.search), '', name);
+    assert.equal(await page.evaluate(() => !!(window.PNL && PNL.figExport)), false, `${name}: fx antes de abrir`);
+    await openFirst(page, H);
+    assert.equal(await page.evaluate(() => !!(PNL.figExport && PNL.figTikz && PNL.i18nFx)), true, `${name}: fx al abrir`);
+    await close(page);
+  }
+});
+
+check('F5d T009 · AC10: axe sin violaciones con el menú abierto en cada sitio, en claro (ES) y en oscuro (EN)', async () => {
+  for (const [name, url, H] of FX_SITES) {
+    for (const [scheme, lang] of [['light', 'es'], ['dark', 'en']]) {
+      const page = await fxSite(url.replace('lang=es', `lang=${lang}`), H, { scheme });
+      await openFirst(page, H);
+      await axe(page, `F5d T009 · ${name} · ${scheme} · ${lang}`);
+      await close(page);
+    }
+  }
+});
+
+check('F5d T009 · AC10: a 360 px, en cada sitio, el menú abierto cabe en la pantalla y la página no se desplaza en horizontal', async () => {
+  for (const [name, url, H] of FX_SITES) {
+    const page = await fxSite(url, H, { width: 360, height: 760 });
+    await openFirst(page, H);
+    const r = await page.evaluate((h) => { const b = document.querySelector(`${h} .fx-panel`).getBoundingClientRect(); return { sw: document.documentElement.scrollWidth, l: b.left, r: b.right }; }, H);
+    assert.equal(r.sw, 360, `${name}: ancho de la página`);
+    assert.ok(r.l >= 0 && r.r <= 360, `${name}: el menú cabe (${r.l}–${r.r})`);
+    await close(page);
+  }
+});
+
+check('F5d T009 · AC9: de punta a punta con el teclado en el taller: Tab llega al botón, Intro abre, Tab hasta «Copiar TikZ», Intro copia y se anuncia, Escape cierra y devuelve el foco', async () => {
+  const page = await lab('v=work&ex=ej6&lang=es&step=999');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  const S = '#panelMain .panel-head .fx-holder > details.fx > summary';
+  await page.waitForSelector(S);
+  await page.locator('#btnNet').focus();
+  let n = 0;
+  while (!(await page.evaluate((s) => document.activeElement === document.querySelector(s), S)) && n++ < 40) await page.keyboard.press('Tab');
+  assert.ok(n < 40, 'Tab llega al botón');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#panelMain .fx-panel');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Copiar TikZ');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('#panelMain .fx-panel [role="status"]').textContent.startsWith('TikZ copiado.'));
+  assert.match(await page.evaluate(() => navigator.clipboard.readText()), /\\begin\{tikzpicture\}/);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate((s) => document.activeElement === document.querySelector(s), S), true);
+  await close(page);
+});
+
+check('F5d T009 · AC11 (principio 27): con el código de exportar cargado (menú abierto), cada vista sigue por debajo de 1 MB, también examen.html con todas las familias', async () => {
+  const views = FX_SITES.filter(([name]) => name !== 'examen').concat([['examen · todo', `examen.html#lang=es&ep=${EX_ALL}`, '#exPreview .fx-holder']]);
+  for (const [name, url, H] of views) {
+    const ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/${url}`, { waitUntil: 'networkidle' });
+    await page.waitForSelector(`${H} > details.fx`, { timeout: 60000 });
+    await openFirst(page, H);
+    await page.waitForLoadState('networkidle');
+    const bytes = await page.evaluate(() => [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((sum, e) => sum + (e.encodedBodySize || e.transferSize || 0), 0));
+    console.log(`    ${name} con «Exportar» abierto: ${(bytes / 1024).toFixed(0)} KB`);
+    assert.ok(bytes > 0 && bytes <= BUDGET, `${name}: ${bytes} bytes`);
+    await ctx.close();
   }
 });
 

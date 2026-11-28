@@ -575,7 +575,7 @@
     const royCtx = (c) => Object.assign({}, c, { selected, selPrecs: selInfo ? selInfo.precs : [], onSelect: toggleSel });
     // F5d (T006, P1): el botón «Exportar» de la red, o uno en cada red de «Lado a lado»; sin figura, sin botón.
     const head = $('panelMain').querySelector('.panel-head');
-    if (!fxHolder('net').isConnected) head.appendChild(fxHolder('net'));
+    if (!fxHolder('net').isConnected) head.querySelector('.row-wrap').appendChild(fxHolder('net'));
     const svgIn = (el) => () => el.querySelector('svg.net');
     if (isPert && minOn) {
       minCompare(pctx, count);
