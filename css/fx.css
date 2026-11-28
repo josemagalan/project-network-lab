@@ -13,4 +13,4 @@
 .fx .fx-live.warn { background: var(--warn-soft); color: var(--warn); border-left: 3px solid var(--warn-line); }
 .fx .fx-panel.fx-left { right: auto; left: 0; }
 .fx-off { position: absolute; left: -100000px; top: 0; width: 1600px; }
-@media (max-width: 600px) { .fx .fx-panel { right: auto; left: 0; width: min(290px, calc(100vw - 24px)); } }
+@media (max-width: 600px) { .fx .fx-panel { width: min(290px, calc(100vw - 24px)); } }

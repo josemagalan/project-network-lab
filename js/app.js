@@ -521,6 +521,7 @@
     $('side').hidden = ownView;
     for (const id of ['netView', 'selInfo', 'altTable', 'resultsView', 'ganttView', 'matrixView']) if (ownView) $(id).hidden = true;
     $('boxHint').parentNode.hidden = ownView;
+    if (ownView) fxBtn('net');
     if (cmpOn) { $('methodLine').hidden = true; renderCompare(); return; }
     if (retoOn) { $('methodLine').hidden = true; renderReto(); return; }
     if (royRetoOn) { $('methodLine').hidden = true; renderRoyReto(); return; }
@@ -572,18 +573,31 @@
     const numIdx = tr.findIndex((s) => s.kind === (progOn ? 'progEnd' : 'number'));
     const selInfo = NR.selection(selected, Object.assign({}, ctx, { numbered: !isPert || k >= numIdx }));
     const royCtx = (c) => Object.assign({}, c, { selected, selPrecs: selInfo ? selInfo.precs : [], onSelect: toggleSel });
+    // F5d (T006, P1): el botón «Exportar» de la red, o uno en cada red de «Lado a lado»; sin figura, sin botón.
+    const head = $('panelMain').querySelector('.panel-head');
+    if (!fxHolder('net').isConnected) head.appendChild(fxHolder('net'));
+    const svgIn = (el) => () => el.querySelector('svg.net');
     if (isPert && minOn) {
       minCompare(pctx, count);
       $('boxHint').textContent = t('view.pertHint');
+      fxBtn('net');
     } else if (isPert) {
       const holder = side ? sideBySide() : $('netView');
       if (progOn && k < placeIdx) G.pertView.predTable(holder, pctx);
       else if (k < placeIdx) G.pertView.succTable(holder, pctx); else G.pertView.render(holder, pctx);
       $('boxHint').textContent = progOn ? t('cmp.progHint') : t(side ? 'view.sideHint' : (k < placeIdx ? 'view.succHint' : 'view.pertHint'));
-      if (side) G.royView.render($('royHolder'), royCtx(sideRoyCtx(ctx, tr, k)));
+      const pertFx = k < placeIdx ? null : 'pert';
+      fxBtn(side ? 'sp' : 'net', pertFx, svgIn(holder), (c) => G.pertView.render(c, Object.assign({}, pctx, FX_BLANK)));
+      if (side) {
+        fxBtn('net');
+        const rc = royCtx(sideRoyCtx(ctx, tr, k));
+        G.royView.render($('royHolder'), rc);
+        fxBtn('sr', 'roy', svgIn($('royHolder')), (c) => G.royView.render(c, Object.assign({}, rc, FX_BLANK)));
+      }
     } else {
       if (state.view === 'net') G.royView.render($('netView'), royCtx(ctx)); else G.matrixView.render($('matrixView'), ctx);
       $('boxHint').textContent = state.view === 'matrix' ? t('view.matrixHint') : NR.relabel(t(`view.boxHint${state.box}`), state.nota);
+      fxBtn('net', state.view === 'net' ? 'roy' : null, svgIn($('netView')), (c) => G.royView.render(c, Object.assign({}, ctx, FX_BLANK)));
     }
 
     renderSelInfo(isPert && k < placeIdx && !minOn ? null : selInfo);
@@ -610,10 +624,12 @@
     if (step.kind === 'gantt') {
       const gv = clear($('ganttView'));
       gv.appendChild(h('p', { class: 'row-wrap small' }, [h('strong', {}, [t(ganttLate ? 'results.late' : 'results.early')]),
-        h('button', { type: 'button', class: 'ghost push', onclick: () => { ganttLate = !ganttLate; render(); } }, [t(ganttLate ? 'results.early' : 'results.late')])]));
+        h('button', { type: 'button', class: 'ghost push', onclick: () => { ganttLate = !ganttLate; render(); } }, [t(ganttLate ? 'results.early' : 'results.late')]), fxHolder('gantt')]));
       const holder = h('div');
       gv.appendChild(holder);
-      G.gantt.render(holder, Object.assign({}, ctx, { late: ganttLate }));
+      const gctx = Object.assign({}, ctx, { late: ganttLate });
+      G.gantt.render(holder, gctx);
+      fxBtn('gantt', 'gantt', () => holder.querySelector('svg'), (c) => G.gantt.render(c, Object.assign({}, gctx, { blank: true })));
     }
 
     const n = NR.narrate(step, ctx);
@@ -700,6 +716,19 @@
 
   function toggleSel(x) { selected = selected === x ? null : x; render(); }
 
+  // F5d (T006, P1): «Exportar» de una figura del taller o la ruta guiada (k: dónde va; sin kind, se quita). «En blanco» es
+  // la misma figura sin cifras, sin camino crítico ni marcas del paso, dibujada fuera de la vista; «resuelta», la de pantalla.
+  const FX_BLANK = { revealed: new Map(), criticalOn: false, step: null, hide: false, selected: null, selPrecs: [], onSelect: null, edgeMarks: null, marked: null, emph: null, blank: true };
+  const fxHold = {};
+  const fxHolder = (k) => fxHold[k] || (fxHold[k] = h('span', { class: k === 'gantt' ? 'fx-holder' : 'fx-holder push' }));
+  function fxBtn(k, kind, svgOf, draw) {
+    if (!kind) return G.figButton(fxHolder(k), null);
+    const route = state.v !== 'work';
+    return G.figButton(fxHolder(k), { kind, project: state.ex || null, title: `${t(kind === 'gantt' ? 'steps.gantt' : kind === 'pert' ? 'view.graphAoa' : 'view.graphAon')} · ${model.name}`,
+      lang: lang(), states: ['blank', 'solved'], note: route ? 'route' : null, ctx: route ? 'route' : 'work',
+      solved: svgOf, blank: () => { const c = G.figExport.offscreen(); draw(c); return c.querySelector('svg'); } });
+  }
+
   // Dos columnas dentro de #netView: la red PERT (devuelve su contenedor) y la ROY (#royHolder).
   function sideBySide() {
     const nd = model.net.dummies.length;
@@ -707,8 +736,8 @@
     const pertBox = h('div', { class: 'scroll-box', tabindex: '0', role: 'region', 'aria-label': t('view.graphAoa') });
     const royBox = h('div', { class: 'scroll-box', tabindex: '0', role: 'region', 'aria-label': t('view.graphAon'), id: 'royHolder' });
     clear($('netView')).appendChild(h('div', { class: 'side-by-side' }, [
-      h('section', {}, [h('h2', {}, [`${t('view.graphAoa')} · ${count}`]), pertBox]),
-      h('section', {}, [h('h2', {}, [`${t('view.graphAon')} · ${t('view.dummiesNone')}`]), royBox]),
+      h('section', {}, [h('div', { class: 'row-wrap' }, [h('h2', {}, [`${t('view.graphAoa')} · ${count}`]), fxHolder('sp')]), pertBox]),
+      h('section', {}, [h('div', { class: 'row-wrap' }, [h('h2', {}, [`${t('view.graphAon')} · ${t('view.dummiesNone')}`]), fxHolder('sr')]), royBox]),
     ]));
     return pertBox;
   }

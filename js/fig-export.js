@@ -240,11 +240,15 @@
     d.appendChild(h('div', { class: 'fx-panel', role: 'group', 'aria-label': t(spec, 'label') }, kids));
   }
 
-  // Alineado a la derecha del botón; si así se saldría por la izquierda (un botón al principio de la línea), a la izquierda.
+  // Alineado a la derecha del botón; si así se saldría por la izquierda, a la izquierda; y si tampoco cabe (pantalla
+  // estrecha, botón en medio), desplazado lo justo para quedar dentro.
   function place(d) {
     const pn = d.querySelector('.fx-panel'); if (!pn || !d.open) return;
-    pn.classList.remove('fx-left');
-    if (pn.getBoundingClientRect().left < 8) pn.classList.add('fx-left');
+    pn.classList.remove('fx-left'); pn.style.left = '';
+    if (pn.getBoundingClientRect().left >= 8) return;
+    pn.classList.add('fx-left');
+    const r = pn.getBoundingClientRect(); const W = root.document.documentElement.clientWidth;
+    if (r.right > W - 8) pn.style.left = `${Math.round(W - 8 - r.right)}px`;
   }
   function mount(d, spec) {
     d.fxSpec = spec;

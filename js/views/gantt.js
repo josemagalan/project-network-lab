@@ -1,5 +1,7 @@
 /*
  * views/gantt — diagrama de Gantt a fechas tempranas (o tardías) con la holgura total dibujada.
+ * F5d (T006, P9): con ctx.blank, la rejilla para dibujarlo: cada fila con su nombre y su duración («A (2)», decisión de
+ * T004) y el eje hasta la duración del proyecto, sin barras ni holguras.
  */
 (function (root) {
   'use strict';
@@ -8,11 +10,13 @@
 
   function render(container, ctx) {
     const d3 = root.d3;
-    const { solution, lang, late } = ctx;
+    const { solution, lang, late, blank } = ctx;
     const ids = solution.order;
     const D = solution.duration;
     const crit = new Set(solution.critical);
-    const left = 44; const top = 22; const rowH = 22;
+    const dur = blank ? Object.fromEntries(ctx.project.activities.map((a) => [a.id, a.d])) : null;
+    const label = (id) => (blank ? `${id} (${ctx.numFmt ? ctx.numFmt(dur[id]) : dur[id]})` : id);
+    const left = blank ? Math.max(44, 16 + 8 * Math.max(...ids.map((id) => label(id).length))) : 44; const top = 22; const rowH = 22;
     const unitW = Math.max(18, Math.min(64, Math.floor(820 / Math.max(D, 1))));
     const width = left + D * unitW + 24;
     const height = top + ids.length * rowH + 10;
@@ -31,7 +35,8 @@
       const y = top + k * rowH;
       const start = late ? tm.LS : tm.ES;
       const end = late ? tm.LF : tm.EF;
-      svg.append('text').attr('x', 6).attr('y', y + 14).attr('font-weight', 700).text(id);
+      svg.append('text').attr('x', 6).attr('y', y + 14).attr('font-weight', 700).text(label(id));
+      if (blank) return;
       if (!late && tm.LF > tm.EF + 1e-9) {
         svg.append('line').attr('class', 'float').attr('x1', left + tm.EF * unitW).attr('x2', left + tm.LF * unitW).attr('y1', y + 10).attr('y2', y + 10);
       }

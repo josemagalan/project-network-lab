@@ -32,7 +32,7 @@
   function figButton(holder, spec) {
     if (!holder) return null;
     let d = holder.querySelector(':scope > details.fx');
-    if (!fxOn() || !root.PNL.figLoad) { if (d) d.remove(); return null; }
+    if (!spec || !fxOn() || !root.PNL.figLoad) { if (d) d.remove(); return null; }
     const label = root.PNL.i18n.t(spec.lang, 'ctl.export');
     if (d) {
       d.querySelector('summary > span').textContent = label;

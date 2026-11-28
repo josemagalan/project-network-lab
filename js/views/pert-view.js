@@ -183,7 +183,8 @@
       const g = ng.append('g').attr('class', `ev${ev.n === active ? ' active' : ''}${crit ? ' crit' : ''}`).attr('transform', `translate(${p.x},${p.y})`);
       g.append('circle').attr('r', GG.r);
       g.append('text').attr('class', 'nid').attr('y', 5).text(ctx.numbered ? String(ev.n) : '');
-      if (revealed.has(`${ev.n}.TE`) || revealed.has(`${ev.n}.TL`)) {
+      // F5d (T006, decisión de T004): «en blanco» (ctx.blank) lleva las casillas de tiempos vacías.
+      if (ctx.blank || revealed.has(`${ev.n}.TE`) || revealed.has(`${ev.n}.TL`)) {
         const tb = g.append('g').attr('class', 'tbox').attr('transform', `translate(-26,${-GG.r - 24})`);
         tb.append('rect').attr('width', 52).attr('height', 20).attr('rx', 4);
         tb.append('line').attr('x1', 26).attr('x2', 26).attr('y1', 0).attr('y2', 20);

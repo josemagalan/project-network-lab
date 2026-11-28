@@ -14945,6 +14945,137 @@ check('F5d T005 · AC10 (avance de T009): axe sin violaciones con el menú abier
   }
 });
 
+// ---------- F5d T006: taller y ruta guiada ----------
+// El TikZ de lo que da el menú (copiar) frente al de la figura de pantalla; los textos de los nodos de un TikZ.
+const tikzTexts = (tex) => [...tex.matchAll(/\] at \([^)]*\) \{([^}]*)\};/g)].map((m) => m[1]);
+async function fxCopy(page, holderSel, state) {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  const d = page.locator(`${holderSel} > details.fx`);
+  if (!(await d.evaluate((x) => x.open))) await d.locator('summary').click();
+  await page.waitForSelector(`${holderSel} .fx-panel`);
+  const want = state === 'blank' ? /^(En blanco|Blank)$/ : /^(Resuelta|Solved)$/;
+  const seg = page.locator(`${holderSel} .fx-panel .seg button`, { hasText: want });
+  if (await seg.count()) await seg.click();
+  await page.evaluate(() => navigator.clipboard.writeText(''));
+  await page.locator(`${holderSel} .fx-act[data-act="copy"]`).click();
+  await page.waitForFunction(() => navigator.clipboard.readText().then((x) => x !== ''), null, { polling: 100 }).catch(() => {});
+  const tex = await page.evaluate(() => navigator.clipboard.readText());
+  await page.keyboard.press('Escape');
+  return tex;
+}
+const screenTikz = (page, sel) => page.evaluate((s) => PNL.figTikz.toTikz(PNL.figExport.treeOf(document.querySelector(s)), { title: '__' }), sel);
+const sameBody = (a, b) => a.split('\n').slice(1).join('\n') === b.split('\n').slice(1).join('\n');
+const EJ6_D = { A: 2, B: 3, C: 2, D: 8, E: 4, F: 3, G: 2, H: 1, I: 2, J: 3, K: 1 };
+
+check('F5d T006 · AC1, AC2 y AC9: en el taller, «Exportar» junto a la red ROY; «Resuelta» es la figura de pantalla y «En blanco», las mismas cajas con solo el nombre y la duración, sin trazo grueso', async () => {
+  const page = await open(`cpm.html?fx=1#${FX_WORK}`);
+  const H = '#panelMain .panel-head .fx-holder';
+  assert.equal(await page.locator(`${H} > details.fx`).count(), 1);
+  const solved = await fxCopy(page, H, 'solved');
+  assert.match(solved, /^% Red ROY · Mecánicas del Sureste \(Ejercicio 6\) · Project Network Lab\n/);
+  assert.ok(sameBody(solved, await screenTikz(page, '#netView svg')), 'resuelta = pantalla');
+  const blank = await fxCopy(page, H, 'blank');
+  assert.doesNotMatch(blank, /\[pnl thick/);
+  const txt = tikzTexts(blank);
+  for (const id of Object.keys(EJ6_D)) assert.ok(txt.includes(id), id);
+  const nums = txt.filter((x) => /^\d+$/.test(x)).sort();
+  assert.deepEqual(nums, Object.values(EJ6_D).map(String).sort(), 'en blanco, solo las duraciones');
+  assert.equal(await page.locator('.fx-off').count(), 0);
+  // La figura de pantalla no cambia al exportar en blanco.
+  assert.ok(sameBody(solved, await screenTikz(page, '#netView svg')));
+  // Matriz: no hay figura que exportar.
+  await page.locator('#btnMatrix').click();
+  assert.equal(await page.locator(`${H} > details.fx`).count(), 0);
+  await close(page);
+});
+
+check('F5d T006 · AC1 y AC2: la red PERT del taller: «Resuelta» con sus 9 sucesos y tiempos; «En blanco», los sucesos numerados con las casillas vacías y las 3 ficticias, sin trazo grueso ni cifras de tiempos', async () => {
+  const page = await open(`cpm.html?fx=1#${FX_WORK}&graph=aoa`);
+  const H = '#panelMain .panel-head .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  const solved = await fxCopy(page, H, 'solved');
+  assert.ok(sameBody(solved, await screenTikz(page, '#netView svg')));
+  const blank = await fxCopy(page, H, 'blank');
+  assert.match(blank, /^% Red PERT · Mecánicas del Sureste \(Ejercicio 6\)/);
+  assert.doesNotMatch(blank, /\[pnl thick/);
+  assert.equal((blank.match(/circle\[radius=/g) || []).length, 9);
+  const nums = tikzTexts(blank).filter((x) => /^\d+$/.test(x)).sort((a, b) => a - b);
+  assert.deepEqual(nums, ['1', '2', '3', '4', '5', '6', '7', '8', '9'], 'solo los números de los sucesos');
+  assert.equal((blank.match(/\\draw\[pnl line, rounded corners=[\d.]+mm\] \(0,0\) rectangle \(52,20\)/g) || []).length, 9, 'nueve casillas de tiempos vacías');
+  assert.equal((blank.match(/\[pnl line, dashed/g) || []).length, 3, 'las tres ficticias, a trazos');
+  for (const lbl of ['A = 2', 'D = 8', 'K = 1', 'F1', 'F2', 'F3']) assert.ok(tikzTexts(blank).includes(lbl), lbl);
+  await close(page);
+});
+
+check('F5d T006 · AC1, AC2 y P9: el Gantt de la ruta guiada lleva su botón; «En blanco» es la rejilla con «A (2)»… y el eje de 0 a 13, sin barras; «Resuelta», las 11 barras', async () => {
+  const page = await open('cpm.html?fx=1#v=route&ex=ej6&step=31&lang=es');
+  const H = '#ganttView .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  const solved = await fxCopy(page, H, 'solved');
+  assert.match(solved, /^% Diagrama de Gantt · Mecánicas del Sureste \(Ejercicio 6\)/);
+  assert.equal((solved.match(/fill=black!(75|20)/g) || []).length, 11);
+  const blank = await fxCopy(page, H, 'blank');
+  assert.equal((blank.match(/fill=black!(75|20)/g) || []).length, 0);
+  assert.doesNotMatch(blank, /dashed/);
+  const txt = tikzTexts(blank);
+  for (const [id, d] of Object.entries(EJ6_D)) assert.ok(txt.includes(`${id} (${d})`), `${id} (${d})`);
+  for (let x = 0; x <= 13; x++) assert.ok(txt.includes(String(x)), `eje ${x}`);
+  // «Fechas tardías»: el botón sigue (y exporta el de tardías).
+  await page.locator('#ganttView button.push').click();
+  await page.waitForSelector(`${H} > details.fx`);
+  assert.ok(sameBody(await fxCopy(page, H, 'solved'), await screenTikz(page, '#ganttView svg.gantt')), 'tardías: resuelta = pantalla');
+  await close(page);
+});
+
+check('F5d T006 · AC9: «Lado a lado» lleva un botón en cada red (PERT y ROY) y ninguno en la cabecera; los pasos de la PERT sin red, la comparación y el reto, ninguno', async () => {
+  const page = await open(`cpm.html?fx=1#${FX_WORK}&graph=aoa&view=side`);
+  await page.waitForSelector('.side-by-side .fx-holder > details.fx');
+  assert.equal(await page.locator('#panelMain .panel-head .fx-holder > details.fx').count(), 0);
+  const holders = page.locator('.side-by-side .fx-holder');
+  assert.equal(await holders.count(), 2);
+  await page.evaluate(() => document.querySelectorAll('.side-by-side .fx-holder').forEach((x, i) => { x.id = `fxSide${i}`; }));
+  const pert = await fxCopy(page, '#fxSide0', 'solved');
+  const roy = await fxCopy(page, '#fxSide1', 'solved');
+  assert.match(pert, /^% Red PERT/);
+  assert.match(roy, /^% Red ROY/);
+  await close(page);
+  const early = await open('cpm.html?fx=1#v=route&ex=ej6&lang=es&graph=aoa&step=1');
+  assert.equal(await early.locator('details.fx').count(), 0);
+  await early.locator('#btnCmp').click();
+  assert.equal(await early.locator('details.fx').count(), 0);
+  await close(early);
+});
+
+check('F5d T006 · AC8: en la ruta guiada con predicción, «Resuelta» no lleva ni una cifra que la pantalla no enseñe, y «En blanco» las cajas ya dibujadas sin cifras', async () => {
+  const page = await open('cpm.html?fx=1#v=route&ex=ej6&step=8&lang=es&pred=1');
+  const H = '#panelMain .panel-head .fx-holder';
+  await page.waitForSelector(`${H} > details.fx`);
+  const shown = await page.evaluate(() => [...document.querySelectorAll('#netView svg text')].map((t) => (t.firstChild && t.firstChild.nodeType === 3 ? t.firstChild.nodeValue.trim() : '')).filter((x) => /^\d+$/.test(x)).sort());
+  const solved = await fxCopy(page, H, 'solved');
+  assert.deepEqual(tikzTexts(solved).filter((x) => /^\d+$/.test(x)).sort(), shown);
+  const blank = await fxCopy(page, H, 'blank');
+  assert.deepEqual(tikzTexts(blank).filter((x) => /^\d+$/.test(x)).sort(), Object.values(EJ6_D).map(String).sort());
+  assert.equal(await page.evaluate(() => document.querySelector('#chkPredict').checked), true);
+  await close(page);
+});
+
+check('F5d T006 · AC10: el botón de la red y el del Gantt, con el menú abierto: axe sin violaciones (claro y oscuro, ES y EN) y, a 360 px, sin desplazamiento horizontal', async () => {
+  for (const [scheme, lang, width, hash, H] of [['light', 'es', 1280, FX_WORK, '#panelMain .panel-head .fx-holder'], ['dark', 'en', 1280, 'v=route&ex=ej6&step=31&lang=en', '#ganttView .fx-holder'],
+    ['light', 'es', 360, FX_WORK, '#panelMain .panel-head .fx-holder'], ['dark', 'es', 360, 'v=route&ex=ej6&step=31&lang=es', '#ganttView .fx-holder']]) {
+    const page = await open(`cpm.html?fx=1#${hash}`, { scheme, width });
+    await page.waitForSelector(`${H} > details.fx`);
+    await page.locator(`${H} > details.fx > summary`).click();
+    await page.waitForSelector(`${H} .fx-panel`);
+    await axe(page, `F5d T006 · ${H} · ${scheme} · ${lang} · ${width}`);
+    if (width === 360) {
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 360, `${H} a 360 px`);
+      const r = await page.evaluate((h) => { const b = document.querySelector(`${h} .fx-panel`).getBoundingClientRect(); return [b.left, b.right]; }, H);
+      assert.ok(r[0] >= 0 && r[1] <= 360, `el menú cabe: ${r}`);
+    }
+    await close(page);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {
