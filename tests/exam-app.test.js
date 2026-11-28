@@ -189,7 +189,7 @@ test('F3f T010 · la base y las familias se cargan en el orden de la página sin
   const c = { lang: 'es', nota: 'en', labels: IM.labels('en'), tr: ctx.PNL.i18nMoodle.tr('es') };
   const base = ctx.PNL.exam.project(EA.optsOf(EA.load('', '', 'es').state), 0, c);
   assert.equal(base.ok, true);
-  for (const f of Object.keys(FL.FAMILIES)) FL.FAMILIES[f].forEach(run);
+  for (const f of Object.keys(FL.FAMILIES)) FL.FAMILIES[f].filter((x) => !x.endsWith('.css')).forEach(run);
   for (const f of Object.keys(FL.READY)) assert.equal(FL.READY[f](ctx.PNL), true, f);
   const all = EA.optsOf(EA.load('#ep=roy-det-times-floats-tcl-rep&lv=easy', '', 'es').state);
   const m = ctx.PNL.exam.project(all, 0, c);

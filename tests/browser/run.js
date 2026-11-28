@@ -11359,7 +11359,9 @@ check('F3f T015 AC17 · principio 27: examen.html con todas las familias a la ve
     bytes: [...performance.getEntriesByType('navigation'), ...performance.getEntriesByType('resource')].reduce((s, e) => s + (e.encodedBodySize || e.transferSize || 0), 0),
     files: performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname.replace(/^.*?\/js\//, 'js/')),
   }));
-  for (const f of Object.values(require('../../js/family-load.js').FAMILIES).flat()) assert.ok(r.files.includes(f), `cargado ${f}`);
+  // F5d (T008): la familia fx (exportar una red) no la pide ninguna parte: llega al abrir el menú «Exportar» (T009 la mide).
+  const FAMS = require('../../js/family-load.js').FAMILIES;
+  for (const f of Object.keys(FAMS).filter((k) => k !== 'fx').flatMap((k) => FAMS[k])) assert.ok(r.files.includes(f), `cargado ${f}`);
   console.log(`    examen.html con todas las familias (también xe y xs): ${(r.bytes / 1024).toFixed(0)} KB`);
   assert.ok(r.bytes <= BUDGET, `${r.bytes} bytes`);
   await close(p);
@@ -15193,6 +15195,68 @@ check('F5d T007 · AC7 (P4): construir la PERT: el dibujo del alumno en blanco; 
   assert.deepEqual((await fxSeg(page, H)).seg, ['Resuelta*']);
   assert.ok(sameBody(await fxCopy(page, H, 'solved'), await screenTikz(page, '#exView .reto-solution svg.net')));
   await close(page);
+});
+
+// ---------- F5d T008: el examen ----------
+const xmFx = async (hash, opts) => { const p = await open(`examen.html?fx=1#${hash}`, opts); await exWait(p); await p.waitForSelector('#exPreview .xm-paper'); return p; };
+// El SVG en texto de la red k del documento (está dentro de un <img>, en base 64).
+const xmNetSvg = (page, k) => page.evaluate((i) => { const im = document.querySelectorAll('#exPreview .xm-fig[data-net] img')[i];
+  return new TextDecoder().decode(Uint8Array.from(atob(im.src.split(',')[1]), (c) => c.charCodeAt(0))); }, k);
+
+check('F5d T008 · AC9 y P5: en examen.html, un botón «Exportar» en cada red del documento (no en las rejillas ni en el QR); el enunciado se exporta en blanco y la solución resuelta, como se ven; sin ?fx=1, ninguno', async () => {
+  const off = await exOpen('lang=es&ep=det');
+  await off.waitForSelector('#exPreview .xm-paper');
+  assert.equal(await off.locator('details.fx').count(), 0);
+  await close(off);
+  const page = await xmFx('lang=es&ep=det-roy');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  await page.waitForSelector('#exPreview .fx-holder > details.fx');
+  const nets = await page.locator('#exPreview .xm-fig[data-net]').count();
+  assert.ok(nets >= 1);
+  assert.ok(await page.locator('#exPreview .xm-fig:not([data-net])').count() >= 1, 'las rejillas de «Construir la ROY», sin botón');
+  assert.equal(await page.locator('#exPreview .fx-holder > details.fx').count(), nets);
+  // El botón y su menú, fuera de la hoja reducida: el menú mide lo de siempre.
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('#exPreview details.fx')].every((d) => !d.closest('.xm-paper'))), true);
+  await page.evaluate(() => { document.querySelectorAll('#exPreview .fx-holder').forEach((x, i) => { x.id = `xmFx${i}`; }); });
+  const H = '#xmFx0';
+  const m = await fxSeg(page, H);
+  assert.deepEqual(m.seg, []);
+  assert.equal(m.hints[0], 'Como en el documento: en blanco en el enunciado, resuelta en la solución.');
+  assert.ok(await page.evaluate(() => document.querySelector('#xmFx0 .fx-panel').getBoundingClientRect().width) > 250);
+  const tex = await fxCopy(page, H, 'blank');
+  const want = await page.evaluate((sv) => PNL.figTikz.toTikz(PNL.figTikz.parse(sv), { title: '__' }), await xmNetSvg(page, 0));
+  assert.ok(sameBody(tex, want), 'el TikZ es el de la red del documento');
+  assert.match(tex, /^% Red (ROY|PERT) · Modelo A · semilla \d+ · Enunciado · Project Network Lab/);
+  await page.locator(`${H} > details.fx > summary`).click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.locator(`${H} .fx-act[data-act="svg"]`).click()]);
+  assert.match(dl.suggestedFilename(), /^pnl-(roy|pert)-s\d+A-blanco\.svg$/);
+  // Al imprimir, ni botones ni menús.
+  await page.emulateMedia({ media: 'print' });
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('details.fx')].every((d) => getComputedStyle(d).display === 'none')), true);
+  await page.emulateMedia({ media: 'screen' });
+  // La solución: resuelta.
+  await page.locator('#exDoc-o').click();
+  await page.waitForSelector('#exPreview .fx-holder > details.fx');
+  await page.evaluate(() => { document.querySelectorAll('#exPreview .fx-holder').forEach((x, i) => { x.id = `xmFx${i}`; }); });
+  const sol = await fxCopy(page, H, 'solved');
+  assert.match(sol, /· Solución · Project Network Lab/);
+  await page.locator(`${H} > details.fx > summary`).click();
+  const [dl2] = await Promise.all([page.waitForEvent('download'), page.locator(`${H} .fx-act[data-act="tex"]`).click()]);
+  assert.match(dl2.suggestedFilename(), /^pnl-(roy|pert)-s\d+A-resuelta\.tex$/);
+  await close(page);
+});
+
+check('F5d T008 · AC10: examen.html con el menú abierto, axe sin violaciones (claro y oscuro); el grupo fx solo se carga al abrirlo', async () => {
+  for (const scheme of ['light', 'dark']) {
+    const page = await xmFx('lang=es&ep=det', { scheme });
+    await page.waitForSelector('#exPreview .fx-holder > details.fx');
+    assert.equal(await page.evaluate(() => !!(window.PNL.figExport)), false);
+    await page.locator('#exPreview .fx-holder > details.fx > summary').first().click();
+    await page.waitForSelector('#exPreview .fx-panel');
+    assert.equal(await page.evaluate(() => !!(PNL.figExport && PNL.figTikz && document.querySelector('link[href="css/fx.css"]'))), true);
+    await axe(page, `F5d T008 · examen.html · menú abierto · ${scheme}`);
+    await close(page);
+  }
 });
 
 // ---------- Ejecución ----------

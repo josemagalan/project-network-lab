@@ -21,7 +21,9 @@ test('F3f T010 · las familias de moodle.html no cambian (sg, lab, st) y examen.
   // T013: los ejemplos citados (examples y stochex) y los enunciados de los apuntes (statements, después de examples).
   assert.deepEqual(FL.FAMILIES.xe, ['js/core/examples.js', 'js/core/stochex.js']);
   assert.deepEqual(FL.FAMILIES.xs, ['js/core/statements.js']);
-  assert.deepEqual(Object.keys(FL.FAMILIES), ['sg', 'lab', 'st', 'pr', 'dt', 'xe', 'xs']);
+  // F5d (T008): exportar una red del documento, con su hoja (fx).
+  assert.deepEqual(FL.FAMILIES.fx, ['css/fx.css', 'js/i18n-fx.js', 'js/views/fig-tikz.js', 'js/fig-export.js']);
+  assert.deepEqual(Object.keys(FL.FAMILIES), ['sg', 'lab', 'st', 'pr', 'dt', 'xe', 'xs', 'fx']);
   assert.equal(FL.READY.xe({ examples: {}, stochex: {} }), true); assert.equal(FL.READY.xe({ examples: {} }), false);
   assert.equal(FL.READY.xs({ statements: {} }), true); assert.equal(FL.READY.xs({}), false);
   for (const f of Object.values(FL.FAMILIES).flat()) assert.ok(fs.existsSync(path.join(ROOT, f)), `existe ${f}`);

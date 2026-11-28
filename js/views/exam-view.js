@@ -125,6 +125,8 @@
         wide = b.w > WIDE;
       } else if (k === 'svg') {
         el = b.svg ? fig(img(b.svg, b.alt, svgSize(b.svg)), !!b.wide) : h('p', { class: 'xm-alt' }, [b.alt]);
+        // F5d (T008, P5): las redes (no los gráficos) llevan su tipo, para el botón «Exportar» de examen.html.
+        if (b.svg && b.model && (b.model.graph === 'aon' || b.model.graph === 'aoa')) el.setAttribute('data-net', b.model.graph === 'aoa' ? 'pert' : 'roy');
         wide = !!(b.svg && b.wide);
       } else if (k === 'table') {
         el = table(b.table.head, b.table.rows, b.fill ? 'xm-table xm-fill' : 'xm-table');

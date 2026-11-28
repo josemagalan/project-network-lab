@@ -470,6 +470,38 @@
       if (!paper) return;
       const s = Math.min(1, Math.max(0.2, (box.clientWidth - 24) / paper.offsetWidth));
       box.style.setProperty('--xm-s', s.toFixed(4));
+      fxPlace();
+    }
+    // F5d (T008, P5): «Exportar» en cada red del documento, como se ve (el enunciado en blanco; la solución y la rúbrica,
+    // resueltas). El botón va en la caja de la hoja, sobre la esquina de la red, y no dentro de la hoja reducida (su menú
+    // saldría diminuto); el SVG en texto de la red se pone fuera de la vista para exportarlo. No se imprime.
+    root.PNL.figLoad = () => loader.need(['fx']) || Promise.resolve();
+    function fxNets(d) {
+      const blank = state.dv === 's';
+      [...$('exPreview').querySelectorAll('.xm-fig[data-net]')].forEach((fig) => {
+        const box = fig.closest('.xm-pagebox');
+        const holder = h('span', { class: 'fx-holder xm-fx' });
+        const kind = fig.getAttribute('data-net');
+        const el = () => {
+          const b64 = fig.querySelector('img').src.split(',')[1];
+          const text = new root.TextDecoder().decode(Uint8Array.from(root.atob(b64), (c) => c.charCodeAt(0)));
+          const sv = doc.importNode(new root.DOMParser().parseFromString(text, 'image/svg+xml').documentElement, true);
+          root.PNL.figExport.offscreen().appendChild(sv);
+          return sv;
+        };
+        if (!root.PNL.figButton(holder, { kind, project: `s${d.meta.sdUsed}${d.meta.letter}`, title: `${t(kind === 'pert' ? 'view.graphAoa' : 'view.graphAon')} · ${footOf(d.meta, state.dv, t)}`,
+          lang: state.lang, states: [blank ? 'blank' : 'solved'], note: 'exam', ctx: 'exam', blank: el, solved: el })) return;
+        holder.fxFig = fig;
+        box.appendChild(holder);
+      });
+      fxPlace();
+    }
+    function fxPlace() {
+      for (const holder of $('exPreview').querySelectorAll('.xm-fx')) {
+        const b = holder.parentNode.getBoundingClientRect(); const f = holder.fxFig.getBoundingClientRect();
+        holder.style.top = `${Math.round(f.top - b.top)}px`;
+        holder.style.right = `${Math.round(b.right - f.right)}px`;
+      }
     }
     /** El documento k (en caché por modelo, idioma, notación, puntos, extras y apartados). */
     function docOf(k, o) {
@@ -497,6 +529,7 @@
       current = { k, d };
       sheets = EV.pages($('exPreview'), viewBlocks(d, state.dv, state, t), Object.assign(viewCtx(), { paper: state.pp, foot: footOf(d.meta, state.dv, t) }));
       fit();
+      fxNets(d);
       $('exPrint').disabled = false;
       $('exStatus').textContent = statusOf(model, sheets, state.pp, t);
     }

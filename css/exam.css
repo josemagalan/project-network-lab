@@ -74,7 +74,7 @@ button.ghost.primary:disabled { color: var(--accent-ink); opacity: 0.55; }
 /* ---------- las hojas (exam-view.pages): blancas, con el texto oscuro, en claro y en oscuro ---------- */
 .xm-a4 { --xm-pw: 210mm; --xm-ph: 297mm; --xm-sw: 180mm; --xm-sh: 266mm; }
 .xm-letter { --xm-pw: 215.9mm; --xm-ph: 279.4mm; --xm-sw: 185.9mm; --xm-sh: 248.4mm; }
-.xm-pagebox { flex: none; width: calc(var(--xm-pw) * var(--xm-s, 1)); height: calc(var(--xm-ph) * var(--xm-s, 1)); }
+.xm-pagebox { position: relative; flex: none; width: calc(var(--xm-pw) * var(--xm-s, 1)); height: calc(var(--xm-ph) * var(--xm-s, 1)); }
 .xm-paper {
   box-sizing: border-box; width: var(--xm-pw); height: var(--xm-ph); padding: 15mm 15mm 16mm;
   transform: scale(var(--xm-s, 1)); transform-origin: 0 0; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
@@ -158,3 +158,5 @@ button.ghost.primary:disabled { color: var(--accent-ink); opacity: 0.55; }
   .xm-prow .xm-items { grid-column: 1 / -1; order: 3; }
   .xm-head-grid { grid-template-columns: minmax(0, 1fr); }
 }
+/* F5d (T008): el botón «Exportar» de cada red, sobre su esquina, fuera de la hoja reducida. */
+.xm-fx { position: absolute; z-index: 2; }

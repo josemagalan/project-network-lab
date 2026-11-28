@@ -27,6 +27,8 @@
     // los enunciados de los apuntes (statements, que usa examples: después de xe).
     xe: ['js/core/examples.js', 'js/core/stochex.js'],
     xs: ['js/core/statements.js'],
+    // F5d (T008, P8): exportar una red del documento, al abrir el menú «Exportar» (con su hoja, que no hace esperar).
+    fx: ['css/fx.css', 'js/i18n-fx.js', 'js/views/fig-tikz.js', 'js/fig-export.js'],
   };
   /** Los globales que deja cada familia (la familia está cargada). */
   const READY = {
@@ -37,6 +39,7 @@
     dt: (P) => !!P.i18nDet,
     xe: (P) => !!P.examples && !!P.stochex,
     xs: (P) => !!P.statements,
+    fx: (P) => !!P.figExport && !!P.figTikz && !!P.i18nFx,
   };
 
   function create(o) {
@@ -51,7 +54,10 @@
       if (!loading[f]) {
         const retry = broken.has(f);
         const have = new Set([...doc.scripts].map((x) => x.getAttribute('src')));
-        const files = FAMILIES[f].filter((src, i, list) => retry || !have.has(src) || i === list.length - 1);
+        for (const href of FAMILIES[f].filter((src) => src.endsWith('.css') && !doc.querySelector(`link[href="${src}"]`))) {
+          const el = doc.createElement('link'); el.rel = 'stylesheet'; el.href = href; doc.head.appendChild(el);
+        }
+        const files = FAMILIES[f].filter((src) => !src.endsWith('.css')).filter((src, i, list) => retry || !have.has(src) || i === list.length - 1);
         loading[f] = new Promise((resolve, reject) => {
           files.forEach((src, i) => {
             const el = doc.createElement('script');
