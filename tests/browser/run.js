@@ -14559,6 +14559,88 @@ check('F5c T015 · AC13 (principio 27): rs y rl no se cargan en las demás vista
   await close(page);
 });
 
+// ---------- F5d T003: el exportador (fig-export) ----------
+// Hasta T005 el grupo «fx» no está en app: las pruebas cargan sus dos guiones en la página.
+const FIGT = require(path.join(ROOT, 'js', 'views', 'fig-tikz.js'));
+async function fxLoad(page) {
+  await page.addScriptTag({ url: `${BASE}/js/views/fig-tikz.js` });
+  await page.addScriptTag({ url: `${BASE}/js/fig-export.js` });
+  await page.waitForFunction(() => PNL.figExport && PNL.figTikz);
+}
+const FX_CASES = [['ej6-roy7', 'v=route&ex=ej6&step=30&lang=es', '#netView svg'], ['ej6-pert', 'v=route&ex=ej6&step=30&lang=es&graph=aoa', '#netView svg'], ['ej6-gantt', 'v=route&ex=ej6&step=31&lang=es', '#ganttView svg']];
+
+check('F5d T003 · AC2: el árbol de la figura de pantalla da el mismo TikZ que el SVG capturado del Ejercicio 6 (ROY, PERT y Gantt), con la página en claro y en oscuro', async () => {
+  for (const scheme of ['light', 'dark']) {
+    for (const [fx, hash, sel] of FX_CASES) {
+      const page = await lab(hash, { scheme });
+      await page.waitForSelector(sel);
+      await fxLoad(page);
+      const got = await page.evaluate((s) => PNL.figTikz.toTikz(PNL.figExport.treeOf(document.querySelector(s)), { title: 't' }), sel);
+      const want = FIGT.toTikz(FIGT.parse(fs.readFileSync(path.join(ROOT, 'tests', 'fixtures', 'fig', `${fx}.svg`), 'utf8')), { title: 't' });
+      assert.equal(got, want, `${fx} · ${scheme}`);
+      await close(page);
+    }
+  }
+});
+
+check('F5d T003 · AC3: el SVG descargado es la figura de pantalla, del tamaño de su dibujo, con los colores del tema claro también con la página en oscuro', async () => {
+  const [, hash, sel] = FX_CASES[0];
+  const light = await lab(hash, { scheme: 'light' });
+  await light.waitForSelector(sel);
+  const want = await light.evaluate((s) => { const g = getComputedStyle; const sv = document.querySelector(s);
+    return { box: g(sv.querySelector('rect.box')).stroke, crit: g(sv.querySelector('rect.box.crit')).stroke, ink: g(sv.querySelector('text.nid')).fill, edge: g(sv.querySelector('path.edge:not(.crit)')).stroke, n: sv.querySelectorAll('*').length }; }, sel);
+  await close(light);
+  for (const scheme of ['dark', 'light']) {
+    const page = await lab(hash, { scheme });
+    await page.waitForSelector(sel);
+    await fxLoad(page);
+    const got = await page.evaluate((s) => {
+      const sv = document.querySelector(s);
+      const txt = PNL.figExport.svgFile(sv, { title: 'Red ROY' });
+      const d = new DOMParser().parseFromString(txt, 'image/svg+xml').documentElement;
+      const at = (q, k) => d.querySelector(q).getAttribute(k);
+      return { ok: d.tagName === 'svg' && !d.querySelector('parsererror'), w: d.getAttribute('width'), vb: d.getAttribute('viewBox'), title: d.querySelector('title').textContent,
+        box: at('rect.box', 'stroke'), crit: at('rect.box.crit', 'stroke'), ink: at('text.nid', 'fill'), edge: at('path.edge:not(.crit)', 'stroke'), n: d.querySelectorAll('*').length, bg: d.querySelector('rect').getAttribute('fill') };
+    }, sel);
+    assert.equal(got.ok, true, scheme);
+    assert.deepEqual([got.w, got.vb, got.title, got.bg], ['1072', '0 0 1072 406', 'Red ROY', '#ffffff'], scheme);
+    assert.deepEqual([got.box, got.crit, got.ink, got.edge], [want.box, want.crit, want.ink, want.edge], scheme);
+    assert.equal(got.n, want.n + 2, `${scheme}: los mismos elementos, más el título y el fondo`);
+    await close(page);
+  }
+});
+
+check('F5d T003 · AC3: el PNG es la figura al doble de tamaño, con fondo blanco', async () => {
+  const [, hash, sel] = FX_CASES[2];
+  const page = await lab(hash, { scheme: 'dark' });
+  await page.waitForSelector(sel);
+  await fxLoad(page);
+  const got = await page.evaluate(async (s) => {
+    const sv = document.querySelector(s); const vb = sv.viewBox.baseVal;
+    const b = await PNL.figExport.png(sv, 2);
+    const bmp = await createImageBitmap(b);
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; const cx = c.getContext('2d'); cx.drawImage(bmp, 0, 0);
+    return { type: b.type, w: bmp.width, h: bmp.height, vw: vb.width, vh: vb.height, px: [...cx.getImageData(1, 1, 1, 1).data] };
+  }, sel);
+  assert.deepEqual([got.type, got.w, got.h], ['image/png', got.vw * 2, got.vh * 2]);
+  assert.deepEqual(got.px, [255, 255, 255, 255]);
+  await close(page);
+});
+
+check('F5d T003: la descarga lleva su nombre y su contenido; copiar al portapapeles, y si el navegador no deja, se sabe', async () => {
+  const page = await lab('v=route&ex=ej6&step=30&lang=es');
+  await page.waitForSelector('#netView svg');
+  await fxLoad(page);
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => PNL.figExport.download('pnl-roy-ej6-resuelta.tex', 'hola \\\\ ñ', 'text/x-tex'))]);
+  assert.equal(dl.suggestedFilename(), 'pnl-roy-ej6-resuelta.tex');
+  assert.equal(fs.readFileSync(await dl.path(), 'utf8'), 'hola \\\\ ñ');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  assert.equal(await page.evaluate(() => PNL.figExport.copy('\\begin{tikzpicture}')), true);
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), '\\begin{tikzpicture}');
+  assert.equal(await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('no')); return PNL.figExport.copy('x'); }), false);
+  await close(page);
+});
+
 // ---------- F5c T018: revisión de cierre ----------
 // Una tabla de 30 actividades con duraciones de cientos de periodos (la de la revisión: mulberry32(6), duraciones × 50).
 function rsLong(f) {
