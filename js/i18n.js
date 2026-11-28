@@ -32,6 +32,7 @@
         lang: 'Idioma', nota: 'Notación', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Caja', box4: '4 campos', box7: '7 campos', boxc: 'Compacta',
         settings: 'Ajustes',
+        export: 'Exportar',
       },
       view: {
         graphLabel: 'Tipo de red', graphAon: 'Red ROY', graphAoa: 'Red PERT',
@@ -354,6 +355,7 @@
         lang: 'Language', nota: 'Notation', notaEn: 'ES · EF · LS · LF', notaEs: 'tᵢ · fᵢ · tᵢ* · fᵢ*',
         box: 'Node box', box4: '4 fields', box7: '7 fields', boxc: 'Compact',
         settings: 'Settings',
+        export: 'Export',
       },
       view: {
         graphLabel: 'Network type', graphAon: 'AON (ROY)', graphAoa: 'AOA (PERT)',

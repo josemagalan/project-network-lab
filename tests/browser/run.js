@@ -14793,6 +14793,158 @@ check('F5c T018 · revisión (I-F18, AC11): el enlace que deja cada interacción
   await close(page);
 });
 
+// ---------- F5d T005: el botón «Exportar» y su menú ----------
+// La vista de prueba: el taller con el Ejercicio 6 resuelto; el botón se pone a mano en un contenedor (las vistas, en T006–T008).
+const FX_WORK = 'v=work&ex=ej6&lang=es&step=999';
+async function fxMount(page, spec) {
+  await page.waitForSelector('#netView svg');
+  return page.evaluate((o) => {
+    let h = document.getElementById(o.holder || 'fxTest');
+    if (!h) { h = document.createElement('div'); h.id = o.holder || 'fxTest'; document.querySelector('#panelMain .panel-head').append(h); }
+    const spec = { kind: 'roy', project: 'ej6', title: 'Red ROY · Ejercicio 6', lang: o.lang || 'es', states: o.states || ['blank', 'solved'], note: o.note || null, ctx: o.ctx || 'work', initial: o.initial,
+      solved: () => document.querySelector('#netView svg'),
+      blank: () => { const c = PNL.figExport.offscreen(); const sv = document.querySelector('#netView svg').cloneNode(true); c.append(sv); return sv; } };
+    const d = PNL.figButton(h, spec);
+    return d ? h.querySelectorAll(':scope > details.fx').length : 0;
+  }, spec || {});
+}
+const fxOpen = async (page, holder = 'fxTest') => { await page.locator(`#${holder} > details.fx > summary`).click(); await page.waitForSelector(`#${holder} .fx-panel`); };
+const fxMenu = (page, holder = 'fxTest') => page.evaluate((hid) => { const d = document.querySelector(`#${hid} > details.fx`); const pn = d.querySelector('.fx-panel');
+  return { open: d.open, btn: d.querySelector('summary').textContent.replace('▾', '').trim(), seg: pn ? [...pn.querySelectorAll('.seg button')].map((b) => `${b.textContent}${b.getAttribute('aria-pressed') === 'true' ? '*' : ''}`) : null,
+    acts: pn ? [...pn.querySelectorAll('.fx-act')].map((b) => b.textContent) : null, hints: pn ? [...pn.querySelectorAll('.fx-hint')].filter((x) => !x.hidden).map((x) => x.textContent) : null,
+    live: pn ? pn.querySelector('[role="status"]').textContent : null }; }, holder);
+const fxGroup = (page) => page.evaluate(() => ({ js: ['js/i18n-fx.js', 'js/views/fig-tikz.js', 'js/fig-export.js'].filter((s) => document.querySelector(`script[src="${s}"]`)).length, css: !!document.querySelector('link[href="css/fx.css"]'), api: !!(PNL.figExport && PNL.figTikz) }));
+
+check('F5d T005 · AC11 y P10: sin ?fx=1 no hay botón; con ?fx=1 lo hay, y el grupo fx (guiones y hoja) solo se carga al abrir el menú; la bandera no entra en el enlace', async () => {
+  const off = await lab(FX_WORK);
+  assert.equal(await fxMount(off), 0);
+  assert.equal(await off.locator('details.fx').count(), 0);
+  await close(off);
+  const page = await open(`cpm.html?fx=1#${FX_WORK}`);
+  assert.equal(await fxMount(page), 1);
+  assert.deepEqual(await fxGroup(page), { js: 0, css: false, api: false });
+  assert.equal((await fxMenu(page)).btn, 'Exportar');
+  await fxOpen(page);
+  assert.deepEqual(await fxGroup(page), { js: 3, css: true, api: true });
+  const m = await fxMenu(page);
+  assert.equal(m.open, true);
+  assert.deepEqual(m.seg, ['En blanco', 'Resuelta*']);
+  assert.deepEqual(m.acts, ['Descargar SVG', 'Descargar PNG (doble tamaño)', 'Copiar TikZ', 'Descargar TikZ (.tex que compila solo)']);
+  assert.equal(m.hints.length, 1);
+  assert.match(m.hints[0], /^TikZ en blanco y negro/);
+  assert.equal(m.live, '');
+  // Volver a llamarla con el mismo contenedor no duplica el botón ni cierra el menú (las vistas se redibujan a menudo).
+  assert.equal(await fxMount(page), 1);
+  assert.equal((await fxMenu(page)).open, true);
+  const loc = await page.evaluate(() => ({ hash: location.hash, search: location.search }));
+  assert.equal(loc.search, '?fx=1');
+  assert.doesNotMatch(loc.hash, /fx/);
+  await close(page);
+});
+
+check('F5d T005 · AC9: el menú se usa entero con el teclado: Intro lo abre, Tab recorre las opciones, Escape lo cierra y devuelve el foco; pulsar fuera lo cierra', async () => {
+  const page = await open(`cpm.html?fx=1#${FX_WORK}`);
+  await fxMount(page);
+  await page.locator('#fxTest > details.fx > summary').focus();
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#fxTest .fx-panel');
+  const seen = [];
+  for (let i = 0; i < 6; i++) { await page.keyboard.press('Tab'); seen.push(await page.evaluate(() => document.activeElement.textContent)); }
+  assert.deepEqual(seen, ['En blanco', 'Resuelta', 'Descargar SVG', 'Descargar PNG (doble tamaño)', 'Copiar TikZ', 'Descargar TikZ (.tex que compila solo)']);
+  await page.keyboard.press('Escape');
+  assert.equal((await fxMenu(page)).open, false);
+  assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('#fxTest > details.fx > summary')), true);
+  await page.keyboard.press('Enter');
+  assert.equal((await fxMenu(page)).open, true);
+  await page.mouse.click(5, 700);
+  assert.equal((await fxMenu(page)).open, false);
+  await close(page);
+});
+
+check('F5d T005 · AC3: desde el menú, el SVG, el PNG y el TikZ se descargan con su nombre (en blanco y resuelta), y al descargar se cierra; copiar avisa en la región viva, también si el navegador no deja', async () => {
+  const page = await open(`cpm.html?fx=1#${FX_WORK}`);
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE });
+  await fxMount(page);
+  await fxOpen(page);
+  const act = (name) => page.locator('#fxTest .fx-act', { hasText: name });
+  await act('Copiar TikZ').click();
+  await page.waitForFunction(() => document.querySelector('#fxTest [role="status"]').textContent !== '');
+  let m = await fxMenu(page);
+  assert.match(m.live, /^TikZ copiado\./);
+  assert.equal(m.hints.length, 0);
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  assert.match(clip, /^% Red ROY · Ejercicio 6 · Project Network Lab\n/);
+  assert.match(clip, /\\begin\{tikzpicture\}/);
+  assert.doesNotMatch(clip, /documentclass/);
+  assert.match(clip, /pnl thick/);
+  // En blanco: sin camino crítico.
+  await page.locator('#fxTest .seg button', { hasText: 'En blanco' }).click();
+  m = await fxMenu(page);
+  assert.deepEqual(m.seg, ['En blanco*', 'Resuelta']);
+  assert.equal(m.live, '');
+  for (const [name, file] of [['Descargar SVG', 'pnl-roy-ej6-blanco.svg'], ['Descargar PNG', 'pnl-roy-ej6-blanco.png'], ['Descargar TikZ', 'pnl-roy-ej6-blanco.tex']]) {
+    if (!(await fxMenu(page)).open) await fxOpen(page);
+    const [dl] = await Promise.all([page.waitForEvent('download'), act(name).click()]);
+    assert.equal(dl.suggestedFilename(), file);
+    const body = fs.readFileSync(await dl.path());
+    if (file.endsWith('.png')) assert.equal(body.subarray(1, 4).toString(), 'PNG');
+    if (file.endsWith('.svg')) assert.match(body.toString(), /<title>Red ROY · Ejercicio 6<\/title>/);
+    if (file.endsWith('.tex')) { assert.match(body.toString(), /^\\documentclass\[border=4pt\]\{standalone\}/); assert.doesNotMatch(body.toString(), /pnl thick\]/); }
+    await page.waitForFunction(() => !document.querySelector('#fxTest > details.fx').open);
+    assert.equal(await page.evaluate(() => document.activeElement === document.querySelector('#fxTest > details.fx > summary')), true, file);
+    assert.equal(await page.locator('.fx-off').count(), 0, `${file}: el dibujo en blanco no se queda en la página`);
+  }
+  await fxOpen(page);
+  await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('no')); });
+  await act('Copiar TikZ').click();
+  await page.waitForFunction(() => document.querySelector('#fxTest [role="status"]').textContent !== '');
+  assert.equal((await fxMenu(page)).live, 'El navegador no deja copiar. Usa «Descargar TikZ».');
+  await close(page);
+});
+
+check('F5d T005 · AC7 y tableros 143: en un ejercicio sin entregar solo «En blanco»; la ruta guiada y el examen con su nota; en inglés; lo elegido se recuerda en la visita', async () => {
+  const page = await open(`cpm.html?fx=1#${FX_WORK}`);
+  await fxMount(page, { holder: 'fxA', states: ['blank'], ctx: 'ex', initial: 'blank' });
+  await fxOpen(page, 'fxA');
+  let m = await fxMenu(page, 'fxA');
+  assert.deepEqual(m.seg, ['En blanco*']);
+  assert.deepEqual(m.hints.slice(0, 1), ['«Resuelta» aparece al entregar el ejercicio o pedir la solución.']);
+  await fxMount(page, { holder: 'fxB', note: 'route', ctx: 'route' });
+  await fxOpen(page, 'fxB');
+  m = await fxMenu(page, 'fxB');
+  assert.deepEqual(m.seg, ['En blanco', 'Resuelta*']);
+  assert.equal(m.hints[0], 'En la ruta guiada, «Resuelta» es lo que ya se ve en este paso.');
+  await fxMount(page, { holder: 'fxC', note: 'exam', states: ['solved'], ctx: 'exam' });
+  await fxOpen(page, 'fxC');
+  m = await fxMenu(page, 'fxC');
+  assert.deepEqual(m.seg, []);
+  assert.equal(m.hints[0], 'Como en el documento: en blanco en el enunciado, resuelta en la solución.');
+  await fxMount(page, { holder: 'fxD', lang: 'en', ctx: 'en' });
+  await fxOpen(page, 'fxD');
+  m = await fxMenu(page, 'fxD');
+  assert.equal(m.btn, 'Export');
+  assert.deepEqual(m.seg, ['Blank', 'Solved*']);
+  assert.deepEqual(m.acts, ['Download SVG', 'Download PNG (double size)', 'Copy TikZ', 'Download TikZ (standalone .tex)']);
+  // Lo elegido se recuerda en la visita (mismo sitio), sin entrar en el enlace.
+  await page.locator('#fxD .seg button', { hasText: 'Blank' }).click();
+  await fxMount(page, { holder: 'fxE', lang: 'en', ctx: 'en' });
+  await fxOpen(page, 'fxE');
+  assert.deepEqual((await fxMenu(page, 'fxE')).seg, ['Blank*', 'Solved']);
+  assert.doesNotMatch(await page.evaluate(() => location.hash), /fx|blank/);
+  await close(page);
+});
+
+check('F5d T005 · AC10 (avance de T009): axe sin violaciones con el menú abierto, en claro y en oscuro, ES y EN; a 360 px, sin desplazamiento horizontal', async () => {
+  for (const [scheme, lang, width] of [['light', 'es', 1280], ['dark', 'en', 1280], ['light', 'es', 360]]) {
+    const page = await open(`cpm.html?fx=1#${FX_WORK.replace('lang=es', `lang=${lang}`)}`, { scheme, width });
+    await fxMount(page, { lang });
+    await fxOpen(page);
+    await axe(page, `F5d T005 menú «Exportar» · ${scheme} · ${lang} · ${width}`);
+    if (width === 360) assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 360);
+    await close(page);
+  }
+});
+
 // ---------- Ejecución ----------
 
 (async () => {

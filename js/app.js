@@ -111,8 +111,10 @@
     rs: ['css/rs.css', 'js/core/resource.js', 'js/core/resex.js', 'js/i18n-rs.js', 'js/views/rs-gantt.js', 'js/rs.js'],
     // F5c (T013): «Aprende más» de recursos, al abrirlo.
     rl: ['js/learn-rs.js'],
+    // F5d (P8, T005): exportar una figura, al abrir el menú «Exportar».
+    fx: ['css/fx.css', 'js/i18n-fx.js', 'js/views/fig-tikz.js', 'js/fig-export.js'],
   };
-  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt, rs: () => !!G.rsTab, rl: () => !!G.learnRs };
+  const READY = { m0: () => !!G.m0, ex: () => !!G.ex, st: () => !!G.statements, sg: () => !!G.stmtgen, un: () => !!G.unc, u7: () => !!G.m7, u7r: () => !!G.m7rep, u56: () => !!G.uncM56, cr: () => !!G.retoTable, xb: () => !!G.exBuild, dt: () => !!G.exDet, pb: () => !!G.exProb, mx: () => !!G.exMc, mxr: () => !!G.exMcRead, mxh: () => !!G.exMcHand, xr: () => !!G.royTable, lr: () => !!G.learn, ul: () => !!G.learnUnc, l7: () => !!G.learnM7, gr: () => !!G.gprTab, gl: () => !!G.learnGpr, ct: () => !!G.ctTab, cl: () => !!G.learnCt, rs: () => !!G.rsTab, rl: () => !!G.learnRs, fx: () => !!G.figExport && !!G.figTikz && !!G.i18nFx };
   // Un grupo que falló (un script que no llegó o que no dejó su global) no está listo hasta que se vuelva a cargar entero:
   // sus scripts pueden haberse quedado con dependencias sin definir (revisión de la F4b, I-F3 e I-F5).
   const broken = new Set();
@@ -157,6 +159,8 @@
     }
     return loading[group];
   }
+  // F5d (T005): el botón «Exportar» (dom.figButton) carga fx.
+  G.figLoad = () => need('fx');
   // F4b (T002): el grupo cr hace falta con la red PERT en el comparador, en el reto o en el dibujo progresivo.
   // Solo en la ruta y el taller, como groupsOf: un enlace de otra vista con graph=aoa&view=cmp no lo carga (revisión de la
   // F4b, I-F4: con M7 pasaba de 1 MB).

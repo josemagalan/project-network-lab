@@ -322,3 +322,14 @@ test('F3f T010: los textos del examen (i18n-exam) están en los dos idiomas, con
   // T012: las páginas van aparte, con «1 page» en singular.
   assert.equal(I.t('en', 'exam.page.status', { l: 'B', s: 7, u: '', pages: I.t('en', 'exam.page.pages', { n: 3, paper: 'A4' }) }), 'Version B · seed 7 · 3 pages on A4');
 });
+
+test('F5d T005: los textos del menú «Exportar» (i18n-fx) están en los dos idiomas, con los mismos parámetros; el botón, en los textos comunes', () => {
+  const IF = require('../js/i18n-fx.js');
+  assert.deepEqual(keysDeep(IF.es), keysDeep(IF.en));
+  for (const lang of I.languages) {
+    assert.equal(I.dict[lang].fx, IF[lang]);
+    assert.ok(I.dict[lang].ctl.export, `${lang} ctl.export`);
+  }
+  assert.equal(I.t('es', 'ctl.export'), 'Exportar');
+  assert.equal(I.t('en', 'ctl.export'), 'Export');
+});

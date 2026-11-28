@@ -25,7 +25,39 @@
 
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); return el; }
 
-  const api = { h, clear };
+  // F5d (T005, P8, P10): el botón «Exportar». El menú es del grupo fx (PNL.figLoad). Otra llamada con el mismo
+  // contenedor le da la figura nueva sin cerrar el menú. Solo con ?fx=1 hasta la publicación.
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const fxOn = () => { try { return new URLSearchParams(root.location.search).get('fx') === '1'; } catch { return false; } };
+  function figButton(holder, spec) {
+    if (!holder) return null;
+    let d = holder.querySelector(':scope > details.fx');
+    if (!fxOn() || !root.PNL.figLoad) { if (d) d.remove(); return null; }
+    const label = root.PNL.i18n.t(spec.lang, 'ctl.export');
+    if (d) {
+      d.querySelector('summary > span').textContent = label;
+      d.fxSpec = spec;
+      if (root.PNL.figExport && d.querySelector('.fx-panel')) root.PNL.figExport.update(d, spec);
+      return d;
+    }
+    const icon = root.document.createElementNS(SVGNS, 'svg');
+    for (const [k, v] of [['viewBox', '0 0 24 24'], ['width', '15'], ['height', '15'], ['aria-hidden', 'true'], ['focusable', 'false']]) icon.setAttribute(k, v);
+    const path = root.document.createElementNS(SVGNS, 'path');
+    for (const [k, v] of [['d', 'M12 3v12m0 0-5-5m5 5 5-5M4 20h16'], ['fill', 'none'], ['stroke', 'currentColor'], ['stroke-width', '2'], ['stroke-linecap', 'round'], ['stroke-linejoin', 'round']]) path.setAttribute(k, v);
+    icon.appendChild(path);
+    d = h('details', { class: 'fx' }, [h('summary', {}, [icon, h('span', { text: label }), h('span', { class: 'chev', 'aria-hidden': 'true', text: '▾' })])]);
+    d.fxSpec = spec;
+    d.addEventListener('toggle', () => {
+      if (!d.open || d.querySelector('.fx-panel')) return;
+      root.PNL.figLoad().then(() => { if (d.open && !d.querySelector('.fx-panel')) root.PNL.figExport.mount(d, d.fxSpec); }, () => { d.open = false; });
+    });
+    holder.appendChild(d);
+    return d;
+  }
+
+  const api = { h, clear, figButton };
+  root.PNL = root.PNL || {};
+  root.PNL.figButton = figButton;
   root.PNL = root.PNL || {};
   root.PNL.dom = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

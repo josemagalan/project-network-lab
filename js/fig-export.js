@@ -166,7 +166,108 @@
     } catch { return false; }
   }
 
-  const api = { themeMap, fileName, treeOf, svgFile, png, download, copy };
+  // ---------- El menú (T005; tableros 142–146) ----------
+  // mount(details, spec) pinta el menú dentro del <details class="fx"> de dom.figButton; update(details, spec) le da la
+  // figura nueva al redibujar la vista. spec: { kind, project, title, lang, states, initial, note ('route'|'exam'), ctx,
+  // solved(), blank() }. Lo elegido se recuerda en la visita por sitio (ctx), sin entrar en el enlace (decisión de T004).
+  const chosen = new Map();
+  const t = (spec, k) => root.PNL.i18n.t(spec.lang, `fx.${k}`);
+  /** Un contenedor fuera de la vista para dibujar «en blanco» (se quita al terminar cada exportación). */
+  function offscreen() {
+    const c = root.document.createElement('div');
+    c.className = 'fx-off';
+    c.setAttribute('aria-hidden', 'true');
+    root.document.body.appendChild(c);
+    return c;
+  }
+  const dropOffscreen = () => root.document.querySelectorAll('.fx-off').forEach((c) => c.remove());
+  const stateOf = (spec, d) => {
+    const ok = (x) => x && spec.states.includes(x);
+    if (ok(d.fxState)) return d.fxState;
+    if (ok(chosen.get(spec.ctx || ''))) return chosen.get(spec.ctx || '');
+    if (ok(spec.initial)) return spec.initial;
+    return spec.states.includes('solved') ? 'solved' : spec.states[0];
+  };
+  const shape = (spec) => JSON.stringify([spec.lang, spec.states, spec.note || null]);
+
+  function build(d) {
+    const spec = d.fxSpec; const h = root.PNL.dom.h;
+    const old = d.querySelector('.fx-panel'); if (old) old.remove();
+    d.fxShape = shape(spec);
+    d.fxState = stateOf(spec, d);
+    const live = h('p', { class: 'fx-live', role: 'status' });
+    const foot = h('p', { class: 'fx-hint fx-foot', text: t(spec, 'hint') });
+    const say = (msg, kind) => { live.textContent = msg || ''; live.className = `fx-live${kind ? ` ${kind}` : ''}`; foot.hidden = !!msg; };
+    const kids = [];
+    let seg = null;
+    if (spec.note !== 'exam') {
+      kids.push(h('p', { class: 'fx-lab', text: t(spec, 'show') }));
+      seg = h('div', { class: 'seg', role: 'group', 'aria-label': t(spec, 'show') }, spec.states.map((k) => h('button', { type: 'button', 'data-state': k, 'aria-pressed': String(k === d.fxState), text: t(spec, k),
+        onclick: () => { d.fxState = k; chosen.set(spec.ctx || '', k); seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.state === k))); say(''); } })));
+      kids.push(seg);
+      if (!spec.states.includes('solved')) kids.push(h('p', { class: 'fx-hint', text: t(spec, 'exOnly') }));
+      if (spec.note === 'route') kids.push(h('p', { class: 'fx-hint', text: t(spec, 'route') }));
+      kids.push(h('hr'));
+    } else kids.push(h('p', { class: 'fx-hint', text: t(spec, 'exam') }));
+    const done = () => { d.open = false; d.querySelector('summary').focus(); };
+    const run = async (act) => {
+      const sp = d.fxSpec; const st = d.fxState;
+      const title = typeof sp.title === 'function' ? sp.title(st) : sp.title;
+      let el = null;
+      try { el = st === 'solved' ? sp.solved() : sp.blank(); } catch { el = null; }
+      if (!el) { dropOffscreen(); say(t(sp, 'noFig'), 'warn'); return; }
+      const name = (ext) => fileName(sp.kind, sp.project, st, ext);
+      try {
+        if (act === 'copy') {
+          const ok = await copy(root.PNL.figTikz.toTikz(treeOf(el), { title }));
+          say(t(sp, ok ? 'copied' : 'noCopy'), ok ? 'ok' : 'warn');
+          return;
+        }
+        if (act === 'svg') download(name('svg'), svgFile(el, { title }), 'image/svg+xml');
+        if (act === 'tex') download(name('tex'), root.PNL.figTikz.toTikz(treeOf(el), { title, standalone: true }), 'text/x-tex');
+        if (act === 'png') {
+          let b = null;
+          try { b = await png(el, 2); } catch { b = null; }
+          if (!b) { say(t(sp, 'pngFail'), 'warn'); return; }
+          download(name('png'), b);
+        }
+        say('');
+        done();
+      } finally { dropOffscreen(); }
+    };
+    const act = (k, ext) => h('button', { type: 'button', class: 'fx-act', 'data-act': k, onclick: () => run(k) }, [t(spec, k), ext ? h('span', { class: 'fx-ext', text: ` ${t(spec, ext)}` }) : null]);
+    kids.push(act('svg'), act('png', 'pngExt'), act('copy'), act('tex', 'texExt'), foot, live);
+    d.appendChild(h('div', { class: 'fx-panel', role: 'group', 'aria-label': t(spec, 'label') }, kids));
+  }
+
+  // Alineado a la derecha del botón; si así se saldría por la izquierda (un botón al principio de la línea), a la izquierda.
+  function place(d) {
+    const pn = d.querySelector('.fx-panel'); if (!pn || !d.open) return;
+    pn.classList.remove('fx-left');
+    if (pn.getBoundingClientRect().left < 8) pn.classList.add('fx-left');
+  }
+  function mount(d, spec) {
+    d.fxSpec = spec;
+    build(d);
+    place(d);
+    if (!d.fxKeys) {
+      d.fxKeys = true;
+      d.addEventListener('toggle', () => place(d));
+      d.addEventListener('keydown', (e) => { if (e.key === 'Escape' && d.open) { e.preventDefault(); d.open = false; d.querySelector('summary').focus(); } });
+    }
+  }
+  function update(d, spec) {
+    d.fxSpec = spec;
+    if (d.fxShape !== shape(spec)) build(d);
+  }
+  // Pulsar fuera cierra los menús abiertos (como «Ajustes»); el foco no se mueve.
+  if (root.document) {
+    root.document.addEventListener('click', (e) => {
+      root.document.querySelectorAll('details.fx[open]').forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+    });
+  }
+
+  const api = { themeMap, fileName, treeOf, svgFile, png, download, copy, offscreen, mount, update };
   root.PNL = root.PNL || {};
   root.PNL.figExport = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
